@@ -21,6 +21,8 @@ interface PlayerSection3DProps {
   currentPlayer: Player | null;
   positions: Record<number, number>;
   isAITurn: boolean;
+  /** Map turn_order(slot) -> agent name when seat is agent-controlled */
+  agentNameBySlot?: Record<number, string>;
   /** When true, show loading state — no dummy players */
   isLoading?: boolean;
   /** When property clicked in My Empire, opens PropertyDetailModal3D (same as board square) */
@@ -46,6 +48,7 @@ export default function PlayerSection3D({
   currentPlayer,
   positions,
   isAITurn,
+  agentNameBySlot,
   isLoading = false,
   onPropertySelect,
   openTradeSection = false,
@@ -267,6 +270,8 @@ export default function PlayerSection3D({
                 const isMe = me != null && p.user_id === me.user_id;
                 const isCurrent = currentPlayer?.user_id === p.user_id;
                 const canTrade = isNext && !p.in_jail && !isMe;
+                const slot = Number((p as any)?.turn_order || 0);
+                const agentName = slot && agentNameBySlot ? agentNameBySlot[slot] : undefined;
 
                 return (
                   <div
@@ -291,6 +296,15 @@ export default function PlayerSection3D({
                           <Crown className="w-4 h-4 shrink-0 text-amber-400" aria-label="Highest net worth" />
                         )}
                         <span className="truncate">{p.username ?? `Player ${p.user_id}`}</span>
+                        {agentName ? (
+                          <span
+                            className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-cyan-200 bg-cyan-500/20 px-1.5 py-0.5 rounded border border-cyan-400/30"
+                            aria-label={`Agent-controlled: ${agentName}`}
+                            title={`Agent: ${agentName}`}
+                          >
+                            Agent
+                          </span>
+                        ) : null}
                         {isCurrent && (
                           <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-amber-300/90 bg-amber-500/20 px-1.5 py-0.5 rounded" aria-label="Current turn">Turn</span>
                         )}
@@ -299,6 +313,12 @@ export default function PlayerSection3D({
                         <span className="text-emerald-400 font-semibold">${Number(p.balance ?? 0)}</span>
                         <span className="text-slate-500 mx-1">·</span>
                         {getSquareNameFromProperties(properties, pos)}
+                        {agentName ? (
+                          <>
+                            <span className="text-slate-500 mx-1">·</span>
+                            <span className="text-cyan-200/90">Agent: {agentName}</span>
+                          </>
+                        ) : null}
                       </p>
                     </div>
                     {canTrade && (

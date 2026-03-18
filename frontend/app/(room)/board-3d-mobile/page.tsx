@@ -2775,6 +2775,7 @@ function Board3DMobileContent() {
         currentPlayer={currentPlayer ?? null}
         positions={positions}
         isAITurn={isAITurn}
+        agentNameBySlot={Object.fromEntries(agentNameBySlot.entries())}
         isLoading={!!gameCode && gameLoading}
         onPropertySelect={(prop: Property, gp?: GameProperty) => {
           setSelectedProperty(prop);

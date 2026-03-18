@@ -35,12 +35,15 @@ import { submitErc8004Feedback as submitErc8004FeedbackTx } from "../services/er
 import { getActiveByGameId } from "./auctionController.js";
 import UserAgent from "../models/UserAgent.js";
 import agentRegistry from "../services/agentRegistry.js";
+import crypto from "crypto";
 
 const GAME_TYPES = {
   PVP_HUMAN: "PVP_HUMAN",
   AI_HUMAN_VS_AI: "AI_HUMAN_VS_AI",
   AGENT_VS_AI: "AGENT_VS_AI",
   AGENT_VS_AGENT: "AGENT_VS_AGENT",
+  ONCHAIN_AGENT_VS_AI: "ONCHAIN_AGENT_VS_AI",
+  ONCHAIN_AGENT_VS_AGENT: "ONCHAIN_AGENT_VS_AGENT",
 };
 
 /** Generate a 6-character join code (A–Z, 0–9). */
@@ -90,6 +93,10 @@ async function getOrCreateAIUser(aiIndex, chain = "CELO") {
 }
 
 const AI_DIFFICULTIES = ["easy", "hard", "boss"];
+
+function randomToken48() {
+  return crypto.randomBytes(24).toString("hex");
+}
 
 /** Build ai_difficulty payload for game_settings: ai_difficulty, ai_difficulty_mode, ai_difficulty_per_slot. */
 function buildAiDifficultyPayload(aiDiff, aiDiffMode, aiCount, isAi) {
@@ -1466,6 +1473,602 @@ export const createAgentVsAI = async (req, res) => {
   } catch (err) {
     logger.error({ err: err?.message }, "createAgentVsAI failed");
     return res.status(500).json({ success: false, message: err?.message || "Failed to create Agent vs AI game" });
+  }
+};
+
+/**
+ * POST /games/create-onchain-agent-vs-ai
+ * Creates an on-chain AI game for the authenticated user (slot 1), then binds slot 1 to the selected agent.
+ * Body:
+ *  - ai_count: 1..7 (opponents)
+ *  - duration?: number (minutes) (0 => untimed)
+ *  - chain?: string
+ *  - settings?: house rules (starting_cash, auction, rent_in_prison, mortgage, even_build, randomize_play_order, ai_difficulty, ai_difficulty_mode)
+ *  - my_agent: { user_agent_id, name? } OR { callbackUrl, agentId, name?, chainId? }
+ *  - code?: 6-char join code (optional; server generates if omitted)
+ *  - symbol?: token symbol for the player (default "hat")
+ */
+export const createOnchainAgentVsAI = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user?.id) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+
+    const {
+      ai_count,
+      duration = 30,
+      chain,
+      settings = {},
+      my_agent,
+      code: rawCode,
+      symbol,
+    } = req.body || {};
+
+    const aiCount = Math.max(1, Math.min(7, Number(ai_count) || 0));
+    if (!aiCount) {
+      return res.status(400).json({ success: false, message: "ai_count must be between 1 and 7" });
+    }
+    if (!my_agent || (my_agent.user_agent_id == null && !my_agent.callbackUrl && !my_agent.callback_url)) {
+      return res.status(400).json({ success: false, message: "my_agent is required (user_agent_id or callbackUrl)" });
+    }
+
+    const chainForCreate = User.normalizeChain(chain || "CELO");
+    const startingCash = Number(settings?.starting_cash ?? 1500);
+
+    let code = normalizeJoinCode(rawCode);
+    if (!code) code = generateJoinCode6();
+    if (code.length !== 6) {
+      return res.status(400).json({ success: false, message: "code must be exactly 6 characters" });
+    }
+    const existingGame = await Game.findByCode(code);
+    if (existingGame) {
+      return res.status(400).json({ success: false, message: "Game code already exists" });
+    }
+
+    const addrForCreate =
+      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) ||
+      (user.smart_wallet_address && String(user.smart_wallet_address).trim()) ||
+      user.address;
+    const contractUser = await ensureUserHasContractPassword(db, user.id, chainForCreate, addrForCreate);
+    if (!contractUser?.password_hash) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is not set up for play on this network. Link a wallet in Profile and register on-chain, then try again.",
+      });
+    }
+
+    const gameType = "PRIVATE";
+    const playerSymbol = String(symbol || "hat").trim().toLowerCase() || "hat";
+    const gameCodeForContract = code.trim().toUpperCase();
+
+    const { gameId: onChainGameIdFromEvent } = await createAIGameByBackend(
+      contractUser.address,
+      contractUser.password_hash,
+      contractUser.username,
+      gameType,
+      playerSymbol,
+      aiCount,
+      gameCodeForContract,
+      startingCash,
+      chainForCreate
+    );
+
+    let onChainGameId = onChainGameIdFromEvent;
+    if (!onChainGameId && gameCodeForContract) {
+      try {
+        const contractGame = await callContractRead("getGameByCode", [gameCodeForContract], chainForCreate);
+        const id = contractGame?.id ?? contractGame?.[0];
+        if (id != null) onChainGameId = String(id);
+      } catch (lookupErr) {
+        logger.warn({ err: lookupErr?.message, code: gameCodeForContract }, "getGameByCode fallback failed after createAIGameByBackend");
+      }
+    }
+
+    if (!onChainGameId) {
+      return res.status(500).json({ success: false, message: "Contract did not return game ID" });
+    }
+
+    const game = await Game.create({
+      code,
+      mode: "PRIVATE",
+      creator_id: user.id,
+      next_player_id: user.id,
+      number_of_players: aiCount + 1,
+      status: "RUNNING",
+      is_minipay: false,
+      is_ai: true,
+      duration: String(Number(duration) || 0),
+      chain: chainForCreate,
+      contract_game_id: String(onChainGameId),
+      game_type: GAME_TYPES.ONCHAIN_AGENT_VS_AI,
+      started_at: db.fn.now(),
+    });
+
+    await Chat.create({ game_id: game.id, status: "open" });
+
+    const aiDiffPayload = buildAiDifficultyPayload(
+      settings?.ai_difficulty || "boss",
+      settings?.ai_difficulty_mode || "random",
+      aiCount,
+      true
+    );
+    const gs = await GameSetting.create({
+      game_id: game.id,
+      auction: settings?.auction ?? true,
+      rent_in_prison: settings?.rent_in_prison ?? false,
+      mortgage: settings?.mortgage ?? true,
+      even_build: settings?.even_build ?? true,
+      randomize_play_order: settings?.randomize_play_order ?? false,
+      starting_cash: startingCash,
+      ...aiDiffPayload,
+    });
+
+    // Seat 1: the real user (on-chain address)
+    await GamePlayer.create({
+      game_id: game.id,
+      user_id: user.id,
+      address: contractUser.address,
+      balance: startingCash,
+      position: 0,
+      turn_order: 1,
+      symbol: playerSymbol,
+      chance_jail_card: false,
+      community_chest_jail_card: false,
+    });
+
+    // Seats 2..N: AI users in DB (so UI has full roster immediately)
+    const availableSymbols = AI_SYMBOLS.filter((s) => s !== playerSymbol);
+    for (let i = 0; i < aiCount; i++) {
+      const aiUser = await getOrCreateAIUser(i, chainForCreate);
+      if (!aiUser) continue;
+      const aiSymbol = availableSymbols[i % availableSymbols.length] || AI_SYMBOLS[i % AI_SYMBOLS.length] || "car";
+      await GamePlayer.create({
+        game_id: game.id,
+        user_id: aiUser.id,
+        address: aiUser.address,
+        balance: startingCash,
+        position: 0,
+        turn_order: i + 2,
+        symbol: aiSymbol,
+        chance_jail_card: false,
+        community_chest_jail_card: false,
+      });
+    }
+
+    await GamePlayer.setTurnStart(game.id, user.id);
+
+    // Bind slot 1 to the chosen agent so the board can auto-play the user's seat.
+    await agentRegistry.registerAgent({
+      gameId: game.id,
+      slot: 1,
+      agentId: my_agent.agentId || my_agent.agent_id || String(my_agent.user_agent_id || my_agent.userAgentId || ""),
+      callbackUrl: my_agent.callbackUrl || my_agent.callback_url || null,
+      user_agent_id: my_agent.user_agent_id || my_agent.userAgentId || null,
+      chainId: my_agent.chainId || my_agent.chain_id || 42220,
+      name: my_agent.name || "My Agent",
+    });
+
+    await recordEvent("game_created", {
+      entityType: "game",
+      entityId: game.id,
+      payload: { game_type: GAME_TYPES.ONCHAIN_AGENT_VS_AI, ai_count: aiCount, on_chain: true },
+    });
+
+    const io = req.app.get("io");
+    if (io && game.code) {
+      emitGameUpdate(io, game.code);
+      io.to(game.code).emit("game-started", { game: await Game.findById(game.id) });
+    }
+
+    const fullGame = await Game.findById(game.id);
+    const fullPlayers = await GamePlayer.findByGameId(game.id);
+    return res.status(201).json({
+      success: true,
+      data: { ...fullGame, settings: gs, players: fullPlayers },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "createOnchainAgentVsAI failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to create on-chain Agent vs AI game" });
+  }
+};
+
+/**
+ * POST /games/create-onchain-agent-vs-agent-lobby
+ * Creates a DB lobby for an on-chain multiplayer agent-vs-agent game, with per-slot invite tokens.
+ * Slot 1 is immediately accepted by the creator (must provide my_agent).
+ *
+ * Body:
+ *  - number_of_players: 2..8
+ *  - duration?: number (minutes)
+ *  - chain?: string
+ *  - settings?: house rules (starting_cash, auction, rent_in_prison, mortgage, even_build, randomize_play_order)
+ *  - my_agent: { user_agent_id, name? } OR { callbackUrl, agentId, name?, chainId? }
+ *  - code?: 6-char join code (optional; server generates if omitted)
+ *  - agents?: optional array to prefill additional slots owned by creator: [{ slot, user_agent_id, name? }]
+ */
+export const createOnchainAgentVsAgentLobby = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user?.id) return res.status(401).json({ success: false, message: "Authentication required" });
+
+    const {
+      number_of_players,
+      duration = 30,
+      chain,
+      settings = {},
+      my_agent,
+      agents: prefillAgents = [],
+      code: rawCode,
+    } = req.body || {};
+
+    const n = Math.max(2, Math.min(8, Number(number_of_players) || 0));
+    if (!n) return res.status(400).json({ success: false, message: "number_of_players must be 2..8" });
+    if (!my_agent || (my_agent.user_agent_id == null && !my_agent.callbackUrl && !my_agent.callback_url)) {
+      return res.status(400).json({ success: false, message: "my_agent is required (user_agent_id or callbackUrl)" });
+    }
+
+    const chainForLobby = User.normalizeChain(chain || "CELO");
+    const startingCash = Number(settings?.starting_cash ?? 1500);
+
+    let code = normalizeJoinCode(rawCode);
+    if (!code) code = generateJoinCode6();
+    if (code.length !== 6) return res.status(400).json({ success: false, message: "code must be exactly 6 characters" });
+    const existingGame = await Game.findByCode(code);
+    if (existingGame) return res.status(400).json({ success: false, message: "Game code already exists" });
+
+    const game = await Game.create({
+      code,
+      mode: "PRIVATE",
+      creator_id: user.id,
+      next_player_id: null,
+      number_of_players: n,
+      status: "PENDING",
+      is_minipay: false,
+      is_ai: false,
+      duration: String(Number(duration) || 0),
+      chain: chainForLobby,
+      contract_game_id: null,
+      game_type: GAME_TYPES.ONCHAIN_AGENT_VS_AGENT,
+      started_at: null,
+    });
+
+    await Chat.create({ game_id: game.id, status: "open" });
+
+    const gs = await GameSetting.create({
+      game_id: game.id,
+      auction: settings?.auction ?? true,
+      rent_in_prison: settings?.rent_in_prison ?? false,
+      mortgage: settings?.mortgage ?? true,
+      even_build: settings?.even_build ?? true,
+      randomize_play_order: settings?.randomize_play_order ?? false,
+      starting_cash: startingCash,
+    });
+
+    // Create invite tokens for each slot.
+    const invites = [];
+    for (let slot = 1; slot <= n; slot++) {
+      invites.push({
+        game_id: game.id,
+        slot,
+        token: randomToken48(),
+        status: "OPEN",
+        owner_user_id: null,
+        user_agent_id: null,
+        agent_name: null,
+        expires_at: null,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+    }
+    await db("agent_game_invites").insert(invites);
+
+    // Accept slot 1 (creator) immediately.
+    const myAgentName = my_agent.name || "My Agent";
+    const myAgentId = my_agent.user_agent_id ? Number(my_agent.user_agent_id) : null;
+    if (myAgentId) {
+      const agent = await UserAgent.findById(myAgentId);
+      if (!agent || Number(agent.user_id) !== Number(user.id)) {
+        return res.status(403).json({ success: false, message: "You can only use your own agent for slot 1" });
+      }
+    }
+    await db("agent_game_invites")
+      .where({ game_id: game.id, slot: 1 })
+      .update({
+        status: "ACCEPTED",
+        owner_user_id: user.id,
+        user_agent_id: myAgentId,
+        agent_name: myAgentName,
+        updated_at: db.fn.now(),
+      });
+
+    await agentRegistry.registerAgent({
+      gameId: game.id,
+      slot: 1,
+      agentId: my_agent.agentId || my_agent.agent_id || String(my_agent.user_agent_id || my_agent.userAgentId || ""),
+      callbackUrl: my_agent.callbackUrl || my_agent.callback_url || null,
+      user_agent_id: my_agent.user_agent_id || my_agent.userAgentId || null,
+      chainId: my_agent.chainId || my_agent.chain_id || 42220,
+      name: myAgentName,
+    });
+
+    // Optional prefill: creator can claim additional slots with their own agents (useful for "my agents fight").
+    if (Array.isArray(prefillAgents)) {
+      for (const entry of prefillAgents) {
+        const slot = Number(entry?.slot);
+        const userAgentId = Number(entry?.user_agent_id);
+        if (!slot || slot < 2 || slot > n) continue;
+        if (!userAgentId) continue;
+        const agent = await UserAgent.findById(userAgentId);
+        if (!agent || Number(agent.user_id) !== Number(user.id)) continue;
+        const agentName = entry?.name || agent.name || `Agent ${slot}`;
+        await db("agent_game_invites")
+          .where({ game_id: game.id, slot })
+          .update({
+            status: "ACCEPTED",
+            owner_user_id: user.id,
+            user_agent_id: userAgentId,
+            agent_name: agentName,
+            updated_at: db.fn.now(),
+          });
+        await agentRegistry.registerAgent({
+          gameId: game.id,
+          slot,
+          agentId: String(userAgentId),
+          user_agent_id: userAgentId,
+          chainId: 42220,
+          name: agentName,
+        });
+      }
+    }
+
+    const rows = await db("agent_game_invites").where({ game_id: game.id }).orderBy("slot", "asc");
+    await recordEvent("agent_lobby_created", {
+      entityType: "game",
+      entityId: game.id,
+      payload: { game_type: GAME_TYPES.ONCHAIN_AGENT_VS_AGENT, number_of_players: n },
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: { ...(await Game.findById(game.id)), settings: gs, invites: rows },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "createOnchainAgentVsAgentLobby failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to create on-chain Agent vs Agent lobby" });
+  }
+};
+
+/**
+ * GET /games/:id/agent-vs-agent-lobby
+ * Returns lobby game + invite slot states.
+ */
+export const getOnchainAgentVsAgentLobby = async (req, res) => {
+  try {
+    const gameId = Number(req.params.id);
+    const game = await Game.findById(gameId);
+    if (!game) return res.status(404).json({ success: false, message: "Game not found" });
+    if (game.game_type !== GAME_TYPES.ONCHAIN_AGENT_VS_AGENT) {
+      return res.status(400).json({ success: false, message: "Not an on-chain Agent vs Agent lobby" });
+    }
+    const invites = await db("agent_game_invites").where({ game_id: gameId }).orderBy("slot", "asc");
+    const settings = await GameSetting.findByGameId(gameId);
+    return res.status(200).json({ success: true, data: { ...game, settings, invites } });
+  } catch (err) {
+    logger.error({ err: err?.message }, "getOnchainAgentVsAgentLobby failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to load lobby" });
+  }
+};
+
+/**
+ * POST /games/:id/accept-agent-seat
+ * Claim a slot in an on-chain agent-vs-agent lobby.
+ * Body: { token, user_agent_id, name? }
+ */
+export const acceptAgentSeat = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user?.id) return res.status(401).json({ success: false, message: "Authentication required" });
+
+    const gameId = Number(req.params.id);
+    const { token, user_agent_id, name } = req.body || {};
+    if (!token) return res.status(400).json({ success: false, message: "token is required" });
+    const uaid = Number(user_agent_id);
+    if (!uaid) return res.status(400).json({ success: false, message: "user_agent_id is required" });
+
+    const game = await Game.findById(gameId);
+    if (!game) return res.status(404).json({ success: false, message: "Game not found" });
+    if (game.game_type !== GAME_TYPES.ONCHAIN_AGENT_VS_AGENT) {
+      return res.status(400).json({ success: false, message: "Not an on-chain Agent vs Agent lobby" });
+    }
+    if (game.status !== "PENDING") {
+      return res.status(400).json({ success: false, message: "Lobby is not open for joining" });
+    }
+
+    const invite = await db("agent_game_invites").where({ game_id: gameId, token: String(token) }).first();
+    if (!invite) return res.status(404).json({ success: false, message: "Invite not found" });
+    if (invite.status !== "OPEN") {
+      return res.status(400).json({ success: false, message: "This seat is not available" });
+    }
+
+    const agent = await UserAgent.findById(uaid);
+    if (!agent || Number(agent.user_id) !== Number(user.id)) {
+      return res.status(403).json({ success: false, message: "You can only accept with an agent you own" });
+    }
+
+    const agentName = String(name || agent.name || `Agent ${invite.slot}`).slice(0, 128);
+    await db("agent_game_invites")
+      .where({ id: invite.id })
+      .update({
+        status: "ACCEPTED",
+        owner_user_id: user.id,
+        user_agent_id: uaid,
+        agent_name: agentName,
+        updated_at: db.fn.now(),
+      });
+
+    await agentRegistry.registerAgent({
+      gameId,
+      slot: Number(invite.slot),
+      agentId: String(uaid),
+      user_agent_id: uaid,
+      chainId: 42220,
+      name: agentName,
+    });
+
+    const invites = await db("agent_game_invites").where({ game_id: gameId }).orderBy("slot", "asc");
+    const ready = invites.length === Number(game.number_of_players) && invites.every((r) => r.status === "ACCEPTED");
+    return res.status(200).json({ success: true, data: { invites, ready } });
+  } catch (err) {
+    logger.error({ err: err?.message }, "acceptAgentSeat failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to accept seat" });
+  }
+};
+
+/**
+ * POST /games/:id/start-onchain-agent-vs-agent
+ * Creator-only: once all seats are accepted, create the on-chain game and join all owners.
+ * Body: { chain?: string }
+ */
+export const startOnchainAgentVsAgent = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user?.id) return res.status(401).json({ success: false, message: "Authentication required" });
+
+    const gameId = Number(req.params.id);
+    const game = await Game.findById(gameId);
+    if (!game) return res.status(404).json({ success: false, message: "Game not found" });
+    if (game.game_type !== GAME_TYPES.ONCHAIN_AGENT_VS_AGENT) {
+      return res.status(400).json({ success: false, message: "Not an on-chain Agent vs Agent lobby" });
+    }
+    if (Number(game.creator_id) !== Number(user.id)) {
+      return res.status(403).json({ success: false, message: "Only the lobby creator can start this game" });
+    }
+    if (game.contract_game_id) {
+      return res.status(400).json({ success: false, message: "Game already started on-chain" });
+    }
+
+    const invites = await db("agent_game_invites").where({ game_id: gameId }).orderBy("slot", "asc");
+    const n = Number(game.number_of_players);
+    if (invites.length !== n || invites.some((r) => r.status !== "ACCEPTED" || !r.owner_user_id || !r.user_agent_id)) {
+      return res.status(400).json({ success: false, message: "All seats must be accepted before starting" });
+    }
+
+    const chainForStart = User.normalizeChain(req.body?.chain || game.chain || "CELO");
+    const settings = await GameSetting.findByGameId(gameId);
+    const startingCash = Number(settings?.starting_cash ?? 1500);
+    const gameType = "PRIVATE";
+    const gameCodeForContract = String(game.code || "").trim().toUpperCase();
+
+    // Ensure each owner has contract auth and fetch usernames.
+    const ownerById = new Map();
+    for (const row of invites) {
+      const ownerId = Number(row.owner_user_id);
+      if (!ownerById.has(ownerId)) {
+        const u = await User.findById(ownerId);
+        if (!u) return res.status(400).json({ success: false, message: `Owner user not found for slot ${row.slot}` });
+        ownerById.set(ownerId, u);
+      }
+    }
+
+    const contractByOwnerId = new Map();
+    for (const [ownerId, owner] of ownerById.entries()) {
+      const addrForChain =
+        (owner.linked_wallet_address && String(owner.linked_wallet_address).trim()) ||
+        (owner.smart_wallet_address && String(owner.smart_wallet_address).trim()) ||
+        owner.address;
+      const contractUser = await ensureUserHasContractPassword(db, ownerId, chainForStart, addrForChain);
+      if (!contractUser?.password_hash) {
+        return res.status(403).json({
+          success: false,
+          message: `Player for owner ${owner.username} is not set up for on-chain play on ${chainForStart}`,
+        });
+      }
+      contractByOwnerId.set(ownerId, contractUser);
+    }
+
+    // Create on-chain game with creator (slot 1).
+    const slot1 = invites.find((r) => Number(r.slot) === 1);
+    const creatorContract = contractByOwnerId.get(Number(slot1.owner_user_id));
+    const creatorSymbol = AI_SYMBOLS[0] || "hat";
+
+    const createResult = await createGameByBackend(
+      creatorContract.address,
+      creatorContract.password_hash,
+      creatorContract.username,
+      gameType,
+      creatorSymbol,
+      n,
+      gameCodeForContract,
+      startingCash,
+      0n,
+      chainForStart
+    );
+    const onChainGameId = createResult?.gameId;
+    if (!onChainGameId) return res.status(500).json({ success: false, message: "Contract did not return game ID" });
+
+    // Join remaining players on-chain.
+    for (const row of invites) {
+      if (Number(row.slot) === 1) continue;
+      const contractUser = contractByOwnerId.get(Number(row.owner_user_id));
+      const sym = AI_SYMBOLS[Number(row.slot) - 1] || AI_SYMBOLS[(Number(row.slot) - 1) % AI_SYMBOLS.length] || "car";
+      await joinGameByBackend(
+        contractUser.address,
+        contractUser.password_hash,
+        onChainGameId,
+        contractUser.username,
+        sym,
+        gameCodeForContract,
+        chainForStart
+      );
+    }
+
+    // Seed DB game_players for all owners (one per slot).
+    for (const row of invites) {
+      const ownerId = Number(row.owner_user_id);
+      const contractUser = contractByOwnerId.get(ownerId);
+      const sym = AI_SYMBOLS[Number(row.slot) - 1] || AI_SYMBOLS[(Number(row.slot) - 1) % AI_SYMBOLS.length] || "car";
+      await GamePlayer.create({
+        game_id: gameId,
+        user_id: ownerId,
+        address: contractUser.address,
+        balance: startingCash,
+        position: 0,
+        turn_order: Number(row.slot),
+        symbol: sym,
+        chance_jail_card: false,
+        community_chest_jail_card: false,
+      });
+    }
+
+    await Game.update(gameId, {
+      contract_game_id: String(onChainGameId),
+      status: "RUNNING",
+      started_at: db.fn.now(),
+      next_player_id: Number(slot1.owner_user_id),
+      chain: chainForStart,
+    });
+    await GamePlayer.setTurnStart(gameId, Number(slot1.owner_user_id));
+
+    await recordEvent("game_started", {
+      entityType: "game",
+      entityId: gameId,
+      payload: { game_type: GAME_TYPES.ONCHAIN_AGENT_VS_AGENT, on_chain: true },
+    });
+
+    const io = req.app.get("io");
+    if (io && game.code) {
+      await invalidateGameByCode(game.code);
+      emitGameUpdate(io, game.code);
+      io.to(game.code).emit("game-started", { game: await Game.findById(gameId) });
+    }
+
+    const fullGame = await Game.findById(gameId);
+    const fullPlayers = await GamePlayer.findByGameId(gameId);
+    return res.status(200).json({ success: true, data: { ...fullGame, players: fullPlayers } });
+  } catch (err) {
+    logger.error({ err: err?.message }, "startOnchainAgentVsAgent failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to start on-chain Agent vs Agent game" });
   }
 };
 

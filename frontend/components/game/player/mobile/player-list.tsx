@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Game, Player } from "@/types/game";
 import { getPlayerSymbol } from "@/lib/types/symbol";
 import { useAccount } from "wagmi";
+import { useAgentBindings } from "@/hooks/useAgentBindings";
 
 interface PlayerListProps {
   game: Game;
@@ -29,6 +30,14 @@ const PlayerList: React.FC<PlayerListProps> = ({
 }) => {
   const { address: connectedAddress } = useAccount();
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
+  const { bindings } = useAgentBindings(game?.id);
+  const agentNameBySlot = useMemo(() => {
+    const out: Record<number, string> = {};
+    for (const b of bindings || []) {
+      if (b?.slot != null) out[Number(b.slot)] = String(b.name || `Agent ${b.slot}`);
+    }
+    return out;
+  }, [bindings]);
 
   const myPlayer = sortedPlayers.find(
     (p) => p.address?.toLowerCase() === connectedAddress?.toLowerCase()
@@ -65,6 +74,8 @@ const PlayerList: React.FC<PlayerListProps> = ({
             const isTurn = p.user_id === game.next_player_id;
             const canTrade = isNext && !p.in_jail && !isMe;
             const isSelected = selectedPlayerId === p.user_id;
+            const slot = Number((p as any)?.turn_order || 0);
+            const agentName = slot ? agentNameBySlot[slot] : undefined;
 
             const displayName =
               p.username || p.address?.slice(0, 6) + "..." || "Player";
@@ -106,6 +117,14 @@ const PlayerList: React.FC<PlayerListProps> = ({
                         {isMe && (
                           <span className="px-2 py-0.5 bg-yellow-500/90 text-black text-xs font-black rounded-full flex-shrink-0">
                             YOU
+                          </span>
+                        )}
+                        {agentName && (
+                          <span
+                            className="px-2 py-0.5 bg-cyan-500/20 text-cyan-200 text-[10px] font-extrabold rounded-full border border-cyan-400/30 flex-shrink-0"
+                            title={`Agent: ${agentName}`}
+                          >
+                            AGENT
                           </span>
                         )}
                       </div>
