@@ -168,6 +168,8 @@ const UserRegistryABI = [
   { inputs: [{ name: '', type: 'address' }], name: 'ownerByWallet', outputs: [{ type: 'address' }], stateMutability: 'view', type: 'function' },
   { inputs: [{ name: 'newOwner', type: 'address' }], name: 'transferProfileTo', outputs: [], stateMutability: 'nonpayable', type: 'function' },
   { inputs: [], name: 'recreateWalletForUser', outputs: [{ name: 'newWallet', type: 'address' }], stateMutability: 'nonpayable', type: 'function' },
+  /** Same as recreateWalletForUser but takes profile owner explicitly; contract allows caller to pass their own address. Use this so encoding is unambiguous. */
+  { inputs: [{ name: 'profileOwner', type: 'address' }], name: 'recreateWalletForUserByBackend', outputs: [{ name: 'newWallet', type: 'address' }], stateMutability: 'nonpayable', type: 'function' },
 ] as const;
 
 /** Smart wallet address for a registered user (from TycoonUserRegistry). Only set after registry is deployed and user has registered. */
@@ -257,9 +259,10 @@ export function useTransferProfileTo() {
   };
 }
 
-/** Write: create a new smart wallet for the current profile; registry updates profile to the new wallet. Caller must be profile owner. Old wallet is unchanged (user can move funds manually). */
+/** Write: create a new smart wallet for the current profile; registry updates profile to the new wallet. Caller must be profile owner. Uses recreateWalletForUserByBackend(caller) so encoding matches contract (contract allows profile owner to call for themselves). */
 export function useRecreateWalletForUser() {
   const chainId = useChainId();
+  const { address: walletAddress } = useAccount();
   const registryAddress = USER_REGISTRY_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
@@ -267,14 +270,15 @@ export function useRecreateWalletForUser() {
   const recreate = useCallback(
     async () => {
       if (!registryAddress) throw new Error('User registry not configured for this chain');
+      if (!walletAddress) throw new Error('Connect your wallet to recreate smart wallet');
       return await writeContractAsync({
         address: registryAddress,
         abi: UserRegistryABI,
-        functionName: 'recreateWalletForUser',
-        args: [],
+        functionName: 'recreateWalletForUserByBackend',
+        args: [walletAddress],
       });
     },
-    [registryAddress, writeContractAsync]
+    [registryAddress, walletAddress, writeContractAsync]
   );
 
   return {
