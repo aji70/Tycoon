@@ -2990,12 +2990,23 @@ function Board3DMobilePageContent() {
                 >
                   Continue watching
                 </button>
-                <Link
-                  href="/"
-                  className="block w-full py-3 rounded-xl border border-slate-500 text-slate-300 hover:bg-slate-700/50 font-medium"
+                <button
+                  type="button"
+                  disabled={claimAndLeaveInProgress}
+                  onClick={() => {
+                    // Prevent navigation from interrupting finalize when the game ended.
+                    if (claimAndLeaveInProgress) return;
+                    if (winner && gameTimeUp) {
+                      void handleFinalizeAndLeave();
+                      return;
+                    }
+                    setShowVotedOutModal(false);
+                    router.push("/");
+                  }}
+                  className="block w-full py-3 rounded-xl border border-slate-500 text-slate-300 hover:bg-slate-700/50 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Leave
-                </Link>
+                </button>
               </div>
             </motion.div>
           </motion.div>
