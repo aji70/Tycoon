@@ -725,6 +725,29 @@ const HeroSectionMobile: React.FC = () => {
                   Challenge AI!
                 </span>
               </button>
+
+              {/* Agent Battles */}
+              <button
+                onClick={() => router.push("/agent-battles")}
+                className="relative w-full max-w-[280px] h-12 transition-transform active:scale-[0.98]"
+              >
+                <svg
+                  className="absolute inset-0 w-full h-full"
+                  viewBox="0 0 300 56"
+                  fill="none"
+                  preserveAspectRatio="none"
+                >
+                  <path
+                    d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
+                    fill="#003B3E"
+                    stroke="#00F0FF"
+                    strokeWidth="2.5"
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-sm font-orbitron font-bold uppercase">
+                  Agent Battles
+                </span>
+              </button>
               {(guestUser || isPrivyAuthed) && (
                 <button
                   onClick={() => (isPrivyAuthed ? logout() : guestAuth?.logoutGuest())}

@@ -52,6 +52,7 @@ import { getChainConfig } from "./config/chains.js";
 import { testContractConnection, callContractRead, callContractWrite } from "./services/tycoonContract.js";
 import { getStarknetConfig } from "./config/starknet.js";
 import { isStarknetConfigured, testStarknetConnection } from "./services/starknetContract.js";
+import { startAgentGameRunner } from "./services/agentGameRunner.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -413,6 +414,13 @@ async function start() {
     await agentRegistry.rehydrateFromDb();
   } catch (err) {
     logger.warn({ err: err.message }, "Agent registry rehydrate skipped");
+  }
+
+  // Server-autonomous agent games (Agent vs Agent / Agent vs AI)
+  try {
+    startAgentGameRunner();
+  } catch (err) {
+    logger.warn({ err: err?.message }, "Agent game runner failed to start");
   }
 
   // Step 5: Socket.io Redis adapter (when Redis is available)
