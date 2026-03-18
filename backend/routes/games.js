@@ -9,6 +9,11 @@ import gameController, {
   addAIPlayers,
   createAgentVsAgent,
   createAgentVsAI,
+  createOnchainAgentVsAI,
+  createOnchainAgentVsAgentLobby,
+  getOnchainAgentVsAgentLobby,
+  acceptAgentSeat,
+  startOnchainAgentVsAgent,
   registerOpponentAgent,
   useMyAgent,
   stopUsingMyAgent,
@@ -49,10 +54,15 @@ router.post("/join", join);
 router.post("/leave", leave);
 router.post("/create-as-guest", requireAuth, createAsGuest);
 router.post("/create-ai-as-guest", requireAuth, createAIAsGuest);
+router.post("/create-onchain-agent-vs-ai", requireAuth, createOnchainAgentVsAI);
+router.post("/create-onchain-agent-vs-agent-lobby", requireAuth, createOnchainAgentVsAgentLobby);
 router.post("/create-agent-vs-agent", requireAuth, createAgentVsAgent);
 router.post("/create-agent-vs-ai", requireAuth, createAgentVsAI);
 router.post("/join-as-guest", requireAuth, joinAsGuest);
 router.post("/:id/add-ai-players", addAIPlayers);
+router.get("/:id/agent-vs-agent-lobby", optionalAuth, getOnchainAgentVsAgentLobby);
+router.post("/:id/accept-agent-seat", requireAuth, acceptAgentSeat);
+router.post("/:id/start-onchain-agent-vs-agent", requireAuth, startOnchainAgentVsAgent);
 router.post("/:id/register-opponent-agent", requireAuth, registerOpponentAgent);
 router.get("/:id/agent-bindings", getAgentBindings);
 router.post("/:id/use-my-agent", requireAuth, useMyAgent);

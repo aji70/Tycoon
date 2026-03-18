@@ -19,6 +19,8 @@ interface Mobile3DGameUIProps {
   currentPlayer: Player | null;
   positions: Record<number, number>;
   isAITurn: boolean;
+  /** Map turn_order(slot) -> agent name when seat is agent-controlled */
+  agentNameBySlot?: Record<number, string>;
   isLoading?: boolean;
   onPropertySelect?: (property: Property, gameProperty?: GameProperty) => void;
   viewTradesRequested: boolean;
@@ -51,6 +53,7 @@ export default function Mobile3DGameUI({
   currentPlayer,
   positions,
   isAITurn,
+  agentNameBySlot,
   isLoading = false,
   onPropertySelect,
   viewTradesRequested,
@@ -278,6 +281,7 @@ export default function Mobile3DGameUI({
                       currentPlayer={currentPlayer ?? null}
                       positions={positions ?? {}}
                       isAITurn={isAITurn}
+                      agentNameBySlot={agentNameBySlot}
                       isLoading={false}
                       onPropertySelect={onPropertySelect}
                       openTradeSection={tradesOnlyModal || viewTradesRequested}

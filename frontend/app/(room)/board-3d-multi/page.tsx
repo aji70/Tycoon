@@ -346,7 +346,7 @@ function Board3DPageContent() {
   const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
   const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
   const [showVotedOutModal, setShowVotedOutModal] = useState(false);
-  const { myAgentOn, refetch: refetchAgentBindings } = useAgentBindings(game?.id);
+  const { bindings, myAgentOn, refetch: refetchAgentBindings } = useAgentBindings(game?.id);
   const [myAgentApiKey, setMyAgentApiKeyState] = useState<{ provider: string; apiKey: string } | null>(() => getStoredAgentApiKey());
   const setMyAgentApiKey = useCallback((value: { provider: string; apiKey: string } | null) => {
     setMyAgentApiKeyState(value);
@@ -354,6 +354,14 @@ function Board3DPageContent() {
   }, []);
   const agentOn = myAgentOn || !!myAgentApiKey;
   const { agentSettings, updateAgentSettings } = useAgentSettings();
+
+  const agentNameBySlot = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const b of bindings || []) {
+      if (b?.slot != null) m.set(Number(b.slot), String(b.name || `Agent ${b.slot}`));
+    }
+    return m;
+  }, [bindings]);
 
   const currentPlayerId = game?.next_player_id ?? null;
   const isUntimed = !game?.duration || Number(game.duration) === 0;
@@ -366,7 +374,19 @@ function Board3DPageContent() {
   const hasCommunityChestJailCard = (me?.community_chest_jail_card ?? 0) >= 1;
   const playerCanRoll = isLiveGame && isMyTurn && (me?.balance ?? 0) > 0 && !gameTimeUp && !turnEndScheduled && !buyPrompted && !(meInJail && jailChoiceRequired);
 
-  const livePlayers = useMemo(() => game?.players ?? [], [game?.players]);
+  const livePlayersRaw = useMemo(() => game?.players ?? [], [game?.players]);
+  const isAgentBattle = useMemo(() => {
+    const gt = String((game as any)?.game_type || "").toUpperCase();
+    return gt.includes("AGENT_VS_") || gt.includes("ONCHAIN_AGENT_VS_");
+  }, [game]);
+  const livePlayers = useMemo(() => {
+    if (!isAgentBattle) return livePlayersRaw;
+    return livePlayersRaw.map((p: any) => {
+      const slot = Number(p.turn_order || 0);
+      const agentName = agentNameBySlot.get(slot);
+      return agentName ? { ...p, username: p.username } : p;
+    });
+  }, [isAgentBattle, livePlayersRaw, agentNameBySlot]);
   const liveAnimatedPositions = useMemo(() => {
     const out: Record<number, number> = {};
     livePlayers.forEach((p) => {
@@ -380,9 +400,9 @@ function Board3DPageContent() {
   const rolledForPlayerIdRef = useRef<number | null>(null);
 
   const currentPlayer = useMemo(() => {
-    if (!game?.players || currentPlayerId == null) return null;
-    return game.players.find((p: Player) => p.user_id === currentPlayerId) ?? null;
-  }, [game?.players, currentPlayerId]);
+    if (!livePlayers || currentPlayerId == null) return null;
+    return livePlayers.find((p: Player) => p.user_id === currentPlayerId) ?? null;
+  }, [livePlayers, currentPlayerId]);
 
   const liveDevelopmentByPropertyId = useMemo(() => {
     const out: Record<number, number> = {};
@@ -2263,6 +2283,7 @@ function Board3DPageContent() {
             currentPlayer={currentPlayer}
             positions={positions}
             isAITurn={false}
+            agentNameBySlot={Object.fromEntries(agentNameBySlot.entries())}
             isLoading={false}
             onPropertySelect={(prop, gp) => {
               setSelectedProperty(prop);
