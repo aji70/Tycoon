@@ -202,6 +202,30 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
         emit VoucherRedeemed(tokenId, msg.sender, val);
     }
 
+    /// @notice Burn a voucher owned by another address (e.g. smart wallet) and send TYC to that owner. Callable by the voucher owner or by the on-chain owner of the owner (e.g. EOA owner of a smart wallet).
+    function redeemVoucherFor(address voucherOwner, uint256 tokenId) external whenNotPaused nonReentrant {
+        require(_isVoucher(tokenId), "Not voucher");
+        uint256 val = voucherRedeemValue[tokenId];
+        require(val > 0, "Unknown voucher");
+        require(voucherOwner != address(0), "Zero owner");
+        if (msg.sender != voucherOwner) {
+            // Caller must be the on-chain owner of the wallet (e.g. EOA owner of TycoonUserWallet) or approved for all by the voucher owner (ERC1155).
+            bool isOwnerOfWallet = false;
+            if (voucherOwner.code.length > 0) {
+                (bool ok, bytes memory data) = voucherOwner.staticcall(abi.encodeWithSignature("owner()"));
+                if (ok && data.length >= 32) {
+                    address ownerOf = abi.decode(data, (address));
+                    if (ownerOf == msg.sender) isOwnerOfWallet = true;
+                }
+            }
+            require(isOwnerOfWallet || isApprovedForAll(voucherOwner, msg.sender), "Not owner or approved");
+        }
+        _burn(voucherOwner, tokenId, 1);
+        _removeFromOwned(voucherOwner, tokenId, 1);
+        require(tycToken.transfer(voucherOwner, val), "TYC transfer failed");
+        emit VoucherRedeemed(tokenId, voucherOwner, val);
+    }
+
     function mintCollectible(address to, TycoonLib.CollectiblePerk perk, uint256 strength)
         external
         onlyMinter
