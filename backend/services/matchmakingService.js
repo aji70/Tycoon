@@ -260,6 +260,7 @@ export async function getQueueStats() {
  */
 export async function createDirectChallenge(userAgentId, userId, opponentAgentId) {
   const { createGameByBackend, joinGameByBackend } = await import("./tycoonContract.js");
+  const { ensureUserHasContractPassword } = await import("../utils/ensureContractAuth.js");
   const agentRegistry = (await import("./agentRegistry.js")).default;
   const User = (await import("../models/User.js")).default;
   const Game = (await import("../models/Game.js")).default;
@@ -284,19 +285,28 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
       throw new Error("One or both users not found");
     }
 
+    const chain = User.normalizeChain(userA.chain || "base");
+
+    // Ensure both users have contract passwords (generates if needed)
+    const authA = await ensureUserHasContractPassword(db, userA.id, chain);
+    const authB = await ensureUserHasContractPassword(db, userB.id, chain);
+
+    if (!authA || !authB) {
+      throw new Error("Failed to ensure contract authentication for players");
+    }
+
     // Generate game code
     const code = `CHALLENGE_${Date.now()}`;
     const DEFAULT_STARTING_CASH = 1500;
-    const chain = User.normalizeChain(userA.chain || "base");
 
     // Create game on-chain with User A (challenger)
     const result = await createGameByBackend(
-      userA.address,
-      userA.password_hash || "",
-      userA.username,
+      authA.address,
+      authA.password_hash,
+      authA.username,
       "PRIVATE",
-      "🎮", // Symbol for User A
-      2,    // 2 players
+      "🎮",
+      2,
       code,
       DEFAULT_STARTING_CASH,
       0n,
@@ -308,11 +318,11 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
 
     // Have User B (opponent) join the game
     await joinGameByBackend(
-      userB.address,
-      userB.password_hash || "",
+      authB.address,
+      authB.password_hash,
       contractGameId,
-      userB.username,
-      "🤖", // Symbol for User B
+      authB.username,
+      "🤖",
       code,
       chain
     );
@@ -327,7 +337,7 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
       number_of_players: 2,
       status: "IN_PROGRESS", // Auto-start since agents play automatically
       is_minipay: false,
-      is_ai: false, // It's not AI, it's agent-vs-agent
+      is_ai: false,
       chain,
       contract_game_id: String(contractGameId),
     });
@@ -336,7 +346,7 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
     await GamePlayer.create({
       game_id: game.id,
       user_id: userA.id,
-      address: userA.address,
+      address: authA.address,
       balance: DEFAULT_STARTING_CASH,
       position: 0,
       turn_order: 1,
@@ -348,7 +358,7 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
     await GamePlayer.create({
       game_id: game.id,
       user_id: userB.id,
-      address: userB.address,
+      address: authB.address,
       balance: DEFAULT_STARTING_CASH,
       position: 0,
       turn_order: 2,
@@ -395,7 +405,7 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
     return {
       gameId: game.id,
       gameCode: game.code,
-      boardType: "3d_desktop", // Default to desktop 3D
+      boardType: "3d_desktop",
     };
   } catch (err) {
     logger.error({ err: err?.message, userAgentId, opponentAgentId }, "Failed to create direct challenge");
