@@ -8,6 +8,7 @@ import {
   unlinkWallet,
   createSmartWallet,
   recreateSmartWallet,
+  redeemVoucher,
   setWithdrawalPin,
   setBankDetails,
   nairaWithdraw,
@@ -32,6 +33,7 @@ router.post("/link-wallet", requireAuth, linkWallet);
 router.post("/unlink-wallet", requireAuth, unlinkWallet);
 router.post("/create-smart-wallet", requireAuth, createSmartWallet);
 router.post("/recreate-smart-wallet", requireAuth, recreateSmartWallet);
+router.post("/redeem-voucher", requireAuth, redeemVoucher);
 router.post("/set-withdrawal-pin", requireAuth, setWithdrawalPin);
 router.post("/set-bank-details", requireAuth, setBankDetails);
 router.post("/naira-withdraw", requireAuth, nairaWithdraw);

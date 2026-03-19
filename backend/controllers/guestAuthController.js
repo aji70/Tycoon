@@ -27,6 +27,7 @@ import {
   withdrawFromSmartWalletUsdc,
   signWithdrawalAuthCelo,
   signWithdrawalAuthUsdc,
+  redeemVoucherForUser,
 } from "../services/tycoonContract.js";
 import { getChainConfig } from "../config/chains.js";
 import logger from "../config/logger.js";
@@ -498,6 +499,45 @@ export async function recreateSmartWallet(req, res) {
     return res.status(500).json({
       success: false,
       message: err?.message || "Failed to create or recreate smart wallet",
+    });
+  }
+}
+
+/**
+ * POST /auth/redeem-voucher
+ * Redeem a voucher held in the user's smart wallet. Backend submits the tx (no wallet popup).
+ * Body: { tokenId: string }, chain optional. Requires user to have smart_wallet_address.
+ * Contract allows redeemVoucherFor only if caller is voucher owner, on-chain owner of that wallet, or approved.
+ */
+export async function redeemVoucher(req, res) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: "Not authenticated" });
+    const user = req.user;
+    const smartWallet = user.smart_wallet_address && String(user.smart_wallet_address).trim();
+    if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
+      return res.status(400).json({
+        success: false,
+        message: "No smart wallet. Vouchers in your account are held in a smart wallet; create one in Profile first.",
+      });
+    }
+    const tokenId = req.body?.tokenId;
+    if (tokenId == null || (typeof tokenId !== "string" && typeof tokenId !== "number")) {
+      return res.status(400).json({ success: false, message: "Provide tokenId (voucher token ID)." });
+    }
+    const chain = User.normalizeChain(req.body?.chain || user.chain || "CELO");
+    if (!isContractConfigured(chain)) {
+      return res.status(503).json({ success: false, message: "Reward contract not configured for this chain." });
+    }
+    const { hash } = await redeemVoucherForUser(smartWallet, tokenId, chain);
+    return res.json({ success: true, data: { hash } });
+  } catch (err) {
+    const msg = err?.message || "Redeem failed";
+    logger.warn({ err: err?.message, userId: req.user?.id }, "redeemVoucher failed");
+    return res.status(502).json({
+      success: false,
+      message: msg.includes("Not owner or approved") || msg.includes("ERC1155")
+        ? "Redeem not authorized for this wallet. Try connecting the wallet that owns this account and redeem from the profile."
+        : msg,
     });
   }
 }
