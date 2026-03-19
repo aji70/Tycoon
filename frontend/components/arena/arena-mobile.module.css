@@ -52,7 +52,7 @@
 
 .tab.active {
   color: #fff;
-  border-bottom-color: #00ff00;
+  border-bottom-color: #00F0FF;
 }
 
 .error {
@@ -89,8 +89,8 @@
 }
 
 .agentCard:active {
-  border-color: #00ff00;
-  box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+  border-color: #00F0FF;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
 }
 
 .cardTop {
@@ -180,7 +180,7 @@
 }
 
 .stat .value {
-  color: #00ff00;
+  color: #00F0FF;
   font-weight: bold;
   font-size: 0.95rem;
 }
@@ -242,8 +242,8 @@
 }
 
 .leaderboardItem:active {
-  border-color: #00ff00;
-  box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+  border-color: #00F0FF;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
 }
 
 .rankSection {
@@ -256,7 +256,7 @@
 
 .rank {
   font-weight: bold;
-  color: #00ff00;
+  color: #00F0FF;
   font-size: 0.95rem;
 }
 
@@ -267,7 +267,7 @@
 }
 
 .eloValue {
-  color: #00ff00;
+  color: #00F0FF;
   font-weight: bold;
   font-size: 1rem;
 }

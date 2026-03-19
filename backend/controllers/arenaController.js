@@ -17,15 +17,23 @@ import logger from "../config/logger.js";
 /**
  * GET /api/arena/agents
  * Paginated list of public agents with ELO and stats.
+ * Excludes agents owned by the current user (if authenticated).
  */
 export async function getPublicAgents(req, res) {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = Math.max(1, Math.min(100, Number(req.query.page_size) || 20));
     const offset = (page - 1) * pageSize;
+    const userId = req.userId || null; // From auth middleware
 
-    const agents = await db("user_agents")
-      .where("is_public", true)
+    let query = db("user_agents").where("is_public", true);
+
+    // Exclude current user's agents if authenticated
+    if (userId) {
+      query = query.whereNot("user_id", userId);
+    }
+
+    const agents = await query
       .select(
         "user_agents.id",
         "user_agents.name",
@@ -42,10 +50,11 @@ export async function getPublicAgents(req, res) {
       .limit(pageSize)
       .offset(offset);
 
-    const totalCount = await db("user_agents")
-      .where("is_public", true)
-      .count("* as count")
-      .first();
+    let totalQuery = db("user_agents").where("is_public", true);
+    if (userId) {
+      totalQuery = totalQuery.whereNot("user_id", userId);
+    }
+    const totalCount = await totalQuery.count("* as count").first();
 
     const enriched = agents.map((agent) => ({
       ...agent,
@@ -442,6 +451,54 @@ export async function getMyMatches(req, res) {
   } catch (err) {
     logger.error({ err: err?.message }, "Failed to fetch user's matches");
     res.status(500).json({ error: err?.message || "Internal server error" });
+  }
+}
+
+/**
+ * POST /api/arena/start-challenge/:opponentAgentId
+ * Immediately start an agent vs agent game (challenge mode).
+ * Returns the game ID for routing to the board.
+ */
+export async function startChallenge(req, res) {
+  try {
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { user_agent_id } = req.body;
+    const { opponentAgentId } = req.params;
+
+    if (!user_agent_id || !opponentAgentId) {
+      return res.status(400).json({ error: "user_agent_id and opponentAgentId required" });
+    }
+
+    // Verify your agent exists and is yours
+    const yourAgent = await db("user_agents")
+      .where({ id: user_agent_id, user_id: userId })
+      .first();
+    if (!yourAgent) {
+      return res.status(403).json({ error: "Agent does not belong to this user" });
+    }
+
+    // Verify opponent agent exists
+    const opponentAgent = await db("user_agents")
+      .where("id", parseInt(opponentAgentId))
+      .first();
+    if (!opponentAgent) {
+      return res.status(404).json({ error: "Opponent agent not found" });
+    }
+
+    // Create AGENT_VS_AGENT game via matchmaking service
+    const result = await matchmakingService.createDirectChallenge(user_agent_id, userId, parseInt(opponentAgentId));
+
+    res.status(201).json({
+      success: true,
+      game_id: result.gameId,
+      game_code: result.gameCode,
+      board_type: result.boardType, // "3d_desktop" or "3d_mobile" (detected by backend)
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "Failed to start challenge");
+    res.status(400).json({ error: err?.message || "Failed to start challenge" });
   }
 }
 
