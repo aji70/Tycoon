@@ -533,6 +533,13 @@ function Board3DMobilePageContent() {
       return { ...p, username: agentName };
     });
   }, [isAgentBattle, livePlayersRaw, agentNameBySlot]);
+
+  const gameForUi = useMemo((): Game | null => {
+    if (!game) return null;
+    if (!isLiveGame) return game;
+    return { ...game, players: livePlayers };
+  }, [game, isLiveGame, livePlayers]);
+
   const liveAnimatedPositions = useMemo(() => {
     const out: Record<number, number> = {};
     livePlayers.forEach((p) => {
@@ -2522,7 +2529,7 @@ function Board3DMobilePageContent() {
       )}
 
       <Mobile3DGameUI
-        game={game ?? null}
+        game={gameForUi ?? game ?? null}
         properties={properties ?? []}
         game_properties={gameProperties ?? []}
         my_properties={my_properties ?? []}

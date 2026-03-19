@@ -368,6 +368,14 @@ function Board3DPageContent() {
       return { ...p, username: agentName };
     });
   }, [isAgentBattle, livePlayersRaw, agentNameBySlot]);
+
+  /** Player sidebar / trades use game.players via useAiPlayerLogic — must match BoardScene token + owner labels. */
+  const gameForUi = useMemo((): Game | null => {
+    if (!game) return null;
+    if (!isLiveGame) return game;
+    return { ...game, players: livePlayers };
+  }, [game, isLiveGame, livePlayers]);
+
   const liveAnimatedPositions = useMemo(() => {
     const out: Record<number, number> = {};
     livePlayers.forEach((p) => {
@@ -2565,9 +2573,9 @@ function Board3DPageContent() {
               <p className="text-amber-200/90 text-sm font-medium">Loading players…</p>
             </div>
           </div>
-        ) : isLiveGame && game ? (
+        ) : isLiveGame && game && gameForUi ? (
           <PlayerSection3D
-            game={game}
+            game={gameForUi}
             properties={properties}
             game_properties={gameProperties}
             my_properties={my_properties}
