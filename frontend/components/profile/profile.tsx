@@ -143,6 +143,7 @@ function GuestProfileView({
   const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
   const [localBio, setLocalBio] = useState(profile?.bio ?? '');
   const [editingBio, setEditingBio] = useState(false);
+  const [redeemingVoucherId, setRedeemingVoucherId] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -388,6 +389,25 @@ function GuestProfileView({
     };
     reader.readAsDataURL(file);
     e.target.value = '';
+  };
+
+  const handleRedeemVoucher = async (voucherId: bigint) => {
+    try {
+      setRedeemingVoucherId(voucherId.toString());
+      const res = await apiClient.post<ApiResponse>('/auth/redeem-voucher', {
+        tokenId: voucherId.toString(),
+        chain: 'CELO',
+      });
+      if (res?.data?.success) {
+        toast.success('Voucher redeemed! Check your balance.');
+      } else {
+        toast.error(res?.data?.message || 'Failed to redeem voucher');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to redeem voucher');
+    } finally {
+      setRedeemingVoucherId(null);
+    }
   };
 
   return (
@@ -829,12 +849,26 @@ function GuestProfileView({
                         <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
                         <button
                           type="button"
-                          disabled
-                          className="w-full py-2.5 rounded-xl font-semibold text-sm bg-white/10 text-white/50 cursor-not-allowed flex items-center justify-center gap-2"
+                          disabled={!smartWalletAddress || redeemingVoucherId === voucher.tokenId.toString()}
+                          onClick={() => handleRedeemVoucher(voucher.tokenId)}
+                          className={`w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition ${
+                            !smartWalletAddress
+                              ? 'bg-white/10 text-white/50 cursor-not-allowed'
+                              : 'bg-amber-500 text-white hover:bg-amber-600 disabled:bg-amber-500/50 disabled:cursor-wait'
+                          }`}
                         >
-                          Redeem
+                          {redeemingVoucherId === voucher.tokenId.toString() ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Redeeming...
+                            </>
+                          ) : (
+                            'Redeem'
+                          )}
                         </button>
-                        <p className="text-xs text-white/50 mt-2">Connect a wallet to redeem vouchers.</p>
+                        {!smartWalletAddress && (
+                          <p className="text-xs text-white/50 mt-2">Create a smart wallet to redeem.</p>
+                        )}
                       </motion.div>
                     ))}
                   </div>
