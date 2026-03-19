@@ -71,13 +71,12 @@ export default function ArenaPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/arena/agents?page=${pageNum}&page_size=20`);
-      if (!res.ok) {
-        const errData = await res.text();
-        throw new Error(`HTTP ${res.status}: ${errData}`);
+      const res = await apiClient.get<any>(`/arena/agents?page=${pageNum}&page_size=20`);
+      if (res?.data?.agents) {
+        setAgents(res.data.agents);
+      } else {
+        throw new Error("Failed to fetch agents");
       }
-      const data = await res.json();
-      setAgents(data.agents || []);
     } catch (err) {
       console.error("Fetch error:", err);
       setError(`Failed to fetch agents: ${(err as Error).message}`);
@@ -90,13 +89,12 @@ export default function ArenaPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/arena/leaderboard?limit=50`);
-      if (!res.ok) {
-        const errData = await res.text();
-        throw new Error(`HTTP ${res.status}: ${errData}`);
+      const res = await apiClient.get<any>(`/arena/leaderboard?limit=50`);
+      if (res?.data?.leaderboard) {
+        setLeaderboard(res.data.leaderboard);
+      } else {
+        throw new Error("Failed to fetch leaderboard");
       }
-      const data = await res.json();
-      setLeaderboard(data.leaderboard || []);
     } catch (err) {
       console.error("Fetch error:", err);
       setError(`Failed to fetch leaderboard: ${(err as Error).message}`);
@@ -150,13 +148,12 @@ export default function ArenaPage() {
     }
 
     try {
-      const res = await fetch("/api/arena/queue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_agent_id: agentId }),
-      });
-      if (!res.ok) throw new Error("Failed to join queue");
-      alert("Successfully joined matchmaking queue!");
+      const res = await apiClient.post<any>(`/arena/queue`, { user_agent_id: agentId });
+      if (res?.data?.queue_entry_id) {
+        alert("Successfully joined matchmaking queue!");
+      } else {
+        throw new Error("Failed to join queue");
+      }
     } catch (err) {
       alert(`Error: ${(err as Error).message}`);
     }
@@ -169,13 +166,12 @@ export default function ArenaPage() {
     }
 
     try {
-      const res = await fetch(`/api/arena/challenge/${opponentAgentId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_agent_id: yourAgentId }),
-      });
-      if (!res.ok) throw new Error("Failed to send challenge");
-      alert("Challenge sent!");
+      const res = await apiClient.post<any>(`/arena/challenge/${opponentAgentId}`, { user_agent_id: yourAgentId });
+      if (res?.data?.queue_entry_id) {
+        alert("Challenge sent!");
+      } else {
+        throw new Error("Failed to send challenge");
+      }
     } catch (err) {
       alert(`Error: ${(err as Error).message}`);
     }

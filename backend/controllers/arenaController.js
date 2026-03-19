@@ -60,6 +60,7 @@ export async function getPublicAgents(req, res) {
     }));
 
     res.json({
+      success: true,
       agents: enriched,
       page,
       page_size: pageSize,
@@ -67,8 +68,11 @@ export async function getPublicAgents(req, res) {
       total_pages: Math.ceil((totalCount?.count || 0) / pageSize),
     });
   } catch (err) {
-    logger.error({ err: err?.message }, "Failed to fetch public agents");
-    res.status(500).json({ error: err?.message || "Internal server error" });
+    logger.error({ err: err?.message, stack: err?.stack }, "Failed to fetch public agents");
+    const message = err?.message?.includes("Unknown column")
+      ? "Arena database schema not initialized. Please run migrations."
+      : err?.message || "Internal server error";
+    res.status(500).json({ success: false, error: message });
   }
 }
 
@@ -178,10 +182,13 @@ export async function getLeaderboard(req, res) {
         : null,
     }));
 
-    res.json({ leaderboard });
+    res.json({ success: true, leaderboard });
   } catch (err) {
-    logger.error({ err: err?.message }, "Failed to fetch leaderboard");
-    res.status(500).json({ error: err?.message || "Internal server error" });
+    logger.error({ err: err?.message, stack: err?.stack }, "Failed to fetch leaderboard");
+    const message = err?.message?.includes("Unknown column")
+      ? "Arena database schema not initialized. Please run migrations."
+      : err?.message || "Internal server error";
+    res.status(500).json({ success: false, error: message });
   }
 }
 
@@ -452,5 +459,43 @@ export async function getQueueStats(req, res) {
   } catch (err) {
     logger.error({ err: err?.message }, "Failed to fetch queue stats");
     res.status(500).json({ error: err?.message || "Internal server error" });
+  }
+}
+
+/**
+ * GET /api/arena/debug/schema
+ * Debug endpoint: check if arena columns exist.
+ */
+export async function checkDatabaseSchema(req, res) {
+  try {
+    const schema = await db.raw("DESCRIBE user_agents");
+    const columnNames = (schema[0] || []).map((col) => col.Field);
+    const requiredColumns = [
+      "id",
+      "name",
+      "elo_rating",
+      "elo_peak",
+      "arena_wins",
+      "arena_losses",
+      "arena_draws",
+      "is_public",
+    ];
+    const missing = requiredColumns.filter((col) => !columnNames.includes(col));
+
+    res.json({
+      success: true,
+      databaseConnected: true,
+      columnCount: columnNames.length,
+      allColumnsPresent: missing.length === 0,
+      missingColumns: missing,
+      actualColumns: columnNames,
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "Failed to check database schema");
+    res.status(500).json({
+      success: false,
+      databaseConnected: false,
+      error: err?.message || "Database connection failed",
+    });
   }
 }
