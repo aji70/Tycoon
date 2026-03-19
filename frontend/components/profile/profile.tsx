@@ -1150,16 +1150,24 @@ export default function Profile() {
     });
   };
 
-  const handleRedeemVoucher = (tokenId: bigint) => {
-    if (!rewardAddress) return toast.error("Contract not available");
-    setRedeemingId(tokenId);
-    const isSmartWalletVoucher = rewardOwnerAddress && walletAddress && rewardOwnerAddress.toLowerCase() !== walletAddress.toLowerCase();
-    writeContract({
-      address: rewardAddress,
-      abi: RewardABI,
-      functionName: isSmartWalletVoucher ? 'redeemVoucherFor' : 'redeemVoucher',
-      args: isSmartWalletVoucher ? [rewardOwnerAddress, tokenId] : [tokenId],
-    });
+  const handleRedeemVoucher = async (tokenId: bigint) => {
+    try {
+      setRedeemingId(tokenId);
+      const res = await apiClient.post<ApiResponse>('/auth/redeem-voucher', {
+        tokenId: tokenId.toString(),
+        chain: 'CELO',
+      });
+      if (res?.data?.success) {
+        toast.success('Voucher redeemed! Check your balance.');
+        tycBalance.refetch();
+      } else {
+        toast.error(res?.data?.message || 'Failed to redeem voucher');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to redeem voucher');
+    } finally {
+      setRedeemingId(null);
+    }
   };
 
   React.useEffect(() => {
@@ -1794,12 +1802,22 @@ export default function Profile() {
                         <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
                         <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
                         <button
+                          type="button"
                           onClick={() => handleRedeemVoucher(voucher.tokenId)}
-                          disabled={redeemingId === voucher.tokenId || isWriting || isConfirming}
-                          className="w-full py-2.5 rounded-xl font-semibold text-sm bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black disabled:opacity-60 flex items-center justify-center gap-2"
+                          disabled={redeemingId === voucher.tokenId}
+                          className="w-full py-2.5 rounded-xl font-semibold text-sm bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black disabled:opacity-60 flex items-center justify-center gap-2 transition"
                         >
-                          {redeemingId === voucher.tokenId && (isWriting || isConfirming) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Coins className="w-4 h-4" />}
-                          {redeemingId === voucher.tokenId && (isWriting || isConfirming) ? 'Redeeming...' : 'Redeem'}
+                          {redeemingId === voucher.tokenId ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Redeeming...
+                            </>
+                          ) : (
+                            <>
+                              <Coins className="w-4 h-4" />
+                              Redeem
+                            </>
+                          )}
                         </button>
                       </motion.div>
                     ))}
