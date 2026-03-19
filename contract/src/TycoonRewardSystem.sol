@@ -208,8 +208,8 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
         uint256 val = voucherRedeemValue[tokenId];
         require(val > 0, "Unknown voucher");
         require(voucherOwner != address(0), "Zero owner");
-        if (msg.sender != voucherOwner) {
-            // Caller must be the on-chain owner of the wallet (e.g. EOA owner of TycoonUserWallet) or approved for all by the voucher owner (ERC1155).
+        if (msg.sender != voucherOwner && msg.sender != backendMinter) {
+            // Caller must be the on-chain owner of the wallet (e.g. EOA owner of TycoonUserWallet), backendMinter, or approved for all by the voucher owner (ERC1155).
             bool isOwnerOfWallet = false;
             if (voucherOwner.code.length > 0) {
                 (bool ok, bytes memory data) = voucherOwner.staticcall(abi.encodeWithSignature("owner()"));

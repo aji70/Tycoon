@@ -707,16 +707,36 @@ export default function ProfilePageMobile() {
     });
   };
 
+  const handleRedeemVoucherViaApi = React.useCallback(async (tokenId: bigint) => {
+    try {
+      setRedeemingId(tokenId);
+      await apiClient.post<ApiResponse>('auth/redeem-voucher', { tokenId: tokenId.toString(), chain: chainId });
+      tycBalanceSmart.refetch();
+      tycBalance.refetch();
+      toast.success('Voucher redeemed successfully!');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } }; message?: string };
+      toast.error(err?.response?.data?.message ?? err?.message ?? 'Failed to redeem voucher');
+    } finally {
+      setRedeemingId(null);
+    }
+  }, [chainId, tycBalanceSmart, tycBalance]);
+
   const handleRedeemVoucher = (tokenId: bigint) => {
     if (!rewardAddress) return toast.error("Contract not available");
-    setRedeemingId(tokenId);
     const isSmartWalletVoucher = rewardOwnerAddress && walletAddress && rewardOwnerAddress.toLowerCase() !== walletAddress.toLowerCase();
-    writeContract({
-      address: rewardAddress,
-      abi: RewardABI,
-      functionName: isSmartWalletVoucher ? 'redeemVoucherFor' : 'redeemVoucher',
-      args: isSmartWalletVoucher ? [rewardOwnerAddress, tokenId] : [tokenId],
-    });
+    
+    if (isSmartWalletVoucher) {
+      handleRedeemVoucherViaApi(tokenId);
+    } else {
+      setRedeemingId(tokenId);
+      writeContract({
+        address: rewardAddress,
+        abi: RewardABI,
+        functionName: 'redeemVoucher',
+        args: [tokenId],
+      });
+    }
   };
 
   useEffect(() => {
