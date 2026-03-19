@@ -59,6 +59,26 @@ function getOnchainAddressForUser(user) {
   return null;
 }
 
+/** Same derivation as guestAuthController.placeholderAddressForPrivyDid — must stay in sync. */
+function privyPlaceholderAddress(privyDid) {
+  const id = privyDid && String(privyDid).trim();
+  if (!id) return null;
+  const hash = crypto.createHash("sha256").update(id).digest("hex").slice(0, 40);
+  return `0x${hash}`;
+}
+
+/**
+ * Resolved EVM address for backend-signed (guest / Privy) flows.
+ * Falls back to the Privy placeholder EOA when wallet columns are missing or invalid
+ * (e.g. bad linked_wallet string), matching the address created at privy-signin.
+ */
+function getOnchainAddressForGuestFlow(user) {
+  const fromWallets = getOnchainAddressForUser(user);
+  if (fromWallets) return fromWallets;
+  if (user?.privy_did) return privyPlaceholderAddress(user.privy_did);
+  return null;
+}
+
 const GAME_TYPES = {
   PVP_HUMAN: "PVP_HUMAN",
   AI_HUMAN_VS_AI: "AI_HUMAN_VS_AI",
@@ -1552,10 +1572,7 @@ export const createOnchainAgentVsAI = async (req, res) => {
       return res.status(400).json({ success: false, message: "Game code already exists" });
     }
 
-    const addrForCreate =
-      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) ||
-      (user.smart_wallet_address && String(user.smart_wallet_address).trim()) ||
-      user.address;
+    const addrForCreate = getOnchainAddressForGuestFlow(user);
     const contractUser = await ensureUserHasContractPassword(db, user.id, chainForCreate, addrForCreate);
     if (!contractUser?.password_hash) {
       return res.status(403).json({
@@ -2022,7 +2039,7 @@ async function startOnchainAgentVsAgentInternal({ req, gameId, starterUserId }) 
 
   const contractByOwnerId = new Map();
   for (const [ownerId, owner] of ownerById.entries()) {
-    const addrForChain = getOnchainAddressForUser(owner);
+    const addrForChain = getOnchainAddressForGuestFlow(owner);
     const contractUser = await ensureUserHasContractPassword(db, ownerId, chainForStart, addrForChain);
     if (!contractUser?.password_hash) {
       throw new Error(
@@ -2437,7 +2454,7 @@ export const createAsGuest = async (req, res) => {
     const chainForCreate = User.normalizeChain(chain || "CELO");
 
     // Use linked EOA, or smart wallet (wallet-first Privy), or placeholder.
-    const addrForChain = getOnchainAddressForUser(user);
+    const addrForChain = getOnchainAddressForGuestFlow(user);
     const contractUser = await ensureUserHasContractPassword(db, user.id, chainForCreate, addrForChain);
     if (!contractUser?.password_hash) {
       return res.status(403).json({
@@ -2581,10 +2598,7 @@ export const joinAsGuest = async (req, res) => {
     }
 
     const chainForJoin = User.normalizeChain(game.chain || "CELO");
-    const addrForJoin =
-      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) ||
-      (user.smart_wallet_address && String(user.smart_wallet_address).trim()) ||
-      user.address;
+    const addrForJoin = getOnchainAddressForGuestFlow(user);
     const contractUser = await ensureUserHasContractPassword(db, user.id, chainForJoin, addrForJoin);
     if (!contractUser?.password_hash) {
       return res.status(403).json({
@@ -2756,10 +2770,7 @@ export const createAIAsGuest = async (req, res) => {
     const numberOfAI = number_of_players != null ? Math.max(1, Number(number_of_players) - 1) : 1;
     const chainForAICreate = User.normalizeChain(chain || "CELO");
 
-    const addrForCreate =
-      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) ||
-      (user.smart_wallet_address && String(user.smart_wallet_address).trim()) ||
-      user.address;
+    const addrForCreate = getOnchainAddressForGuestFlow(user);
     const contractUser = await ensureUserHasContractPassword(db, user.id, chainForAICreate, addrForCreate);
     if (!contractUser?.password_hash) {
       return res.status(403).json({
