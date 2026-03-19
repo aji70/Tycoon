@@ -305,7 +305,7 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
       authA.password_hash,
       authA.username,
       "PRIVATE",
-      "🎮",
+      "car",
       2,
       code,
       DEFAULT_STARTING_CASH,
@@ -322,7 +322,7 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
       authB.password_hash,
       contractGameId,
       authB.username,
-      "🤖",
+      "dog",
       code,
       chain
     );
@@ -352,7 +352,7 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
       balance: DEFAULT_STARTING_CASH,
       position: 0,
       turn_order: 1,
-      symbol: "🎮",
+      symbol: "car",
       chance_jail_card: false,
       community_chest_jail_card: false,
     });
@@ -364,7 +364,7 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
       balance: DEFAULT_STARTING_CASH,
       position: 0,
       turn_order: 2,
-      symbol: "🤖",
+      symbol: "dog",
       chance_jail_card: false,
       community_chest_jail_card: false,
     });
@@ -415,7 +415,17 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
   }
 }
 
-const ARENA_ONCHAIN_SLOT_SYMBOLS = ["🎮", "🤖", "🎯", "🎲", "⚡", "🔥", "💎", "🌟"];
+/** Must match TycoonLib.stringToPlayerSymbol (on-chain); emoji strings revert → "Logic: createGame failed". */
+const ARENA_ONCHAIN_SLOT_SYMBOLS = [
+  "car",
+  "dog",
+  "hat",
+  "thimble",
+  "wheelbarrow",
+  "battleship",
+  "boot",
+  "iron",
+];
 
 function generateArenaJoinCode6() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
