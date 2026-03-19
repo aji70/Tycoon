@@ -19,6 +19,7 @@ export async function optionalAuth(req, res, next) {
     const user = await User.findById(decoded.userId);
     if (!user) return next();
     req.user = user;
+    req.userId = decoded.userId;
     req.isGuest = !!decoded.isGuest;
     next();
   } catch (_) {
@@ -45,6 +46,7 @@ export async function requireAuth(req, res, next) {
       return res.status(401).json({ success: false, message: "User not found" });
     }
     req.user = user;
+    req.userId = decoded.userId;
     req.isGuest = !!decoded.isGuest;
     next();
   } catch (_) {

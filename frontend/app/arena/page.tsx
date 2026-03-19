@@ -57,6 +57,13 @@ export default function ArenaPage() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Load user's agents on mount if authenticated
+  useEffect(() => {
+    if (authenticated) {
+      fetchMyAgents();
+    }
+  }, [authenticated]);
+
   // Fetch agents
   useEffect(() => {
     if (activeTab === "discover") {
@@ -275,7 +282,9 @@ export default function ArenaPage() {
                     </button>
                     <button
                       className={styles.btnSecondary}
-                      onClick={() => challengeAgent(agent.id, agent.id)}
+                      disabled={myAgents.length === 0}
+                      onClick={() => myAgents.length > 0 && challengeAgent(agent.id, myAgents[0].id)}
+                      title={myAgents.length === 0 ? "Create an agent first" : "Challenge this agent"}
                     >
                       Challenge
                     </button>

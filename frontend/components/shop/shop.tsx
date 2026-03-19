@@ -946,7 +946,7 @@ export default function GameShop() {
                     className="flex flex-col rounded-2xl overflow-hidden border border-amber-500/30 bg-[#0E1415]/60 backdrop-blur-sm"
                   >
                     {/* Bundle Image */}
-                    <div className="relative h-32 bg-black/40 overflow-hidden">
+                    <div className="relative h-40 bg-black/40 overflow-hidden">
                       <Image
                         src={bundleImageMap[b.name] || "/game/shop/placeholder.jpg"}
                         alt={b.name}
@@ -1053,7 +1053,7 @@ export default function GameShop() {
                   className="group flex flex-col rounded-2xl overflow-hidden border backdrop-blur-sm transition-all duration-300 border-[#003B3E]/80 bg-[#0E1415]/70 hover:border-[#00F0FF]/40 hover:shadow-[0_0_40px_rgba(0,240,255,0.08),0_20px_40px_rgba(0,0,0,0.3)]"
                   whileHover={{ y: -4 }}
                 >
-                  <div className="relative h-48 min-h-[12rem] overflow-hidden flex-shrink-0">
+                  <div className="relative h-56 min-h-[14rem] overflow-hidden flex-shrink-0">
                     <Image
                       src={item.image || '/game/shop/placeholder.jpg'}
                       alt={item.name}
