@@ -340,6 +340,8 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
       is_ai: false,
       chain,
       contract_game_id: String(contractGameId),
+      // Required so 3D board treats this as agent battle: merge agent-bindings names into player list / UI
+      game_type: "ONCHAIN_AGENT_VS_AGENT",
     });
 
     // Create game players

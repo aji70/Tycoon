@@ -391,7 +391,7 @@ function Board3DPageContent() {
     return livePlayersRaw.map((p: any) => {
       const slot = Number(p.turn_order || 0);
       const agentName = agentNameBySlot.get(slot);
-      return agentName ? { ...p, username: p.username } : p;
+      return agentName ? { ...p, username: agentName } : p;
     });
   }, [isAgentBattle, livePlayersRaw, agentNameBySlot]);
   const liveAnimatedPositions = useMemo(() => {
