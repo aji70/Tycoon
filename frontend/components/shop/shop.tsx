@@ -44,7 +44,6 @@ import {
   useRewardBuyBundle,
   useRewardBuyBundleFrom,
   useRewardRedeemVoucher,
-  useRewardRedeemVoucherFor,
   useApprove,
   useRewardTokenAddresses,
   useUserRegistryWallet,
@@ -223,15 +222,6 @@ export default function GameShop() {
     error: redeemError,
     reset: resetRedeem,
   } = useRewardRedeemVoucher();
-
-  const {
-    redeemFor,
-    isPending: redeemForPending,
-    isConfirming: redeemForConfirming,
-    isSuccess: redeemForSuccess,
-    error: redeemForError,
-    reset: resetRedeemFor,
-  } = useRewardRedeemVoucherFor();
 
   // USDC balance (for "Buy with USDC")
   const { data: usdcBalanceData, isLoading: usdcLoading, refetch: refetchUsdc } = useBalance({
@@ -570,19 +560,13 @@ export default function GameShop() {
   };
 
   const handleRedeemVoucher = async (tokenId: bigint) => {
-    const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
-    if (!hasPaymentMethod) {
-      toast.error('Please connect your wallet or create a smart wallet');
+    if (!isConnected) {
+      toast.error('Please connect your wallet to redeem vouchers');
       return;
     }
 
     try {
-      // Use smart wallet redemption if available, otherwise use connected wallet
-      if (smartWalletAddress && !isConnected) {
-        await redeemFor(smartWalletAddress, tokenId);
-      } else {
-        await redeem(tokenId);
-      }
+      await redeem(tokenId);
     } catch (err: any) {
       toast.error(err.message || 'Redemption failed');
     }
@@ -672,19 +656,11 @@ export default function GameShop() {
   }, [redeemSuccess, resetRedeem]);
 
   useEffect(() => {
-    if (redeemForSuccess) {
-      toast.success('Voucher redeemed successfully!');
-      resetRedeemFor();
-    }
-  }, [redeemForSuccess, resetRedeemFor]);
-
-  useEffect(() => {
     if (buyError) toast.error(buyError.message || 'Purchase failed');
     if (buyBundleError) toast.error(buyBundleError.message || 'Bundle purchase failed');
     if (buyBundleFromError) toast.error(buyBundleFromError.message || 'Smart wallet bundle purchase failed');
     if (redeemError) toast.error(redeemError.message || 'Redemption failed');
-    if (redeemForError) toast.error(redeemForError.message || 'Smart wallet redemption failed');
-  }, [buyError, buyBundleError, buyBundleFromError, redeemError, redeemForError]);
+  }, [buyError, buyBundleError, buyBundleFromError, redeemError]);
 
   const handleBack = () => {
     const returnTo = searchParams.get('returnTo');
