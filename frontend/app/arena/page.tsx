@@ -123,16 +123,17 @@ export default function ArenaPage() {
 
   const toggleAgentPublic = async (agentId: number, currentValue: boolean) => {
     try {
-      const res = await apiClient.patch<ApiResponse>(`/agents/${agentId}`, {
+      const res = await apiClient.patch<any>(`/agents/${agentId}`, {
         is_public: !currentValue,
       });
-      if (res?.data?.success) {
+      if (res?.success && res?.data?.data) {
+        const updatedAgent = res.data.data;
         setMyAgents(
           myAgents.map((a) =>
-            a.id === agentId ? { ...a, is_public: !currentValue } : a
+            a.id === agentId ? { ...a, is_public: updatedAgent.is_public } : a
           )
         );
-        alert(`Agent is now ${!currentValue ? "public" : "private"}!`);
+        alert(`Agent is now ${updatedAgent.is_public ? "public" : "private"}!`);
       } else {
         throw new Error("Failed to update agent");
       }
