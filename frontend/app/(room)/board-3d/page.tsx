@@ -344,8 +344,8 @@ function Board3DPageContent() {
 
   const livePlayersRaw = useMemo(() => game?.players ?? [], [game?.players]);
   const isAgentBattle = useMemo(() => {
-    const t = String((game as any)?.game_type ?? "");
-    return t === "AGENT_VS_AI" || t === "AGENT_VS_AGENT";
+    const gt = String((game as any)?.game_type ?? "").toUpperCase();
+    return gt.includes("AGENT_VS_") || gt.includes("ONCHAIN_AGENT_VS_");
   }, [game]);
 
   const agentNameBySlot = useMemo(() => {

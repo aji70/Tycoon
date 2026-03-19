@@ -177,9 +177,9 @@ export default function ArenaMobile() {
 
     try {
       const res = await apiClient.post<any>(`/arena/start-challenge/${opponentAgentId}`, { user_agent_id: yourAgentId });
-      if (res?.data?.game_id) {
-        // Redirect to 3D game board
-        router.push(`/(room)/game-play-3d?gameId=${res.data.game_id}&code=${res.data.game_code}`);
+      const payload = res?.data as { game_code?: string; game_id?: number } | undefined;
+      if (payload?.game_code) {
+        router.push(`/board-3d-mobile?gameCode=${encodeURIComponent(payload.game_code)}`);
       } else {
         throw new Error("Failed to start challenge");
       }
