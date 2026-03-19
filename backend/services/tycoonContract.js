@@ -589,6 +589,26 @@ const REWARD_ABI_MINT = [
     outputs: [],
     stateMutability: "nonpayable",
   },
+  {
+    type: "function",
+    name: "deliverCollectible",
+    inputs: [
+      { name: "to", type: "address", internalType: "address" },
+      { name: "tokenId", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "deliverBundle",
+    inputs: [
+      { name: "to", type: "address", internalType: "address" },
+      { name: "bundleId", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
 ];
 
 /**
@@ -1308,6 +1328,42 @@ export async function mintVoucherTo(toAddress, tycValueWei, chain = "CELO") {
     } catch (_) {}
     logger.info({ to: toAddress, tycValue: String(tycValueWei), hash: receipt?.hash, tokenId }, "mintVoucherTo tx");
     return { hash: receipt?.hash, tokenId: tokenId ?? "" };
+  });
+}
+
+/**
+ * Deliver a collectible to an address (e.g. after fiat purchase). Uses reward system contract; backend wallet must be minter.
+ * @param {string} toAddress - Recipient wallet (0x...)
+ * @param {string|number} tokenId - Collectible token ID
+ * @param {string} [chain] - CELO | POLYGON | BASE. Default CELO.
+ * @returns {Promise<{ hash: string }>}
+ */
+export async function deliverCollectibleToUser(toAddress, tokenId, chain = "CELO") {
+  return withTxQueue(async () => {
+    const reward = await getRewardContract(chain);
+    // Add ABI for the delivery methods since they might not be fully described in the basic ABI exported earlier. Wait, actually I should include them in the REWARD_ABI_MINT definition if needed.
+    // Rather than adding a full ABI, you can instantiate an Interface inline if not in the ABI, or just add to REWARD_ABI_MINT (see next replacement chunk).
+    const tx = await reward.deliverCollectible(toAddress, BigInt(tokenId));
+    const receipt = await tx.wait();
+    logger.info({ to: toAddress, tokenId: String(tokenId), hash: receipt?.hash }, "deliverCollectibleToUser tx");
+    return { hash: receipt?.hash };
+  });
+}
+
+/**
+ * Deliver a bundle to an address (e.g. after fiat purchase). Uses reward system contract; backend wallet must be minter.
+ * @param {string} toAddress - Recipient wallet (0x...)
+ * @param {string|number} bundleId - Bundle ID
+ * @param {string} [chain] - CELO | POLYGON | BASE. Default CELO.
+ * @returns {Promise<{ hash: string }>}
+ */
+export async function deliverBundleToUser(toAddress, bundleId, chain = "CELO") {
+  return withTxQueue(async () => {
+    const reward = await getRewardContract(chain);
+    const tx = await reward.deliverBundle(toAddress, BigInt(bundleId));
+    const receipt = await tx.wait();
+    logger.info({ to: toAddress, bundleId: String(bundleId), hash: receipt?.hash }, "deliverBundleToUser tx");
+    return { hash: receipt?.hash };
   });
 }
 

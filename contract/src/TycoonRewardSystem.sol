@@ -265,6 +265,16 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
         _buyCollectibleFor(msg.sender, tokenId, useUsdc);
     }
 
+    /// @notice Deliver a collectible to a user from shop stock without payment (e.g. for fiat purchases).
+    function deliverCollectible(address to, uint256 tokenId) external onlyMinter {
+        require(_isCollectible(tokenId), "Not collectible");
+        require(shopStock[tokenId] >= 1, "Out of stock");
+        shopStock[tokenId] -= 1;
+        _safeTransferFrom(address(this), to, tokenId, 1, "");
+        _addToOwned(to, tokenId, 1);
+        emit CollectibleBought(tokenId, to, 0, false);
+    }
+
     /// @notice Buy a collectible with USDC or TYC from a given payer (e.g. smart wallet). Callable by the payer or by the owner of the payer if payer is a contract with owner().
     function buyCollectibleFrom(address payer, uint256 tokenId, bool useUsdc) external whenNotPaused nonReentrant {
         require(payer != address(0), "Zero payer");
@@ -407,6 +417,22 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
             _addToOwned(msg.sender, b.tokenIds[i], b.amounts[i]);
         }
         emit BundleBought(bundleId, msg.sender, price, useUsdc);
+    }
+
+    /// @notice Deliver a bundle to a user from shop stock without payment (e.g. for fiat purchases).
+    function deliverBundle(address to, uint256 bundleId) external onlyMinter {
+        Bundle storage b = bundles[bundleId];
+        require(b.active, "Bundle inactive");
+        require(b.tokenIds.length > 0, "Bundle not found");
+        for (uint256 i = 0; i < b.tokenIds.length; i++) {
+            require(shopStock[b.tokenIds[i]] >= b.amounts[i], "Insufficient stock");
+        }
+        for (uint256 i = 0; i < b.tokenIds.length; i++) {
+            shopStock[b.tokenIds[i]] -= b.amounts[i];
+            _safeTransferFrom(address(this), to, b.tokenIds[i], b.amounts[i], "");
+            _addToOwned(to, b.tokenIds[i], b.amounts[i]);
+        }
+        emit BundleBought(bundleId, to, 0, false);
     }
 
     /// @notice Get bundle info.

@@ -266,6 +266,45 @@ function GuestProfileViewMobile({
     return parseUserFromContract(playerData, onChainUsername as string, guestOnChainAddress ?? undefined);
   }, [playerData, onChainUsername, guestOnChainAddress]);
 
+  const { data: offChainUserData } = useQuery({
+    queryKey: ['off-chain-user', guestUser?.address],
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get(`/users/by-address/${guestUser!.address}`);
+        return res.data;
+      } catch (e) {
+        return null;
+      }
+    },
+    enabled: !!guestUser?.address,
+  });
+
+  const displayStats = React.useMemo(() => {
+    if (userData) return { ...userData, isOnChain: true };
+    const offChain = offChainUserData as any;
+    if (offChain && offChain.id && (offChain.games_played > 0 || offChain.total_earned > 0)) {
+      const gp = Number(offChain.games_played) || 0;
+      const gw = Number(offChain.game_won) || 0;
+      const gl = Number(offChain.game_lost) || 0;
+      return {
+         username: offChain.username || guestUser!.username,
+         shortAddress: guestUser!.address ? `${guestUser!.address.slice(0, 6)}...${guestUser!.address.slice(-4)}` : '',
+         gamesPlayed: gp,
+         gamesWon: gw,
+         gamesLost: gl,
+         winRate: gp > 0 ? ((gw / gp) * 100).toFixed(1) + '%' : '0%',
+         totalStaked: Number(offChain.total_staked) || 0,
+         totalEarned: Number(offChain.total_earned) || 0,
+         totalWithdrawn: Number(offChain.total_withdrawn) || 0,
+         propertiesBought: 0,
+         propertiesSold: 0,
+         registeredAt: offChain.created_at ? new Date(offChain.created_at).getTime() / 1000 : 0,
+         isOnChain: false,
+      };
+    }
+    return null;
+  }, [userData, offChainUserData, guestUser]);
+
   const { data: games = [] } = useQuery({
     queryKey: ['guest-my-games'],
     queryFn: async () => {
@@ -392,11 +431,19 @@ function GuestProfileViewMobile({
           </button>
         )}
 
-        {userData && (
+        {displayStats && (
           <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
-            <h3 className="text-sm font-semibold text-cyan-400 mb-3">On-chain stats</h3>
+            <h3 className="text-sm font-semibold text-cyan-400 mb-3">{displayStats.isOnChain ? 'On-chain stats' : 'Stats'}</h3>
+            
+            {!displayStats.isOnChain && (
+              <div className="mb-4 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 flex flex-col gap-1 text-orange-200">
+                <span className="text-xs font-semibold">Showing off-chain stats</span>
+                <span className="text-[10px] text-orange-200/80">Link your wallet to secure your progress on-chain.</span>
+              </div>
+            )}
+
             {(() => {
-              const levelInfo = getLevelFromActivity({ gamesPlayed: userData.gamesPlayed, gamesWon: userData.gamesWon });
+              const levelInfo = getLevelFromActivity({ gamesPlayed: displayStats.gamesPlayed, gamesWon: displayStats.gamesWon });
               return (
                 <>
                   <div className="mb-3 p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-1.5">
@@ -414,46 +461,46 @@ function GuestProfileViewMobile({
                     <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
                       <BarChart2 className="w-4 h-4 text-cyan-400" />
                       <p className="text-[10px] text-white/50">Games</p>
-                      <p className="text-sm font-bold text-white">{userData.gamesPlayed}</p>
+                      <p className="text-sm font-bold text-white">{displayStats.gamesPlayed}</p>
                     </div>
                     <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
                       <Crown className="w-4 h-4 text-amber-400" />
                       <p className="text-[10px] text-white/50">Wins</p>
-                      <p className="text-sm font-bold text-amber-300">{userData.gamesWon}</p>
+                      <p className="text-sm font-bold text-amber-300">{displayStats.gamesWon}</p>
                     </div>
                     <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
                       <Coins className="w-4 h-4 text-slate-400" />
                       <p className="text-[10px] text-white/50">Losses</p>
-                      <p className="text-sm font-bold text-slate-300">{userData.gamesLost}</p>
+                      <p className="text-sm font-bold text-slate-300">{displayStats.gamesLost}</p>
                     </div>
                     <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
                       <BarChart2 className="w-4 h-4 text-emerald-400" />
                       <p className="text-[10px] text-white/50">Win rate</p>
-                      <p className="text-sm font-bold text-emerald-300">{userData.winRate}</p>
+                      <p className="text-sm font-bold text-emerald-300">{displayStats.winRate}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2 mb-2">
                     <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
                       <p className="text-[9px] text-white/50">Staked</p>
-                      <p className="text-xs font-bold text-white truncate">{formatStakeOrEarned(userData.totalStaked)}</p>
+                      <p className="text-xs font-bold text-white truncate">{formatStakeOrEarned(displayStats.totalStaked)}</p>
                     </div>
                     <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
                       <p className="text-[9px] text-white/50">Earned</p>
-                      <p className="text-xs font-bold text-emerald-300 truncate">{formatStakeOrEarned(userData.totalEarned)}</p>
+                      <p className="text-xs font-bold text-emerald-300 truncate">{formatStakeOrEarned(displayStats.totalEarned)}</p>
                     </div>
                     <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
                       <p className="text-[9px] text-white/50">Withdrawn</p>
-                      <p className="text-xs font-bold text-slate-300 truncate">{formatStakeOrEarned(userData.totalWithdrawn)}</p>
+                      <p className="text-xs font-bold text-slate-300 truncate">{formatStakeOrEarned(displayStats.totalWithdrawn)}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
                       <p className="text-[9px] text-white/50">Props bought</p>
-                      <p className="text-sm font-bold text-cyan-300">{userData.propertiesBought}</p>
+                      <p className="text-sm font-bold text-cyan-300">{displayStats.propertiesBought}</p>
                     </div>
                     <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
                       <p className="text-[9px] text-white/50">Props sold</p>
-                      <p className="text-sm font-bold text-amber-300">{userData.propertiesSold}</p>
+                      <p className="text-sm font-bold text-amber-300">{displayStats.propertiesSold}</p>
                     </div>
                   </div>
                 </>

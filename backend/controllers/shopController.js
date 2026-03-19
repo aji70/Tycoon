@@ -176,6 +176,18 @@ export async function paystackWebhook(req, res) {
         source: "ngn",
       });
 
+      const user = await db("users").where({ id: existing.user_id }).first();
+      const targetWallet = user?.smart_wallet_address || user?.address;
+      if (targetWallet) {
+        try {
+          const { deliverBundleToUser } = await import("../services/tycoonContract.js");
+          await deliverBundleToUser(targetWallet, existing.bundle_id);
+          logger.info({ reference, targetWallet }, "Paystack bundle delivered on-chain");
+        } catch (e) {
+          logger.error({ err: e.message, reference }, "Failed to deliver Paystack bundle on-chain");
+        }
+      }
+
       logger.info(
         { reference, user_id: existing.user_id, bundle_id: existing.bundle_id },
         "Paystack payment fulfilled"
@@ -467,6 +479,19 @@ export async function flutterwaveWebhook(req, res) {
           fulfilled_at: new Date(),
           updated_at: new Date(),
         });
+
+        const user = await db("users").where({ id: perkPayment.user_id }).first();
+        const targetWallet = user?.smart_wallet_address || user?.address;
+        if (targetWallet) {
+          try {
+            const { deliverCollectibleToUser } = await import("../services/tycoonContract.js");
+            await deliverCollectibleToUser(targetWallet, perkPayment.token_id);
+            logger.info({ tx_ref: txRef, targetWallet }, "Flutterwave perk delivered on-chain");
+          } catch (e) {
+            logger.error({ err: e.message, tx_ref: txRef }, "Failed to deliver Flutterwave perk on-chain");
+          }
+        }
+
         logger.info({ tx_ref: txRef, user_id: perkPayment.user_id, token_id: perkPayment.token_id }, "Flutterwave single-perk payment fulfilled");
         return;
       }
@@ -495,6 +520,18 @@ export async function flutterwaveWebhook(req, res) {
           payment_reference: txRef,
           source: "ngn",
         });
+
+        const user = await db("users").where({ id: existing.user_id }).first();
+        const targetWallet = user?.smart_wallet_address || user?.address;
+        if (targetWallet) {
+          try {
+            const { deliverBundleToUser } = await import("../services/tycoonContract.js");
+            await deliverBundleToUser(targetWallet, existing.bundle_id);
+            logger.info({ tx_ref: txRef, targetWallet }, "Flutterwave bundle delivered on-chain");
+          } catch (e) {
+            logger.error({ err: e.message, tx_ref: txRef }, "Failed to deliver Flutterwave bundle on-chain");
+          }
+        }
 
         logger.info(
           { tx_ref: txRef, user_id: existing.user_id, bundle_id: existing.bundle_id },

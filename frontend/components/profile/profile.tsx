@@ -192,6 +192,45 @@ function GuestProfileView({
     return parseUserFromContract(playerData, onChainUsername as string, guestOnChainAddress ?? undefined);
   }, [playerData, onChainUsername, guestOnChainAddress]);
 
+  const { data: offChainUserData } = useQuery({
+    queryKey: ['off-chain-user', guestUser.address],
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get(`/users/by-address/${guestUser.address}`);
+        return res.data;
+      } catch (e) {
+        return null;
+      }
+    },
+    enabled: !!guestUser.address,
+  });
+
+  const displayStats = React.useMemo(() => {
+    if (userData) return { ...userData, isOnChain: true };
+    const offChain = offChainUserData as any;
+    if (offChain && offChain.id && (offChain.games_played > 0 || offChain.total_earned > 0)) {
+      const gp = Number(offChain.games_played) || 0;
+      const gw = Number(offChain.game_won) || 0;
+      const gl = Number(offChain.game_lost) || 0;
+      return {
+         username: offChain.username || guestUser.username,
+         shortAddress: guestUser.address ? `${guestUser.address.slice(0, 6)}...${guestUser.address.slice(-4)}` : '',
+         gamesPlayed: gp,
+         gamesWon: gw,
+         gamesLost: gl,
+         winRate: gp > 0 ? ((gw / gp) * 100).toFixed(1) + '%' : '0%',
+         totalStaked: Number(offChain.total_staked) || 0,
+         totalEarned: Number(offChain.total_earned) || 0,
+         totalWithdrawn: Number(offChain.total_withdrawn) || 0,
+         propertiesBought: 0,
+         propertiesSold: 0,
+         registeredAt: offChain.created_at ? new Date(offChain.created_at).getTime() / 1000 : 0,
+         isOnChain: false,
+      };
+    }
+    return null;
+  }, [userData, offChainUserData, guestUser]);
+
   const { data: tycTokenAddress } = useReadContract({
     address: rewardAddress,
     abi: RewardABI,
@@ -612,18 +651,25 @@ function GuestProfileView({
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[260px] max-h-[60vh] overflow-y-auto">
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
-                {!userData ? (
+                {!displayStats ? (
                   <EmptyState
                     icon={<BarChart2 className="w-14 h-14 text-cyan-400/70" />}
-                    title="No on-chain stats yet"
-                    description="Link a wallet (or register in-game) to start tracking stats on-chain."
+                    title="No stats yet"
+                    description="Play some games or link a wallet to start tracking stats."
                     compact
                     className="border-cyan-500/20 bg-black/20"
                   />
                 ) : (
                   <>
+                    {!displayStats.isOnChain && (
+                      <div className="mb-4 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-between text-orange-200">
+                        <span className="text-xs font-semibold">Showing off-chain stats</span>
+                        <span className="text-[10px] px-2 py-1 rounded-md bg-orange-500/20 border border-orange-500/30">Link wallet to secure your progress on-chain</span>
+                      </div>
+                    )}
+
                     {(() => {
-                      const levelInfo = getLevelFromActivity({ gamesPlayed: userData.gamesPlayed, gamesWon: userData.gamesWon });
+                      const levelInfo = getLevelFromActivity({ gamesPlayed: displayStats.gamesPlayed, gamesWon: displayStats.gamesWon });
                       return (
                         <div className="mb-4 p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-2">
                           <div className="flex items-center justify-between gap-2">
@@ -641,10 +687,10 @@ function GuestProfileView({
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                       {[
-                        { icon: BarChart2, label: 'Games played', value: String(userData.gamesPlayed), accent: 'cyan' },
-                        { icon: Crown, label: 'Wins', value: String(userData.gamesWon), accent: 'amber', valueClass: 'text-amber-300' },
-                        { icon: Coins, label: 'Losses', value: String(userData.gamesLost), accent: 'slate', valueClass: 'text-slate-300' },
-                        { icon: BarChart2, label: 'Win rate', value: userData.winRate, accent: 'emerald', valueClass: 'text-emerald-300' },
+                        { icon: BarChart2, label: 'Games played', value: String(displayStats.gamesPlayed), accent: 'cyan' },
+                        { icon: Crown, label: 'Wins', value: String(displayStats.gamesWon), accent: 'amber', valueClass: 'text-amber-300' },
+                        { icon: Coins, label: 'Losses', value: String(displayStats.gamesLost), accent: 'slate', valueClass: 'text-slate-300' },
+                        { icon: BarChart2, label: 'Win rate', value: displayStats.winRate, accent: 'emerald', valueClass: 'text-emerald-300' },
                       ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
                         <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
                           <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
@@ -658,9 +704,9 @@ function GuestProfileView({
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
                       {[
-                        { icon: Wallet, label: 'Total staked', value: formatStakeOrEarned(userData.totalStaked) + ' BLOCK', accent: 'cyan' },
-                        { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(userData.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
-                        { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(userData.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
+                        { icon: Wallet, label: 'Total staked', value: formatStakeOrEarned(displayStats.totalStaked) + ' BLOCK', accent: 'cyan' },
+                        { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(displayStats.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
+                        { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(displayStats.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
                       ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
                         <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
                           <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
@@ -674,8 +720,8 @@ function GuestProfileView({
 
                     <div className="grid grid-cols-2 gap-3">
                       {[
-                        { icon: BarChart2, label: 'Properties bought', value: String(userData.propertiesBought), accent: 'cyan' },
-                        { icon: BarChart2, label: 'Properties sold', value: String(userData.propertiesSold), accent: 'amber', valueClass: 'text-amber-300' },
+                        { icon: BarChart2, label: 'Properties bought', value: String(displayStats.propertiesBought), accent: 'cyan' },
+                        { icon: BarChart2, label: 'Properties sold', value: String(displayStats.propertiesSold), accent: 'amber', valueClass: 'text-amber-300' },
                       ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
                         <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
                           <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
