@@ -109,8 +109,120 @@ async function executePlayerRemoval(trx, game_id, target_user_id) {
     contract_game_id: game.contract_game_id,
     target_address: targetAddress,
     target_turn_count: targetTurnCount,
-    ...(remaining.length === 1 && { chain: game.chain || "BASE", player_user_ids: players.map((p) => p.user_id) }),
+    chain: game.chain || "BASE",
+    ...(remaining.length === 1 && { player_user_ids: players.map((p) => p.user_id) }),
   };
+}
+
+const AGENT_RUNNER_GAME_TYPES = new Set([
+  "AGENT_VS_AGENT",
+  "AGENT_VS_AI",
+  "ONCHAIN_AGENT_VS_AGENT",
+  "ONCHAIN_AGENT_VS_AI",
+]);
+
+/**
+ * Remove any seats with balance < 0 (server-driven agent games).
+ * Matches Monopoly-style bankruptcy when the DB balance goes negative after rent/taxes.
+ * @param {number} gameId
+ * @param {import("express").Application | null} app - optional; if set, emits socket game-update
+ */
+export async function eliminateNegativeBalancePlayersForAgentGames(gameId, app = null) {
+  const id = Number(gameId);
+  if (!id) return;
+
+  const game = await db("games").where({ id }).first();
+  if (!game?.id || game.status !== "RUNNING" || !AGENT_RUNNER_GAME_TYPES.has(String(game.game_type || ""))) {
+    return;
+  }
+
+  const losers = await db("game_players")
+    .where({ game_id: id })
+    .where("balance", "<", 0)
+    .orderBy("turn_order", "asc");
+
+  if (!losers.length) return;
+
+  const io = app?.get?.("io") ?? null;
+
+  for (const loser of losers) {
+    const targetUserId = Number(loser.user_id);
+    let removalResult = null;
+    try {
+      await db.transaction(async (trx) => {
+        removalResult = await executePlayerRemoval(trx, id, targetUserId);
+      });
+    } catch (err) {
+      logger.warn({ err: err?.message, gameId: id, targetUserId }, "executePlayerRemoval (negative balance) failed");
+      continue;
+    }
+
+    if (!removalResult) continue;
+
+    logger.info({ gameId: id, targetUserId, balance: loser.balance }, "Eliminated bankrupt player (balance < 0) from agent game");
+
+    if (removalResult.winner_user_id && removalResult.player_user_ids) {
+      User.recordChainGameResult(
+        removalResult.chain || "BASE",
+        removalResult.winner_user_id,
+        removalResult.player_user_ids
+      ).catch((err) => logger.warn({ err: err?.message, gameId: id }, "recordChainGameResult (bankruptcy) failed"));
+    }
+
+    const chainFor = User.normalizeChain(removalResult.chain || game.chain || "CELO");
+    if (
+      isContractConfigured(chainFor) &&
+      removalResult.contract_game_id &&
+      removalResult.target_address
+    ) {
+      const turnForContract =
+        Number(removalResult.target_turn_count ?? 0) >= 20
+          ? String(removalResult.target_turn_count)
+          : MAX_UINT256;
+      removePlayerFromGame(
+        removalResult.contract_game_id,
+        removalResult.target_address,
+        turnForContract,
+        chainFor
+      )
+        .then(async () => {
+          if (!removalResult.winner_user_id) return null;
+          const u = await ensureUserHasContractPassword(db, removalResult.winner_user_id, chainFor);
+          return (
+            u ||
+            (await db("users")
+              .where({ id: removalResult.winner_user_id })
+              .select("address", "username", "password_hash")
+              .first())
+          );
+        })
+        .then((winnerUser) => {
+          if (
+            winnerUser?.address &&
+            winnerUser?.password_hash &&
+            removalResult.contract_game_id &&
+            removalResult.winner_user_id
+          ) {
+            return exitGameByBackend(
+              winnerUser.address,
+              winnerUser.username || "",
+              winnerUser.password_hash,
+              removalResult.contract_game_id,
+              chainFor
+            );
+          }
+        })
+        .catch((err) => {
+          logger.warn({ err: err?.message, gameId: id, targetUserId }, "bankruptcy on-chain removePlayer/exit failed");
+        });
+    }
+
+    if (io) await emitGameUpdateByGameId(io, id);
+    await invalidateGameById(id);
+
+    const stillRunning = await db("games").where({ id }).first();
+    if (!stillRunning || stillRunning.status !== "RUNNING") return;
+  }
 }
 
 const PROPERTY_TYPES = {

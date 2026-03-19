@@ -234,6 +234,33 @@ async function stepGame(game) {
   if (!gameId || game.status !== "RUNNING") return;
   if (!GAME_TYPES.has(String(game.game_type || ""))) return;
 
+  try {
+    const { eliminateNegativeBalancePlayersForAgentGames } = await import(
+      "../controllers/gamePlayerController.js"
+    );
+    await eliminateNegativeBalancePlayersForAgentGames(gameId, null);
+  } catch (err) {
+    logger.warn({ err: err?.message, gameId }, "eliminateNegativeBalancePlayers failed");
+  }
+
+  const refreshed = await db("games")
+    .where({ id: gameId })
+    .select(
+      "id",
+      "status",
+      "next_player_id",
+      "game_type",
+      "duration",
+      "created_at",
+      "started_at",
+      "code",
+      "chain",
+      "contract_game_id"
+    )
+    .first();
+  if (!refreshed || refreshed.status !== "RUNNING") return;
+  Object.assign(game, refreshed);
+
   // Auto-finish timed games.
   // The runner previously advanced turns forever because it never called
   // the existing `POST /games/:id/finish-by-time` endpoint.
