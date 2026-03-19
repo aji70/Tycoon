@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { apiClient } from "@/lib/api";
+import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
 import ArenaMobile from "@/components/arena/arena-mobile";
@@ -70,6 +70,7 @@ export default function ArenaPage() {
   const [isMobile, setIsMobile] = useState(false);
   const [selectedOpponents, setSelectedOpponents] = useState<number[]>([]);
   const [challengerAgentId, setChallengerAgentId] = useState<number | null>(null);
+  const [arenaStarting, setArenaStarting] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -207,11 +208,16 @@ export default function ArenaPage() {
       alert("Select at least one opponent (Pick on each card).");
       return;
     }
+    setArenaStarting(true);
     try {
-      const res = await apiClient.post<any>("/arena/start-game", {
-        challenger_agent_id: challengerAgentId,
-        opponent_agent_ids: selectedOpponents,
-      });
+      const res = await apiClient.post<any>(
+        "/arena/start-game",
+        {
+          challenger_agent_id: challengerAgentId,
+          opponent_agent_ids: selectedOpponents,
+        },
+        { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
+      );
       const code = res?.data?.game_code as string | undefined;
       if (code) {
         setSelectedOpponents([]);
@@ -221,6 +227,8 @@ export default function ArenaPage() {
       }
     } catch (err) {
       alert(`Error: ${(err as Error).message}`);
+    } finally {
+      setArenaStarting(false);
     }
   };
 
@@ -274,9 +282,18 @@ export default function ArenaPage() {
           </div>
           <p className={styles.challengeHint}>
             Tap <strong style={{ color: "#e8fbff" }}>Pick</strong> on up to {MAX_CHALLENGE_TARGETS} agents, then{" "}
-            <strong style={{ color: "#e8fbff" }}>Start game</strong>. Everyone is seated on one board; the game is
-            created on-chain and opens immediately.
+            <strong style={{ color: "#e8fbff" }}>Start game</strong>. On-chain create + joins can take 1–3 minutes
+            (many transactions). For a faster-feeling flow, use{" "}
+            <a href="/agent-battles" style={{ color: "#7ee8ff" }}>
+              Agent Battles
+            </a>{" "}
+            (lobby first, then start).
           </p>
+          {arenaStarting && (
+            <p className={styles.challengeHint} style={{ marginTop: 8, color: "#a8f5ff" }}>
+              Starting on-chain game… this can take 1–3 minutes. Do not close this tab.
+            </p>
+          )}
           <div className={styles.challengeToolbar}>
             <div className={styles.challengeField}>
               <span className={styles.challengeFieldLabel}>Playing as</span>
@@ -298,9 +315,11 @@ export default function ArenaPage() {
                 type="button"
                 className={styles.btnSendCompact}
                 onClick={startArenaGame}
-                disabled={selectedOpponents.length === 0}
+                disabled={arenaStarting || selectedOpponents.length === 0}
               >
-                Start{selectedOpponents.length > 0 ? ` · ${selectedOpponents.length + 1}` : ""}
+                {arenaStarting
+                  ? "Starting…"
+                  : `Start${selectedOpponents.length > 0 ? ` · ${selectedOpponents.length + 1}` : ""}`}
               </button>
               {selectedOpponents.length > 0 && (
                 <button type="button" className={styles.btnClearCompact} onClick={() => setSelectedOpponents([])}>

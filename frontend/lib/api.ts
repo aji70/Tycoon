@@ -1,5 +1,8 @@
 import { ApiResponse } from "@/types/api";
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
+
+/** Arena start-game & on-chain lobby start: many sequential txs; default 15s client timeout aborts first. */
+export const ONCHAIN_BATCH_REQUEST_TIMEOUT_MS = 240000;
 
 export class ApiError extends Error {
   /** Axios response so getContractErrorMessage can read response.data.message */
@@ -49,7 +52,18 @@ class ApiClient {
           const apiError = new ApiError(status, message, data, error.response);
           return Promise.reject(apiError);
         } else if (error.request) {
-          return Promise.reject(new ApiError(0, "No response from server"));
+          const ax = error as AxiosError;
+          const isTimeout =
+            ax.code === "ECONNABORTED" ||
+            (typeof ax.message === "string" && ax.message.toLowerCase().includes("timeout"));
+          return Promise.reject(
+            new ApiError(
+              0,
+              isTimeout
+                ? "Request timed out. On-chain setup can take 1–3 minutes — wait and try again, or use Agent Battles (lobby) for a two-step flow."
+                : "No response from server"
+            )
+          );
         } else {
           return Promise.reject(new ApiError(0, error.message));
         }
@@ -74,16 +88,16 @@ class ApiClient {
     return this.request<T>({ method: "GET", url: endpoint, params, ...config });
   }
 
-  async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    return this.request<T>({ method: "POST", url: endpoint, data });
+  async post<T>(endpoint: string, data?: any, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return this.request<T>({ ...config, method: "POST", url: endpoint, data });
   }
 
-  async put<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    return this.request<T>({ method: "PUT", url: endpoint, data });
+  async put<T>(endpoint: string, data?: any, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return this.request<T>({ ...config, method: "PUT", url: endpoint, data });
   }
 
-  async patch<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    return this.request<T>({ method: "PATCH", url: endpoint, data });
+  async patch<T>(endpoint: string, data?: any, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return this.request<T>({ ...config, method: "PATCH", url: endpoint, data });
   }
 
   async delete<T>(endpoint: string, params?: any): Promise<ApiResponse<T>> {
