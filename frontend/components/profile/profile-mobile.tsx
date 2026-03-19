@@ -494,8 +494,10 @@ export default function ProfilePageMobile() {
   const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
-  const { guestUser } = useGuestAuthOptional() ?? {};
-  const { data: registrySmartWallet } = useUserRegistryWallet(walletAddress);
+  const guestAuth = useGuestAuthOptional();
+  const { guestUser } = guestAuth ?? {};
+  const refetchGuest = guestAuth?.refetchGuest;
+  const { data: registrySmartWallet, refetch: refetchRegistryWallet } = useUserRegistryWallet(walletAddress);
   const accountSmartWallet = isValidWallet(guestUser?.smart_wallet_address)
     ? (guestUser!.smart_wallet_address as Address)
     : undefined;
@@ -795,6 +797,7 @@ export default function ProfilePageMobile() {
   const guestAuth = useGuestAuthOptional();
   const refetchGuest = guestAuth?.refetchGuest;
   const [recreateApiPending, setRecreateApiPending] = useState(false);
+  const [recreateAnyPending, setRecreateAnyPending] = useState(false);
 
   const handleRecreateViaApi = useCallback(async () => {
     setRecreateApiPending(true);
@@ -809,6 +812,33 @@ export default function ProfilePageMobile() {
       setRecreateApiPending(false);
     }
   }, [refetchGuest]);
+
+  const handleRecreate = useCallback(async () => {
+    setRecreateAnyPending(true);
+    try {
+      try {
+        await apiClient.post<ApiResponse & { data?: { smart_wallet_address?: string } }>('auth/recreate-smart-wallet');
+        await refetchGuest?.();
+        refetchRegistryWallet?.();
+        toast.success('Smart wallet recreated');
+        return;
+      } catch (apiErr: unknown) {
+        const e = apiErr as { response?: { status?: number; data?: { message?: string } }; message?: string };
+        if (e?.response?.status === 401) {
+          await recreateWallet();
+          toast.info('Creating new smart wallet…');
+          refetchRegistryWallet?.();
+          return;
+        }
+        throw e;
+      }
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } }; message?: string; shortMessage?: string };
+      toast.error(err?.response?.data?.message ?? err?.shortMessage ?? err?.message ?? 'Failed to recreate');
+    } finally {
+      setRecreateAnyPending(false);
+    }
+  }, [refetchGuest, refetchRegistryWallet, recreateWallet]);
 
   if (!isConnected || loading || error || !userData) {
     if (guestUser && !isConnected) {
@@ -929,18 +959,11 @@ export default function ProfilePageMobile() {
               {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
                 <button
                   type="button"
-                  onClick={async () => {
-                    try {
-                      await recreateWallet();
-                      toast.info('Creating new smart wallet…');
-                    } catch (e: any) {
-                      toast.error(e?.shortMessage ?? e?.message ?? 'Failed');
-                    }
-                  }}
-                  disabled={recreateWalletPending}
+                  onClick={() => handleRecreate()}
+                  disabled={recreateAnyPending || recreateWalletPending}
                   className="w-full max-w-[260px] mx-auto flex justify-center px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60"
                 >
-                  {recreateWalletPending ? 'Creating…' : 'Recreate smart wallet'}
+                  {(recreateAnyPending || recreateWalletPending) ? 'Creating…' : 'Recreate smart wallet'}
                 </button>
               )}
             </div>
