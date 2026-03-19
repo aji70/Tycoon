@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
-import { simplifyAiTip } from "@/lib/simplifyAiTip";
+import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
 import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
 import { PROPERTY_ACTION } from "@/types/game";
@@ -28,17 +28,24 @@ import { useGameTrades } from "@/hooks/useGameTrades";
 import TradeAlertPill from "@/components/game/TradeAlertPill";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
 import { Toaster, toast } from "react-hot-toast";
-import { isAIPlayer, getAiSlotFromPlayer } from "@/utils/gameUtils";
+import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW, calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUtils";
+import { reportAiAction } from "@/lib/agentFeedback";
+import { useAgentSettings, BUY_SCORE_THRESHOLD, BUY_CASH_RESERVE, BUILD_MIN_BALANCE, BUILD_AFTER_RESERVE } from "@/hooks/useAgentSettings";
 import { MONOPOLY_STATS, BUILD_PRIORITY } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
+import RaiseFundsPanel from "@/components/game/modals/RaiseFundsPanel";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import { useAiBankruptcy } from "@/hooks/useAiBankruptcy";
+import { useAgentAutoLiquidate } from "@/hooks/useAgentAutoLiquidate";
+import { useAgentBindings } from "@/hooks/useAgentBindings";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, Sparkles, HeartHandshake, Loader2, X, HelpCircle } from "lucide-react";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 import PlayerSection3D from "@/components/game/board3d/PlayerSection3D";
+import { MyAgentToggle } from "@/components/game/MyAgentToggle";
+import { getStoredAgentApiKey, setStoredAgentApiKey } from "@/lib/agentApiKeySession";
 import PerksBar from "@/components/game/board3d/PerksBar";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
 
@@ -245,15 +252,22 @@ function Board3DPageContent() {
   const isLiveGame = !!gameCode && !!game;
 
   const me = useMemo<Player | null>(() => {
-    const myAddress = guestUser?.address ?? address;
-    if (!game?.players || !myAddress) return null;
-    return game.players.find((p: Player) => p.address?.toLowerCase() === myAddress.toLowerCase()) ?? null;
-  }, [game?.players, address, guestUser?.address]);
+    const addrs = [
+      guestUser?.address,
+      guestUser?.linked_wallet_address,
+      guestUser?.smart_wallet_address,
+      address,
+    ].filter((a): a is string => !!a && String(a).trim().length > 0);
+    const lower = addrs.map((a) => a.toLowerCase());
+    if (!game?.players || lower.length === 0) return null;
+    return game.players.find((p: Player) => p.address && lower.includes(p.address.toLowerCase())) ?? null;
+  }, [game?.players, address, guestUser?.address, guestUser?.linked_wallet_address, guestUser?.smart_wallet_address]);
 
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [jailChoiceRequired, setJailChoiceRequired] = useState(false);
   const [turnEndScheduled, setTurnEndScheduled] = useState(false);
   const [gameTimeUpLocal, setGameTimeUpLocal] = useState(false);
+  const [endGameReason, setEndGameReason] = useState<string | null>(null);
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{ type: "chance" | "community"; text: string; effect?: string; isGood: boolean } | null>(null);
   const [cardPlayerName, setCardPlayerName] = useState("");
@@ -300,6 +314,7 @@ function Board3DPageContent() {
   const [aiTipText, setAiTipText] = useState<string | null>(null);
   const [aiTipLoading, setAiTipLoading] = useState(false);
   const lastTipPropertyIdRef = useRef<number | null>(null);
+  const lastTipActionRef = useRef<"buy" | "skip" | null>(null);
   const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
   const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
   const [showVotedOutModal, setShowVotedOutModal] = useState(false);
@@ -325,7 +340,34 @@ function Board3DPageContent() {
   const hasCommunityChestJailCard = (me?.community_chest_jail_card ?? 0) >= 1;
   const playerCanRoll = isLiveGame && isMyTurn && (me?.balance ?? 0) > 0 && !gameTimeUp && !turnEndScheduled && !buyPrompted && !(meInJail && jailChoiceRequired);
 
-  const livePlayers = useMemo(() => game?.players ?? [], [game?.players]);
+  const { bindings, myAgentOn, refetch: refetchAgentBindings } = useAgentBindings(game?.id);
+
+  const livePlayersRaw = useMemo(() => game?.players ?? [], [game?.players]);
+  const isAgentBattle = useMemo(() => {
+    const t = String((game as any)?.game_type ?? "");
+    return t === "AGENT_VS_AI" || t === "AGENT_VS_AGENT";
+  }, [game]);
+
+  const agentNameBySlot = useMemo(() => {
+    if (!isAgentBattle) return new Map<number, string>();
+    const map = new Map<number, string>();
+    (bindings ?? []).forEach((b) => {
+      const slot = Number((b as any)?.slot);
+      const name = String((b as any)?.name ?? "").trim();
+      if (slot > 0 && name) map.set(slot, name);
+    });
+    return map;
+  }, [bindings, isAgentBattle]);
+
+  const livePlayers = useMemo(() => {
+    if (!isAgentBattle) return livePlayersRaw;
+    return livePlayersRaw.map((p) => {
+      const slot = Number((p as any)?.turn_order);
+      const agentName = agentNameBySlot.get(slot);
+      if (!agentName) return p;
+      return { ...p, username: agentName };
+    });
+  }, [isAgentBattle, livePlayersRaw, agentNameBySlot]);
   const liveAnimatedPositions = useMemo(() => {
     const out: Record<number, number> = {};
     livePlayers.forEach((p) => {
@@ -340,9 +382,17 @@ function Board3DPageContent() {
   const [strategyRanThisTurn, setStrategyRanThisTurn] = useState(false);
 
   const currentPlayer = useMemo(() => {
-    if (!game?.players || currentPlayerId == null) return null;
-    return game.players.find((p: Player) => p.user_id === currentPlayerId) ?? null;
-  }, [game?.players, currentPlayerId]);
+    if (!livePlayers || currentPlayerId == null) return null;
+    return livePlayers.find((p: Player) => p.user_id === currentPlayerId) ?? null;
+  }, [livePlayers, currentPlayerId]);
+  const [myAgentApiKey, setMyAgentApiKeyState] = useState<{ provider: string; apiKey: string } | null>(() => getStoredAgentApiKey());
+  const setMyAgentApiKey = useCallback((value: { provider: string; apiKey: string } | null) => {
+    setMyAgentApiKeyState(value);
+    setStoredAgentApiKey(value);
+  }, []);
+  const agentOn = myAgentOn || !!myAgentApiKey;
+  const { agentSettings, updateAgentSettings } = useAgentSettings();
+
   // AI turn only when current player is an AI *and* not the human (matches 2D: never auto-roll for me)
   const isAITurn = useMemo(() => {
     if (!currentPlayer || !isAIPlayer(currentPlayer)) return false;
@@ -827,24 +877,37 @@ function Board3DPageContent() {
       receiverAddress: string
     ) => {
       let score = 0;
-      score += trade.offer_amount - trade.requested_amount;
-      trade.requested_properties.forEach((id) => {
+      // Cash: receiver gets offer_amount, gives requested_amount
+      score += (trade.offer_amount || 0) - (trade.requested_amount || 0);
+      // Properties receiver GETS (proposer's offer) → add value, bonus if it completes a monopoly
+      const offerProps = Array.isArray(trade.offer_properties) ? trade.offer_properties : [];
+      offerProps.forEach((id) => {
         const prop = properties.find((p) => p.id === id);
         if (!prop) return;
         score += prop.price || 0;
         const group = Object.values(MONOPOLY_STATS.colorGroups).find((g) => g.includes(id));
         if (group && !["railroad", "utility"].includes(prop.color!)) {
           const currentOwned = group.filter((gid) =>
-            gameProperties.find((gp) => gp.property_id === gid && gp.address === receiverAddress)
+            gameProperties.find((gp) => gp.property_id === gid && gp.address?.toLowerCase() === receiverAddress?.toLowerCase())
           ).length;
-          if (currentOwned === group.length - 1) score += 300;
+          if (currentOwned === group.length - 1) score += 300; // receiving last piece = monopoly!
           else if (currentOwned === group.length - 2) score += 120;
         }
       });
-      trade.offer_properties.forEach((id) => {
+      // Properties receiver GIVES (proposer's request) → subtract value, heavy penalty if near-monopoly
+      const requestedProps = Array.isArray(trade.requested_properties) ? trade.requested_properties : [];
+      requestedProps.forEach((id) => {
         const prop = properties.find((p) => p.id === id);
         if (!prop) return;
-        score -= (prop.price || 0) * 1.3;
+        score -= prop.price || 0;
+        const group = Object.values(MONOPOLY_STATS.colorGroups).find((g) => g.includes(id));
+        if (group && !["railroad", "utility"].includes(prop.color!)) {
+          const currentOwned = group.filter((gid) =>
+            gameProperties.find((gp) => gp.property_id === gid && gp.address?.toLowerCase() === receiverAddress?.toLowerCase())
+          ).length;
+          if (currentOwned === group.length - 1) score -= 300; // giving up last piece of near-monopoly!
+          else if (currentOwned === group.length - 2) score -= 120;
+        }
       });
       return score;
     };
@@ -866,6 +929,52 @@ function Board3DPageContent() {
       candidates.sort((a, b) => (a.prop.price || 0) - (b.prop.price || 0));
       return candidates[0];
     };
+
+    // Respond to any pending incoming trades before proposing new ones
+    try {
+      const incomingRes = await apiClient.get<ApiResponse>(`/game-trade-requests/incoming/${game.id}/player/${currentPlayer.user_id}`);
+      const pendingIncoming = ((incomingRes?.data?.data ?? []) as { id: number; status: string; offer_properties: number[]; offer_amount: number; requested_properties: number[]; requested_amount: number }[]).filter((t) => t.status === "pending");
+      for (const trade of pendingIncoming) {
+        let handled = false;
+        try {
+          const slot = getAiSlotFromPlayer(currentPlayer) ?? 2;
+          const agentRes = await apiClient.post<{ success?: boolean; data?: { action?: string; reasoning?: string }; useBuiltIn?: boolean }>("/agent-registry/decision", {
+            gameId: game.id,
+            slot,
+            decisionType: "trade",
+            context: {
+              myBalance: currentPlayer.balance ?? 0,
+              myProperties: gameProperties.filter((gp) => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase()).map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+              opponents: livePlayers.filter((p) => p.user_id !== currentPlayer.user_id),
+              tradeOffer: trade,
+            },
+          });
+          if (agentRes?.data?.success && agentRes.data.useBuiltIn === false) {
+            const action = String(agentRes.data.data?.action ?? "").toLowerCase();
+            if (action === "accept") {
+              await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+              reportAiAction(game.id, slot, "acceptTrade");
+            } else {
+              await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+            }
+            handled = true;
+          }
+        } catch (_) { /* fallback */ }
+        if (!handled) {
+          const fav = calculateAiFavorability(trade, properties);
+          if (fav >= TRADE_ACCEPT_THRESHOLD) {
+            await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+            reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "acceptTrade");
+          } else {
+            await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+          }
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      if (pendingIncoming.length > 0) await refetchGame();
+    } catch (err) {
+      console.error("AI incoming trade handling failed", err);
+    }
 
     const opportunities = getNearCompleteOpportunities(currentPlayer.address ?? undefined, gameProperties, properties, livePlayers);
     let maxTradeAttempts = 1;
@@ -900,12 +1009,14 @@ function Board3DPageContent() {
           const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
           if (res?.data?.success) {
             maxTradeAttempts--;
-
+            reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "proposeTrade");
+            if (maxTradeAttempts <= 0) break;
             if (isAIPlayer(targetPlayer)) {
               await new Promise((r) => setTimeout(r, 800));
               const favorability = calculateTradeFavorability({ ...payload, requested_amount: 0 }, targetPlayer.address!);
-              if (favorability >= 50) {
+              if (favorability >= TRADE_FAVORABILITY_ACCEPT_RAW) {
                 await apiClient.post("/game-trade-requests/accept", { id: res.data.data.id });
+                reportAiAction(game.id, getAiSlotFromPlayer(targetPlayer) ?? 3, "acceptTrade");
                 await refetchGame();
               } else {
                 await apiClient.post("/game-trade-requests/decline", { id: res.data.data.id });
@@ -926,7 +1037,7 @@ function Board3DPageContent() {
 
       for (const groupName of monopolies) {
         const ids = MONOPOLY_STATS.colorGroups[groupName as keyof typeof MONOPOLY_STATS.colorGroups];
-        const groupGps = gameProperties.filter((gp) => ids.includes(gp.property_id) && gp.address === player.address);
+        const groupGps = gameProperties.filter((gp) => ids.includes(gp.property_id) && gp.address?.toLowerCase() === player.address?.toLowerCase());
         const developments = groupGps.map((gp) => gp.development ?? 0);
         const minHouses = Math.min(...developments);
         const maxHouses = Math.max(...developments);
@@ -946,6 +1057,7 @@ function Board3DPageContent() {
               user_id: player.user_id,
               property_id: gp.property_id,
             });
+            if (minHouses >= 4) reportAiAction(game.id, getAiSlotFromPlayer(player) ?? 2, "buildHotel");
             await new Promise((r) => setTimeout(r, 600));
             break;
           } catch (err) {
@@ -1098,7 +1210,7 @@ function Board3DPageContent() {
     const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
     const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
     apiClient
-      .post<{ success?: boolean; data?: { reasoning?: string } }>("/agent-registry/decision", {
+      .post<{ success?: boolean; data?: { reasoning?: string }; fallbackReason?: string }>("/agent-registry/decision", {
         gameId: game?.id,
         slot: 1,
         decisionType: "tip",
@@ -1119,10 +1231,22 @@ function Board3DPageContent() {
         },
       })
       .then((res) => {
-        const text = res?.data?.data?.reasoning ?? null;
-        if (text) setAiTipText(simplifyAiTip(text) ?? text);
+        const fallbackReason = res?.data?.fallbackReason;
+        if (fallbackReason) {
+          setAiTipText(fallbackReason);
+          lastTipActionRef.current = "skip";
+          return;
+        }
+        const data = res?.data?.data;
+        const text = data?.reasoning ?? null;
+        setAiTipText(normalizeAiTip(text) ?? AI_TIP_FALLBACK);
+        lastTipActionRef.current = data?.action === "buy" ? "buy" : "skip";
       })
-      .catch(() => setAiTipText(null))
+      .catch((e: unknown) => {
+        const err = e as { response?: { data?: { message?: string; error?: string } }; message?: string };
+        const msg = err?.response?.data?.message ?? err?.response?.data?.error ?? err?.message ?? "Request failed";
+        setAiTipText(`Error: ${msg}`);
+      })
       .finally(() => setAiTipLoading(false));
   }, [
     aiTipsOn,
@@ -1296,13 +1420,17 @@ function Board3DPageContent() {
       // After a Chance/Community Chest card move, backend may require rent (already applied) or buy prompt
       if (data?.requires_buy && data?.property_for_buy) {
         pendingBuyPromptRef.current = true;
+        setBuyPrompted(true);
       } else {
         const square = properties.find((p) => p.id === finalPosition);
         const isOwned = freshGameProperties.some((gp: GameProperty) => gp.property_id === finalPosition);
         const action = PROPERTY_ACTION(finalPosition);
         const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
         const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
-        if (needBuyPrompt) pendingBuyPromptRef.current = true;
+        if (needBuyPrompt) {
+          pendingBuyPromptRef.current = true;
+          setBuyPrompted(true);
+        }
       }
       // Don't call END_TURN here — let the useEffect below handle auto end (matches 2D; avoids turn break on Chance/CC)
     } catch (err) {
@@ -1325,8 +1453,14 @@ function Board3DPageContent() {
               toast.success("Turn passed to next player.");
               await refetchGame();
             } else if (!ok && endMsg) {
-              toast.error(endMsg);
-              await refetchGame();
+              const endMsgLower = String(endMsg).toLowerCase();
+              // Expected during fast auto-moves / stale turn state. Suppress noise.
+              if (endMsgLower.includes("not your turn")) {
+                await refetchGame();
+              } else {
+                toast.error(endMsg);
+                await refetchGame();
+              }
             } else {
               await refetchGame();
             }
@@ -1489,10 +1623,13 @@ function Board3DPageContent() {
           ) {
             shouldBuy = agentRes.data.data.action.toLowerCase() === "buy";
           } else {
-            shouldBuy = buyScore >= 72 && balanceAfterMove > (square.price ?? 0) * 1.8;
+            const balanceAfterBuy = balanceAfterMove - (square.price ?? 0);
+            // Buy if we can afford it and keep a $500 reserve; monopoly completion bypasses reserve.
+            shouldBuy = completesMonopoly || (balanceAfterMove >= (square.price ?? 0) && balanceAfterBuy >= 500);
           }
         } catch {
-          shouldBuy = buyScore >= 72 && balanceAfterMove > (square.price ?? 0) * 1.8;
+          const balanceAfterBuy = balanceAfterMove - (square.price ?? 0);
+          shouldBuy = completesMonopoly || (balanceAfterMove >= (square.price ?? 0) && balanceAfterBuy >= 500);
         }
         if (shouldBuy) {
           await apiClient.post("/game-properties/buy", {
@@ -1500,6 +1637,7 @@ function Board3DPageContent() {
             game_id: game.id,
             property_id: square.id,
           });
+          reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "buyProperty");
         }
         await refetchGame();
         setTimeout(() => END_TURN(), 900);
@@ -1529,6 +1667,171 @@ function Board3DPageContent() {
     END_TURN,
   ]);
 
+  /** When "my agent plays for me" is on: same as AI dice complete but for me with slot 1. */
+  const handleDiceCompleteForMyAgent = useCallback(async () => {
+    const value = pendingRollRef.current;
+    if (!game?.id || !me) {
+      setRollingDice(null);
+      rollingForPlayerIdRef.current = null;
+      return;
+    }
+    const playerId = me.user_id;
+    const currentPos = me.position ?? 0;
+    const isInJail = !!(me.in_jail && currentPos === JAIL_POSITION);
+    const rolledDouble = value.die1 === value.die2;
+    const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + value.total) % 40;
+    const totalSteps = (isInJail && !rolledDouble) ? 0 : value.total;
+
+    try {
+      await runMovementAnimation(playerId, currentPos, totalSteps);
+      const res = await apiClient.post<{ data?: { still_in_jail?: boolean } }>("/game-players/change-position", {
+        user_id: playerId,
+        game_id: game.id,
+        position: newPos,
+        rolled: value.total,
+        is_double: rolledDouble,
+      });
+      const data = res?.data?.data ?? (res as any)?.data;
+      if (data?.still_in_jail) {
+        await apiClient.post("/game-players/stay-in-jail", { user_id: playerId, game_id: game.id });
+        await refetchGame();
+        setRollingDice(null);
+        rollingForPlayerIdRef.current = null;
+        setTimeout(() => END_TURN(), 500);
+        return;
+      }
+      setLastRollResultLive(value);
+      landedPositionThisTurnRef.current = newPos;
+      rolledForPlayerIdRef.current = playerId;
+      const [refetchGameResult, refetchGpResult] = await Promise.all([refetchGame(), refetchGameProperties()]);
+      const updatedGame = refetchGameResult?.data as Game | undefined;
+      const updatedGameProperties = Array.isArray(refetchGpResult?.data) ? (refetchGpResult.data as GameProperty[]) : gameProperties;
+      const updatedMe = updatedGame?.players?.find((p: Player) => p.user_id === playerId) ?? me;
+      const balanceAfterMove = updatedMe?.balance ?? me.balance ?? 0;
+      setLiveMovementOverride((prev) => {
+        const next = { ...prev };
+        delete next[playerId];
+        return next;
+      });
+      const square = properties.find((p) => p.id === newPos);
+      const isOwned = updatedGameProperties.some((gp: GameProperty) => gp.property_id === newPos);
+      const action = PROPERTY_ACTION(newPos);
+      const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
+      const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
+
+      if (needBuyPrompt && square) {
+        const groupIds = Object.values(MONOPOLY_STATS.colorGroups).find((ids: number[]) => ids.includes(square.id)) ?? [];
+        const ownedInGroup = groupIds.filter((id: number) =>
+          updatedGameProperties.some(
+            (gp) => gp.property_id === id && gp.address?.toLowerCase() === me.address?.toLowerCase()
+          )
+        ).length;
+        const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
+        const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[square.id] ?? 99;
+        const decisionContext = {
+          myBalance: balanceAfterMove,
+          myProperties: updatedGameProperties
+            .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
+            .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+          opponents: (updatedGame?.players ?? game?.players ?? []).filter((p: Player) => p.user_id !== me.user_id),
+          landedProperty: { ...square, completesMonopoly, landingRank },
+        };
+        const balanceAfterBuy = balanceAfterMove - (square.price ?? 0);
+        const playerForScore = { ...updatedMe, balance: balanceAfterMove };
+        const buyScore = calculateBuyScore(square, playerForScore, updatedGameProperties, properties);
+        const buyScoreThreshold = BUY_SCORE_THRESHOLD[agentSettings.buyStyle];
+        const buyCashReserve = BUY_CASH_RESERVE[agentSettings.buyStyle];
+        // buyScore 0 means railway/utility (calculateBuyScore only scores "property" type) — fall back to simple affordability
+        const builtInShouldBuy = completesMonopoly ||
+          (buyScore >= buyScoreThreshold && balanceAfterBuy >= buyCashReserve) ||
+          (buyScore === 0 && balanceAfterMove >= (square.price ?? 0) && balanceAfterBuy >= buyCashReserve);
+        try {
+          let shouldBuy: boolean = builtInShouldBuy;
+          if (myAgentApiKey) {
+            const proxyRes = await apiClient.post<{ success?: boolean; data?: { action?: string }; useBuiltIn?: boolean }>(
+              "/agent-registry/decision-with-key",
+              {
+                gameId: game.id,
+                decisionType: "property",
+                context: decisionContext,
+                provider: myAgentApiKey.provider,
+                apiKey: myAgentApiKey.apiKey,
+              }
+            );
+            if (proxyRes?.data?.success && proxyRes.data.data?.action) {
+              shouldBuy = proxyRes.data.data.action.toLowerCase() === "buy";
+            }
+            // else keep builtInShouldBuy
+          } else {
+            const agentRes = await apiClient.post<{
+              success?: boolean;
+              data?: { action?: string; reasoning?: string };
+              useBuiltIn?: boolean;
+            }>("/agent-registry/decision", {
+              gameId: game.id,
+              slot: 1,
+              decisionType: "property",
+              context: decisionContext,
+            });
+            if (agentRes?.data?.success && agentRes.data.useBuiltIn === false && agentRes.data.data?.action) {
+              shouldBuy = agentRes.data.data.action.toLowerCase() === "buy";
+            }
+            // else keep builtInShouldBuy (no agent / no credits)
+          }
+          if (shouldBuy) {
+            await apiClient.post("/game-properties/buy", {
+              user_id: playerId,
+              game_id: game.id,
+              property_id: square.id,
+            });
+            reportAiAction(game.id, 1, "buyProperty");
+            toast.success(`Your agent bought ${square.name}.`);
+          } else {
+            toast(`Your agent skipped buying ${square.name}.`);
+          }
+        } catch (err) {
+          // Fallback: use built-in rule on any error
+          if (builtInShouldBuy) {
+            try {
+              await apiClient.post("/game-properties/buy", {
+                user_id: playerId,
+                game_id: game.id,
+                property_id: square.id,
+              });
+              reportAiAction(game.id, 1, "buyProperty");
+              toast.success(`Your agent bought ${square.name}.`);
+            } catch (_) { /* ignore */ }
+          }
+        }
+        await Promise.all([refetchGame(), refetchGameProperties()]);
+        setTimeout(() => END_TURN(), 900);
+      } else {
+        setTimeout(() => END_TURN(), 1000);
+      }
+    } catch (err) {
+      setLiveMovementOverride((prev) => {
+        const next = { ...prev };
+        delete next[me.user_id];
+        return next;
+      });
+      toast.error(getContractErrorMessage(err, "Agent move failed"));
+      setTimeout(() => END_TURN(), 500);
+    } finally {
+      setRollingDice(null);
+      rollingForPlayerIdRef.current = null;
+    }
+  }, [
+    game,
+    me,
+    myAgentApiKey,
+    refetchGame,
+    refetchGameProperties,
+    properties,
+    gameProperties,
+    runMovementAnimation,
+    END_TURN,
+  ]);
+
   const onRollClick = useCallback(() => {
     if (isLiveGame && playerCanRoll) handleRollForLive();
     else if (!isLiveGame) handleRoll();
@@ -1550,15 +1853,21 @@ function Board3DPageContent() {
       handleDiceComplete();
       return;
     }
-    if (rollingForPlayerIdRef.current !== null && me && rollingForPlayerIdRef.current !== me.user_id) {
+    if (rollingForPlayerIdRef.current !== null && me && rollingForPlayerIdRef.current === me.user_id && agentOn) {
+      handleDiceCompleteForMyAgent();
+    } else if (rollingForPlayerIdRef.current !== null && me && rollingForPlayerIdRef.current !== me.user_id) {
       handleDiceCompleteForAI();
     } else {
       handleDiceCompleteForLive();
     }
-  }, [isLiveGame, handleDiceComplete, handleDiceCompleteForLive, handleDiceCompleteForAI, me]);
+  }, [isLiveGame, handleDiceComplete, handleDiceCompleteForLive, handleDiceCompleteForAI, handleDiceCompleteForMyAgent, me, agentOn]);
 
   const handleBuy = useCallback(async () => {
     if (!game?.id || !me || !justLandedProperty) return;
+    if (lastTipActionRef.current === "buy") {
+      apiClient.post(`/games/${game.id}/erc8004-tip-feedback`).catch(() => {});
+      lastTipActionRef.current = null;
+    }
     try {
       await apiClient.post("/game-properties/buy", {
         user_id: me.user_id,
@@ -1576,12 +1885,16 @@ function Board3DPageContent() {
   }, [game?.id, me, justLandedProperty, refetchGame, END_TURN]);
 
   const handleSkip = useCallback(() => {
+    if (lastTipActionRef.current === "skip") {
+      apiClient.post(`/games/${game?.id}/erc8004-tip-feedback`).catch(() => {});
+      lastTipActionRef.current = null;
+    }
     setTurnEndScheduled(true);
     setBuyPrompted(false);
     setLandedPositionForBuy(null);
     landedPositionThisTurnRef.current = null;
     setTimeout(() => END_TURN(), 900);
-  }, [END_TURN]);
+  }, [END_TURN, game?.id]);
 
   const handlePayToLeaveJail = useCallback(async () => {
     if (!me || !game?.id) return;
@@ -1623,8 +1936,14 @@ function Board3DPageContent() {
     }
   }, [me, game?.id, refetchGame, END_TURN]);
 
+  const handleCloseCardModal = useCallback(() => {
+    setShowCardModal(false);
+    fetchUpdatedGame();
+  }, [fetchUpdatedGame]);
+
   const handleDeclareBankruptcy = useCallback(async () => {
     if (!game?.id || !me) return;
+    if (gameTimeUpLocal || game?.status !== "RUNNING") return;
     toast("Declaring bankruptcy...", { icon: "…" });
     try {
       // Backend signs endAIGameByBackend when we PUT FINISHED (gasless for user)
@@ -1638,7 +1957,21 @@ function Board3DPageContent() {
     } catch (err) {
       toast.error(getContractErrorMessage(err, "Failed to end game"));
     }
-  }, [game?.id, me, livePlayers]);
+  }, [game?.id, me, livePlayers, gameTimeUpLocal, game?.status]);
+
+  // "My agent" with negative balance: auto-liquidate then declare bankruptcy
+  // Placed here (after handleDeclareBankruptcy) to avoid TDZ reference error
+  useAgentAutoLiquidate({
+    agentOn: isLiveGame && agentOn,
+    isMyTurn: isLiveGame && isMyTurn,
+    me,
+    game: game ?? null,
+    gameProperties,
+    properties,
+    refetchGame: async () => refetchGame(),
+    refetchGameProperties: async () => refetchGameProperties(),
+    onDeclare: handleDeclareBankruptcy,
+  });
 
   const toggleFullscreen = useCallback(() => {
     const el = fullscreenRef.current;
@@ -1734,6 +2067,286 @@ function Board3DPageContent() {
     return () => clearTimeout(t);
   }, [isLiveGame, isAITurn, strategyRanThisTurn, rollingDice, currentPlayerId, currentPlayer, me]);
 
+  // Pre-roll perks: when "my agent plays for me", use owner's active perks (jail free, instant cash, lucky 7)
+  const runMyAgentPreRollPerks = useCallback(async () => {
+    if (!game?.id || !me) return;
+    const [gameResult] = await Promise.all([refetchGame(), refetchGameProperties()]);
+    const freshGame = gameResult?.data as Game | undefined;
+    const freshMe = freshGame?.players?.find((p: Player) => p.user_id === me.user_id) ?? me;
+    const raw = freshMe?.active_perks;
+    const activePerks: { id: number }[] = Array.isArray(raw)
+      ? raw
+      : typeof raw === "string"
+        ? (() => {
+            try {
+              const parsed = JSON.parse(raw as string);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch {
+              return [];
+            }
+          })()
+        : [];
+    const hasPerk = (id: number) => activePerks.some((p) => p.id === id);
+    const pos = freshMe?.position ?? 0;
+    const inJail = !!(freshMe?.in_jail && pos === JAIL_POSITION);
+    const balance = freshMe?.balance ?? 0;
+
+    if (inJail && hasPerk(2)) {
+      try {
+        await apiClient.post("/perks/use-jail-free", { game_id: game.id });
+        toast.success("Your agent used Jail Free!");
+        await Promise.all([refetchGame(), refetchGameProperties()]);
+        return;
+      } catch (_) {
+        /* continue */
+      }
+    }
+    if (balance < 400 && hasPerk(5)) {
+      try {
+        await apiClient.post("/perks/burn-cash", { game_id: game.id });
+        toast.success("Your agent used Instant Cash!");
+        await Promise.all([refetchGame(), refetchGameProperties()]);
+        return;
+      } catch (_) {
+        /* continue */
+      }
+    }
+    if (hasPerk(13)) {
+      try {
+        await apiClient.post("/perks/activate", { game_id: game.id, perk_id: 13 });
+        toast.success("Your agent activated Lucky 7!");
+        await Promise.all([refetchGame(), refetchGameProperties()]);
+        return;
+      } catch (_) {
+        /* continue */
+      }
+    }
+  }, [game?.id, me?.user_id, refetchGame, refetchGameProperties]);
+
+  // Pre-roll trade handling: respond to any pending incoming trades on behalf of "my agent" before rolling
+  const runMyAgentTradeHandling = useCallback(async () => {
+    if (!game?.id || !me) return;
+    try {
+      const [gameRes, gpRes] = await Promise.all([refetchGame(), refetchGameProperties()]);
+      const freshGame = gameRes?.data as Game | undefined;
+      const freshMe = freshGame?.players?.find((p: Player) => p.user_id === me.user_id) ?? me;
+      const freshGameProperties = (Array.isArray(gpRes?.data) ? gpRes.data : gameProperties) as GameProperty[];
+      const incomingRes = await apiClient.get<ApiResponse>(`/game-trade-requests/incoming/${game.id}/player/${me.user_id}`);
+      const pendingIncoming = (
+        (incomingRes?.data?.data ?? []) as {
+          id: number; status: string; player_id: string;
+          offer_properties: number[]; offer_amount: number;
+          requested_properties: number[]; requested_amount: number;
+        }[]
+      ).filter((t) => t.status === "pending");
+      for (const trade of pendingIncoming) {
+        const proposerName = freshGame?.players?.find((p: Player) => p.user_id === trade.player_id)?.username ?? "Opponent";
+        let handled = false;
+        try {
+          const tradeContext = {
+            myBalance: freshMe?.balance ?? 0,
+            myProperties: freshGameProperties
+              .filter((gp) => gp.address?.toLowerCase() === freshMe?.address?.toLowerCase())
+              .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+            opponents: (freshGame?.players ?? []).filter((p: Player) => p.user_id !== me.user_id),
+            tradeOffer: trade,
+          };
+          const agentRes = myAgentApiKey
+            ? await apiClient.post<{ success?: boolean; data?: { action?: string }; useBuiltIn?: boolean }>(
+                "/agent-registry/decision-with-key",
+                { gameId: game.id, decisionType: "trade", context: tradeContext, provider: myAgentApiKey.provider, apiKey: myAgentApiKey.apiKey }
+              )
+            : await apiClient.post<{ success?: boolean; data?: { action?: string }; useBuiltIn?: boolean }>(
+                "/agent-registry/decision",
+                { gameId: game.id, slot: 1, decisionType: "trade", context: tradeContext }
+              );
+          if (agentRes?.data?.success && agentRes.data.useBuiltIn === false && agentRes.data.data?.action) {
+            const action = agentRes.data.data.action.toLowerCase();
+            if (action === "accept") {
+              await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+              reportAiAction(game.id, 1, "acceptTrade");
+              toast.success(`Your agent accepted the trade from ${proposerName}.`);
+            } else {
+              await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+              toast(`Your agent declined the trade from ${proposerName}.`);
+            }
+            handled = true;
+          }
+        } catch (_) { /* fallback */ }
+        if (!handled) {
+          const requestingProps = Array.isArray(trade.requested_properties) && trade.requested_properties.length > 0;
+          // Check if selling would complete the proposer's color group (strategic veto)
+          const proposerAddress = freshGame?.players?.find((p: Player) => p.user_id === trade.player_id)?.address ?? "";
+          const wouldCompleteOpponentMonopoly = requestingProps && (Array.isArray(trade.requested_properties) ? trade.requested_properties : []).some((propId: number) => {
+            const prop = properties.find((p) => p.id === propId);
+            if (!prop || ["railroad", "utility"].includes(prop.color ?? "")) return false;
+            const group = Object.values(MONOPOLY_STATS.colorGroups).find((ids: number[]) => (ids as number[]).includes(propId));
+            if (!group) return false;
+            const proposerOwned = freshGameProperties.filter((gp) =>
+              gp.address?.toLowerCase() === proposerAddress.toLowerCase() && (group as number[]).includes(gp.property_id)
+            ).length;
+            return proposerOwned >= (group as number[]).length - 1;
+          });
+
+          if (agentSettings.tradeBehavior === "never_sell" && requestingProps) {
+            await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+            toast(`Your agent declined — set to never sell properties.`);
+          } else if (agentSettings.tradeBehavior !== "generous" && wouldCompleteOpponentMonopoly) {
+            await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+            toast(`Your agent blocked ${proposerName}'s monopoly attempt.`);
+          } else {
+            const fav = calculateAiFavorability(trade, properties);
+            const threshold = agentSettings.tradeBehavior === "generous" ? 10 : TRADE_ACCEPT_THRESHOLD;
+            if (fav >= threshold) {
+              await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+              reportAiAction(game.id, 1, "acceptTrade");
+              toast.success(`Your agent accepted the trade from ${proposerName}.`);
+            } else {
+              await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+              toast(`Your agent declined the trade from ${proposerName}.`);
+            }
+          }
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      if (pendingIncoming.length > 0) await refetchGame();
+    } catch (err) {
+      console.error("My agent trade handling failed", err);
+    }
+  }, [game?.id, me, gameProperties, properties, refetchGame, refetchGameProperties, myAgentApiKey, agentSettings]);
+
+  // Pre-roll build: when "my agent plays for me" and we have a monopoly, ask agent to build (or use rule-based fallback)
+  const runMyAgentPreRollBuild = useCallback(async () => {
+    if (!game?.id || !me) return;
+    // Use fresh data so we see latest ownership (e.g. property just bought last turn)
+    const [gameResult, gpResult] = await Promise.all([refetchGame(), refetchGameProperties()]);
+    const freshGame = gameResult?.data as Game | undefined;
+    const freshGameProperties = (Array.isArray((gpResult?.data as GameProperty[])) ? (gpResult?.data as GameProperty[]) : gameProperties) ?? [];
+    const freshMe = freshGame?.players?.find((p: Player) => p.user_id === me.user_id) ?? me;
+    const balance = freshMe?.balance ?? 0;
+    if (!freshMe?.address) return;
+    if (balance < BUILD_MIN_BALANCE[agentSettings.buildStyle]) return;
+    const myAddr = freshMe.address.toLowerCase();
+    const aiOwnedIds = freshGameProperties
+      .filter((gp) => gp.address?.toLowerCase() === myAddr)
+      .map((gp) => gp.property_id);
+    // Exclude railroads/utilities — you can't build houses on them
+    const buildableColorGroups = Object.entries(MONOPOLY_STATS.colorGroups).filter(
+      ([color]) => !["railroad", "utility"].includes(color)
+    );
+    const hasMonopoly = buildableColorGroups.some(([, ids]) =>
+      (ids as number[]).every((id) => aiOwnedIds.includes(id))
+    );
+    if (!hasMonopoly) return;
+    // Collect all property IDs that are in a COMPLETED color group (the ones we can build on)
+    const completedMonopolyIds = new Set<number>(
+      buildableColorGroups
+        .filter(([, ids]) => (ids as number[]).every((id) => aiOwnedIds.includes(id)))
+        .flatMap(([, ids]) => ids as number[])
+    );
+    const myProperties = freshGameProperties
+      .filter((gp) => gp.address?.toLowerCase() === myAddr)
+      .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp }));
+    let didBuild = false;
+    const buildContext = {
+      myBalance: balance,
+      myProperties,
+      opponents: (freshGame?.players ?? []).filter((p: Player) => p.user_id !== me.user_id),
+    };
+    try {
+      type DecisionRes = { success?: boolean; data?: { action?: string; propertyId?: number; reasoning?: string }; useBuiltIn?: boolean };
+      const agentRes = myAgentApiKey
+        ? await apiClient.post<DecisionRes>("/agent-registry/decision-with-key", {
+            gameId: game.id,
+            decisionType: "building",
+            context: buildContext,
+            provider: myAgentApiKey.provider,
+            apiKey: myAgentApiKey.apiKey,
+          })
+        : await apiClient.post<DecisionRes>("/agent-registry/decision", {
+            gameId: game.id,
+            slot: 1,
+            decisionType: "building",
+            context: buildContext,
+          });
+      if (
+        agentRes?.data?.success &&
+        agentRes.data.data?.action?.toLowerCase() === "build" &&
+        agentRes.data.data.propertyId
+      ) {
+        const prop = properties.find((p) => p.id === agentRes.data!.data!.propertyId);
+        await apiClient.post("/game-properties/development", {
+          game_id: game.id,
+          user_id: me.user_id,
+          property_id: agentRes.data.data.propertyId,
+        });
+        toast.success(prop ? `Your agent built on ${prop.name}.` : "Your agent built a house.");
+        didBuild = true;
+      } else if (
+        agentRes?.data?.success &&
+        agentRes.data.data?.action?.toLowerCase() !== "build" &&
+        agentRes.data.data?.reasoning
+      ) {
+        toast.info(`Agent chose not to build: ${agentRes.data.data.reasoning}`);
+      }
+    } catch (_) {
+      /* try fallback */
+    }
+    // Fallback: if agent didn't build but we have monopoly and funds, build on lowest-development property in a set
+    const buildAfterReserve = BUILD_AFTER_RESERVE[agentSettings.buildStyle];
+    if (!didBuild && balance >= BUILD_MIN_BALANCE[agentSettings.buildStyle]) {
+      const buildable = myProperties
+        .filter((p) =>
+          (p.development ?? 0) < 5 &&
+          (p as Property & { cost_of_house?: number }).cost_of_house &&
+          p.property_id != null &&
+          completedMonopolyIds.has(p.property_id)
+        )
+        .map((p) => ({ p, cost: (p as Property & { cost_of_house?: number }).cost_of_house ?? 9999 }));
+      const byDev = buildable.sort((a, b) => (a.p.development ?? 0) - (b.p.development ?? 0));
+      const target = byDev.find((x) => balance - (x.cost ?? 9999) >= buildAfterReserve);
+      if (target && target.p.property_id != null) {
+        try {
+          await apiClient.post("/game-properties/development", {
+            game_id: game.id,
+            user_id: me.user_id,
+            property_id: target.p.property_id,
+          });
+          const propName = properties.find((p) => p.id === target.p.property_id)?.name;
+          toast.success(propName ? `Your agent built on ${propName}.` : "Your agent built a house.");
+          didBuild = true;
+        } catch (_) {
+          /* ignore */
+        }
+      }
+    }
+    if (didBuild) await Promise.all([refetchGame(), refetchGameProperties()]);
+  }, [game?.id, me, gameProperties, properties, refetchGame, refetchGameProperties, myAgentApiKey, agentSettings]);
+
+  // When "my agent plays for me" is on and it's my turn: pre-roll perks → build (if monopoly) → auto-roll
+  // Use me?.user_id in deps so refetches (new me object) don't reset the timer; omit playerCanRoll so in-jail still runs (perks can use Jail Free)
+  useEffect(() => {
+    if (!isLiveGame || !isMyTurn || !agentOn || rollingDice || !me) return;
+    // Do not roll while bankrupt — useAgentAutoLiquidate will handle debt resolution first
+    if ((me.balance ?? 0) < 0) return;
+    let cancelled = false;
+    const t = setTimeout(() => {
+      runMyAgentTradeHandling()
+        .then(() => runMyAgentPreRollPerks())
+        .then(() => runMyAgentPreRollBuild())
+        .then(() => {
+          if (!cancelled) handleRollForLive();
+        })
+        .catch(() => {
+          if (!cancelled) handleRollForLive();
+        });
+    }, 1200);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [isLiveGame, isMyTurn, agentOn, rollingDice, me?.user_id, handleRollForLive, runMyAgentTradeHandling, runMyAgentPreRollPerks, runMyAgentPreRollBuild]);
+
   useEffect(() => {
     const history = game?.history ?? [];
     if (history.length === 0) return;
@@ -1790,11 +2403,15 @@ function Board3DPageContent() {
     if (timeUpHandledRef.current || game?.status !== "RUNNING") return;
     timeUpHandledRef.current = true;
     setGameTimeUpLocal(true);
+    setEndGameReason(null);
+    setShowBankruptcyModal(false);
     try {
       const res = await apiClient.post<{
         success?: boolean;
+        message?: string;
         data?: { winner_id: number; game?: { players?: Player[] }; valid_win?: boolean };
       }>(`/games/${game!.id}/finish-by-time`);
+      setEndGameReason(res?.data?.message ?? null);
       const data = res?.data?.data;
       const winnerId = data?.winner_id;
       if (winnerId != null) {
@@ -1815,6 +2432,7 @@ function Board3DPageContent() {
       console.error("Finish by time failed:", e);
       timeUpHandledRef.current = false;
       setGameTimeUpLocal(false);
+      setEndGameReason(null);
     }
   }, [game?.id, game?.status, game?.players, me, refetchGame]);
 
@@ -1898,6 +2516,19 @@ function Board3DPageContent() {
             </div>
           </div>
         )}
+        {isLiveGame && game && me && (
+          <MyAgentToggle
+            gameId={game.id}
+            myAgentOn={myAgentOn}
+            myAgentApiKey={myAgentApiKey}
+            onUseApiKey={setMyAgentApiKey}
+            onStopApiKey={() => setMyAgentApiKey(null)}
+            onBindingsChange={refetchAgentBindings}
+            agentSettings={agentSettings}
+            onSettingsChange={updateAgentSettings}
+            compact
+          />
+        )}
         {/* Vote player out — same as 2D board */}
         {isLiveGame && game && !game.is_ai && voteablePlayersList.length > 0 && (
           <div className="rounded-xl border-2 border-amber-500/40 bg-slate-900/90 p-4 space-y-3">
@@ -1944,6 +2575,7 @@ function Board3DPageContent() {
             currentPlayer={currentPlayer}
             positions={positions}
             isAITurn={isAITurn}
+            agentNameBySlot={Object.fromEntries(agentNameBySlot.entries())}
             isLoading={false}
             onPropertySelect={(prop, gp) => {
               setSelectedProperty(prop);
@@ -2238,7 +2870,7 @@ function Board3DPageContent() {
         {/* Chance / Community Chest card modal */}
         <CardModal
           isOpen={showCardModal}
-          onClose={() => setShowCardModal(false)}
+          onClose={handleCloseCardModal}
           card={cardData}
           playerName={cardPlayerName}
           isCurrentPlayerDrawer={cardIsCurrentPlayerDrawer}
@@ -2435,7 +3067,8 @@ function Board3DPageContent() {
                 >
                   <Crown className="w-20 h-20 mx-auto text-cyan-300 mb-4" />
                   <h1 className="text-4xl font-black text-white mb-2">YOU WIN</h1>
-                  <p className="text-slate-200 mb-6">You had the highest net worth when time ran out.</p>
+                  <p className="text-slate-200 mb-2">You had the highest net worth when time ran out.</p>
+                  {endGameReason && <p className="text-slate-400 mb-6 text-sm">{endGameReason}</p>}
                   {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
                     <button
                       type="button"
@@ -2461,6 +3094,7 @@ function Board3DPageContent() {
                   <h1 className="text-2xl font-bold text-slate-200 mb-2">Time&apos;s up</h1>
                   <p className="text-xl text-white mb-4">{winner.username} <span className="text-amber-400">wins</span></p>
                   <HeartHandshake className="w-12 h-12 mx-auto text-cyan-400 mb-4" />
+                  {endGameReason && <p className="text-slate-400 mb-4 text-sm">{endGameReason}</p>}
                   <p className="text-slate-300 mb-6">You still get a consolation prize.</p>
                   {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
                     <button
@@ -2483,7 +3117,7 @@ function Board3DPageContent() {
         </AnimatePresence>
 
         <BankruptcyModal
-          isOpen={showBankruptcyModal}
+          isOpen={showBankruptcyModal && !gameTimeUpLocal}
           onClose={() => setShowBankruptcyModal(false)}
           onReturnHome={() => (window.location.href = "/")}
           tokensAwarded={0.5}
@@ -2518,27 +3152,39 @@ function Board3DPageContent() {
                   >
                     Continue watching
                   </button>
-                  <Link
-                    href="/"
-                    className="block w-full py-3 rounded-xl border border-slate-500 text-slate-300 hover:bg-slate-700/50 font-medium"
+                  <button
+                    type="button"
+                    disabled={claimAndLeaveInProgress}
+                    onClick={() => {
+                      // Prevent navigation from interrupting finalize/claim when the game ended.
+                      if (claimAndLeaveInProgress) return;
+                      if (winner && gameTimeUp) {
+                        void handleClaimAndGoHome();
+                        return;
+                      }
+                      setShowVotedOutModal(false);
+                      router.push("/");
+                    }}
+                    className="block w-full py-3 rounded-xl border border-slate-500 text-slate-300 hover:bg-slate-700/50 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Leave
-                  </Link>
+                  </button>
                 </div>
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40">
-            <button
-              onClick={handleDeclareBankruptcy}
-              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold"
-            >
-              Declare bankruptcy
-            </button>
-          </div>
+        {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && me && game && !agentOn && (
+          <RaiseFundsPanel
+            me={me}
+            game={game}
+            gameProperties={gameProperties}
+            properties={properties}
+            onRefetch={async () => { await refetchGame(); await refetchGameProperties(); }}
+            onDeclareBankruptcy={handleDeclareBankruptcy}
+            bottomClass="bottom-4"
+          />
         )}
       </div>
 
