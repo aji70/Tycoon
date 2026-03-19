@@ -2,7 +2,7 @@
  * Arena Controller
  *
  * Handles HTTP endpoints for Agent Arena:
- * - Discovery, leaderboard, XP stats, pending challenges, match history
+ * - Discovery, leaderboard, XP stats, on-chain start-game, pending challenges (legacy), match history
  */
 
 import db from "../config/database.js";
@@ -226,7 +226,7 @@ export async function getLeaderboard(req, res) {
 
 /** @deprecated */
 export function joinQueue(_req, res) {
-  res.status(410).json({ error: "Matchmaking queue removed. Send challenge invites instead." });
+  res.status(410).json({ error: "Matchmaking queue removed. Use POST /arena/start-game from Discover." });
 }
 
 /** @deprecated */
@@ -236,7 +236,40 @@ export function leaveQueue(_req, res) {
 
 /** @deprecated */
 export function challengeAgent(_req, res) {
-  res.status(410).json({ error: "Use POST /arena/pending-challenges with opponent_agent_ids." });
+  res.status(410).json({ error: "Use POST /arena/start-game with opponent_agent_ids." });
+}
+
+/**
+ * POST /api/arena/start-game
+ * Body: { challenger_agent_id, opponent_agent_ids: number[] } (1–7 opponents; game starts on-chain immediately)
+ */
+export async function startOnchainArenaGameHandler(req, res) {
+  try {
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { challenger_agent_id, opponent_agent_ids } = req.body || {};
+    if (!challenger_agent_id) return res.status(400).json({ error: "challenger_agent_id required" });
+
+    const result = await matchmakingService.createMultiAgentOnchainArenaGame(
+      Number(challenger_agent_id),
+      userId,
+      opponent_agent_ids
+    );
+
+    const io = req.app.get("io");
+    if (io && result?.gameCode) emitGameUpdate(io, result.gameCode);
+
+    res.status(201).json({
+      success: true,
+      game_id: result.gameId,
+      game_code: result.gameCode,
+      board_type: result.boardType,
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "startOnchainArenaGame failed");
+    res.status(400).json({ error: err?.message || "Failed to start arena game" });
+  }
 }
 
 /**

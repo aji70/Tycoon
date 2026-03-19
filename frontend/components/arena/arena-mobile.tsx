@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { apiClient } from "@/lib/api";
@@ -34,16 +34,6 @@ interface LeaderboardEntry extends Agent {
   rank: number;
 }
 
-interface PendingChallenge {
-  id: number;
-  challenger_agent_id: number;
-  challenged_agent_id: number;
-  challenger_agent_name?: string | null;
-  challenged_agent_name?: string | null;
-  challenger_username?: string | null;
-  challenged_username?: string | null;
-}
-
 function xpOf(a: Agent) {
   return a.xp ?? a.elo_rating ?? 1000;
 }
@@ -69,12 +59,10 @@ const TierColors: Record<string, string> = {
 export default function ArenaMobile() {
   const router = useRouter();
   const { authenticated } = usePrivy();
-  const [activeTab, setActiveTab] = useState<"discover" | "leaderboard" | "invites" | "my-agents">("discover");
+  const [activeTab, setActiveTab] = useState<"discover" | "leaderboard" | "my-agents">("discover");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myAgents, setMyAgents] = useState<Agent[]>([]);
-  const [incoming, setIncoming] = useState<PendingChallenge[]>([]);
-  const [outgoing, setOutgoing] = useState<PendingChallenge[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -110,26 +98,6 @@ export default function ArenaMobile() {
       fetchMyAgents();
     }
   }, [activeTab]);
-
-  const fetchInvites = useCallback(async () => {
-    if (!authenticated) return;
-    try {
-      const [inc, out] = await Promise.all([
-        apiClient.get<any>("/arena/pending-challenges/incoming"),
-        apiClient.get<any>("/arena/pending-challenges/outgoing"),
-      ]);
-      if (inc?.data?.challenges) setIncoming(inc.data.challenges);
-      if (out?.data?.challenges) setOutgoing(out.data.challenges);
-    } catch (e) {
-      console.error(e);
-    }
-  }, [authenticated]);
-
-  useEffect(() => {
-    if (activeTab === "invites" && authenticated) {
-      fetchInvites();
-    }
-  }, [activeTab, authenticated, fetchInvites]);
 
   const fetchPublicAgents = async (pageNum: number) => {
     try {
@@ -217,56 +185,23 @@ export default function ArenaMobile() {
     });
   };
 
-  const sendChallengeBatch = async () => {
+  const startArenaGame = async () => {
     if (!authenticated || !challengerAgentId || selectedOpponents.length === 0) {
       alert("Log in, pick your agent, and select opponents.");
       return;
     }
     try {
-      const res = await apiClient.post<any>("/arena/pending-challenges", {
+      const res = await apiClient.post<any>("/arena/start-game", {
         challenger_agent_id: challengerAgentId,
         opponent_agent_ids: selectedOpponents,
       });
-      const skipped = res?.data?.skipped as { reason: string }[] | undefined;
-      alert(
-        skipped?.length
-          ? `Sent. Skipped some: ${skipped.map((s) => s.reason).join(", ")}`
-          : "Challenges sent. Check Invites."
-      );
-      setSelectedOpponents([]);
-      fetchInvites();
-    } catch (err) {
-      alert(`Error: ${(err as Error).message}`);
-    }
-  };
-
-  const acceptInvite = async (id: number) => {
-    try {
-      const res = await apiClient.post<any>(`/arena/pending-challenges/${id}/accept`, {});
       const code = res?.data?.game_code as string | undefined;
       if (code) {
+        setSelectedOpponents([]);
         router.push(`/board-3d-mobile?gameCode=${encodeURIComponent(code)}`);
       } else {
         throw new Error("No game code");
       }
-    } catch (err) {
-      alert(`Error: ${(err as Error).message}`);
-    }
-  };
-
-  const declineInvite = async (id: number) => {
-    try {
-      await apiClient.post<any>(`/arena/pending-challenges/${id}/decline`, {});
-      fetchInvites();
-    } catch (err) {
-      alert(`Error: ${(err as Error).message}`);
-    }
-  };
-
-  const cancelOutgoing = async (id: number) => {
-    try {
-      await apiClient.post<any>(`/arena/pending-challenges/${id}/cancel`, {});
-      fetchInvites();
     } catch (err) {
       alert(`Error: ${(err as Error).message}`);
     }
@@ -278,7 +213,7 @@ export default function ArenaMobile() {
     <div className={styles.container}>
       <header className={styles.header}>
         <h1>⚔️ Arena</h1>
-        <p>XP & invites</p>
+        <p>XP & instant games</p>
       </header>
 
       <div className={styles.tabs}>
@@ -296,12 +231,6 @@ export default function ArenaMobile() {
           onClick={() => setActiveTab("leaderboard")}
         >
           🏆
-        </button>
-        <button
-          className={`${styles.tab} ${activeTab === "invites" ? styles.active : ""}`}
-          onClick={() => setActiveTab("invites")}
-        >
-          ✉️
         </button>
         <button
           className={`${styles.tab} ${activeTab === "my-agents" ? styles.active : ""}`}
@@ -323,8 +252,8 @@ export default function ArenaMobile() {
             </span>
           </div>
           <p className={styles.challengeHint}>
-            Use <strong style={{ color: "#e8fbff" }}>Pick</strong> on each card, then{" "}
-            <strong style={{ color: "#e8fbff" }}>Send</strong>.
+            <strong style={{ color: "#e8fbff" }}>Pick</strong> opponents, then{" "}
+            <strong style={{ color: "#e8fbff" }}>Start</strong> — on-chain game opens for everyone.
           </p>
           <label className={styles.challengeFieldLabel} htmlFor="arena-mobile-agent">
             Playing as
@@ -345,10 +274,10 @@ export default function ArenaMobile() {
             <button
               type="button"
               className={styles.btnSendCompact}
-              onClick={sendChallengeBatch}
+              onClick={startArenaGame}
               disabled={selectedOpponents.length === 0}
             >
-              Send{selectedOpponents.length > 0 ? ` · ${selectedOpponents.length}` : ""}
+              Start{selectedOpponents.length > 0 ? ` · ${selectedOpponents.length + 1}` : ""}
             </button>
             {selectedOpponents.length > 0 && (
               <button type="button" className={styles.btnClearCompact} onClick={() => setSelectedOpponents([])}>
@@ -435,50 +364,6 @@ export default function ArenaMobile() {
           ))}
           {leaderboard.length === 0 && !loading && (
             <p className={styles.emptyState}>No leaderboard data</p>
-          )}
-        </div>
-      )}
-
-      {activeTab === "invites" && (
-        <div className={styles.myAgentsList}>
-          {!authenticated ? (
-            <p className={styles.emptyState}>Log in</p>
-          ) : (
-            <>
-              <h4 style={{ margin: "0.5rem 0" }}>Incoming</h4>
-              {incoming.length === 0 ? (
-                <p className={styles.emptyState}>None</p>
-              ) : (
-                incoming.map((c) => (
-                  <div key={c.id} className={styles.agentCard} style={{ marginBottom: 8 }}>
-                    <p style={{ fontSize: "0.85rem", margin: 0 }}>
-                      {c.challenger_username} → your {c.challenged_agent_name}
-                    </p>
-                    <button type="button" className={styles.btnPrimary} onClick={() => acceptInvite(c.id)}>
-                      Accept
-                    </button>
-                    <button type="button" className={styles.btnSecondary} onClick={() => declineInvite(c.id)}>
-                      Decline
-                    </button>
-                  </div>
-                ))
-              )}
-              <h4 style={{ margin: "0.5rem 0" }}>Outgoing</h4>
-              {outgoing.length === 0 ? (
-                <p className={styles.emptyState}>None</p>
-              ) : (
-                outgoing.map((c) => (
-                  <div key={c.id} className={styles.agentCard} style={{ marginBottom: 8 }}>
-                    <p style={{ fontSize: "0.85rem", margin: 0 }}>
-                      Waiting: {c.challenged_agent_name}
-                    </p>
-                    <button type="button" className={styles.btnSecondary} onClick={() => cancelOutgoing(c.id)}>
-                      Cancel
-                    </button>
-                  </div>
-                ))
-              )}
-            </>
           )}
         </div>
       )}

@@ -13,7 +13,10 @@ router.get("/agents", arenaController.getPublicAgents);
 router.get("/agents/:agentId", arenaController.getAgentProfile);
 router.get("/leaderboard", arenaController.getLeaderboard);
 
-// Pending challenges (replaces queue)
+// Immediate on-chain multi-seat arena (no invites)
+router.post("/start-game", requireAuth, arenaController.startOnchainArenaGameHandler);
+
+// Pending challenges (legacy; UI uses /start-game)
 router.post("/pending-challenges", requireAuth, arenaController.createPendingChallengeBatchHandler);
 router.get("/pending-challenges/incoming", requireAuth, arenaController.listIncomingPending);
 router.get("/pending-challenges/outgoing", requireAuth, arenaController.listOutgoingPending);
@@ -21,7 +24,7 @@ router.post("/pending-challenges/:id/accept", requireAuth, arenaController.accep
 router.post("/pending-challenges/:id/decline", requireAuth, arenaController.declinePendingChallengeHandler);
 router.post("/pending-challenges/:id/cancel", requireAuth, arenaController.cancelPendingChallengeHandler);
 
-// Immediate on-chain challenge (optional; still enforces one game per agent)
+// Legacy 1v1 immediate challenge
 router.post("/start-challenge/:opponentAgentId", requireAuth, arenaController.startChallenge);
 
 // Deprecated queue routes (410)
