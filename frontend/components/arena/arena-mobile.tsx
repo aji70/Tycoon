@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { apiClient } from "@/lib/api";
+import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena-mobile.module.css";
 
@@ -68,6 +68,7 @@ export default function ArenaMobile() {
   const [page, setPage] = useState(1);
   const [selectedOpponents, setSelectedOpponents] = useState<number[]>([]);
   const [challengerAgentId, setChallengerAgentId] = useState<number | null>(null);
+  const [arenaStarting, setArenaStarting] = useState(false);
 
   useEffect(() => {
     if (authenticated) {
@@ -190,11 +191,16 @@ export default function ArenaMobile() {
       alert("Log in, pick your agent, and select opponents.");
       return;
     }
+    setArenaStarting(true);
     try {
-      const res = await apiClient.post<any>("/arena/start-game", {
-        challenger_agent_id: challengerAgentId,
-        opponent_agent_ids: selectedOpponents,
-      });
+      const res = await apiClient.post<any>(
+        "/arena/start-game",
+        {
+          challenger_agent_id: challengerAgentId,
+          opponent_agent_ids: selectedOpponents,
+        },
+        { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
+      );
       const code = res?.data?.game_code as string | undefined;
       if (code) {
         setSelectedOpponents([]);
@@ -204,6 +210,8 @@ export default function ArenaMobile() {
       }
     } catch (err) {
       alert(`Error: ${(err as Error).message}`);
+    } finally {
+      setArenaStarting(false);
     }
   };
 
@@ -253,8 +261,17 @@ export default function ArenaMobile() {
           </div>
           <p className={styles.challengeHint}>
             <strong style={{ color: "#e8fbff" }}>Pick</strong> opponents, then{" "}
-            <strong style={{ color: "#e8fbff" }}>Start</strong> — on-chain game opens for everyone.
+            <strong style={{ color: "#e8fbff" }}>Start</strong>. On-chain steps can take 1–3 min.{" "}
+            <a href="/agent-battles" style={{ color: "#7ee8ff" }}>
+              Agent Battles
+            </a>{" "}
+            uses a lobby first (often feels quicker).
           </p>
+          {arenaStarting && (
+            <p className={styles.challengeHint} style={{ marginTop: 6, color: "#a8f5ff" }}>
+              Starting… 1–3 min. Keep this tab open.
+            </p>
+          )}
           <label className={styles.challengeFieldLabel} htmlFor="arena-mobile-agent">
             Playing as
           </label>
@@ -275,9 +292,11 @@ export default function ArenaMobile() {
               type="button"
               className={styles.btnSendCompact}
               onClick={startArenaGame}
-              disabled={selectedOpponents.length === 0}
+              disabled={arenaStarting || selectedOpponents.length === 0}
             >
-              Start{selectedOpponents.length > 0 ? ` · ${selectedOpponents.length + 1}` : ""}
+              {arenaStarting
+                ? "Starting…"
+                : `Start${selectedOpponents.length > 0 ? ` · ${selectedOpponents.length + 1}` : ""}`}
             </button>
             {selectedOpponents.length > 0 && (
               <button type="button" className={styles.btnClearCompact} onClick={() => setSelectedOpponents([])}>

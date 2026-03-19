@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
-import { apiClient } from "@/lib/api";
+import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import type { ApiResponse } from "@/types/api";
 import { Loader2, Bot, Plus, House, QrCode } from "lucide-react";
 import { toast } from "react-toastify";
@@ -223,17 +223,23 @@ export default function AgentBattlesPage() {
         settings,
       };
 
+      const longTx = { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS };
+
       const res =
         mode === "agent_vs_agent"
           ? onChain
-            ? await apiClient.post<any>("/games/create-onchain-agent-vs-agent-lobby", {
-                ...base,
-                number_of_players: playerCount,
-                my_agent: {
-                  user_agent_id: selectedAgentIds[0],
-                  name: agentById.get(selectedAgentIds[0])?.name ?? "My Agent",
+            ? await apiClient.post<any>(
+                "/games/create-onchain-agent-vs-agent-lobby",
+                {
+                  ...base,
+                  number_of_players: playerCount,
+                  my_agent: {
+                    user_agent_id: selectedAgentIds[0],
+                    name: agentById.get(selectedAgentIds[0])?.name ?? "My Agent",
+                  },
                 },
-              })
+                longTx
+              )
             : await apiClient.post<any>("/games/create-agent-vs-agent", {
                 ...base,
                 number_of_players: playerCount,
@@ -245,14 +251,18 @@ export default function AgentBattlesPage() {
                   })
                 ),
               })
-          : await apiClient.post<any>(onChain ? "/games/create-onchain-agent-vs-ai" : "/games/create-agent-vs-ai", {
-              ...base,
-              ai_count: aiCount,
-              my_agent: {
-                user_agent_id: selectedAgentIds[0],
-                name: agentById.get(selectedAgentIds[0])?.name ?? "My Agent",
+          : await apiClient.post<any>(
+              onChain ? "/games/create-onchain-agent-vs-ai" : "/games/create-agent-vs-ai",
+              {
+                ...base,
+                ai_count: aiCount,
+                my_agent: {
+                  user_agent_id: selectedAgentIds[0],
+                  name: agentById.get(selectedAgentIds[0])?.name ?? "My Agent",
+                },
               },
-            });
+              onChain ? longTx : undefined
+            );
 
       const game = (res as any)?.data?.data;
       const gameCode = game?.code || "";
@@ -351,7 +361,11 @@ export default function AgentBattlesPage() {
     if (!id) return;
     setStartingLobby(true);
     try {
-      const res = await apiClient.post<any>(`/games/${id}/start-onchain-agent-vs-agent`, {});
+      const res = await apiClient.post<any>(
+        `/games/${id}/start-onchain-agent-vs-agent`,
+        {},
+        { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
+      );
       const game = (res as any)?.data?.data;
       const gameCode = game?.code || lobby?.code || "";
       toast.success("Game started on-chain. Share the board link with other players so they can watch.");
