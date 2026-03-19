@@ -1204,29 +1204,23 @@ export default function Profile() {
   const handleRecreate = React.useCallback(async () => {
     setRecreateAnyPending(true);
     try {
-      try {
-        await apiClient.post<ApiResponse & { data?: { smart_wallet_address?: string } }>('auth/recreate-smart-wallet');
-        await refetchGuest?.();
-        refetchRegistryWallet?.();
-        toast.success('Smart wallet recreated');
-        return;
-      } catch (apiErr: unknown) {
-        const e = apiErr as { response?: { status?: number; data?: { message?: string } }; message?: string };
-        if (e?.response?.status === 401) {
-          await recreateWallet();
-          toast.info('Creating new smart wallet…');
-          refetchRegistryWallet?.();
-          return;
-        }
-        throw e;
-      }
+      await apiClient.post<ApiResponse & { data?: { smart_wallet_address?: string } }>('auth/recreate-smart-wallet');
+      await refetchGuest?.();
+      refetchRegistryWallet?.();
+      toast.success('Smart wallet recreated');
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } }; message?: string; shortMessage?: string };
-      toast.error(err?.response?.data?.message ?? err?.shortMessage ?? err?.message ?? 'Failed to recreate');
+      const err = e as { response?: { status?: number; data?: { message?: string } }; message?: string };
+      if (err?.response?.status === 401) {
+        toast.error('Log in (e.g. with email or social) to recreate your smart wallet. No wallet connection needed.');
+      } else if (err?.response?.status === 503) {
+        toast.error(err?.response?.data?.message ?? 'Recreate is not available right now. Try again later.');
+      } else {
+        toast.error(err?.response?.data?.message ?? err?.message ?? 'Failed to recreate');
+      }
     } finally {
       setRecreateAnyPending(false);
     }
-  }, [refetchGuest, refetchRegistryWallet, recreateWallet]);
+  }, [refetchGuest, refetchRegistryWallet]);
 
   const [recreateApiPending, setRecreateApiPending] = useState(false);
   const handleRecreateViaApi = React.useCallback(async () => {
@@ -1388,11 +1382,11 @@ export default function Profile() {
                     <button
                       type="button"
                       onClick={() => handleRecreate()}
-                      disabled={recreateAnyPending || recreateWalletPending}
+                      disabled={recreateAnyPending}
                       className="w-full sm:w-auto px-4 py-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60"
-                      title="Create a new smart wallet (old wallet stays; move funds manually)"
+                      title="Create a new smart wallet via your account (no wallet signature needed)"
                     >
-                      {(recreateAnyPending || recreateWalletPending) ? 'Creating…' : 'Recreate smart wallet'}
+                      {recreateAnyPending ? 'Creating…' : 'Recreate smart wallet'}
                     </button>
                   )}
                 </div>
