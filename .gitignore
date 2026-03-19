@@ -2,6 +2,7 @@
 PokerBot-main/
 pokerbot-main/
 payCrypt_v2-master/
+working version/
 
 # --- Sensitive / secrets (do not commit) ---
 .env
