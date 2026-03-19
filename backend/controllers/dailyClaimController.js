@@ -5,8 +5,9 @@ import db from "../config/database.js";
 import { mintVoucherTo, isContractConfigured } from "../services/tycoonContract.js";
 import logger from "../config/logger.js";
 
-const DEFAULT_DAILY_REWARD_TYC = "10";
-const STREAK_BONUS_TYC = 5;
+// Base TYC per claim; streak adds 0.5 TYC per consecutive day (max 7 days = 3.5 TYC). Set via env to override.
+const DEFAULT_DAILY_REWARD_TYC = process.env.DAILY_REWARD_TYC_BASE ?? "1";
+const STREAK_BONUS_TYC_PER_DAY = Number(process.env.DAILY_REWARD_STREAK_BONUS_TYC ?? "0.5");
 
 function toDateOnly(d) {
   if (!d) return null;
@@ -71,7 +72,8 @@ export async function dailyClaim(req, res) {
 
     if (isContractConfigured(normalizedChain)) {
       const baseReward = BigInt(DEFAULT_DAILY_REWARD_TYC) * BigInt(1e18);
-      const streakBonus = BigInt(Math.min(newStreak - 1, 7)) * BigInt(STREAK_BONUS_TYC) * BigInt(1e18);
+      const streakDays = Math.min(newStreak - 1, 7);
+      const streakBonus = BigInt(streakDays) * BigInt(Math.round(STREAK_BONUS_TYC_PER_DAY * 1e18));
       const totalWei = baseReward + streakBonus;
 
       try {
