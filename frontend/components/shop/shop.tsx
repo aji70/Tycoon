@@ -629,12 +629,43 @@ export default function GameShop() {
   const hasVouchers = myVouchers.length > 0;
   const isLoadingShop = contractTokenCount > 0 && shopItems.length === 0;
 
+  // Compute available bundles by checking if all component perks are in stock
+  const computedBundles = useMemo(() => {
+    const bundleMap = new Map<string, { perk: number; strength: number }>();
+
+    // Build a map of available perk+strength combinations from shopItems
+    for (const item of shopItems) {
+      const key = `${item.perk}:${item.strength}`;
+      bundleMap.set(key, { perk: item.perk, strength: item.strength });
+    }
+
+    // Filter BUNDLE_DEFS to only those where all component perks are available
+    return BUNDLE_DEFS.map((bundle, idx) => {
+      const allComponentsAvailable = bundle.items.every((item) => {
+        const key = `${item.perk}:${item.strength}`;
+        return bundleMap.has(key);
+      });
+
+      const bundleDef = BUNDLE_DEFS_FOR_STOCK[idx];
+      return {
+        id: idx + 1,
+        name: bundle.name,
+        description: bundle.description,
+        price_tyc: bundleDef.price_tyc,
+        price_usdc: bundleDef.price_usdc,
+        available: allComponentsAvailable,
+      };
+    });
+  }, [shopItems]);
+
+  // Update bundles list when computed bundles change
   useEffect(() => {
-    apiClient.get<{ success?: boolean; ngn_available?: boolean; bundles?: Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }> }>('shop/bundles').then((r) => {
-      if (r?.data?.bundles) setBundles(r.data.bundles);
+    setBundles(computedBundles);
+    // Also fetch NGN availability from backend
+    apiClient.get<{ ngn_available?: boolean }>('shop/bundles').then((r) => {
       if (typeof r?.data?.ngn_available === 'boolean') setNgnAvailable(r.data.ngn_available);
     }).catch(() => {});
-  }, []);
+  }, [computedBundles]);
 
   // Handle return from Flutterwave payment (redirect with ?reference= or ?tx_ref=)
   useEffect(() => {
@@ -828,9 +859,9 @@ export default function GameShop() {
               <span className="text-sm font-medium text-slate-500 uppercase tracking-[0.2em]">Bundles</span>
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
             </div>
-            {bundles.length > 0 ? (
+            {bundles.filter((b) => (b as any).available !== false).length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
-                {bundles.map((b, idx) => (
+                {bundles.filter((b) => (b as any).available !== false).map((b, idx) => (
                   <motion.div
                     key={b.id ?? b.name ?? idx}
                     initial={{ opacity: 0, y: 16 }}
