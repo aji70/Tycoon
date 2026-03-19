@@ -897,6 +897,8 @@ export default function Profile() {
     ? (registrySmartWallet as Address)
     : accountSmartWallet;
   const smartWallet = smartWalletAddress;
+  const hasSmartWalletFromCurrentRegistry =
+    isValidWallet(registrySmartWallet) && (registrySmartWallet as string) !== "0x0000000000000000000000000000000000000000";
   const { data: smartWalletOwner } = useProfileOwner(smartWallet);
 
   const showDualWallets = !!smartWallet && !!walletAddress && smartWallet.toLowerCase() !== walletAddress.toLowerCase();
@@ -1378,7 +1380,7 @@ export default function Profile() {
                       </span>
                     )}
                   </div>
-                  {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+                  {isConnected && !hasSmartWalletFromCurrentRegistry && (
                     <button
                       type="button"
                       onClick={() => handleRecreate()}
