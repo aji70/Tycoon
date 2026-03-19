@@ -259,20 +259,143 @@ export async function getQueueStats() {
  * @returns {Promise<{gameId: number, gameCode: string, boardType: string}>}
  */
 export async function createDirectChallenge(userAgentId, userId, opponentAgentId) {
-  // Import agentGameRunner to create the game
-  const { createAgentGame } = await import("./agentGameRunner.js");
+  const { createGameByBackend, joinGameByBackend } = await import("./tycoonContract.js");
+  const agentRegistry = (await import("./agentRegistry.js")).default;
+  const User = (await import("../models/User.js")).default;
+  const Game = (await import("../models/Game.js")).default;
+  const GamePlayer = (await import("../models/GamePlayer.js")).default;
+  const GameSetting = (await import("../models/GameSetting.js")).default;
+  const Chat = (await import("../models/Chat.js")).default;
 
   try {
-    // Create game with both agents
-    const gameId = await createAgentGame(userAgentId, opponentAgentId);
+    // Get both agents and their owners
+    const userAgent = await db("user_agents").where("id", userAgentId).first();
+    const opponentAgent = await db("user_agents").where("id", opponentAgentId).first();
 
-    // Return game info
-    const game = await db("games").where("id", gameId).first();
+    if (!userAgent || !opponentAgent) {
+      throw new Error("One or both agents not found");
+    }
+
+    // Get user info for both players
+    const userA = await User.findById(userId);
+    const userB = await User.findById(opponentAgent.user_id);
+
+    if (!userA || !userB) {
+      throw new Error("One or both users not found");
+    }
+
+    // Generate game code
+    const code = `CHALLENGE_${Date.now()}`;
+    const DEFAULT_STARTING_CASH = 1500;
+    const chain = User.normalizeChain(userA.chain || "base");
+
+    // Create game on-chain with User A (challenger)
+    const result = await createGameByBackend(
+      userA.address,
+      userA.password_hash || "",
+      userA.username,
+      "PRIVATE",
+      "🎮", // Symbol for User A
+      2,    // 2 players
+      code,
+      DEFAULT_STARTING_CASH,
+      0n,
+      chain
+    );
+
+    const contractGameId = result?.gameId;
+    if (!contractGameId) throw new Error("Contract did not return game ID");
+
+    // Have User B (opponent) join the game
+    await joinGameByBackend(
+      userB.address,
+      userB.password_hash || "",
+      contractGameId,
+      userB.username,
+      "🤖", // Symbol for User B
+      code,
+      chain
+    );
+
+    // Create game record in DB
+    const now = new Date();
+    const game = await Game.create({
+      code,
+      mode: "PRIVATE",
+      creator_id: userA.id,
+      next_player_id: userA.id,
+      number_of_players: 2,
+      status: "IN_PROGRESS", // Auto-start since agents play automatically
+      is_minipay: false,
+      is_ai: false, // It's not AI, it's agent-vs-agent
+      chain,
+      contract_game_id: String(contractGameId),
+    });
+
+    // Create game players
+    await GamePlayer.create({
+      game_id: game.id,
+      user_id: userA.id,
+      address: userA.address,
+      balance: DEFAULT_STARTING_CASH,
+      position: 0,
+      turn_order: 1,
+      symbol: "🎮",
+      chance_jail_card: false,
+      community_chest_jail_card: false,
+    });
+
+    await GamePlayer.create({
+      game_id: game.id,
+      user_id: userB.id,
+      address: userB.address,
+      balance: DEFAULT_STARTING_CASH,
+      position: 0,
+      turn_order: 2,
+      symbol: "🤖",
+      chance_jail_card: false,
+      community_chest_jail_card: false,
+    });
+
+    // Create chat and game settings
+    await Chat.create({ game_id: game.id, status: "open" });
+    await GameSetting.create({
+      game_id: game.id,
+      auction: true,
+      rent_in_prison: false,
+      mortgage: true,
+      even_build: true,
+      randomize_play_order: false,
+      starting_cash: DEFAULT_STARTING_CASH,
+    });
+
+    // Register agents to play for their users
+    try {
+      await agentRegistry.registerAgent({
+        gameId: game.id,
+        slot: 1,
+        agentId: String(userAgentId),
+        user_agent_id: userAgentId,
+        chainId: 42220,
+        name: userAgent.name || "Agent",
+      });
+
+      await agentRegistry.registerAgent({
+        gameId: game.id,
+        slot: 2,
+        agentId: String(opponentAgentId),
+        user_agent_id: opponentAgentId,
+        chainId: 42220,
+        name: opponentAgent.name || "Agent",
+      });
+    } catch (agentErr) {
+      logger.warn({ err: agentErr?.message }, "Agent registration failed, game created but agents not bound");
+    }
 
     return {
-      gameId,
-      gameCode: game?.code,
-      boardType: "3d", // Always use 3D for agent vs agent challenges
+      gameId: game.id,
+      gameCode: game.code,
+      boardType: "3d_desktop", // Default to desktop 3D
     };
   } catch (err) {
     logger.error({ err: err?.message, userAgentId, opponentAgentId }, "Failed to create direct challenge");
