@@ -124,6 +124,14 @@ const perkMetadata = [
   { perk: 14, name: "Free Parking Bonus", desc: "Next time you land on Free Parking, collect $500. A classic Monopoly moment.", icon: <MapPin className="w-12 h-12 text-sky-400" />, image: "/shopcards/freeparking_bonus.jpg" },
 ];
 
+// Calculate NGN price with discount for purchases over 1000 NGN
+const calculateNgnPrice = (ngnBasePrice: number): number => {
+  const minNgnPurchase = 200;
+  if (ngnBasePrice < minNgnPurchase) return minNgnPurchase;
+  if (ngnBasePrice > 1000) return Math.round(ngnBasePrice * 0.8); // 20% discount
+  return ngnBasePrice;
+};
+
 // Bundle image mapping
 const bundleImageMap: Record<string, string> = {
   "Starter Pack": "/shopcards/starterpack.jpg",
@@ -295,7 +303,8 @@ export default function GameShop() {
         };
 
         const usdcPriceStr = formatUnits(usdcPrice, 6);
-        const ngnPrice = Math.round(Number(usdcPriceStr) * USDC_TO_NGN_RATE);
+        const baseNgnPrice = Math.round(Number(usdcPriceStr) * USDC_TO_NGN_RATE);
+        const ngnPrice = calculateNgnPrice(baseNgnPrice);
 
         return {
           tokenId,
@@ -687,12 +696,16 @@ export default function GameShop() {
       });
 
       const bundleDef = BUNDLE_DEFS_FOR_STOCK[idx];
+      const baseNgnPrice = Math.round(Number(bundleDef.price_usdc) * USDC_TO_NGN_RATE);
+      const ngnPrice = calculateNgnPrice(baseNgnPrice);
+
       return {
         id: idx + 1,
         name: bundle.name,
         description: bundle.description,
         price_tyc: bundleDef.price_tyc,
         price_usdc: bundleDef.price_usdc,
+        price_ngn: ngnPrice,
         available: allComponentsAvailable,
       };
     });
@@ -900,7 +913,7 @@ export default function GameShop() {
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
             </div>
             {bundles.filter((b) => (b as any).available !== false).length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4">
                 {bundles.filter((b) => (b as any).available !== false).map((b, idx) => (
                   <motion.div
                     key={b.id ?? b.name ?? idx}
@@ -909,7 +922,7 @@ export default function GameShop() {
                     className="flex flex-col rounded-2xl overflow-hidden border border-amber-500/30 bg-[#0E1415]/60 backdrop-blur-sm"
                   >
                     {/* Bundle Image */}
-                    <div className="relative h-40 bg-black/40 overflow-hidden">
+                    <div className="relative h-32 bg-black/40 overflow-hidden">
                       <Image
                         src={bundleImageMap[b.name] || "/game/shop/placeholder.jpg"}
                         alt={b.name}

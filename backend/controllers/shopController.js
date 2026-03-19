@@ -5,20 +5,32 @@ import logger from "../config/logger.js";
  * List available shop bundles/packs
  * Returns pre-configured bundles with prices
  */
+/**
+ * Calculate NGN price with discount for purchases over 1000 NGN
+ * Minimum purchase: 200 NGN
+ * Discount: 20% off for amounts > 1000 NGN
+ */
+const calculateNgnPrice = (baseNgnPrice) => {
+  const minNgnPurchase = 200;
+  if (baseNgnPrice < minNgnPurchase) return minNgnPurchase;
+  if (baseNgnPrice > 1000) return Math.round(baseNgnPrice * 0.8);
+  return baseNgnPrice;
+};
+
 export async function listBundles(_req, res) {
   try {
     // Pre-configured bundles with pricing (these are stocked via the admin "stock all bundles" endpoint)
     // Naira conversion: 1 USDC = 1600 NGN
     const USDC_TO_NGN_RATE = 1600;
     const bundles = [
-      { id: 1, name: "Starter Pack", description: "Shield, Roll Boost, and Exact Roll — great for new players.", price_tyc: "45", price_usdc: "2.5", price_ngn: Math.round(2.5 * USDC_TO_NGN_RATE) },
-      { id: 2, name: "Lucky Bundle", description: "Jail Free, Teleport, and Lucky 7. Get out of tight spots.", price_tyc: "60", price_usdc: "3", price_ngn: Math.round(3 * USDC_TO_NGN_RATE) },
-      { id: 3, name: "Defender Pack", description: "Shield, Jail Free, and Roll Boost. Stay in the game when the board turns against you.", price_tyc: "55", price_usdc: "2.75", price_ngn: Math.round(2.75 * USDC_TO_NGN_RATE) },
-      { id: 4, name: "High Roller", description: "Double Rent, Roll Boost, and Exact Roll. Maximize income and land where it hurts.", price_tyc: "65", price_usdc: "3.25", price_ngn: Math.round(3.25 * USDC_TO_NGN_RATE) },
-      { id: 5, name: "Cash Flow", description: "Instant Cash, Property Discount, and Tax Refund (tiered). Keep your balance healthy.", price_tyc: "70", price_usdc: "3.5", price_ngn: Math.round(3.5 * USDC_TO_NGN_RATE) },
-      { id: 6, name: "Chaos Bundle", description: "Teleport, Exact Roll, and Lucky 7. Control the board and bend the dice.", price_tyc: "75", price_usdc: "4", price_ngn: Math.round(4 * USDC_TO_NGN_RATE) },
-      { id: 7, name: "Landlord's Choice", description: "Rent Cashback, Interest, and Free Parking Bonus. Rewards for property owners and patient play.", price_tyc: "50", price_usdc: "2.5", price_ngn: Math.round(2.5 * USDC_TO_NGN_RATE) },
-      { id: 8, name: "Ultimate Pack", description: "A bit of everything to dominate the board.", price_tyc: "80", price_usdc: "4.5", price_ngn: Math.round(4.5 * USDC_TO_NGN_RATE) },
+      { id: 1, name: "Starter Pack", description: "Shield, Roll Boost, and Exact Roll — great for new players.", price_tyc: "45", price_usdc: "2.5", price_ngn: calculateNgnPrice(Math.round(2.5 * USDC_TO_NGN_RATE)) },
+      { id: 2, name: "Lucky Bundle", description: "Jail Free, Teleport, and Lucky 7. Get out of tight spots.", price_tyc: "60", price_usdc: "3", price_ngn: calculateNgnPrice(Math.round(3 * USDC_TO_NGN_RATE)) },
+      { id: 3, name: "Defender Pack", description: "Shield, Jail Free, and Roll Boost. Stay in the game when the board turns against you.", price_tyc: "55", price_usdc: "2.75", price_ngn: calculateNgnPrice(Math.round(2.75 * USDC_TO_NGN_RATE)) },
+      { id: 4, name: "High Roller", description: "Double Rent, Roll Boost, and Exact Roll. Maximize income and land where it hurts.", price_tyc: "65", price_usdc: "3.25", price_ngn: calculateNgnPrice(Math.round(3.25 * USDC_TO_NGN_RATE)) },
+      { id: 5, name: "Cash Flow", description: "Instant Cash, Property Discount, and Tax Refund (tiered). Keep your balance healthy.", price_tyc: "70", price_usdc: "3.5", price_ngn: calculateNgnPrice(Math.round(3.5 * USDC_TO_NGN_RATE)) },
+      { id: 6, name: "Chaos Bundle", description: "Teleport, Exact Roll, and Lucky 7. Control the board and bend the dice.", price_tyc: "75", price_usdc: "4", price_ngn: calculateNgnPrice(Math.round(4 * USDC_TO_NGN_RATE)) },
+      { id: 7, name: "Landlord's Choice", description: "Rent Cashback, Interest, and Free Parking Bonus. Rewards for property owners and patient play.", price_tyc: "50", price_usdc: "2.5", price_ngn: calculateNgnPrice(Math.round(2.5 * USDC_TO_NGN_RATE)) },
+      { id: 8, name: "Ultimate Pack", description: "A bit of everything to dominate the board.", price_tyc: "80", price_usdc: "4.5", price_ngn: calculateNgnPrice(Math.round(4.5 * USDC_TO_NGN_RATE)) },
     ];
 
     res.json({
