@@ -41,6 +41,8 @@ import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import {
   useRewardBuyCollectible,
   useRewardBuyCollectibleFrom,
+  useRewardBuyBundle,
+  useRewardBuyBundleFrom,
   useRewardRedeemVoucher,
   useApprove,
   useRewardTokenAddresses,
@@ -179,6 +181,8 @@ export default function GameShop() {
     reset: resetBuy,
   } = useRewardBuyCollectible();
   const { buyFrom, isPending: buyFromPending, isConfirming: buyFromConfirming, isSuccess: buyFromSuccess, reset: resetBuyFrom } = useRewardBuyCollectibleFrom();
+  const { buyBundle, isPending: buyBundlePending, isConfirming: buyBundleConfirming, isSuccess: buyBundleSuccess, error: buyBundleError, reset: resetBuyBundle } = useRewardBuyBundle();
+  const { buyBundleFrom, isPending: buyBundleFromPending, isConfirming: buyBundleFromConfirming, isSuccess: buyBundleFromSuccess, error: buyBundleFromError, reset: resetBuyBundleFrom } = useRewardBuyBundleFrom();
   const { approveERC20: smartWalletApprove, isPending: smartWalletApprovePending } = useUserWalletApproveERC20(smartWalletAddress ?? undefined);
 
     const {
@@ -392,8 +396,10 @@ export default function GameShop() {
 
   // ── Handlers ──
   const handleBuy = async (item: typeof shopItems[0], useUsdc: boolean = true) => {
-    if (!isConnected || !address) {
-      toast.error('Please connect your wallet');
+    // Allow if wallet is connected OR smart wallet is available
+    const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
+    if (!hasPaymentMethod) {
+      toast.error('Please connect your wallet or register to use your smart wallet');
       return;
     }
     if (!useUsdc) return;
@@ -486,24 +492,23 @@ export default function GameShop() {
   };
 
   const handleBuyBundleWithUsdc = async (bundleName: string) => {
-    if (!isConnected || !address) {
-      toast.error('Please connect your wallet');
-      return;
-    }
-    if (payWith === 'smart_wallet') {
-      toast.info('To pay from your smart wallet, select "Connected wallet" above. Smart wallet payment coming soon.');
+    // Allow if wallet is connected OR smart wallet is available
+    const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
+    if (!hasPaymentMethod) {
+      toast.error('Please connect your wallet or register to use your smart wallet');
       return;
     }
     if (!contractAddress || !usdcTokenAddress) {
       toast.error('USDC not supported on this network');
       return;
     }
-    const def = BUNDLE_DEFS.find((b) => b.name === bundleName);
-    if (!def) {
+    const bundleEntry = bundles.find((b) => b.name === bundleName);
+    if (!bundleEntry || typeof bundleEntry.id !== 'number') {
       toast.error('Bundle not found');
       return;
     }
-    if (!canBuyBundle(def)) {
+    const def = BUNDLE_DEFS.find((b) => b.name === bundleName);
+    if (!def || !canBuyBundle(def)) {
       toast.error('Bundle items are not currently in stock');
       return;
     }
@@ -511,13 +516,14 @@ export default function GameShop() {
 
     setBundleBuyingName(def.name);
     try {
-      for (const li of def.items) {
-        const key = `${li.perk}:${li.strength}`;
-        const match = resolveBundlePurchases.byPerkStrength.get(key)?.[0];
-        if (!match) throw new Error(`Missing perk #${li.perk} (tier ${li.strength})`);
-        for (let i = 0; i < li.quantity; i++) {
-          await handleBuy(match);
+      if (payWith === 'smart_wallet') {
+        if (!smartWalletAddress) {
+          toast.error('Smart wallet not available');
+          return;
         }
+        await buyBundleFrom(smartWalletAddress, BigInt(bundleEntry.id), true); // true = useUsdc
+      } else {
+        await buyBundle(BigInt(bundleEntry.id), true); // true = useUsdc
       }
       toast.success('Bundle purchase complete!');
     } catch (err: unknown) {
@@ -602,6 +608,22 @@ export default function GameShop() {
   }, [buyFromSuccess, refetchUsdc, resetBuyFrom]);
 
   useEffect(() => {
+    if (buyBundleSuccess) {
+      toast.success('Bundle purchase successful! 🎉');
+      refetchUsdc();
+      resetBuyBundle();
+    }
+  }, [buyBundleSuccess, refetchUsdc, resetBuyBundle]);
+
+  useEffect(() => {
+    if (buyBundleFromSuccess) {
+      toast.success('Bundle purchase successful! 🎉');
+      refetchUsdc();
+      resetBuyBundleFrom();
+    }
+  }, [buyBundleFromSuccess, refetchUsdc, resetBuyBundleFrom]);
+
+  useEffect(() => {
     if (redeemSuccess) {
       toast.success('Voucher redeemed successfully!');
       resetRedeem();
@@ -610,8 +632,10 @@ export default function GameShop() {
 
   useEffect(() => {
     if (buyError) toast.error(buyError.message || 'Purchase failed');
+    if (buyBundleError) toast.error(buyBundleError.message || 'Bundle purchase failed');
+    if (buyBundleFromError) toast.error(buyBundleFromError.message || 'Smart wallet bundle purchase failed');
     if (redeemError) toast.error(redeemError.message || 'Redemption failed');
-  }, [buyError, redeemError]);
+  }, [buyError, buyBundleError, buyBundleFromError, redeemError]);
 
   const handleBack = () => {
     const returnTo = searchParams.get('returnTo');

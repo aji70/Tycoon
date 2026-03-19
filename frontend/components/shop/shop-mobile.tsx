@@ -425,8 +425,10 @@ export default function GameShopMobile() {
 
   // Handlers
   const handleBuy = async (item: typeof shopItems[0]) => {
-    if (!isConnected || !address) {
-      toast.error('Please connect your wallet');
+    // Allow if wallet is connected OR smart wallet is available
+    const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
+    if (!hasPaymentMethod) {
+      toast.error('Please connect your wallet or register to use your smart wallet');
       return;
     }
     if (!usdcTokenAddress || !contractAddress) {
@@ -515,12 +517,14 @@ export default function GameShopMobile() {
   };
 
   const handleBuyBundleWithUsdc = async (bundleName: string) => {
-    if (!isConnected || !address) {
-      toast.error('Please connect your wallet');
+    // Allow if wallet is connected OR smart wallet is available
+    const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
+    if (!hasPaymentMethod) {
+      toast.error('Please connect your wallet or register to use your smart wallet');
       return;
     }
-    if (payWith === 'smart_wallet') {
-      toast.info('Select Connected wallet to pay. Smart wallet payment coming soon.');
+    if (payWith === 'smart_wallet' && !smartWalletAddress) {
+      toast.error('Smart wallet not available');
       return;
     }
     if (!usdcTokenAddress) {

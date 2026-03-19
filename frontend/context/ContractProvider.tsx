@@ -1182,6 +1182,46 @@ export function useRewardBuyCollectibleFrom() {
   return { buyFrom, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
+/** Buy a bundle (multiple perks at once) with USDC or TYC. */
+export function useRewardBuyBundle() {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const buyBundle = useCallback(async (bundleId: bigint, useUsdc = false) => {
+    if (!contractAddress) throw new Error('Reward contract not deployed');
+    return await writeContractAsync({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'buyBundle',
+      args: [bundleId, useUsdc],
+    });
+  }, [writeContractAsync, contractAddress]);
+
+  return { buyBundle, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
+/** Buy a bundle with USDC or TYC from a given payer (e.g. smart wallet). Callable by the payer or by the owner of the payer if payer is a contract with owner(). */
+export function useRewardBuyBundleFrom() {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const buyBundleFrom = useCallback(async (payer: Address, bundleId: bigint, useUsdc = false) => {
+    if (!contractAddress) throw new Error('Reward contract not deployed');
+    return await writeContractAsync({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'buyBundleFrom',
+      args: [payer, bundleId, useUsdc],
+    });
+  }, [writeContractAsync, contractAddress]);
+
+  return { buyBundleFrom, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
 /** Approve ERC20 spend from a user wallet contract (e.g. smart wallet). Callable only by the wallet owner (connected EOA). */
 export function useUserWalletApproveERC20(walletAddress: Address | undefined) {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
