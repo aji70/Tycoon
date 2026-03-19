@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
+import { apiClient } from "@/lib/api";
+import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
 
 interface Agent {
@@ -107,12 +109,12 @@ export default function ArenaPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/agents`);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+      const res = await apiClient.get<ApiResponse<Agent[]>>("/agents");
+      if (res?.data?.success && res.data.data) {
+        setMyAgents(res.data.data);
+      } else {
+        throw new Error("Failed to fetch agents");
       }
-      const data = await res.json();
-      setMyAgents(data.agents || []);
     } catch (err) {
       console.error("Fetch error:", err);
       setError(`Failed to fetch your agents: ${(err as Error).message}`);
@@ -123,18 +125,19 @@ export default function ArenaPage() {
 
   const toggleAgentPublic = async (agentId: number, currentValue: boolean) => {
     try {
-      const res = await fetch(`/api/agents/${agentId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_public: !currentValue }),
+      const res = await apiClient.patch<ApiResponse>(`/agents/${agentId}`, {
+        is_public: !currentValue,
       });
-      if (!res.ok) throw new Error("Failed to update agent");
-      setMyAgents(
-        myAgents.map((a) =>
-          a.id === agentId ? { ...a, is_public: !currentValue } : a
-        )
-      );
-      alert(`Agent is now ${!currentValue ? "public" : "private"}!`);
+      if (res?.data?.success) {
+        setMyAgents(
+          myAgents.map((a) =>
+            a.id === agentId ? { ...a, is_public: !currentValue } : a
+          )
+        );
+        alert(`Agent is now ${!currentValue ? "public" : "private"}!`);
+      } else {
+        throw new Error("Failed to update agent");
+      }
     } catch (err) {
       alert(`Error: ${(err as Error).message}`);
     }
