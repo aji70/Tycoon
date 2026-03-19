@@ -44,7 +44,6 @@ import {
   useRewardBuyCollectible,
   useRewardBuyCollectibleFrom,
   useRewardRedeemVoucher,
-  useRewardRedeemVoucherFor,
   useApprove,
   useRewardTokenAddresses,
   useUserRegistryWallet,
@@ -253,14 +252,6 @@ export default function GameShopMobile() {
   const { approve, isPending: approvePending, isSuccess: approveSuccess, error: approveError, reset: resetApprove } = useApprove();
   const { approveERC20: smartWalletApprove, isPending: smartWalletApprovePending } = useUserWalletApproveERC20(smartWalletAddress ?? undefined);
   const { redeem, isPending: redeemingPending, isConfirming: redeemingConfirming, isSuccess: redeemSuccess, error: redeemError, reset: resetRedeem } = useRewardRedeemVoucher();
-  const {
-    redeemFor,
-    isPending: redeemForPending,
-    isConfirming: redeemForConfirming,
-    isSuccess: redeemForSuccess,
-    error: redeemForError,
-    reset: resetRedeemFor,
-  } = useRewardRedeemVoucherFor();
 
   // Balances (of selected payer)
   const { data: usdcBalanceData, isLoading: usdcLoading, refetch: refetchUsdc } = useBalance({
@@ -640,19 +631,13 @@ export default function GameShopMobile() {
   };
 
   const handleRedeemVoucher = async (tokenId: bigint) => {
-    const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
-    if (!hasPaymentMethod) {
-      toast.error('Please connect your wallet or create a smart wallet');
+    if (!isConnected) {
+      toast.error('Please connect your wallet to redeem vouchers');
       return;
     }
 
     try {
-      // Use smart wallet redemption if available, otherwise use connected wallet
-      if (smartWalletAddress && !isConnected) {
-        await redeemFor(smartWalletAddress, tokenId);
-      } else {
-        await redeem(tokenId);
-      }
+      await redeem(tokenId);
     } catch (err: any) {
       toast.error(err.message || 'Redemption failed');
     }
@@ -682,17 +667,9 @@ export default function GameShopMobile() {
   }, [redeemSuccess, resetRedeem]);
 
   useEffect(() => {
-    if (redeemForSuccess) {
-      toast.success('Voucher redeemed successfully!');
-      resetRedeemFor();
-    }
-  }, [redeemForSuccess, resetRedeemFor]);
-
-  useEffect(() => {
     if (buyError) toast.error(buyError.message || 'Purchase failed');
     if (redeemError) toast.error(redeemError.message || 'Redemption failed');
-    if (redeemForError) toast.error(redeemForError.message || 'Smart wallet redemption failed');
-  }, [buyError, redeemError, redeemForError]);
+  }, [buyError, redeemError]);
 
   const handleBack = () => {
     const returnTo = searchParams.get('returnTo');
