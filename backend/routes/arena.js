@@ -17,6 +17,7 @@ router.get("/leaderboard", arenaController.getLeaderboard);
 router.post("/queue", requireAuth, arenaController.joinQueue);
 router.delete("/queue", requireAuth, arenaController.leaveQueue);
 router.post("/challenge/:opponentAgentId", requireAuth, arenaController.challengeAgent);
+router.post("/start-challenge/:opponentAgentId", requireAuth, arenaController.startChallenge);
 
 // Match History (public)
 router.get("/matches", arenaController.getRecentMatches);

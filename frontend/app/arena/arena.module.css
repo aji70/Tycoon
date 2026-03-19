@@ -47,7 +47,7 @@
 
 .tab.active {
   color: #fff;
-  border-bottom-color: #00ff00;
+  border-bottom-color: #00F0FF;
 }
 
 .error {
@@ -85,8 +85,8 @@
 }
 
 .agentCard:hover {
-  border-color: #00ff00;
-  box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
+  border-color: #00F0FF;
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
   transform: translateY(-2px);
 }
 
@@ -131,7 +131,7 @@
 }
 
 .value {
-  color: #00ff00;
+  color: #00F0FF;
   font-weight: bold;
 }
 
@@ -206,7 +206,7 @@
 .leaderboardTable th {
   padding: 15px;
   text-align: left;
-  color: #00ff00;
+  color: #00F0FF;
   font-weight: bold;
   font-size: 0.95rem;
 }
@@ -223,7 +223,7 @@
 
 .rank {
   font-weight: bold;
-  color: #00ff00;
+  color: #00F0FF;
   font-size: 1.1rem;
 }
 
@@ -233,7 +233,7 @@
 }
 
 .elo {
-  color: #00ff00;
+  color: #00F0FF;
   font-weight: bold;
 }
 

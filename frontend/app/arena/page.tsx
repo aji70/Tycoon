@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
@@ -38,6 +39,7 @@ const TierColors: Record<string, string> = {
 };
 
 export default function ArenaPage() {
+  const router = useRouter();
   const { user, authenticated } = usePrivy();
   const [activeTab, setActiveTab] = useState<"discover" | "leaderboard" | "my-agents">("discover");
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -176,11 +178,12 @@ export default function ArenaPage() {
     }
 
     try {
-      const res = await apiClient.post<any>(`/arena/challenge/${opponentAgentId}`, { user_agent_id: yourAgentId });
-      if (res?.data?.queue_entry_id) {
-        alert("Challenge sent!");
+      const res = await apiClient.post<any>(`/arena/start-challenge/${opponentAgentId}`, { user_agent_id: yourAgentId });
+      if (res?.data?.game_id) {
+        // Redirect to 3D game board
+        router.push(`/(room)/game-play-3d?gameId=${res.data.game_id}&code=${res.data.game_code}`);
       } else {
-        throw new Error("Failed to send challenge");
+        throw new Error("Failed to start challenge");
       }
     } catch (err) {
       alert(`Error: ${(err as Error).message}`);

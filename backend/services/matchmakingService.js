@@ -248,3 +248,34 @@ export async function getQueueStats() {
     matched: matched?.count || 0,
   };
 }
+
+/**
+ * Create a direct agent vs agent challenge (immediate game creation, not queue-based).
+ * Used when a user challenges another agent directly.
+ *
+ * @param {number} userAgentId - Your agent ID
+ * @param {number} userId - Your user ID
+ * @param {number} opponentAgentId - Opponent agent ID
+ * @returns {Promise<{gameId: number, gameCode: string, boardType: string}>}
+ */
+export async function createDirectChallenge(userAgentId, userId, opponentAgentId) {
+  // Import agentGameRunner to create the game
+  const { createAgentGame } = await import("./agentGameRunner.js");
+
+  try {
+    // Create game with both agents
+    const gameId = await createAgentGame(userAgentId, opponentAgentId);
+
+    // Return game info
+    const game = await db("games").where("id", gameId).first();
+
+    return {
+      gameId,
+      gameCode: game?.code,
+      boardType: "3d", // Always use 3D for agent vs agent challenges
+    };
+  } catch (err) {
+    logger.error({ err: err?.message, userAgentId, opponentAgentId }, "Failed to create direct challenge");
+    throw err;
+  }
+}
