@@ -428,6 +428,38 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
         emit BundleBought(bundleId, msg.sender, price, useUsdc);
     }
 
+    /// @notice Buy a bundle with USDC or TYC from a given payer (e.g. smart wallet). Callable by the payer or by the owner of the payer if payer is a contract with owner().
+    function buyBundleFrom(address payer, uint256 bundleId, bool useUsdc) external whenNotPaused nonReentrant {
+        require(payer != address(0), "Zero payer");
+        if (msg.sender != payer) {
+            (bool ok, bytes memory data) = payer.staticcall(abi.encodeWithSignature("owner()"));
+            require(ok && data.length >= 32, "Not payer or payer owner");
+            address ownerOfPayer = abi.decode(data, (address));
+            require(ownerOfPayer == msg.sender, "Not payer or payer owner");
+        }
+        Bundle storage b = bundles[bundleId];
+        require(b.active, "Bundle inactive");
+        require(b.tokenIds.length > 0, "Bundle not found");
+        uint256 price = useUsdc ? b.usdcPrice : b.tycPrice;
+        require(price > 0, "No price");
+        for (uint256 i = 0; i < b.tokenIds.length; i++) {
+            require(shopStock[b.tokenIds[i]] >= b.amounts[i], "Insufficient stock");
+        }
+        for (uint256 i = 0; i < b.tokenIds.length; i++) {
+            shopStock[b.tokenIds[i]] -= b.amounts[i];
+        }
+        if (useUsdc) {
+            require(usdc.transferFrom(payer, address(this), price), "USDC transfer failed");
+        } else {
+            require(tycToken.transferFrom(payer, address(this), price), "TYC transfer failed");
+        }
+        for (uint256 i = 0; i < b.tokenIds.length; i++) {
+            _safeTransferFrom(address(this), payer, b.tokenIds[i], b.amounts[i], "");
+            _addToOwned(payer, b.tokenIds[i], b.amounts[i]);
+        }
+        emit BundleBought(bundleId, payer, price, useUsdc);
+    }
+
     /// @notice Deliver a bundle to a user from shop stock without payment (e.g. for fiat purchases).
     function deliverBundle(address to, uint256 bundleId) external onlyMinter {
         Bundle storage b = bundles[bundleId];
