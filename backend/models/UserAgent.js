@@ -166,6 +166,12 @@ const UserAgent = {
       provider: row.provider || null,
       has_api_key: !!(row.api_key_encrypted != null && row.api_key_encrypted !== ""),
       use_tycoon_key: !!(row.use_tycoon_key),
+      is_public: !!(row.is_public),
+      elo_rating: row.elo_rating || 1000,
+      elo_peak: row.elo_peak || 1000,
+      arena_wins: row.arena_wins || 0,
+      arena_losses: row.arena_losses || 0,
+      arena_draws: row.arena_draws || 0,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
