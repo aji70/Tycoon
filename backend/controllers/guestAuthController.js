@@ -15,7 +15,6 @@ import {
   createWalletForUserByBackend,
   recreateWalletForUserByBackend as recreateSmartWalletByBackend,
   createWalletForUser,
-  createWalletForUserByBackend,
   getSmartWalletAddress,
   callContractRead,
   isContractConfigured,
