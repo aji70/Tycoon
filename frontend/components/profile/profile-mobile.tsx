@@ -794,8 +794,6 @@ export default function ProfilePageMobile() {
     toast.success('Bio saved');
   };
 
-  const guestAuth = useGuestAuthOptional();
-  const refetchGuest = guestAuth?.refetchGuest;
   const [recreateApiPending, setRecreateApiPending] = useState(false);
   const [recreateAnyPending, setRecreateAnyPending] = useState(false);
 
