@@ -223,6 +223,133 @@
   color: #000;
 }
 
+.challengePanel {
+  margin-bottom: 14px;
+  padding: 14px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(8, 18, 22, 0.95) 0%, rgba(14, 26, 32, 0.92) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+.challengePanelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.challengePanelTitle {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7ee8f0;
+}
+
+.challengeCountPill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(0, 240, 255, 0.12);
+  color: #b8f7ff;
+  border: 1px solid rgba(0, 240, 255, 0.28);
+}
+
+.challengeHint {
+  margin: 0 0 12px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #c5e8ec;
+}
+
+.challengeFieldLabel {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8ecbd1;
+  margin-bottom: 6px;
+}
+
+.agentSelect {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e8fbff;
+  background: #050a0c;
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+
+.agentSelect option {
+  background: #0a1214;
+  color: #e8fbff;
+}
+
+.challengeActionRow {
+  display: flex;
+  gap: 8px;
+}
+
+.btnSendCompact {
+  flex: 1;
+  padding: 11px 12px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #021014;
+  background: linear-gradient(135deg, #5fffd8 0%, #00e8f8 50%, #00c8ff 100%);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0, 240, 255, 0.22);
+}
+
+.btnSendCompact:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.btnClearCompact {
+  padding: 11px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #dff9fc;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.pickBtn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.pickBtnOff {
+  color: #b8ecef;
+  background: rgba(0, 240, 255, 0.06);
+  border: 1px dashed rgba(0, 240, 255, 0.35);
+}
+
+.pickBtnOn {
+  color: #021014;
+  background: linear-gradient(135deg, #5fffd8, #00e0f0);
+  border: 1px solid rgba(0, 240, 255, 0.5);
+}
+
 /* Leaderboard List */
 .leaderboardList {
   display: flex;

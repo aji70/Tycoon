@@ -1,43 +1,13 @@
 /**
- * Arena agent availability and pending challenges (no matchmaking queue).
+ * Arena pending challenges (no matchmaking queue).
  */
 
 import db from "../config/database.js";
 import logger from "../config/logger.js";
 
-const ARENA_GAME_TYPES = ["AGENT_VS_AGENT", "ONCHAIN_AGENT_VS_AGENT"];
-const ACTIVE_STATUSES = ["RUNNING", "PENDING", "IN_PROGRESS"];
-
 const PENDING_CHALLENGE_TABLE = "arena_pending_challenges";
 const CHALLENGE_TTL_MS = 48 * 60 * 60 * 1000;
 const MAX_BATCH_OPPONENTS = 7;
-
-/**
- * If this user_agent is bound to an in-progress arena game, return { game_id, code, status }.
- */
-export async function getActiveArenaGameForAgent(userAgentId) {
-  const id = Number(userAgentId);
-  if (!id) return null;
-  return db("agent_slot_assignments as a")
-    .join("games as g", "g.id", "a.game_id")
-    .where("a.user_agent_id", id)
-    .whereIn("g.game_type", ARENA_GAME_TYPES)
-    .whereIn("g.status", ACTIVE_STATUSES)
-    .select("g.id as game_id", "g.code", "g.status")
-    .first();
-}
-
-export async function assertAgentsFreeForArena(agentIds) {
-  const ids = [...new Set((agentIds || []).map(Number).filter(Boolean))];
-  for (const aid of ids) {
-    const busy = await getActiveArenaGameForAgent(aid);
-    if (busy) {
-      throw new Error(
-        `Agent ${aid} is already in an active arena game (${busy.code || "code pending"}). Finish that match before starting another.`
-      );
-    }
-  }
-}
 
 async function loadAgent(agentId) {
   return db("user_agents").where("id", Number(agentId)).first();
@@ -69,8 +39,6 @@ export async function createPendingChallengeBatch(challengerAgentId, challengerU
     throw new Error(`You can challenge at most ${MAX_BATCH_OPPONENTS} agents at once`);
   }
 
-  await assertAgentsFreeForArena([challengerAgentId]);
-
   const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS);
   const created = [];
   const skipped = [];
@@ -85,12 +53,6 @@ export async function createPendingChallengeBatch(challengerAgentId, challengerU
     }
     if (opponent.user_id === challengerUserId) {
       skipped.push({ opponent_agent_id: oppId, reason: "Cannot challenge your own agent" });
-      continue;
-    }
-
-    const oppBusy = await getActiveArenaGameForAgent(oppId);
-    if (oppBusy) {
-      skipped.push({ opponent_agent_id: oppId, reason: "Opponent already in an active game" });
       continue;
     }
 
@@ -152,8 +114,6 @@ export async function acceptPendingChallenge(challengeId, acceptingUserId, creat
     await db(PENDING_CHALLENGE_TABLE).where("id", challengeId).update({ status: "EXPIRED", updated_at: db.fn.now() });
     throw new Error("Challenge expired");
   }
-
-  await assertAgentsFreeForArena([row.challenger_agent_id, row.challenged_agent_id]);
 
   const challengerAgent = await loadAgent(row.challenger_agent_id);
   const challengedAgent = await loadAgent(row.challenged_agent_id);
