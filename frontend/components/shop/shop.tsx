@@ -108,21 +108,33 @@ const BUNDLE_DEFS: BundleDef[] = [
 
 // Perk metadata — real descriptions for shop and collectibles
 const perkMetadata = [
-  { perk: 1, name: "Extra Turn", desc: "Use on your turn to take an extra roll after this one. One more chance to land where you need.", icon: <Zap className="w-12 h-12 text-yellow-400" />, image: "/game/shop/a.jpeg" },
-  { perk: 2, name: "Jail Free Card", desc: "Use when in Jail to get out without paying or rolling doubles. Keep your cash and stay in the game.", icon: <Crown className="w-12 h-12 text-purple-400" />, image: "/game/shop/b.jpeg" },
-  { perk: 3, name: "Double Rent", desc: "When someone lands on your property, charge double the normal rent once. Maximize your income.", icon: <Coins className="w-12 h-12 text-green-400" />, image: "/game/shop/c.jpeg" },
-  { perk: 4, name: "Roll Boost", desc: "Add +1 to your next dice roll (capped at 12). Nudge the odds in your favor.", icon: <Sparkles className="w-12 h-12 text-blue-400" />, image: "/game/shop/a.jpeg" },
-  { perk: 5, name: "Instant Cash", desc: "Burn during a game to receive TYC based on tier (100–1000). Instant liquidity when you need it.", icon: <Gem className="w-12 h-12 text-cyan-400" />, image: "/game/shop/b.jpeg" },
-  { perk: 6, name: "Teleport", desc: "Move your token to any property on the board. Buy that key lot or skip past danger.", icon: <Zap className="w-12 h-12 text-pink-400" />, image: "/game/shop/c.jpeg" },
-  { perk: 7, name: "Shield", desc: "Block the next rent or fee you would pay (one use). Stay solvent when the board turns against you.", icon: <Shield className="w-12 h-12 text-indigo-400" />, image: "/game/shop/a.jpeg" },
-  { perk: 8, name: "Property Discount", desc: "Get 30–50% off the next property you buy (tiered). Stretch your cash and complete sets faster.", icon: <Coins className="w-12 h-12 text-orange-400" />, image: "/game/shop/b.jpeg" },
-  { perk: 9, name: "Tax Refund", desc: "Receive TYC back when you pay Income or Luxury Tax (tiered). Turn tax hits into partial recovery.", icon: <Gem className="w-12 h-12 text-teal-400" />, image: "/game/shop/c.jpeg" },
-  { perk: 10, name: "Exact Roll", desc: "Choose your next roll (2–12) instead of rolling the dice. Land on the exact space you need.", icon: <Sparkles className="w-12 h-12 text-amber-400" />, image: "/game/shop/a.jpeg" },
-  { perk: 11, name: "Rent Cashback", desc: "Next rent you receive is +25% extra. Great for property owners.", icon: <Percent className="w-12 h-12 text-emerald-400" />, image: "/game/shop/a.jpeg" },
-  { perk: 12, name: "Interest", desc: "At the start of your next turn, receive $200. A little boost when it's your turn.", icon: <CircleDollarSign className="w-12 h-12 text-lime-400" />, image: "/game/shop/b.jpeg" },
-  { perk: 13, name: "Lucky 7", desc: "Your next roll will be 7. The most common roll—land where you need.", icon: <Sparkles className="w-12 h-12 text-yellow-300" />, image: "/game/shop/c.jpeg" },
-  { perk: 14, name: "Free Parking Bonus", desc: "Next time you land on Free Parking, collect $500. A classic Monopoly moment.", icon: <MapPin className="w-12 h-12 text-sky-400" />, image: "/game/shop/a.jpeg" },
+  { perk: 1, name: "Extra Turn", desc: "Use on your turn to take an extra roll after this one. One more chance to land where you need.", icon: <Zap className="w-12 h-12 text-yellow-400" />, image: "/shopcards/extraturn.jpg" },
+  { perk: 2, name: "Jail Free Card", desc: "Use when in Jail to get out without paying or rolling doubles. Keep your cash and stay in the game.", icon: <Crown className="w-12 h-12 text-purple-400" />, image: "/shopcards/jailfree.jpg" },
+  { perk: 3, name: "Double Rent", desc: "When someone lands on your property, charge double the normal rent once. Maximize your income.", icon: <Coins className="w-12 h-12 text-green-400" />, image: "/shopcards/double_rent.jpg" },
+  { perk: 4, name: "Roll Boost", desc: "Add +1 to your next dice roll (capped at 12). Nudge the odds in your favor.", icon: <Sparkles className="w-12 h-12 text-blue-400" />, image: "/shopcards/roll_boost.jpg" },
+  { perk: 5, name: "Instant Cash", desc: "Burn during a game to receive TYC based on tier (100–1000). Instant liquidity when you need it.", icon: <Gem className="w-12 h-12 text-cyan-400" />, image: "/shopcards/Cash_tiered.jpg" },
+  { perk: 6, name: "Teleport", desc: "Move your token to any property on the board. Buy that key lot or skip past danger.", icon: <Zap className="w-12 h-12 text-pink-400" />, image: "/shopcards/teleport.jpg" },
+  { perk: 7, name: "Shield", desc: "Block the next rent or fee you would pay (one use). Stay solvent when the board turns against you.", icon: <Shield className="w-12 h-12 text-indigo-400" />, image: "/shopcards/rent_immunity.jpg" },
+  { perk: 8, name: "Property Discount", desc: "Get 30–50% off the next property you buy (tiered). Stretch your cash and complete sets faster.", icon: <Coins className="w-12 h-12 text-orange-400" />, image: "/shopcards/Cash_tiered.jpg" },
+  { perk: 9, name: "Tax Refund", desc: "Receive TYC back when you pay Income or Luxury Tax (tiered). Turn tax hits into partial recovery.", icon: <Gem className="w-12 h-12 text-teal-400" />, image: "/shopcards/tax_refund.jpg" },
+  { perk: 10, name: "Exact Roll", desc: "Choose your next roll (2–12) instead of rolling the dice. Land on the exact space you need.", icon: <Sparkles className="w-12 h-12 text-amber-400" />, image: "/shopcards/roll_boost.jpg" },
+  { perk: 11, name: "Rent Cashback", desc: "Next rent you receive is +25% extra. Great for property owners.", icon: <Percent className="w-12 h-12 text-emerald-400" />, image: "/shopcards/rent_cashback.jpg" },
+  { perk: 12, name: "Interest", desc: "At the start of your next turn, receive $200. A little boost when it's your turn.", icon: <CircleDollarSign className="w-12 h-12 text-lime-400" />, image: "/shopcards/interest.jpg" },
+  { perk: 13, name: "Lucky 7", desc: "Your next roll will be 7. The most common roll—land where you need.", icon: <Sparkles className="w-12 h-12 text-yellow-300" />, image: "/shopcards/lucky_7.jpg" },
+  { perk: 14, name: "Free Parking Bonus", desc: "Next time you land on Free Parking, collect $500. A classic Monopoly moment.", icon: <MapPin className="w-12 h-12 text-sky-400" />, image: "/shopcards/freeparking_bonus.jpg" },
 ];
+
+// Bundle image mapping
+const bundleImageMap: Record<string, string> = {
+  "Starter Pack": "/shopcards/starterpack.jpg",
+  "Lucky Bundle": "/shopcards/lucky_7.jpg",
+  "Defender Pack": "/shopcards/defendpack.jpg",
+  "High Roller": "/shopcards/highroller.jpg",
+  "Cash Flow": "/shopcards/cashflow.jpg",
+  "Chaos Bundle": "/shopcards/chaosbundle.jpg",
+  "Landlord's Choice": "/shopcards/landlordsChoice.jpg",
+  "Ultimate Pack": "/shopcards/ultimatepack.jpg",
+};
 
 const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
 const isValidWallet = (a: string | undefined): a is Address =>
@@ -282,12 +294,16 @@ export default function GameShop() {
           image: '/game/shop/placeholder.jpg',
         };
 
+        const usdcPriceStr = formatUnits(usdcPrice, 6);
+        const ngnPrice = Math.round(Number(usdcPriceStr) * USDC_TO_NGN_RATE);
+
         return {
           tokenId,
           perk,
           strength: Number(strength),
           tycPrice: formatUnits(tycPrice, 18),
-          usdcPrice: formatUnits(usdcPrice, 6),
+          usdcPrice: usdcPriceStr,
+          ngnPrice,
           stock: Number(stock),
           comingSoon: false as const,
           ...meta,
@@ -892,6 +908,16 @@ export default function GameShop() {
                     animate={{ opacity: 1, y: 0 }}
                     className="flex flex-col rounded-2xl overflow-hidden border border-amber-500/30 bg-[#0E1415]/60 backdrop-blur-sm"
                   >
+                    {/* Bundle Image */}
+                    <div className="relative h-40 bg-black/40 overflow-hidden">
+                      <Image
+                        src={bundleImageMap[b.name] || "/game/shop/placeholder.jpg"}
+                        alt={b.name}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+
                     <div className="p-5 flex flex-col flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/40 text-[10px] font-semibold text-amber-300 uppercase">Bundle</span>
@@ -1024,6 +1050,9 @@ export default function GameShop() {
                       <div className="flex flex-col gap-1">
                         <p className="text-xs text-slate-500 uppercase tracking-wider">Price</p>
                         <p className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${Number(item.usdcPrice).toFixed(2)} USDC</p>
+                        {ngnAvailable && (
+                          <p className="text-sm text-amber-200">₦{Number(item.ngnPrice).toLocaleString()} NGN</p>
+                        )}
                       </div>
                     </div>
 
@@ -1055,15 +1084,14 @@ export default function GameShop() {
                         </button>
                         <button
                           onClick={() => handlePayPerkWithNaira(item)}
-                          disabled={item.stock === 0 || payFromSmartWalletUnsupported || ngnLoadingTokenId === item.tokenId.toString()}
+                          disabled={item.stock === 0 || payFromSmartWalletUnsupported || ngnLoadingTokenId === item.tokenId.toString() || !ngnAvailable}
                           className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-amber-500/20 border border-amber-400/50 text-amber-200 hover:bg-amber-500/30 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                           {ngnLoadingTokenId === item.tokenId.toString() ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
                           ) : (
-                            <Banknote className="w-4 h-4" />
+                            <><Banknote className="w-4 h-4" /> Buy with Naira — ₦{Number(item.ngnPrice).toLocaleString()}</>
                           )}
-                          Buy with Naira
                         </button>
                     </>
                   </div>

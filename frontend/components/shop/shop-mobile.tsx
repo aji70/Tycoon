@@ -61,6 +61,18 @@ const isVoucherToken = (tokenId: bigint) =>
 
 const isCollectibleToken = (tokenId: bigint) => tokenId >= COLLECTIBLE_ID_START;
 
+// Bundle image mapping
+const bundleImageMap: Record<string, string> = {
+  "Starter Pack": "/shopcards/starterpack.jpg",
+  "Lucky Bundle": "/shopcards/lucky_7.jpg",
+  "Defender Pack": "/shopcards/defendpack.jpg",
+  "High Roller": "/shopcards/highroller.jpg",
+  "Cash Flow": "/shopcards/cashflow.jpg",
+  "Chaos Bundle": "/shopcards/chaosbundle.jpg",
+  "Landlord's Choice": "/shopcards/landlordsChoice.jpg",
+  "Ultimate Pack": "/shopcards/ultimatepack.jpg",
+};
+
 const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
 const isValidWallet = (a: string | undefined): a is Address =>
   !!a && a !== zeroAddress && a.toLowerCase() !== zeroAddress.toLowerCase();
@@ -99,20 +111,20 @@ const BUNDLE_DEFS: BundleDef[] = [
 ];
 
 const perkMetadata = [
-  { perk: 1, name: "Extra Turn", desc: "Use on your turn to take an extra roll after this one.", icon: <Zap />, image: "/game/shop/a.jpeg" },
-  { perk: 2, name: "Jail Free Card", desc: "Use when in Jail to get out without paying or rolling doubles.", icon: <Crown />, image: "/game/shop/b.jpeg" },
-  { perk: 3, name: "Double Rent", desc: "When someone lands on your property, charge double the normal rent once.", icon: <Coins />, image: "/game/shop/c.jpeg" },
-  { perk: 4, name: "Roll Boost", desc: "Add +1 to your next dice roll (capped at 12).", icon: <Sparkles />, image: "/game/shop/a.jpeg" },
-  { perk: 5, name: "Instant Cash", desc: "Burn to receive TYC based on tier (100–1000).", icon: <Gem />, image: "/game/shop/b.jpeg" },
-  { perk: 6, name: "Teleport", desc: "Move your token to any property on the board.", icon: <Zap />, image: "/game/shop/c.jpeg" },
-  { perk: 7, name: "Shield", desc: "Block the next rent or fee you would pay (one use).", icon: <Shield />, image: "/game/shop/a.jpeg" },
-  { perk: 8, name: "Property Discount", desc: "Get 30–50% off the next property you buy (tiered).", icon: <Coins />, image: "/game/shop/b.jpeg" },
-  { perk: 9, name: "Tax Refund", desc: "Receive TYC back when you pay Income or Luxury Tax (tiered).", icon: <Gem />, image: "/game/shop/c.jpeg" },
-  { perk: 10, name: "Exact Roll", desc: "Choose your next roll (2–12) instead of rolling the dice.", icon: <Sparkles />, image: "/game/shop/a.jpeg" },
-  { perk: 11, name: "Rent Cashback", desc: "Next rent you receive is +25% extra.", icon: <Percent />, image: "/game/shop/a.jpeg" },
-  { perk: 12, name: "Interest", desc: "At the start of your next turn, receive $200.", icon: <CircleDollarSign />, image: "/game/shop/b.jpeg" },
-  { perk: 13, name: "Lucky 7", desc: "Your next roll will be 7.", icon: <Sparkles />, image: "/game/shop/c.jpeg" },
-  { perk: 14, name: "Free Parking Bonus", desc: "Land on Free Parking to collect $500.", icon: <MapPin />, image: "/game/shop/a.jpeg" },
+  { perk: 1, name: "Extra Turn", desc: "Use on your turn to take an extra roll after this one.", icon: <Zap />, image: "/shopcards/extraturn.jpg" },
+  { perk: 2, name: "Jail Free Card", desc: "Use when in Jail to get out without paying or rolling doubles.", icon: <Crown />, image: "/shopcards/jailfree.jpg" },
+  { perk: 3, name: "Double Rent", desc: "When someone lands on your property, charge double the normal rent once.", icon: <Coins />, image: "/shopcards/double_rent.jpg" },
+  { perk: 4, name: "Roll Boost", desc: "Add +1 to your next dice roll (capped at 12).", icon: <Sparkles />, image: "/shopcards/roll_boost.jpg" },
+  { perk: 5, name: "Instant Cash", desc: "Burn to receive TYC based on tier (100–1000).", icon: <Gem />, image: "/shopcards/Cash_tiered.jpg" },
+  { perk: 6, name: "Teleport", desc: "Move your token to any property on the board.", icon: <Zap />, image: "/shopcards/teleport.jpg" },
+  { perk: 7, name: "Shield", desc: "Block the next rent or fee you would pay (one use).", icon: <Shield />, image: "/shopcards/rent_immunity.jpg" },
+  { perk: 8, name: "Property Discount", desc: "Get 30–50% off the next property you buy (tiered).", icon: <Coins />, image: "/shopcards/Cash_tiered.jpg" },
+  { perk: 9, name: "Tax Refund", desc: "Receive TYC back when you pay Income or Luxury Tax (tiered).", icon: <Gem />, image: "/shopcards/tax_refund.jpg" },
+  { perk: 10, name: "Exact Roll", desc: "Choose your next roll (2–12) instead of rolling the dice.", icon: <Sparkles />, image: "/shopcards/roll_boost.jpg" },
+  { perk: 11, name: "Rent Cashback", desc: "Next rent you receive is +25% extra.", icon: <Percent />, image: "/shopcards/rent_cashback.jpg" },
+  { perk: 12, name: "Interest", desc: "At the start of your next turn, receive $200.", icon: <CircleDollarSign />, image: "/shopcards/interest.jpg" },
+  { perk: 13, name: "Lucky 7", desc: "Your next roll will be 7.", icon: <Sparkles />, image: "/shopcards/lucky_7.jpg" },
+  { perk: 14, name: "Free Parking Bonus", desc: "Land on Free Parking to collect $500.", icon: <MapPin />, image: "/shopcards/freeparking_bonus.jpg" },
 ];
 
 export default function GameShopMobile() {
@@ -311,12 +323,16 @@ export default function GameShopMobile() {
           image: '/game/shop/placeholder.jpg',
         };
 
+        const usdcPriceStr = formatUnits(usdcPrice, 6);
+        const ngnPrice = Math.round(Number(usdcPriceStr) * USDC_TO_NGN_RATE);
+
         return {
           tokenId,
           perk,
           strength: Number(strength),
           tycPrice: formatUnits(tycPrice, 18),
-          usdcPrice: formatUnits(usdcPrice, 6),
+          usdcPrice: usdcPriceStr,
+          ngnPrice,
           stock: Number(stock),
           comingSoon: false as const,
           ...meta,
@@ -784,47 +800,59 @@ export default function GameShopMobile() {
                   key={b.id ?? b.name ?? idx}
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="rounded-xl p-4 border border-amber-500/20 bg-[#0E1415]/50"
+                  className="rounded-xl overflow-hidden border border-amber-500/20 bg-[#0E1415]/50"
                 >
-                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-[9px] font-semibold text-amber-300 uppercase">Bundle</span>
-                  <h3 className="font-bold text-base text-white mt-2">{b.name}</h3>
-                  <p className="text-slate-500 text-xs mt-1 line-clamp-2">{b.description || ''}</p>
-                  <p className="text-[#00F0FF] font-semibold text-sm mt-2">
-                    ${Number(b.price_usdc).toFixed(2)} USDC
-                    {b.price_ngn != null && b.price_ngn > 0 && (
-                      <> or ₦{Number(b.price_ngn).toLocaleString()} NGN</>
-                    )}
-                  </p>
-                  <button
-                    onClick={() => handleBuyBundleWithUsdc(b.name)}
-                    disabled={bundleBuyingName != null || payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)}
-                    className={`w-full mt-3 py-2.5 rounded-lg text-sm font-medium border ${
-                      bundleBuyingName === b.name
-                        ? 'bg-slate-700/80 text-slate-400 border-slate-600/50'
-                        : payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)
-                        ? 'bg-slate-800/80 text-slate-500 border-slate-700/80'
-                        : 'bg-[#00F0FF]/10 text-[#00F0FF] border-[#00F0FF]/40'
-                    }`}
-                  >
-                    {bundleBuyingName === b.name ? (
-                      <><Loader2 size={14} className="inline animate-spin mr-2" /> Buying...</>
-                    ) : (
-                      <><CreditCard size={14} className="inline mr-2" /> Buy with USDC</>
-                    )}
-                  </button>
-                  {b.price_ngn != null && b.price_ngn > 0 && (
+                  {/* Bundle Image */}
+                  <div className="relative h-32 bg-black/40 overflow-hidden">
+                    <Image
+                      src={bundleImageMap[b.name] || "/game/shop/placeholder.jpg"}
+                      alt={b.name}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+
+                  <div className="p-4">
+                    <span className="px-2 py-0.5 rounded bg-amber-500/20 text-[9px] font-semibold text-amber-300 uppercase">Bundle</span>
+                    <h3 className="font-bold text-base text-white mt-2">{b.name}</h3>
+                    <p className="text-slate-500 text-xs mt-1 line-clamp-2">{b.description || ''}</p>
+                    <p className="text-[#00F0FF] font-semibold text-sm mt-2">
+                      ${Number(b.price_usdc).toFixed(2)} USDC
+                      {b.price_ngn != null && b.price_ngn > 0 && (
+                        <> or ₦{Number(b.price_ngn).toLocaleString()} NGN</>
+                      )}
+                    </p>
                     <button
-                      onClick={() => typeof b.id === 'number' && handlePayWithNgn(b.id)}
-                      disabled={!ngnAvailable || ngnLoadingBundleId != null}
-                      className="w-full mt-2 py-2.5 rounded-lg text-sm font-medium bg-amber-500/20 border border-amber-400/50 text-amber-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => handleBuyBundleWithUsdc(b.name)}
+                      disabled={bundleBuyingName != null || payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)}
+                      className={`w-full mt-3 py-2.5 rounded-lg text-sm font-medium border ${
+                        bundleBuyingName === b.name
+                          ? 'bg-slate-700/80 text-slate-400 border-slate-600/50'
+                          : payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)
+                          ? 'bg-slate-800/80 text-slate-500 border-slate-700/80'
+                          : 'bg-[#00F0FF]/10 text-[#00F0FF] border-[#00F0FF]/40'
+                      }`}
                     >
-                      {ngnLoadingBundleId === b.id ? (
-                        <><Loader2 size={14} className="animate-spin" /> Redirecting...</>
+                      {bundleBuyingName === b.name ? (
+                        <><Loader2 size={14} className="inline animate-spin mr-2" /> Buying...</>
                       ) : (
-                        <><Banknote size={14} /> Buy with Naira — ₦{Number(b.price_ngn).toLocaleString()}</>
+                        <><CreditCard size={14} className="inline mr-2" /> Buy with USDC</>
                       )}
                     </button>
-                  )}
+                    {b.price_ngn != null && b.price_ngn > 0 && (
+                      <button
+                        onClick={() => typeof b.id === 'number' && handlePayWithNgn(b.id)}
+                        disabled={!ngnAvailable || ngnLoadingBundleId != null}
+                        className="w-full mt-2 py-2.5 rounded-lg text-sm font-medium bg-amber-500/20 border border-amber-400/50 text-amber-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {ngnLoadingBundleId === b.id ? (
+                          <><Loader2 size={14} className="animate-spin" /> Redirecting...</>
+                        ) : (
+                          <><Banknote size={14} /> Buy with Naira — ₦{Number(b.price_ngn).toLocaleString()}</>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </motion.div>
               ))}
             </div>
@@ -911,6 +939,9 @@ export default function GameShopMobile() {
                       <div>
                         <p className="text-[10px] text-slate-500 uppercase">Price</p>
                         <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${Number(item.usdcPrice).toFixed(2)} USDC</p>
+                        {ngnAvailable && (
+                          <p className="text-xs text-amber-200">₦{Number(item.ngnPrice).toLocaleString()} NGN</p>
+                        )}
                       </div>
                     </div>
 
@@ -941,15 +972,14 @@ export default function GameShopMobile() {
                       </button>
                       <button
                         onClick={() => handlePayPerkWithNaira(item)}
-                        disabled={item.stock === 0 || payFromSmartWalletUnsupported || ngnLoadingTokenId === item.tokenId.toString()}
+                        disabled={item.stock === 0 || payFromSmartWalletUnsupported || ngnLoadingTokenId === item.tokenId.toString() || !ngnAvailable}
                         className="w-full mt-2 py-2.5 rounded-lg text-sm font-medium bg-amber-500/20 border border-amber-400/50 text-amber-200 flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {ngnLoadingTokenId === item.tokenId.toString() ? (
-                          <Loader2 size={14} className="animate-spin" />
+                          <><Loader2 size={14} className="animate-spin" /> Redirecting...</>
                         ) : (
-                          <Banknote size={14} />
+                          <><Banknote size={14} /> Buy with Naira — ₦{Number(item.ngnPrice).toLocaleString()}</>
                         )}
-                        Buy with Naira
                       </button>
                     </>
                   </div>
