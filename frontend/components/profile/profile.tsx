@@ -116,11 +116,16 @@ function GuestProfileView({
   guestUser,
   onRecreateClick,
   recreatePending,
+  onRedeemVoucher,
+  redeemVoucherPending,
 }: {
   guestUser: { address: string; username: string; linked_wallet_address?: string | null; smart_wallet_address?: string | null };
   onRecreateClick?: () => void | Promise<void>;
   recreatePending?: boolean;
+  onRedeemVoucher?: (tokenId: bigint) => Promise<void>;
+  redeemVoucherPending?: boolean;
 }) {
+  const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
   const username = guestUser.username;
   // When wallet is not connected:
   // - stats/username use the "wallet linked" address when available
@@ -134,6 +139,8 @@ function GuestProfileView({
       ? (guestUser.smart_wallet_address as Address)
       : null;
   const guestOnChainAddress = linkedWalletAddress ?? smartWalletAddress ?? null;
+  // Prefer smart wallet for reward/perk/voucher reads so vouchers in smart wallet are visible when not connected.
+  const rewardQueryAddress = smartWalletAddress ?? linkedWalletAddress ?? null;
   // Key local profile storage by whichever address represents this profile.
   // For Privy-only users, fall back to their guest `address` so avatar updates persist.
   const profileKeyAddress = linkedWalletAddress ?? smartWalletAddress ?? guestUser.address;
@@ -240,9 +247,9 @@ function GuestProfileView({
     address: rewardAddress,
     abi: RewardABI,
     functionName: 'ownedTokenCount',
-    args: guestOnChainAddress ? [guestOnChainAddress] : undefined,
+    args: rewardQueryAddress ? [rewardQueryAddress] : undefined,
     chainId: CELO_CHAIN_ID,
-    query: { enabled: !!guestOnChainAddress && !!rewardAddress },
+    query: { enabled: !!rewardQueryAddress && !!rewardAddress },
   });
   const ownedCountNum = Number(ownedCount.data ?? 0);
   const tokenCalls = useMemo(() =>
@@ -250,12 +257,12 @@ function GuestProfileView({
       address: rewardAddress!,
       abi: RewardABI as Abi,
       functionName: 'tokenOfOwnerByIndex',
-      args: [guestOnChainAddress!, BigInt(i)],
+      args: [rewardQueryAddress!, BigInt(i)],
     } as const)),
-  [rewardAddress, guestOnChainAddress, ownedCountNum]);
+  [rewardAddress, rewardQueryAddress, ownedCountNum]);
   const tokenResults = useReadContracts({
     contracts: tokenCalls,
-    query: { enabled: ownedCountNum > 0 && !!rewardAddress && !!guestOnChainAddress },
+    query: { enabled: ownedCountNum > 0 && !!rewardAddress && !!rewardQueryAddress },
   });
   const allOwnedTokenIds = tokenResults.data
     ?.map(r => r.status === 'success' ? r.result as bigint : null)
@@ -818,25 +825,45 @@ function GuestProfileView({
                   />
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {myVouchers.map((voucher) => (
-                      <motion.div
-                        key={voucher.tokenId.toString()}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="rounded-2xl p-5 text-center border border-amber-500/20 bg-black/20"
-                      >
-                        <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
-                        <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
-                        <button
-                          type="button"
-                          disabled
-                          className="w-full py-2.5 rounded-xl font-semibold text-sm bg-white/10 text-white/50 cursor-not-allowed flex items-center justify-center gap-2"
+                    {myVouchers.map((voucher) => {
+                      const canRedeemViaApi = !!rewardQueryAddress && !!onRedeemVoucher;
+                      const isRedeeming = redeemVoucherPending || redeemingId === voucher.tokenId;
+                      return (
+                        <motion.div
+                          key={voucher.tokenId.toString()}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="rounded-2xl p-5 text-center border border-amber-500/20 bg-black/20"
                         >
-                          Redeem
-                        </button>
-                        <p className="text-xs text-white/50 mt-2">Connect a wallet to redeem vouchers.</p>
-                      </motion.div>
-                    ))}
+                          <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
+                          <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
+                          <button
+                            type="button"
+                            disabled={!canRedeemViaApi || isRedeeming}
+                            onClick={async () => {
+                              if (!onRedeemVoucher) return;
+                              setRedeemingId(voucher.tokenId);
+                              try {
+                                await onRedeemVoucher(voucher.tokenId);
+                                toast.success("Voucher redeemed!");
+                              } catch (e: unknown) {
+                                const msg = e && typeof e === "object" && "response" in e && typeof (e as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
+                                  ? (e as { response: { data: { message: string } } }).response.data.message
+                                  : "Redeem failed";
+                                toast.error(msg);
+                              } finally {
+                                setRedeemingId(null);
+                              }
+                            }}
+                            className="w-full py-2.5 rounded-xl font-semibold text-sm bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {isRedeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                            {isRedeeming ? "Redeeming…" : "Redeem"}
+                          </button>
+                          {!canRedeemViaApi && <p className="text-xs text-white/50 mt-2">Log in to redeem via your account (no wallet needed).</p>}
+                        </motion.div>
+                      );
+                    })}
                   </div>
                 )}
               </motion.div>

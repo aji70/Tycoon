@@ -579,6 +579,16 @@ const REWARD_ABI_MINT = [
     outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     stateMutability: "nonpayable",
   },
+  {
+    type: "function",
+    name: "redeemVoucherFor",
+    inputs: [
+      { name: "voucherOwner", type: "address", internalType: "address" },
+      { name: "tokenId", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
 ];
 
 /**
@@ -1298,6 +1308,24 @@ export async function mintVoucherTo(toAddress, tycValueWei, chain = "CELO") {
     } catch (_) {}
     logger.info({ to: toAddress, tycValue: String(tycValueWei), hash: receipt?.hash, tokenId }, "mintVoucherTo tx");
     return { hash: receipt?.hash, tokenId: tokenId ?? "" };
+  });
+}
+
+/**
+ * Redeem a voucher owned by an address (e.g. user's smart wallet). Callable only if the backend wallet
+ * is the on-chain owner of the voucher owner (e.g. registry for wallet-first) or approved by the voucher owner.
+ * @param {string} voucherOwnerAddress - Owner of the voucher (0x...), e.g. user's smart_wallet_address
+ * @param {string|bigint} tokenId - Voucher token ID
+ * @param {string} [chain] - CELO | POLYGON | BASE. Default CELO.
+ * @returns {Promise<{ hash: string }>}
+ */
+export async function redeemVoucherForUser(voucherOwnerAddress, tokenId, chain = "CELO") {
+  return withTxQueue(async () => {
+    const reward = await getRewardContract(chain);
+    const tx = await reward.redeemVoucherFor(voucherOwnerAddress, BigInt(tokenId));
+    const receipt = await tx.wait();
+    logger.info({ voucherOwner: voucherOwnerAddress, tokenId: String(tokenId), hash: receipt?.hash }, "redeemVoucherFor tx");
+    return { hash: receipt?.hash };
   });
 }
 
