@@ -466,6 +466,8 @@ async function processCompletedArenaMatches() {
           .select("user_id", "balance", "turn_order");
 
         if (players.length !== 2) {
+          // Multi-seat on-chain arena: XP is only recorded for 2-player agent games
+          if (players.length > 2) continue;
           logger.warn({ gameId: game.id, playerCount: players.length }, "Expected 2 players in agent arena game");
           continue;
         }
