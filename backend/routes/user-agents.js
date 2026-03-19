@@ -6,6 +6,7 @@
 import express from "express";
 import { requireAuth } from "../middleware/auth.js";
 import UserAgent from "../models/UserAgent.js";
+import * as eloService from "../services/eloService.js";
 import * as hostedAgentCreditsController from "../controllers/hostedAgentCreditsController.js";
 import {
   listTournamentPermissions,
@@ -78,7 +79,8 @@ router.get("/", async (req, res) => {
   try {
     const userId = req.user.id;
     const list = await UserAgent.findByUser(userId);
-    res.json({ success: true, data: list });
+    const data = (list || []).map((a) => eloService.enrichAgentForArenaUi(a));
+    res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -13,26 +13,8 @@ import { createTwoPlayerAgentArenaGame } from "../services/agentArenaGameFactory
 import { emitGameUpdate } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";
 
-/** Map DB columns (elo_*) to XP + human-readable record for API/UI. */
 function enrichArenaAgent(agent) {
-  if (!agent) return agent;
-  const wins = Number(agent.arena_wins) || 0;
-  const losses = Number(agent.arena_losses) || 0;
-  const draws = Number(agent.arena_draws) || 0;
-  const total = wins + losses + draws;
-  const xp = Number(agent.elo_rating) || 1000;
-  const peakXp = Number(agent.elo_peak) || 1000;
-  return {
-    ...agent,
-    xp,
-    peak_xp: peakXp,
-    record: `${wins}W-${losses}L-${draws}D`,
-    win_rate_pct: total > 0 ? Math.round((wins / total) * 1000) / 10 : null,
-    win_rate: total > 0 ? (wins / total).toFixed(2) : null,
-    total_games: total,
-    tier: eloService.getTierName(xp),
-    tier_color: eloService.getTierColor(xp),
-  };
+  return eloService.enrichAgentForArenaUi(agent);
 }
 
 async function enrichChallengeRow(row) {

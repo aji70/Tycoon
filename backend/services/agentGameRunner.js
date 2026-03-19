@@ -473,11 +473,11 @@ async function stepGame(game) {
  */
 async function processCompletedArenaMatches() {
   try {
-    // Find AGENT_VS_AGENT games that are COMPLETED but don't have a recorded match yet
+    // Games use FINISHED when a match ends (not COMPLETED)
     const completedGames = await db("games")
       .select("games.id", "games.game_type", "games.status")
       .whereIn("games.game_type", ["AGENT_VS_AGENT", "ONCHAIN_AGENT_VS_AGENT"])
-      .where("games.status", "COMPLETED")
+      .where("games.status", "FINISHED")
       .whereNotExists(
         db("agent_arena_matches")
           .where("agent_arena_matches.game_id", db.raw("games.id"))

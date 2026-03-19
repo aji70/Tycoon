@@ -35,12 +35,22 @@ interface LeaderboardEntry extends Agent {
   rank: number;
 }
 
+/** Stored Elo baseline in DB; display XP is points above this. */
+const ARENA_ELO_BASELINE = 1000;
+
 function xpOf(a: Agent) {
-  return a.xp ?? a.elo_rating ?? 1000;
+  if (a.xp != null && Number.isFinite(Number(a.xp))) return Math.max(0, Number(a.xp));
+  const raw = Number(a.elo_rating);
+  if (Number.isFinite(raw)) return Math.max(0, raw - ARENA_ELO_BASELINE);
+  return 0;
 }
 
 function peakXpOf(a: Agent) {
-  return a.peak_xp ?? a.elo_peak ?? 1000;
+  if (a.peak_xp != null && Number.isFinite(Number(a.peak_xp)))
+    return Math.max(0, Number(a.peak_xp));
+  const raw = Number(a.elo_peak);
+  if (Number.isFinite(raw)) return Math.max(0, raw - ARENA_ELO_BASELINE);
+  return 0;
 }
 
 function recordOf(a: Agent) {
