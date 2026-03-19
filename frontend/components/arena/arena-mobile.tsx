@@ -315,22 +315,48 @@ export default function ArenaMobile() {
       {loading && <div className={styles.loading}>Loading...</div>}
 
       {activeTab === "discover" && authenticated && myAgents.length > 0 && (
-        <div style={{ padding: "0.75rem", marginBottom: "0.5rem", fontSize: "0.85rem" }}>
+        <section className={styles.challengePanel} aria-label="Challenge setup">
+          <div className={styles.challengePanelHead}>
+            <h2 className={styles.challengePanelTitle}>Challenges</h2>
+            <span className={styles.challengeCountPill}>
+              {selectedOpponents.length}/{MAX_CHALLENGE_TARGETS}
+            </span>
+          </div>
+          <p className={styles.challengeHint}>
+            Use <strong style={{ color: "#e8fbff" }}>Pick</strong> on each card, then{" "}
+            <strong style={{ color: "#e8fbff" }}>Send</strong>.
+          </p>
+          <label className={styles.challengeFieldLabel} htmlFor="arena-mobile-agent">
+            Playing as
+          </label>
           <select
+            id="arena-mobile-agent"
+            className={styles.agentSelect}
             value={challengerAgentId ?? ""}
             onChange={(e) => setChallengerAgentId(Number(e.target.value))}
-            style={{ width: "100%", marginBottom: 8, padding: 8 }}
           >
             {myAgents.map((a) => (
               <option key={a.id} value={a.id}>
-                Your agent: {a.name}
+                {a.name}
               </option>
             ))}
           </select>
-          <button type="button" className={styles.btnPrimary} style={{ width: "100%" }} onClick={sendChallengeBatch}>
-            Send challenges ({selectedOpponents.length}/{MAX_CHALLENGE_TARGETS})
-          </button>
-        </div>
+          <div className={styles.challengeActionRow}>
+            <button
+              type="button"
+              className={styles.btnSendCompact}
+              onClick={sendChallengeBatch}
+              disabled={selectedOpponents.length === 0}
+            >
+              Send{selectedOpponents.length > 0 ? ` · ${selectedOpponents.length}` : ""}
+            </button>
+            {selectedOpponents.length > 0 && (
+              <button type="button" className={styles.btnClearCompact} onClick={() => setSelectedOpponents([])}>
+                Clear
+              </button>
+            )}
+          </div>
+        </section>
       )}
 
       {activeTab === "discover" && (
@@ -366,14 +392,16 @@ export default function ArenaMobile() {
               </div>
 
               {authenticated && myAgents.length > 0 && (
-                <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedOpponents.includes(agent.id)}
-                    onChange={() => toggleOpponentSelect(agent.id)}
-                  />
-                  Challenge
-                </label>
+                <button
+                  type="button"
+                  className={`${styles.pickBtn} ${
+                    selectedOpponents.includes(agent.id) ? styles.pickBtnOn : styles.pickBtnOff
+                  }`}
+                  onClick={() => toggleOpponentSelect(agent.id)}
+                  aria-pressed={selectedOpponents.includes(agent.id)}
+                >
+                  {selectedOpponents.includes(agent.id) ? "✓ Picked" : "+ Pick"}
+                </button>
               )}
             </div>
           ))}

@@ -300,7 +300,7 @@ export default function ArenaPage() {
     <div className={styles.container}>
       <header className={styles.header}>
         <h1>⚔️ Agent Arena</h1>
-        <p>XP, records, and challenge invites — one active game per agent</p>
+        <p>XP, records, and challenge invites</p>
       </header>
 
       <div className={styles.tabs}>
@@ -337,26 +337,26 @@ export default function ArenaPage() {
       {loading && <div className={styles.loading}>Loading...</div>}
 
       {activeTab === "discover" && authenticated && myAgents.length > 0 && (
-        <div
-          style={{
-            marginBottom: "1rem",
-            padding: "1rem",
-            background: "rgba(0,240,255,0.08)",
-            borderRadius: 12,
-            border: "1px solid rgba(0,240,255,0.25)",
-          }}
-        >
-          <p style={{ margin: "0 0 0.5rem", fontSize: "0.9rem", color: "#a8c4c8" }}>
-            Select up to {MAX_CHALLENGE_TARGETS} opponents below, choose your agent, then send invites. First
-            acceptance starts the match and cancels other pending invites for those agents.
+        <section className={styles.challengePanel} aria-label="Challenge setup">
+          <div className={styles.challengePanelHead}>
+            <h2 className={styles.challengePanelTitle}>Challenge setup</h2>
+            <span className={styles.challengeCountPill}>
+              {selectedOpponents.length}/{MAX_CHALLENGE_TARGETS} picked
+            </span>
+          </div>
+          <p className={styles.challengeHint}>
+            Tap <strong style={{ color: "#e8fbff" }}>Pick</strong> on cards (max {MAX_CHALLENGE_TARGETS}). Invites
+            land in <strong style={{ color: "#e8fbff" }}>Invites</strong> — first accept starts the match and clears
+            related pending invites.
           </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "center" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span>Your agent:</span>
+          <div className={styles.challengeToolbar}>
+            <div className={styles.challengeField}>
+              <span className={styles.challengeFieldLabel}>Playing as</span>
               <select
+                className={styles.agentSelect}
                 value={challengerAgentId ?? ""}
                 onChange={(e) => setChallengerAgentId(Number(e.target.value))}
-                style={{ padding: "0.35rem 0.5rem", borderRadius: 8 }}
+                aria-label="Your agent for challenges"
               >
                 {myAgents.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -364,21 +364,24 @@ export default function ArenaPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <button type="button" className={styles.btnPrimary} onClick={sendChallengeBatch}>
-              Send challenges ({selectedOpponents.length})
-            </button>
-            {selectedOpponents.length > 0 && (
+            </div>
+            <div className={styles.challengeActions}>
               <button
                 type="button"
-                className={styles.btnSecondary}
-                onClick={() => setSelectedOpponents([])}
+                className={styles.btnSendCompact}
+                onClick={sendChallengeBatch}
+                disabled={selectedOpponents.length === 0}
               >
-                Clear selection
+                Send{selectedOpponents.length > 0 ? ` · ${selectedOpponents.length}` : ""}
               </button>
-            )}
+              {selectedOpponents.length > 0 && (
+                <button type="button" className={styles.btnClearCompact} onClick={() => setSelectedOpponents([])}>
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        </section>
       )}
 
       {activeTab === "discover" && (
@@ -419,23 +422,18 @@ export default function ArenaPage() {
               <div className={styles.agentFooter}>
                 <span className={styles.creatorName}>by {agent.username}</span>
                 {authenticated && myAgents.length > 0 && (
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      marginTop: 8,
-                      cursor: "pointer",
-                      fontSize: "0.9rem",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedOpponents.includes(agent.id)}
-                      onChange={() => toggleOpponentSelect(agent.id)}
-                    />
-                    Add to challenge list
-                  </label>
+                  <div className={styles.pickRow}>
+                    <button
+                      type="button"
+                      className={`${styles.pickBtn} ${
+                        selectedOpponents.includes(agent.id) ? styles.pickBtnOn : styles.pickBtnOff
+                      }`}
+                      onClick={() => toggleOpponentSelect(agent.id)}
+                      aria-pressed={selectedOpponents.includes(agent.id)}
+                    >
+                      {selectedOpponents.includes(agent.id) ? "✓ Picked" : "+ Pick"}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

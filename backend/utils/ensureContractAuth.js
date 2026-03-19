@@ -15,6 +15,18 @@ function passwordToHash(password) {
   return ethers.keccak256(ethers.toUtf8Bytes(password));
 }
 
+function isValidEthAddress(maybe) {
+  return typeof maybe === "string" && /^0x[a-fA-F0-9]{40}$/.test(maybe.trim());
+}
+
+/** Must match guestAuthController.placeholderAddressForPrivyDid / gameController.privyPlaceholderAddress */
+function privyPlaceholderAddress(privyDid) {
+  const id = privyDid && String(privyDid).trim();
+  if (!id) return null;
+  const hash = crypto.createHash("sha256").update(id).digest("hex").slice(0, 40);
+  return `0x${hash}`;
+}
+
 /**
  * Returns user with address, username, password_hash so backend can call createGameByBackend/joinGameByBackend etc.
  * If addressOverride is provided (e.g. linked_wallet_address), uses that for contract; otherwise uses user.address.
@@ -27,8 +39,17 @@ function passwordToHash(password) {
  * @returns {Promise<{ address: string, username: string, password_hash: string } | null>}
  */
 export async function ensureUserHasContractPassword(db, userId, chain = "CELO", addressOverride = null) {
-  const user = await db("users").where({ id: userId }).select("address", "username", "password_hash").first();
-  const effectiveAddress = (addressOverride && String(addressOverride).trim()) || user?.address;
+  const user = await db("users")
+    .where({ id: userId })
+    .select("address", "username", "password_hash", "privy_did")
+    .first();
+
+  let effectiveAddress = null;
+  const ov = addressOverride != null ? String(addressOverride).trim() : "";
+  if (isValidEthAddress(ov)) effectiveAddress = ov;
+  else if (isValidEthAddress(user?.address)) effectiveAddress = String(user.address).trim();
+  else if (user?.privy_did) effectiveAddress = privyPlaceholderAddress(user.privy_did);
+
   if (!effectiveAddress) return null;
 
   const normalizedChain = User.normalizeChain(chain);
