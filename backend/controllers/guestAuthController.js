@@ -29,6 +29,7 @@ import {
   signWithdrawalAuthUsdc,
   redeemVoucherForUser,
 } from "../services/tycoonContract.js";
+import { buildContractUsername } from "../utils/ensureContractAuth.js";
 import { getChainConfig } from "../config/chains.js";
 import logger from "../config/logger.js";
 import { transferToBankAccount, isFlutterwaveConfigured, initializePayment } from "../services/flutterwave.js";
@@ -244,8 +245,9 @@ export async function privySignin(req, res) {
     }
     try {
       if (isWalletFirstConfigured(normalizedChain)) {
-        const { wallet: smartWallet } = await createWalletForUserByBackend(trimmedUsername, normalizedChain);
-        await registerPlayerFor(smartWallet, trimmedUsername, passwordHash, normalizedChain);
+        const onChainU = buildContractUsername(user.id, trimmedUsername);
+        const { wallet: smartWallet } = await createWalletForUserByBackend(onChainU, normalizedChain);
+        await registerPlayerFor(smartWallet, onChainU, passwordHash, normalizedChain);
         await db("users")
           .where({ id: user.id })
           .update({ smart_wallet_address: smartWallet || null });
@@ -313,7 +315,8 @@ export async function registerOnChain(req, res) {
     }
     const secret = crypto.randomBytes(32).toString("hex");
     const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
-    await registerPlayerFor(addrForChain, user.username || addrForChain.slice(0, 10), passwordHash, chain);
+    const onChainU = buildContractUsername(user.id, user.username || addrForChain.slice(0, 10));
+    await registerPlayerFor(addrForChain, onChainU, passwordHash, chain);
     const smartWalletAddress = await getSmartWalletAddress(addrForChain, chain);
     await db("users")
       .where({ id: user.id })
@@ -407,10 +410,11 @@ export async function createSmartWallet(req, res) {
       return res.status(400).json({ success: false, message: "Set a username in your profile first (at least 2 characters), then create a smart wallet." });
     }
     try {
-      const { wallet: smartWallet } = await createWalletForUserByBackend(String(username).trim(), chain);
+      const onChainU = buildContractUsername(user.id, String(username).trim());
+      const { wallet: smartWallet } = await createWalletForUserByBackend(onChainU, chain);
       const secret = crypto.randomBytes(32).toString("hex");
       const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
-      await registerPlayerFor(smartWallet, String(username).trim(), passwordHash, chain);
+      await registerPlayerFor(smartWallet, onChainU, passwordHash, chain);
       await db("users").where({ id: user.id }).update({ password_hash: passwordHash, smart_wallet_address: smartWallet || null });
       const updated = await User.findById(user.id);
       const { password_hash: _pw, ...safe } = updated;
@@ -460,6 +464,7 @@ export async function recreateSmartWallet(req, res) {
         message: "Username required to create or recreate smart wallet.",
       });
     }
+    const onChainRegistryName = buildContractUsername(user.id, username);
 
     // Profile owner we'd use on-chain: linked EOA or (for wallet-first) the smart wallet address from DB.
     const profileOwner =
@@ -484,11 +489,11 @@ export async function recreateSmartWallet(req, res) {
     } else {
       // No profile on this registry (e.g. new registry) → create a new wallet.
       if (user.linked_wallet_address && String(user.linked_wallet_address).trim()) {
-        const result = await createWalletForUser(user.linked_wallet_address.trim(), username, chain);
+        const result = await createWalletForUser(user.linked_wallet_address.trim(), onChainRegistryName, chain);
         newWallet = result?.wallet ?? null;
         logger.info({ userId: user.id, username, newWallet, chain, action: "create" }, "recreateSmartWallet: created for EOA");
       } else {
-        const result = await createWalletForUserByBackend(username, chain);
+        const result = await createWalletForUserByBackend(onChainRegistryName, chain);
         newWallet = result?.wallet ?? null;
         logger.info({ userId: user.id, username, newWallet, chain, action: "create" }, "recreateSmartWallet: created wallet-first");
       }
@@ -948,11 +953,12 @@ export async function me(req, res) {
         ? String(safe.smart_wallet_address).trim()
         : null;
       if (!existingSmartWallet) {
-        const username = req.user.username || "Player";
-        const { wallet: smartWallet } = await createWalletForUserByBackend(username, normalizedChain);
+        const display = req.user.username || "Player";
+        const onChainU = buildContractUsername(req.user.id, display);
+        const { wallet: smartWallet } = await createWalletForUserByBackend(onChainU, normalizedChain);
         const secret = crypto.randomBytes(32).toString("hex");
         const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
-        await registerPlayerFor(smartWallet, username, passwordHash, normalizedChain);
+        await registerPlayerFor(smartWallet, onChainU, passwordHash, normalizedChain);
         await db("users").where({ id: req.user.id }).update({
           password_hash: passwordHash,
           smart_wallet_address: smartWallet || null,
@@ -975,10 +981,11 @@ export async function me(req, res) {
       } else {
         const isRegistered = await callContractRead("registered", [addrForChain], normalizedChain);
         if (!isRegistered) {
-          const username = req.user.username || req.user.address?.slice(0, 10) || "Player";
+          const display = req.user.username || req.user.address?.slice(0, 10) || "Player";
+          const onChainU = buildContractUsername(req.user.id, display);
           const secret = crypto.randomBytes(32).toString("hex");
           const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
-          await registerPlayerFor(addrForChain, username, passwordHash, normalizedChain);
+          await registerPlayerFor(addrForChain, onChainU, passwordHash, normalizedChain);
           const smartWallet = await getSmartWalletAddress(addrForChain, normalizedChain);
           await db("users").where({ id: req.user.id }).update({
             password_hash: passwordHash,

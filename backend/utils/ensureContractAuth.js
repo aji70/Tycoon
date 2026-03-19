@@ -19,6 +19,43 @@ function isValidEthAddress(maybe) {
   return typeof maybe === "string" && /^0x[a-fA-F0-9]{40}$/.test(maybe.trim());
 }
 
+/**
+ * On-chain username (max 32 bytes per TycoonLib). Must be globally unique on the contract;
+ * DB usernames can clash with another player's on-chain name (e.g. wallet "MimahYero" vs guest "MimahYero").
+ * @param {number} userId - users.id
+ * @param {string|null|undefined} displayUsername - human label from DB (optional)
+ */
+export function buildContractUsername(userId, displayUsername) {
+  const id = Number(userId);
+  const safeId = Number.isFinite(id) && id > 0 ? id : null;
+  const suffix = safeId != null ? `_id${safeId}` : `_x${crypto.randomBytes(3).toString("hex")}`;
+  const raw = (displayUsername && String(displayUsername).trim()) || "p";
+  const ascii = raw.replace(/[^\w-]/g, "");
+  let base = ascii.slice(0, 20);
+  if (!base) base = "p";
+  let combined = base + suffix;
+  while (Buffer.byteLength(combined, "utf8") > 32) {
+    base = base.slice(0, -1);
+    if (!base) {
+      combined = safeId != null ? `u${safeId}` : `g${crypto.randomBytes(6).toString("hex")}`;
+      combined = String(combined).slice(0, 32);
+      break;
+    }
+    combined = base + suffix;
+  }
+  return combined;
+}
+
+async function readOnChainUsername(effectiveAddress, normalizedChain) {
+  try {
+    const u = await callContractRead("addressToUsername", [effectiveAddress], normalizedChain);
+    const s = u != null ? String(u).trim() : "";
+    return s || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Must match guestAuthController.placeholderAddressForPrivyDid / gameController.privyPlaceholderAddress */
 function privyPlaceholderAddress(privyDid) {
   const id = privyDid && String(privyDid).trim();
@@ -56,23 +93,29 @@ export async function ensureUserHasContractPassword(db, userId, chain = "CELO", 
   if (!isContractConfigured(normalizedChain)) return null;
   try {
     const isRegistered = await callContractRead("registered", [effectiveAddress], normalizedChain);
-    const username = user?.username || effectiveAddress.slice(0, 10);
+    const displayHint = user?.username || effectiveAddress.slice(0, 10);
+    /** Username the Tycoon contract expects for createGameByBackend / joinGameByBackend for this address */
+    let usernameForGames = displayHint;
 
     // If user already has a password_hash in DB but this address is not yet registered on this chain,
     // register it using the existing hash so backend auth works.
     if (user?.password_hash) {
       if (!isRegistered) {
-        await registerPlayerFor(effectiveAddress, username, user.password_hash, normalizedChain);
+        usernameForGames = buildContractUsername(userId, user?.username);
+        await registerPlayerFor(effectiveAddress, usernameForGames, user.password_hash, normalizedChain);
         const smartWalletAddress = await getSmartWalletAddress(effectiveAddress, normalizedChain);
         await db("users")
           .where({ id: userId })
           .update({ smart_wallet_address: smartWalletAddress || null });
         logger.info(
-          { userId, address: effectiveAddress, chain: normalizedChain },
+          { userId, address: effectiveAddress, chain: normalizedChain, contractUsername: usernameForGames },
           "Synced existing backend password to contract for user"
         );
+      } else {
+        const onChain = await readOnChainUsername(effectiveAddress, normalizedChain);
+        if (onChain) usernameForGames = onChain;
       }
-      return { address: effectiveAddress, username, password_hash: user.password_hash };
+      return { address: effectiveAddress, username: usernameForGames, password_hash: user.password_hash };
     }
 
     // No password_hash in DB yet.
@@ -81,18 +124,21 @@ export async function ensureUserHasContractPassword(db, userId, chain = "CELO", 
     if (isRegistered) {
       // Already registered on-chain without a backend password: set backend password via controller helper.
       await callContractWrite("setBackendPasswordFor", [effectiveAddress, passwordHash], normalizedChain);
+      const onChain = await readOnChainUsername(effectiveAddress, normalizedChain);
+      if (onChain) usernameForGames = onChain;
     } else {
-      await registerPlayerFor(effectiveAddress, username, passwordHash, normalizedChain);
+      usernameForGames = buildContractUsername(userId, user?.username);
+      await registerPlayerFor(effectiveAddress, usernameForGames, passwordHash, normalizedChain);
     }
     const smartWalletAddress = await getSmartWalletAddress(effectiveAddress, normalizedChain);
     await db("users")
       .where({ id: userId })
       .update({ password_hash: passwordHash, smart_wallet_address: smartWalletAddress || null });
     logger.info(
-      { userId, address: effectiveAddress, chain: normalizedChain },
+      { userId, address: effectiveAddress, chain: normalizedChain, contractUsername: usernameForGames },
       "Registered user on contract with backend password for future game-end"
     );
-    return { address: effectiveAddress, username, password_hash: passwordHash };
+    return { address: effectiveAddress, username: usernameForGames, password_hash: passwordHash };
   } catch (err) {
     logger.warn({ err: err?.message, userId }, "ensureUserHasContractPassword failed");
     return null;
