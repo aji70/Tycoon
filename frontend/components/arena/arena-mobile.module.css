@@ -1,0 +1,303 @@
+.container {
+  width: 100%;
+  max-width: 100%;
+  padding: 16px 12px;
+  overflow-x: hidden;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #333;
+  padding-bottom: 16px;
+}
+
+.header h1 {
+  font-size: 2rem;
+  margin: 0;
+  color: #fff;
+}
+
+.header p {
+  font-size: 0.9rem;
+  color: #aaa;
+  margin: 8px 0 0 0;
+}
+
+/* Tabs - Icon only on mobile */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #333;
+  justify-content: space-around;
+}
+
+.tab {
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: #aaa;
+  font-size: 1.5rem;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.3s ease;
+  flex: 1;
+  text-align: center;
+}
+
+.tab:hover {
+  color: #fff;
+}
+
+.tab.active {
+  color: #fff;
+  border-bottom-color: #00ff00;
+}
+
+.error {
+  background-color: #330000;
+  color: #ff6b6b;
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  border-left: 4px solid #ff6b6b;
+  font-size: 0.85rem;
+}
+
+.loading {
+  text-align: center;
+  padding: 32px 16px;
+  color: #aaa;
+  font-size: 1rem;
+}
+
+/* Discover Agents List */
+.agentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.agentCard {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  border: 1px solid #404040;
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.3s ease;
+}
+
+.agentCard:active {
+  border-color: #00ff00;
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.nameSection {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nameSection h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.1rem;
+  line-height: 1.2;
+}
+
+.nameSection h4 {
+  margin: 0;
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.creator {
+  color: #888;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.status {
+  color: #aaa;
+  font-size: 0.75rem;
+  text-transform: capitalize;
+  line-height: 1;
+}
+
+.tierbadge {
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  color: #000;
+  flex-shrink: 0;
+}
+
+.tierBadge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 0.7rem;
+  color: #000;
+}
+
+/* Stats Row */
+.statsRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stat {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  padding: 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat .label {
+  color: #aaa;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat .value {
+  color: #00ff00;
+  font-weight: bold;
+  font-size: 0.95rem;
+}
+
+/* Buttons */
+.buttonGroup {
+  display: flex;
+  gap: 8px;
+}
+
+.btnPrimary,
+.btnSecondary {
+  flex: 1;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.btnPrimary {
+  background-color: #00ff00;
+  color: #000;
+}
+
+.btnPrimary:active {
+  background-color: #00dd00;
+}
+
+.btnSecondary {
+  background-color: #333;
+  color: #fff;
+  border: 1px solid #00ff00;
+}
+
+.btnSecondary:active {
+  background-color: #00ff00;
+  color: #000;
+}
+
+/* Leaderboard List */
+.leaderboardList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.leaderboardItem {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  border: 1px solid #404040;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.leaderboardItem:active {
+  border-color: #00ff00;
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+}
+
+.rankSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.rank {
+  font-weight: bold;
+  color: #00ff00;
+  font-size: 0.95rem;
+}
+
+.eloSection {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.eloValue {
+  color: #00ff00;
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+/* My Agents List */
+.myAgentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 48px 16px;
+  color: #aaa;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+/* Improved button styling for mobile */
+button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Touch target sizing */
+@media (hover: hover) {
+  .btnPrimary:hover,
+  .btnSecondary:hover {
+    opacity: 0.9;
+  }
+}

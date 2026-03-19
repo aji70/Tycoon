@@ -159,6 +159,14 @@ export default function GameShopMobile() {
 
   const USDC_TO_NGN_RATE = 1600;
 
+  // Calculate NGN price with discount for purchases over 1000 NGN
+  const calculateNgnPrice = (ngnBasePrice: number): number => {
+    const minNgnPurchase = 200;
+    if (ngnBasePrice < minNgnPurchase) return minNgnPurchase;
+    if (ngnBasePrice > 1000) return Math.round(ngnBasePrice * 0.8);
+    return ngnBasePrice;
+  };
+
   const payerAddress = payWith === 'smart_wallet' && smartWalletAddress ? smartWalletAddress : address ?? undefined;
 
   useEffect(() => {
@@ -324,7 +332,8 @@ export default function GameShopMobile() {
         };
 
         const usdcPriceStr = formatUnits(usdcPrice, 6);
-        const ngnPrice = Math.round(Number(usdcPriceStr) * USDC_TO_NGN_RATE);
+        const baseNgnPrice = Math.round(Number(usdcPriceStr) * USDC_TO_NGN_RATE);
+        const ngnPrice = calculateNgnPrice(baseNgnPrice);
 
         return {
           tokenId,

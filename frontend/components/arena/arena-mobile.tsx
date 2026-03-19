@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
-import styles from "./arena.module.css";
-import ArenaMobile from "@/components/arena/arena-mobile";
+import styles from "./arena-mobile.module.css";
 
 interface Agent {
   id: number;
@@ -37,7 +36,7 @@ const TierColors: Record<string, string> = {
   brown: "#8B4513",
 };
 
-export default function ArenaPage() {
+export default function ArenaMobile() {
   const { user, authenticated } = usePrivy();
   const [activeTab, setActiveTab] = useState<"discover" | "leaderboard" | "my-agents">("discover");
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -46,14 +45,6 @@ export default function ArenaPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   // Fetch agents
   useEffect(() => {
@@ -187,15 +178,11 @@ export default function ArenaPage() {
     }
   };
 
-  if (isMobile) {
-    return <ArenaMobile />;
-  }
-
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <h1>⚔️ Agent Arena</h1>
-        <p>Battle your agents against the best</p>
+        <h1>⚔️ Arena</h1>
+        <p>Battle agents</p>
       </header>
 
       <div className={styles.tabs}>
@@ -206,19 +193,19 @@ export default function ArenaPage() {
             setPage(1);
           }}
         >
-          🔍 Discover Agents
+          🔍
         </button>
         <button
           className={`${styles.tab} ${activeTab === "leaderboard" ? styles.active : ""}`}
           onClick={() => setActiveTab("leaderboard")}
         >
-          🏆 Leaderboard
+          🏆
         </button>
         <button
           className={`${styles.tab} ${activeTab === "my-agents" ? styles.active : ""}`}
           onClick={() => setActiveTab("my-agents")}
         >
-          👤 My Agents
+          👤
         </button>
       </div>
 
@@ -226,11 +213,14 @@ export default function ArenaPage() {
       {loading && <div className={styles.loading}>Loading...</div>}
 
       {activeTab === "discover" && (
-        <div className={styles.agentsGrid}>
+        <div className={styles.agentsList}>
           {agents.map((agent) => (
             <div key={agent.id} className={styles.agentCard}>
-              <div className={styles.agentHeader}>
-                <h3>{agent.name}</h3>
+              <div className={styles.cardTop}>
+                <div className={styles.nameSection}>
+                  <h3>{agent.name}</h3>
+                  <span className={styles.creator}>by {agent.username}</span>
+                </div>
                 <div
                   className={styles.tierbadge}
                   style={{ backgroundColor: TierColors[agent.tier_color] }}
@@ -239,145 +229,119 @@ export default function ArenaPage() {
                 </div>
               </div>
 
-              <div className={styles.agentStats}>
-                <div className={styles.statRow}>
-                  <span className={styles.label}>ELO Rating:</span>
+              <div className={styles.statsRow}>
+                <div className={styles.stat}>
+                  <span className={styles.label}>ELO</span>
                   <span className={styles.value}>{agent.elo_rating}</span>
                 </div>
-                <div className={styles.statRow}>
-                  <span className={styles.label}>Peak ELO:</span>
-                  <span className={styles.value}>{agent.elo_peak}</span>
-                </div>
-                <div className={styles.statRow}>
-                  <span className={styles.label}>Win Rate:</span>
+                <div className={styles.stat}>
+                  <span className={styles.label}>Win Rate</span>
                   <span className={styles.value}>{agent.win_rate || "N/A"}</span>
                 </div>
-                <div className={styles.statRow}>
-                  <span className={styles.label}>Record:</span>
-                  <span className={styles.value}>
-                    {agent.arena_wins}W-{agent.arena_losses}L-{agent.arena_draws}D
-                  </span>
+                <div className={styles.stat}>
+                  <span className={styles.label}>Games</span>
+                  <span className={styles.value}>{agent.total_games}</span>
                 </div>
               </div>
 
-              <div className={styles.agentFooter}>
-                <span className={styles.creatorName}>by {agent.username}</span>
-                {authenticated && (
-                  <div className={styles.buttonGroup}>
-                    <button
-                      className={styles.btnPrimary}
-                      onClick={() => joinQueue(agent.id)}
-                    >
-                      Find Match
-                    </button>
-                    <button
-                      className={styles.btnSecondary}
-                      onClick={() => challengeAgent(agent.id, agent.id)}
-                    >
-                      Challenge
-                    </button>
-                  </div>
-                )}
-              </div>
+              {authenticated && (
+                <div className={styles.buttonGroup}>
+                  <button
+                    className={styles.btnPrimary}
+                    onClick={() => joinQueue(agent.id)}
+                  >
+                    Find Match
+                  </button>
+                  <button
+                    className={styles.btnSecondary}
+                    onClick={() => challengeAgent(agent.id, agent.id)}
+                  >
+                    Challenge
+                  </button>
+                </div>
+              )}
             </div>
           ))}
+          {agents.length === 0 && !loading && (
+            <p className={styles.emptyState}>No agents found</p>
+          )}
         </div>
       )}
 
       {activeTab === "leaderboard" && (
-        <div className={styles.leaderboardTable}>
-          <table>
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Agent Name</th>
-                <th>Creator</th>
-                <th>Tier</th>
-                <th>ELO Rating</th>
-                <th>Record</th>
-                <th>Win Rate</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leaderboard.map((entry) => (
-                <tr key={entry.id}>
-                  <td className={styles.rank}>{entry.rank}</td>
-                  <td className={styles.agentName}>{entry.name}</td>
-                  <td>{entry.username}</td>
-                  <td>
-                    <span
-                      style={{
-                        backgroundColor: TierColors[entry.tier_color],
-                        padding: "4px 8px",
-                        borderRadius: "4px",
-                        color: "#000",
-                      }}
-                    >
-                      {entry.tier}
-                    </span>
-                  </td>
-                  <td className={styles.elo}>{entry.elo_rating}</td>
-                  <td>
-                    {entry.arena_wins}W-{entry.arena_losses}L-{entry.arena_draws}D
-                  </td>
-                  <td>{entry.win_rate || "N/A"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className={styles.leaderboardList}>
+          {leaderboard.map((entry) => (
+            <div key={entry.id} className={styles.leaderboardItem}>
+              <div className={styles.rankSection}>
+                <span className={styles.rank}>#{entry.rank}</span>
+                <div
+                  className={styles.tierBadge}
+                  style={{ backgroundColor: TierColors[entry.tier_color] }}
+                >
+                  {entry.tier}
+                </div>
+              </div>
+              <div className={styles.nameSection}>
+                <h4>{entry.name}</h4>
+                <span className={styles.creator}>{entry.username}</span>
+              </div>
+              <div className={styles.eloSection}>
+                <span className={styles.eloValue}>{entry.elo_rating}</span>
+              </div>
+            </div>
+          ))}
+          {leaderboard.length === 0 && !loading && (
+            <p className={styles.emptyState}>No leaderboard data</p>
+          )}
         </div>
       )}
 
       {activeTab === "my-agents" && (
-        <div className={styles.myAgents}>
+        <div className={styles.myAgentsList}>
           {authenticated ? (
             myAgents.length > 0 ? (
-              <div className={styles.myAgentsGrid}>
-                {myAgents.map((agent) => (
-                  <div key={agent.id} className={styles.agentCard}>
-                    <div className={styles.agentHeader}>
+              myAgents.map((agent) => (
+                <div key={agent.id} className={styles.agentCard}>
+                  <div className={styles.cardTop}>
+                    <div className={styles.nameSection}>
                       <h3>{agent.name}</h3>
-                      <div
-                        className={styles.tierbadge}
-                        style={{ backgroundColor: TierColors[agent.tier_color] }}
-                      >
-                        {agent.tier || "N/A"}
-                      </div>
+                      <span className={styles.status}>{agent.status || "unknown"}</span>
                     </div>
-
-                    <div className={styles.agentStats}>
-                      <div className={styles.statRow}>
-                        <span className={styles.label}>Status:</span>
-                        <span className={styles.value}>{agent.status || "unknown"}</span>
-                      </div>
-                      <div className={styles.statRow}>
-                        <span className={styles.label}>ELO Rating:</span>
-                        <span className={styles.value}>{agent.elo_rating || "N/A"}</span>
-                      </div>
-                      <div className={styles.statRow}>
-                        <span className={styles.label}>Visibility:</span>
-                        <span className={styles.value}>
-                          {agent.is_public ? "🌐 Public" : "🔒 Private"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className={styles.agentFooter}>
-                      <button
-                        className={agent.is_public ? styles.btnSecondary : styles.btnPrimary}
-                        onClick={() => toggleAgentPublic(agent.id, agent.is_public || false)}
-                      >
-                        {agent.is_public ? "Hide from Arena" : "Make Public"}
-                      </button>
+                    <div
+                      className={styles.tierbadge}
+                      style={{ backgroundColor: TierColors[agent.tier_color] }}
+                    >
+                      {agent.tier || "N/A"}
                     </div>
                   </div>
-                ))}
-              </div>
+
+                  <div className={styles.statsRow}>
+                    <div className={styles.stat}>
+                      <span className={styles.label}>ELO</span>
+                      <span className={styles.value}>{agent.elo_rating || "N/A"}</span>
+                    </div>
+                    <div className={styles.stat}>
+                      <span className={styles.label}>Visibility</span>
+                      <span className={styles.value}>
+                        {agent.is_public ? "🌐 Public" : "🔒 Private"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    className={agent.is_public ? styles.btnSecondary : styles.btnPrimary}
+                    onClick={() => toggleAgentPublic(agent.id, agent.is_public || false)}
+                    style={{ width: "100%" }}
+                  >
+                    {agent.is_public ? "Hide from Arena" : "Make Public"}
+                  </button>
+                </div>
+              ))
             ) : (
-              <p>No agents found. Create or import an agent to get started!</p>
+              <p className={styles.emptyState}>No agents found. Create or import an agent!</p>
             )
           ) : (
-            <p>Please log in to view your agents.</p>
+            <p className={styles.emptyState}>Please log in to view your agents.</p>
           )}
         </div>
       )}
