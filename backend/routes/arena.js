@@ -27,5 +27,6 @@ router.get("/my-matches", requireAuth, arenaController.getMyMatches);
 
 // Debug
 router.get("/queue-stats", arenaController.getQueueStats);
+router.get("/debug/schema", arenaController.checkDatabaseSchema);
 
 export default router;

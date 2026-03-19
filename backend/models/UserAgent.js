@@ -85,6 +85,7 @@ const UserAgent = {
       "chain_id",
       "provider",
       "use_tycoon_key",
+      "is_public",
     ];
     const payload = {};
     for (const key of allowed) {
