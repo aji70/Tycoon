@@ -728,7 +728,7 @@ const HeroSectionMobile: React.FC = () => {
 
               {/* Agent Battles */}
               <button
-                onClick={() => router.push("/agent-battles")}
+                onClick={() => router.push("/arena")}
                 className="relative w-full max-w-[280px] h-12 transition-transform active:scale-[0.98]"
               >
                 <svg

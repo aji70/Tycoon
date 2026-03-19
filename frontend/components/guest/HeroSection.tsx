@@ -816,7 +816,7 @@ const HeroSection: React.FC = () => {
 
               {/* Agent Battles */}
               <button
-                onClick={() => router.push("/agent-battles")}
+                onClick={() => router.push("/arena")}
                 className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
               >
                 <svg
