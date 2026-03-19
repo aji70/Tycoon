@@ -835,7 +835,7 @@ export default function GameShopMobile() {
                   className="rounded-xl overflow-hidden border border-amber-500/20 bg-[#0E1415]/50"
                 >
                   {/* Bundle Image */}
-                  <div className="relative h-32 bg-black/40 overflow-hidden">
+                  <div className="relative h-40 bg-black/40 overflow-hidden">
                     <Image
                       src={bundleImageMap[b.name] || "/game/shop/placeholder.jpg"}
                       alt={b.name}
