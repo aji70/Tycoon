@@ -3,12 +3,29 @@ import logger from "../config/logger.js";
 /**
  * GET /api/shop/bundles
  * List available shop bundles/packs
+ * Returns pre-configured bundles with prices
  */
 export async function listBundles(_req, res) {
   try {
-    // TODO: Fetch bundles from database
-    const bundles = [];
-    res.json({ success: true, data: bundles });
+    // Pre-configured bundles with pricing (these are stocked via the admin "stock all bundles" endpoint)
+    const bundles = [
+      { id: 1, name: "Starter Pack", description: "Shield, Roll Boost, and Exact Roll — great for new players.", price_tyc: "45", price_usdc: "2.5" },
+      { id: 2, name: "Lucky Bundle", description: "Jail Free, Teleport, and Lucky 7. Get out of tight spots.", price_tyc: "60", price_usdc: "3" },
+      { id: 3, name: "Defender Pack", description: "Shield, Jail Free, and Roll Boost. Stay in the game when the board turns against you.", price_tyc: "55", price_usdc: "2.75" },
+      { id: 4, name: "High Roller", description: "Double Rent, Roll Boost, and Exact Roll. Maximize income and land where it hurts.", price_tyc: "65", price_usdc: "3.25" },
+      { id: 5, name: "Cash Flow", description: "Instant Cash, Property Discount, and Tax Refund (tiered). Keep your balance healthy.", price_tyc: "70", price_usdc: "3.5" },
+      { id: 6, name: "Chaos Bundle", description: "Teleport, Exact Roll, and Lucky 7. Control the board and bend the dice.", price_tyc: "75", price_usdc: "4" },
+      { id: 7, name: "Landlord's Choice", description: "Rent Cashback, Interest, and Free Parking Bonus. Rewards for property owners and patient play.", price_tyc: "50", price_usdc: "2.5" },
+      { id: 8, name: "Ultimate Pack", description: "A bit of everything to dominate the board.", price_tyc: "80", price_usdc: "4.5" },
+    ];
+
+    res.json({
+      success: true,
+      data: {
+        bundles,
+        ngn_available: process.env.PAYSTACK_SECRET_KEY ? true : false,
+      }
+    });
   } catch (err) {
     logger.error({ err: err?.message }, "listBundles error");
     res.status(500).json({ success: false, message: "Failed to list bundles" });
