@@ -1123,6 +1123,26 @@ export function useRewardRedeemVoucher() {
   return { redeem, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
+export function useRewardRedeemVoucherFor() {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const redeemFor = useCallback(async (voucherOwner: Address, tokenId: bigint) => {
+    if (!contractAddress) throw new Error('Reward contract not deployed');
+    if (!isVoucherToken(tokenId)) throw new Error('Invalid voucher token ID');
+    return await writeContractAsync({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'redeemVoucherFor',
+      args: [voucherOwner, tokenId],
+    });
+  }, [writeContractAsync, contractAddress]);
+
+  return { redeemFor, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
 export function useRewardBurnCollectible() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
