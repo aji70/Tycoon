@@ -213,12 +213,16 @@ export async function privySignin(req, res) {
 
     const address = placeholderAddressForPrivyDid(privyDid);
     const chain = "CELO";
+    const secret = crypto.randomBytes(32).toString("hex");
+    const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
+
     user = await User.create({
       username: trimmedUsername,
       address,
       chain,
       privy_did: privyDid,
       is_guest: true,
+      password_hash: passwordHash,
     });
 
     // Wallet-first on-chain registration at signup (no external wallet linked yet).
@@ -227,18 +231,16 @@ export async function privySignin(req, res) {
     if (isContractConfigured(normalizedChain) && !isWalletFirstConfigured(normalizedChain)) {
       logger.warn(
         { chain: normalizedChain, userId: user.id },
-        "privySignin: skipping on-chain registration — set TYCOON_USER_REGISTRY_CELO (or TYCOON_USER_REGISTRY_ADDRESS) and TYCOON_OWNER_PRIVATE_KEY (registry owner key) in backend .env"
+        "privySignin: skipping wallet creation — set TYCOON_USER_REGISTRY_CELO (or TYCOON_USER_REGISTRY_ADDRESS) and TYCOON_OWNER_PRIVATE_KEY (registry owner key) in backend .env"
       );
     }
     try {
       if (isWalletFirstConfigured(normalizedChain)) {
         const { wallet: smartWallet } = await createWalletForUserByBackend(trimmedUsername, normalizedChain);
-        const secret = crypto.randomBytes(32).toString("hex");
-        const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
         await registerPlayerFor(smartWallet, trimmedUsername, passwordHash, normalizedChain);
         await db("users")
           .where({ id: user.id })
-          .update({ password_hash: passwordHash, smart_wallet_address: smartWallet || null });
+          .update({ smart_wallet_address: smartWallet || null });
         user = await User.findById(user.id);
         logger.info({ userId: user.id, smartWallet, chain: normalizedChain }, "privySignin: wallet-first on-chain registration complete");
       }
@@ -248,7 +250,7 @@ export async function privySignin(req, res) {
       const errData = e?.data ?? e?.error?.data;
       logger.warn(
         { userId: user.id, err: errMsg, code: errCode, data: errData, chain: normalizedChain },
-        "privySignin: wallet-first on-chain registration failed (continuing). Check TYCOON_USER_REGISTRY_*, TYCOON_OWNER_PRIVATE_KEY, and that proxy uses the new registry."
+        "privySignin: wallet-first on-chain registration failed (continuing). User can still play with placeholder address. Check TYCOON_USER_REGISTRY_*, TYCOON_OWNER_PRIVATE_KEY, and that proxy uses the new registry."
       );
     }
 
