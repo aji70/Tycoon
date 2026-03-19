@@ -1143,6 +1143,26 @@ export function useRewardBurnCollectible() {
   return { burn, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
+export function useRewardBurnCollectibleFrom() {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const burnFrom = useCallback(async (payer: Address, tokenId: bigint) => {
+    if (!contractAddress) throw new Error('Reward contract not deployed');
+    if (!isCollectibleToken(tokenId)) throw new Error('Invalid collectible token ID');
+    return await writeContractAsync({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'burnCollectibleForPerkFrom',
+      args: [payer, tokenId],
+    });
+  }, [writeContractAsync, contractAddress]);
+
+  return { burnFrom, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
 export function useRewardBuyCollectible() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
@@ -1779,6 +1799,7 @@ type TycoonContextType = {
   registerPlayer: (username: string) => Promise<string | undefined>;
   redeemVoucher: (tokenId: bigint) => Promise<string>;
   burnCollectible: (tokenId: bigint) => Promise<string>;
+  burnCollectibleFrom: (payer: Address, tokenId: bigint) => Promise<string>;
   buyCollectible: (tokenId: bigint, useUsdc?: boolean) => Promise<string>;
 };
 
@@ -1822,6 +1843,17 @@ export const TycoonProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   }, [writeContractAsync, chainId]);
 
+  const burnCollectibleFrom = useCallback(async (payer: Address, tokenId: bigint) => {
+    const addr = REWARD_CONTRACT_ADDRESSES[chainId];
+    if (!addr) throw new Error('Reward contract not deployed');
+    return await writeContractAsync({
+      address: addr,
+      abi: RewardABI,
+      functionName: 'burnCollectibleForPerkFrom',
+      args: [payer, tokenId],
+    });
+  }, [writeContractAsync, chainId]);
+
   const buyCollectible = useCallback(async (tokenId: bigint, useUsdc = false) => {
     const addr = REWARD_CONTRACT_ADDRESSES[chainId];
     if (!addr) throw new Error('Reward contract not deployed');
@@ -1837,8 +1869,9 @@ export const TycoonProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     registerPlayer,
     redeemVoucher,
     burnCollectible,
+    burnCollectibleFrom,
     buyCollectible,
-  }), [registerPlayer, redeemVoucher, burnCollectible, buyCollectible]);
+  }), [registerPlayer, redeemVoucher, burnCollectible, burnCollectibleFrom, buyCollectible]);
 
   return <TycoonContext.Provider value={value}>{children}</TycoonContext.Provider>;
 };

@@ -330,6 +330,32 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
         emit CollectibleBurned(tokenId, msg.sender, perk, strength);
     }
 
+    /// @notice Burn a collectible to activate perk rewards from a given payer (e.g. smart wallet). Callable by the payer or by the owner of the payer if payer is a contract with owner().
+    function burnCollectibleForPerkFrom(address payer, uint256 tokenId) external nonReentrant {
+        require(payer != address(0), "Zero payer");
+        if (msg.sender != payer) {
+            (bool ok, bytes memory data) = payer.staticcall(abi.encodeWithSignature("owner()"));
+            require(ok && data.length >= 32, "Not payer or payer owner");
+            address ownerOfPayer = abi.decode(data, (address));
+            require(ownerOfPayer == msg.sender, "Not payer or payer owner");
+        }
+        require(_isCollectible(tokenId), "Not collectible");
+        TycoonLib.CollectiblePerk perk = collectiblePerk[tokenId];
+        uint256 strength = collectiblePerkStrength[tokenId];
+        require(uint8(perk) != 0, "Unknown collectible");
+        _burn(payer, tokenId, 1);
+        _removeFromOwned(payer, tokenId, 1);
+        uint256 cash;
+        if (perk == TycoonLib.CollectiblePerk.CASH_TIERED || perk == TycoonLib.CollectiblePerk.TAX_REFUND) {
+            cash = _getCashTierValue(strength);
+            if (cash > 0) {
+                require(tycToken.transfer(payer, cash), "TYC transfer failed");
+                emit CashPerkActivated(tokenId, payer, cash);
+            }
+        }
+        emit CollectibleBurned(tokenId, payer, perk, strength);
+    }
+
     function restockCollectible(uint256 tokenId, uint256 additionalAmount) external onlyMinter {
         require(_isCollectible(tokenId), "Not collectible");
         require(collectiblePerk[tokenId] != TycoonLib.CollectiblePerk.NONE, "Unknown collectible");
