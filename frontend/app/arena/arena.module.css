@@ -166,22 +166,22 @@
 }
 
 .btnPrimary {
-  background-color: #00ff00;
+  background-color: #00F0FF;
   color: #000;
 }
 
 .btnPrimary:hover {
-  background-color: #00dd00;
+  background-color: #00D0D0;
 }
 
 .btnSecondary {
   background-color: #333;
   color: #fff;
-  border: 1px solid #00ff00;
+  border: 1px solid #00F0FF;
 }
 
 .btnSecondary:hover {
-  background-color: #00ff00;
+  background-color: #00F0FF;
   color: #000;
 }
 
