@@ -239,6 +239,17 @@
 
 /* My Agents */
 .myAgents {
+  padding: 20px 0;
+}
+
+.myAgentsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  margin-bottom: 40px;
+}
+
+.myAgents p {
   text-align: center;
   padding: 60px 20px;
   color: #aaa;

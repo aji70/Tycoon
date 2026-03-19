@@ -17,6 +17,8 @@ interface Agent {
   tier_color: string;
   total_games: number;
   win_rate?: string;
+  is_public?: boolean;
+  status?: string;
 }
 
 interface LeaderboardEntry extends Agent {
@@ -37,6 +39,7 @@ export default function ArenaPage() {
   const [activeTab, setActiveTab] = useState<"discover" | "leaderboard" | "my-agents">("discover");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [myAgents, setMyAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -55,16 +58,27 @@ export default function ArenaPage() {
     }
   }, [activeTab]);
 
+  // Fetch my agents
+  useEffect(() => {
+    if (activeTab === "my-agents") {
+      fetchMyAgents();
+    }
+  }, [activeTab]);
+
   const fetchPublicAgents = async (pageNum: number) => {
     try {
       setLoading(true);
       setError(null);
       const res = await fetch(`/api/arena/agents?page=${pageNum}&page_size=20`);
-      if (!res.ok) throw new Error("Failed to fetch agents");
+      if (!res.ok) {
+        const errData = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errData}`);
+      }
       const data = await res.json();
-      setAgents(data.agents);
+      setAgents(data.agents || []);
     } catch (err) {
-      setError((err as Error).message);
+      console.error("Fetch error:", err);
+      setError(`Failed to fetch agents: ${(err as Error).message}`);
     } finally {
       setLoading(false);
     }
@@ -75,13 +89,54 @@ export default function ArenaPage() {
       setLoading(true);
       setError(null);
       const res = await fetch(`/api/arena/leaderboard?limit=50`);
-      if (!res.ok) throw new Error("Failed to fetch leaderboard");
+      if (!res.ok) {
+        const errData = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errData}`);
+      }
       const data = await res.json();
-      setLeaderboard(data.leaderboard);
+      setLeaderboard(data.leaderboard || []);
     } catch (err) {
-      setError((err as Error).message);
+      console.error("Fetch error:", err);
+      setError(`Failed to fetch leaderboard: ${(err as Error).message}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMyAgents = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`/api/agents`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setMyAgents(data.agents || []);
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError(`Failed to fetch your agents: ${(err as Error).message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleAgentPublic = async (agentId: number, currentValue: boolean) => {
+    try {
+      const res = await fetch(`/api/agents/${agentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_public: !currentValue }),
+      });
+      if (!res.ok) throw new Error("Failed to update agent");
+      setMyAgents(
+        myAgents.map((a) =>
+          a.id === agentId ? { ...a, is_public: !currentValue } : a
+        )
+      );
+      alert(`Agent is now ${!currentValue ? "public" : "private"}!`);
+    } catch (err) {
+      alert(`Error: ${(err as Error).message}`);
     }
   };
 
@@ -263,7 +318,51 @@ export default function ArenaPage() {
       {activeTab === "my-agents" && (
         <div className={styles.myAgents}>
           {authenticated ? (
-            <p>Your agents will appear here. Create or import an agent to get started!</p>
+            myAgents.length > 0 ? (
+              <div className={styles.myAgentsGrid}>
+                {myAgents.map((agent) => (
+                  <div key={agent.id} className={styles.agentCard}>
+                    <div className={styles.agentHeader}>
+                      <h3>{agent.name}</h3>
+                      <div
+                        className={styles.tierbadge}
+                        style={{ backgroundColor: TierColors[agent.tier_color] }}
+                      >
+                        {agent.tier || "N/A"}
+                      </div>
+                    </div>
+
+                    <div className={styles.agentStats}>
+                      <div className={styles.statRow}>
+                        <span className={styles.label}>Status:</span>
+                        <span className={styles.value}>{agent.status || "unknown"}</span>
+                      </div>
+                      <div className={styles.statRow}>
+                        <span className={styles.label}>ELO Rating:</span>
+                        <span className={styles.value}>{agent.elo_rating || "N/A"}</span>
+                      </div>
+                      <div className={styles.statRow}>
+                        <span className={styles.label}>Visibility:</span>
+                        <span className={styles.value}>
+                          {agent.is_public ? "🌐 Public" : "🔒 Private"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className={styles.agentFooter}>
+                      <button
+                        className={agent.is_public ? styles.btnSecondary : styles.btnPrimary}
+                        onClick={() => toggleAgentPublic(agent.id, agent.is_public || false)}
+                      >
+                        {agent.is_public ? "Hide from Arena" : "Make Public"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>No agents found. Create or import an agent to get started!</p>
+            )
           ) : (
             <p>Please log in to view your agents.</p>
           )}
