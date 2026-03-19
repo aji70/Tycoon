@@ -970,7 +970,7 @@ export default function ProfilePageMobile() {
                   <span className="italic">— (register in-game to get one)</span>
                 )}
               </p>
-              {isConnected && !hasSmartWalletFromCurrentRegistry && (
+              {isConnected && (
                 <button
                   type="button"
                   onClick={() => handleRecreate()}
