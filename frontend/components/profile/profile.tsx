@@ -885,7 +885,7 @@ export default function Profile() {
   const tycBalance = useBalance({ address: walletAddress, token: tycTokenAddress, query: { enabled: !!walletAddress && !!tycTokenAddress } });
   const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
 
-  const { data: registrySmartWallet } = useUserRegistryWallet(walletAddress);
+  const { data: registrySmartWallet, refetch: refetchRegistryWallet } = useUserRegistryWallet(walletAddress);
   // Smart wallet can come from on-chain registry OR from the logged-in account (guest/Privy)
   // Depending on the connected chain / registry deployment, the registry lookup may be empty even though
   // the account has a smart wallet created on another supported chain. Prefer registry, then fall back.
@@ -1200,8 +1200,35 @@ export default function Profile() {
   };
 
   const refetchGuest = guestAuth?.refetchGuest;
-  const [recreateApiPending, setRecreateApiPending] = useState(false);
+  const [recreateAnyPending, setRecreateAnyPending] = useState(false);
+  const handleRecreate = React.useCallback(async () => {
+    setRecreateAnyPending(true);
+    try {
+      try {
+        await apiClient.post<ApiResponse & { data?: { smart_wallet_address?: string } }>('auth/recreate-smart-wallet');
+        await refetchGuest?.();
+        refetchRegistryWallet?.();
+        toast.success('Smart wallet recreated');
+        return;
+      } catch (apiErr: unknown) {
+        const e = apiErr as { response?: { status?: number; data?: { message?: string } }; message?: string };
+        if (e?.response?.status === 401) {
+          await recreateWallet();
+          toast.info('Creating new smart wallet…');
+          refetchRegistryWallet?.();
+          return;
+        }
+        throw e;
+      }
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } }; message?: string; shortMessage?: string };
+      toast.error(err?.response?.data?.message ?? err?.shortMessage ?? err?.message ?? 'Failed to recreate');
+    } finally {
+      setRecreateAnyPending(false);
+    }
+  }, [refetchGuest, refetchRegistryWallet, recreateWallet]);
 
+  const [recreateApiPending, setRecreateApiPending] = useState(false);
   const handleRecreateViaApi = React.useCallback(async () => {
     setRecreateApiPending(true);
     try {
@@ -1360,19 +1387,12 @@ export default function Profile() {
                   {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
                     <button
                       type="button"
-                      onClick={async () => {
-                        try {
-                          await recreateWallet();
-                          toast.info('Creating new smart wallet…');
-                        } catch (e: any) {
-                          toast.error(e?.shortMessage ?? e?.message ?? 'Failed to create new smart wallet');
-                        }
-                      }}
-                      disabled={recreateWalletPending}
+                      onClick={() => handleRecreate()}
+                      disabled={recreateAnyPending || recreateWalletPending}
                       className="w-full sm:w-auto px-4 py-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60"
                       title="Create a new smart wallet (old wallet stays; move funds manually)"
                     >
-                      {recreateWalletPending ? 'Creating…' : 'Recreate smart wallet'}
+                      {(recreateAnyPending || recreateWalletPending) ? 'Creating…' : 'Recreate smart wallet'}
                     </button>
                   )}
                 </div>
