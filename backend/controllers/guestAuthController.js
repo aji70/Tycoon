@@ -148,6 +148,14 @@ export async function privySignin(req, res) {
 
     let user = await User.findByPrivyDid(privyDid);
     if (user) {
+      // Ensure returning Privy user has a password_hash (for users created before this fix)
+      if (!user.password_hash) {
+        const secret = crypto.randomBytes(32).toString("hex");
+        const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
+        await db("users").where({ id: user.id }).update({ password_hash: passwordHash });
+        user = await User.findById(user.id);
+        logger.info({ userId: user.id }, "privySignin: added password_hash to existing Privy user");
+      }
       const token = jwt.sign(
         { userId: user.id, address: user.address, username: user.username, isGuest: true },
         JWT_SECRET,
