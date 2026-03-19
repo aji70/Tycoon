@@ -16,6 +16,7 @@ import { createGameByBackend, joinGameByBackend, isContractConfigured } from "..
 import { createTournamentOnChain, registerForTournamentFor, isEscrowConfigured } from "../services/tournamentEscrow.js";
 import logger from "../config/logger.js";
 import agentRegistry from "./agentRegistry.js";
+import * as bracketEngine from "./tournamentBracketEngine.js";
 
 const TOURNAMENT_SYMBOLS = ["hat", "car", "dog", "thimble", "wheelbarrow", "battleship", "boot", "iron"];
 const DEFAULT_STARTING_CASH = 1500;
@@ -210,69 +211,12 @@ export async function generateBracket(tournamentId, options = {}) {
   const n = entries.length;
   if (n < tournament.min_players) throw new Error(`Need at least ${tournament.min_players} players`);
 
-  const size = Math.pow(2, Math.ceil(Math.log2(n)));
-  const byes = size - n;
+  // Dispatch based on tournament format
+  const format = tournament.format || "SINGLE_ELIMINATION";
+  const result = await bracketEngine.generateBracketByFormat(tournamentId, format, entries, options);
 
-  await Tournament.update(tournamentId, { status: "BRACKET_LOCKED" });
-
-  const numRounds = Math.log2(size);
-  let firstRoundStart = options.first_round_start_at ? new Date(options.first_round_start_at) : null;
-
-  const roundRows = [];
-  for (let r = 0; r < numRounds; r++) {
-    const scheduledStartAt = firstRoundStart
-      ? new Date(firstRoundStart.getTime() + r * 24 * 60 * 60 * 1000)
-      : null;
-    roundRows.push({
-      tournament_id: tournamentId,
-      round_index: r,
-      status: "PENDING",
-      scheduled_start_at: scheduledStartAt,
-    });
-  }
-  await TournamentRound.bulkCreate(roundRows);
-
-  const matchRows = [];
-  for (let i = 0; i < size / 2; i++) {
-    const slotAEntryId = i * 2 < entries.length ? entries[i * 2].id : null;
-    const slotBEntryId = i * 2 + 1 < entries.length ? entries[i * 2 + 1].id : null;
-    const isBye = slotAEntryId == null || slotBEntryId == null;
-    matchRows.push({
-      tournament_id: tournamentId,
-      round_index: 0,
-      match_index: i,
-      slot_a_type: slotAEntryId ? "ENTRY" : "BYE",
-      slot_a_entry_id: slotAEntryId,
-      slot_b_type: slotBEntryId ? "ENTRY" : "BYE",
-      slot_b_entry_id: slotBEntryId,
-      status: isBye ? "BYE" : "PENDING",
-      winner_entry_id: isBye ? (slotAEntryId || slotBEntryId) : null,
-    });
-  }
-  await TournamentMatch.bulkCreate(matchRows);
-
-  for (let r = 1; r < numRounds; r++) {
-    const prevRoundMatches = await TournamentMatch.findByTournamentAndRound(tournamentId, r - 1);
-    const matchesInRound = prevRoundMatches.length / 2;
-    const nextRoundRows = [];
-    for (let m = 0; m < matchesInRound; m++) {
-      const slotAPrevId = prevRoundMatches[m * 2]?.id;
-      const slotBPrevId = prevRoundMatches[m * 2 + 1]?.id;
-      nextRoundRows.push({
-        tournament_id: tournamentId,
-        round_index: r,
-        match_index: m,
-        slot_a_type: "MATCH_WINNER",
-        slot_a_prev_match_id: slotAPrevId,
-        slot_b_type: "MATCH_WINNER",
-        slot_b_prev_match_id: slotBPrevId,
-        status: "PENDING",
-      });
-    }
-    await TournamentMatch.bulkCreate(nextRoundRows);
-  }
-
-  return { entries: n, size, byes, numRounds };
+  logger.info({ tournamentId, format, ...result }, "Generated tournament bracket");
+  return result;
 }
 
 /**

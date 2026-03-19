@@ -39,6 +39,7 @@ import messagesRoutes from "./routes/messages.js";
 import analyticsRoutes from "./routes/analytics.js";
 import authRoutes from "./routes/auth.js";
 import tournamentsRoutes from "./routes/tournaments.js";
+import arenaRoutes from "./routes/arena.js";
 
 import gamePerkController from "./controllers/gamePerkController.js";
 import * as shopController from "./controllers/shopController.js";
@@ -54,6 +55,7 @@ import { getStarknetConfig } from "./config/starknet.js";
 import { isStarknetConfigured, testStarknetConnection } from "./services/starknetContract.js";
 import { startAgentGameRunner } from "./services/agentGameRunner.js";
 import { startAgentTournamentRunner } from "./services/agentTournamentRunner.js";
+import { startMatchmakingPoll } from "./services/matchmakingService.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -361,6 +363,7 @@ app.use("/api/chats", chatsRoutes);
 app.use("/api/messages", messagesRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/tournaments", tournamentsRoutes);
+app.use("/api/arena", arenaRoutes);
 
 app.post("/api/perks/activate", gamePerkController.activatePerk);
   app.post("/api/perks/teleport", gamePerkController.teleport);
@@ -429,6 +432,13 @@ async function start() {
     startAgentTournamentRunner();
   } catch (err) {
     logger.warn({ err: err?.message }, "Agent tournament runner failed to start");
+  }
+
+  // Matchmaking queue polling for Arena
+  try {
+    startMatchmakingPoll();
+  } catch (err) {
+    logger.warn({ err: err?.message }, "Matchmaking poll failed to start");
   }
 
   // Step 5: Socket.io Redis adapter (when Redis is available)

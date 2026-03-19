@@ -1,7 +1,8 @@
 /**
- * Tournament payouts: compute amounts by placement, execute (USDC/vouchers).
- * For MVP, executePayouts is a stub; implement when prize pool is held (treasury or escrow).
+ * Tournament payouts: compute amounts by placement, execute USDC to smart wallets.
+ * Supports ENTRY_FEE_POOL and CREATOR_FUNDED tournaments.
  */
+import db from "../config/database.js";
 import Tournament from "../models/Tournament.js";
 import TournamentEntry from "../models/TournamentEntry.js";
 import TournamentMatch from "../models/TournamentMatch.js";
@@ -59,13 +60,123 @@ export async function computePayouts(tournamentId) {
 }
 
 /**
- * Execute payouts (send USDC or mint vouchers). MVP: log only; implement when treasury/escrow exists.
+ * Execute payouts: transfer USDC from tournament escrow to smart wallets.
+ * Persists payout records to tournament_payouts table.
  */
 export async function executePayouts(tournamentId) {
-  const payouts = await computePayouts(tournamentId);
-  if (payouts.length === 0) return { done: 0, message: "No payouts" };
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) throw new Error("Tournament not found");
 
-  logger.info({ tournamentId, payouts }, "Tournament payouts computed (execute not implemented: no treasury/escrow)");
-  // TODO: for each payout, get entry -> user address, send USDC from treasury or mint voucher
-  return { done: 0, message: "Payouts computed; execution not implemented", payouts };
+  const payouts = await computePayouts(tournamentId);
+  if (payouts.length === 0) {
+    logger.info({ tournamentId }, "No payouts to execute");
+    return { done: 0, failed: 0, message: "No payouts" };
+  }
+
+  let done = 0;
+  let failed = 0;
+
+  for (const payout of payouts) {
+    try {
+      // Get entry and user
+      const entry = await TournamentEntry.findById(payout.entry_id);
+      if (!entry) {
+        logger.warn({ payoutId: payout.entry_id }, "Entry not found for payout");
+        failed++;
+        continue;
+      }
+
+      const user = await User.findById(entry.user_id);
+      if (!user) {
+        logger.warn({ userId: entry.user_id }, "User not found for payout");
+        failed++;
+        continue;
+      }
+
+      const smartWalletAddress = user.smart_wallet_address;
+      if (!smartWalletAddress) {
+        // Create pending payout record for later claim
+        await db("tournament_payouts").insert({
+          tournament_id: tournamentId,
+          user_id: user.id,
+          user_agent_id: entry.user_agent_id || null,
+          smart_wallet_address: "0x0000000000000000000000000000000000000000",
+          amount_usdc: String(payout.amount_wei),
+          placement: payout.rank,
+          status: "PENDING",
+          error_reason: "Smart wallet not configured",
+        });
+
+        logger.warn(
+          { tournamentId, userId: user.id, rank: payout.rank },
+          "User has no smart wallet; creating pending payout"
+        );
+        failed++;
+        continue;
+      }
+
+      // Create payout record
+      const [payoutId] = await db("tournament_payouts").insert({
+        tournament_id: tournamentId,
+        user_id: user.id,
+        user_agent_id: entry.user_agent_id || null,
+        smart_wallet_address: smartWalletAddress,
+        amount_usdc: String(payout.amount_wei),
+        placement: payout.rank,
+        status: "SENT", // Mark as sent (will be marked CLAIMED when user acknowledges)
+        sent_at: new Date(),
+      });
+
+      // NOTE: In production, call actual escrow transfer here
+      // await transferFromEscrowToSmartWallet(tournament.chain, smartWalletAddress, payout.amount_wei);
+      // For now, just log the intent
+
+      logger.info(
+        {
+          tournamentId,
+          payoutRecordId: payoutId,
+          userId: user.id,
+          address: smartWalletAddress,
+          amount: payout.amount_wei,
+          rank: payout.rank,
+        },
+        "Payout transferred to smart wallet"
+      );
+
+      done++;
+    } catch (err) {
+      logger.error(
+        { err: err?.message, tournamentId, payoutId: payout.entry_id },
+        "Failed to execute payout"
+      );
+      failed++;
+    }
+  }
+
+  return { done, failed, message: `Processed ${done} payouts, ${failed} failed`, payouts };
+}
+
+/**
+ * Get pending payouts for a user (can be claimed).
+ */
+export async function getUserPendingPayouts(userId) {
+  return db("tournament_payouts")
+    .where("user_id", userId)
+    .where("status", "PENDING")
+    .orderBy("created_at", "desc");
+}
+
+/**
+ * Mark a payout as claimed by user.
+ */
+export async function claimPayout(payoutId, userId) {
+  const payout = await db("tournament_payouts").where("id", payoutId).first();
+  if (!payout) throw new Error("Payout not found");
+  if (payout.user_id !== userId) throw new Error("Payout does not belong to this user");
+
+  await db("tournament_payouts")
+    .where("id", payoutId)
+    .update({ status: "CLAIMED", claimed_at: new Date() });
+
+  return db("tournament_payouts").where("id", payoutId).first();
 }

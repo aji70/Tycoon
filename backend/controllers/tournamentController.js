@@ -322,3 +322,47 @@ export async function remove(req, res) {
     return res.status(500).json({ success: false, message: err?.message || "Delete failed" });
   }
 }
+
+/**
+ * GET /api/tournaments/payouts/pending
+ * Get user's pending tournament payouts (requires auth).
+ */
+export async function getUserPendingPayouts(req, res) {
+  try {
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { getUserPendingPayouts } = await import("../services/tournamentPayoutService.js");
+    const payouts = await getUserPendingPayouts(userId);
+
+    res.json({ payouts });
+  } catch (err) {
+    logger.error({ err: err?.message }, "Failed to fetch pending payouts");
+    res.status(500).json({ error: err?.message || "Internal server error" });
+  }
+}
+
+/**
+ * POST /api/tournaments/:id/claim-payout/:payoutId
+ * Claim a pending payout and mark it as processed.
+ */
+export async function claimPayout(req, res) {
+  try {
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { payoutId } = req.params;
+    if (!payoutId) return res.status(400).json({ error: "payoutId required" });
+
+    const { claimPayout } = await import("../services/tournamentPayoutService.js");
+    const payout = await claimPayout(Number(payoutId), userId);
+
+    res.json({
+      message: "Payout claimed",
+      payout,
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "Failed to claim payout");
+    res.status(400).json({ error: err?.message || "Failed to claim payout" });
+  }
+}
