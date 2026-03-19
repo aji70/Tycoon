@@ -1428,7 +1428,7 @@ export default function Profile() {
                       </span>
                     )}
                   </div>
-                  {isConnected && !hasSmartWalletFromCurrentRegistry && (
+                  {isConnected && (
                     <button
                       type="button"
                       onClick={() => handleRecreate()}
