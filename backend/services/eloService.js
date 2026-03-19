@@ -163,7 +163,7 @@ export async function recordArenaResult(agentAId, agentBId, winnerAgentId, gameI
   }
 }
 
-/** Tier label from current XP (elo_rating). */
+/** Tier label from raw stored Elo (elo_rating). */
 export function getTierName(rating) {
   if (rating >= 1800) return "Legend";
   if (rating >= 1600) return "Diamond";
@@ -180,4 +180,59 @@ export function getTierColor(rating) {
   if (rating >= 1200) return "yellow";
   if (rating >= 1000) return "silver";
   return "brown";
+}
+
+const ARENA_ELO_BASELINE = 1000;
+
+/**
+ * Arena UI tiers: baseline rating (1000) = Bronze so new agents don't show "Silver".
+ */
+export function getTierNameArena(eloRating) {
+  const r = Number(eloRating);
+  const x = Number.isFinite(r) ? r : ARENA_ELO_BASELINE;
+  if (x >= 1800) return "Legend";
+  if (x >= 1600) return "Diamond";
+  if (x >= 1400) return "Platinum";
+  if (x >= 1200) return "Gold";
+  if (x > ARENA_ELO_BASELINE) return "Silver";
+  return "Bronze";
+}
+
+export function getTierColorArena(eloRating) {
+  const r = Number(eloRating);
+  const x = Number.isFinite(r) ? r : ARENA_ELO_BASELINE;
+  if (x >= 1800) return "gold";
+  if (x >= 1600) return "cyan";
+  if (x >= 1400) return "purple";
+  if (x >= 1200) return "yellow";
+  if (x > ARENA_ELO_BASELINE) return "silver";
+  return "brown";
+}
+
+/**
+ * API/UI: XP is "points above starting Elo" (0 at default 1000). Raw elo_rating stays in DB for math.
+ */
+export function enrichAgentForArenaUi(agent) {
+  if (!agent) return agent;
+  const wins = Number(agent.arena_wins) || 0;
+  const losses = Number(agent.arena_losses) || 0;
+  const draws = Number(agent.arena_draws) || 0;
+  const total = wins + losses + draws;
+  const rawElo = Number(agent.elo_rating);
+  const rawPeak = Number(agent.elo_peak);
+  const eloSafe = Number.isFinite(rawElo) ? rawElo : ARENA_ELO_BASELINE;
+  const peakSafe = Number.isFinite(rawPeak) ? rawPeak : ARENA_ELO_BASELINE;
+  const xp = Math.max(0, eloSafe - ARENA_ELO_BASELINE);
+  const peak_xp = Math.max(0, peakSafe - ARENA_ELO_BASELINE);
+  return {
+    ...agent,
+    xp,
+    peak_xp,
+    record: `${wins}W-${losses}L-${draws}D`,
+    win_rate_pct: total > 0 ? Math.round((wins / total) * 1000) / 10 : null,
+    win_rate: total > 0 ? (wins / total).toFixed(2) : null,
+    total_games: total,
+    tier: getTierNameArena(eloSafe),
+    tier_color: getTierColorArena(eloSafe),
+  };
 }

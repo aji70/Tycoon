@@ -89,3 +89,14 @@ export function getAiSlotFromPlayer(player: Player): number | null {
   if (isAIPlayer(player) && player.turn_order != null) return Math.min(8, Math.max(2, player.turn_order));
   return null;
 }
+
+/**
+ * Seat 1–8 for `/agent-registry/decision` and telemetry. Uses AI_* username rules, else `turn_order` (arena / human seats).
+ */
+export function getDecisionSlotForPlayer(player: Player): number {
+  const fromAi = getAiSlotFromPlayer(player);
+  if (fromAi != null) return fromAi;
+  const t = Number(player.turn_order);
+  if (Number.isFinite(t) && t >= 1 && t <= 8) return t;
+  return 2;
+}

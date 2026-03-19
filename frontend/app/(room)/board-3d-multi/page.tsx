@@ -237,7 +237,7 @@ function Board3DPageContent() {
       if (!res.data?.success) throw new Error((res.data as { error?: string })?.error ?? (res.data as { message?: string })?.message ?? "Game not found");
       return res.data.data;
     },
-    enabled: !!gameCode && gameCode.length === 6,
+    enabled: !!gameCode,
     refetchInterval: gameCode ? 5000 : false,
   });
   const { data: gameProperties = [], refetch: refetchGameProperties } = useQuery<GameProperty[]>({

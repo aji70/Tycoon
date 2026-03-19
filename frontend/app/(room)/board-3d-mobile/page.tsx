@@ -26,7 +26,14 @@ import { useAgentBindings } from "@/hooks/useAgentBindings";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import { useGetGameByCode, useRewardBurnCollectible } from "@/context/ContractProvider";
 import { Toaster, toast } from "react-hot-toast";
-import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW, calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUtils";
+import {
+  isAIPlayer,
+  getAiSlotFromPlayer,
+  getDecisionSlotForPlayer,
+  TRADE_FAVORABILITY_ACCEPT_RAW,
+  calculateAiFavorability,
+  TRADE_ACCEPT_THRESHOLD,
+} from "@/utils/gameUtils";
 import { useAgentSettings, BUY_SCORE_THRESHOLD, BUY_CASH_RESERVE, BUILD_MIN_BALANCE, BUILD_AFTER_RESERVE } from "@/hooks/useAgentSettings";
 import { reportAiAction } from "@/lib/agentFeedback";
 import { MONOPOLY_STATS, BUILD_PRIORITY } from "@/components/game/constants";
@@ -208,8 +215,15 @@ function Board3DMobileContent() {
       if (!res.data?.success) throw new Error((res.data as { error?: string })?.error ?? (res.data as { message?: string })?.message ?? "Game not found");
       return res.data.data;
     },
-    enabled: !!gameCode && gameCode.length === 6,
-    refetchInterval: gameCode ? 5000 : false,
+    enabled: !!gameCode,
+    refetchInterval: (q) => {
+      if (!gameCode) return false;
+      const g = q.state.data as Game | undefined;
+      if (!g?.game_type) return 5000;
+      const gt = String(g.game_type).toUpperCase();
+      if (gt.includes("AGENT_VS_") || gt.includes("ONCHAIN_AGENT_VS_")) return 2500;
+      return 5000;
+    },
   });
   const { data: gameProperties = [], refetch: refetchGameProperties } = useQuery<GameProperty[]>({
     queryKey: ["game_properties", game?.id],
@@ -535,10 +549,15 @@ function Board3DMobileContent() {
   const { agentSettings, updateAgentSettings } = useAgentSettings();
 
   const isAITurn = useMemo(() => {
-    if (!currentPlayer || !isAIPlayer(currentPlayer)) return false;
+    if (!currentPlayer) return false;
+    if (isAgentBattle) {
+      if (me != null && currentPlayer.user_id === me.user_id) return false;
+      return true;
+    }
+    if (!isAIPlayer(currentPlayer)) return false;
     if (me != null && currentPlayer.user_id === me.user_id) return false;
     return true;
-  }, [currentPlayer, me]);
+  }, [currentPlayer, me, isAgentBattle]);
 
   useAiBankruptcy({
     isAITurn: isLiveGame && isAITurn,
@@ -983,7 +1002,7 @@ function Board3DMobileContent() {
       for (const trade of pendingIncoming) {
         let handled = false;
         try {
-          const slot = getAiSlotFromPlayer(currentPlayer) ?? 2;
+          const slot = getDecisionSlotForPlayer(currentPlayer);
           const agentRes = await apiClient.post<{ success?: boolean; data?: { action?: string; reasoning?: string }; useBuiltIn?: boolean }>("/agent-registry/decision", {
             gameId: game.id,
             slot,
@@ -1010,7 +1029,7 @@ function Board3DMobileContent() {
           const fav = calculateAiFavorability(trade, properties);
           if (fav >= TRADE_ACCEPT_THRESHOLD) {
             await apiClient.post("/game-trade-requests/accept", { id: trade.id });
-            reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "acceptTrade");
+            reportAiAction(game.id, getDecisionSlotForPlayer(currentPlayer), "acceptTrade");
           } else {
             await apiClient.post("/game-trade-requests/decline", { id: trade.id });
           }
@@ -1062,7 +1081,7 @@ function Board3DMobileContent() {
           const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
           if (res?.data?.success) {
             maxTradeAttempts--;
-            reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "proposeTrade");
+            reportAiAction(game.id, getDecisionSlotForPlayer(currentPlayer), "proposeTrade");
             if (maxTradeAttempts <= 0) break;
             if (isAIPlayer(targetPlayer)) {
               await new Promise((r) => setTimeout(r, 800));
@@ -1535,7 +1554,7 @@ function Board3DMobileContent() {
         const buyScore = calculateBuyScore(square, playerForScore, gameProperties, properties);
         let shouldBuy: boolean;
         try {
-          const slot = getAiSlotFromPlayer(currentPlayer) ?? 2;
+          const slot = getDecisionSlotForPlayer(currentPlayer);
           const groupIds =
             Object.values(MONOPOLY_STATS.colorGroups).find((ids: number[]) => ids.includes(square.id)) ?? [];
           const ownedInGroup = groupIds.filter((id: number) =>
@@ -1586,7 +1605,7 @@ function Board3DMobileContent() {
             game_id: game.id,
             property_id: square.id,
           });
-          reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "buyProperty");
+          reportAiAction(game.id, getDecisionSlotForPlayer(currentPlayer), "buyProperty");
         }
         await refetchGame();
         setTimeout(() => END_TURN(), 900);
@@ -1777,10 +1796,20 @@ function Board3DMobileContent() {
       handleDiceCompleteForMyAgent();
     } else if (rollingForPlayerIdRef.current !== null && me && rollingForPlayerIdRef.current !== me.user_id) {
       handleDiceCompleteForAI();
+    } else if (rollingForPlayerIdRef.current !== null && isAgentBattle) {
+      handleDiceCompleteForAI();
     } else {
       handleDiceCompleteForLive();
     }
-  }, [isLiveGame, handleDiceCompleteForLive, handleDiceCompleteForAI, handleDiceCompleteForMyAgent, me, agentOn]);
+  }, [
+    isLiveGame,
+    isAgentBattle,
+    handleDiceCompleteForLive,
+    handleDiceCompleteForAI,
+    handleDiceCompleteForMyAgent,
+    me,
+    agentOn,
+  ]);
 
   const handleBuy = useCallback(async () => {
     if (!game?.id || !me || !justLandedProperty) return;
