@@ -1,6 +1,6 @@
 /**
  * Fire-and-forget ERC-8004 reputation feedback for AI agent in-game actions.
- * Call this after each successful AI action (buy, build, trade) — it never throws.
+ * Throttled: same (gameId, slot, actionType) at most once per COOLDOWN_MS, and at most MAX_PER_GAME per game.
  *
  * actionType:
  *   "buyProperty"  – AI bought a property
@@ -11,6 +11,12 @@
  */
 
 import { apiClient } from "@/lib/api";
+
+const COOLDOWN_MS = 60_000; // same action type per game/slot at most once per minute
+const MAX_PER_GAME = 15;    // max action-feedback requests per game (avoids spam in long games)
+
+const lastSentByKey: Record<string, number> = {};
+const countByGame: Record<number, number> = {};
 
 export type AiActionType =
   | "buyProperty"
@@ -25,6 +31,15 @@ export function reportAiAction(
   actionType: AiActionType
 ): void {
   if (!gameId) return;
+  const key = `${gameId}-${slot}-${actionType}`;
+  const now = Date.now();
+  if ((lastSentByKey[key] ?? 0) + COOLDOWN_MS > now) return;
+  const count = (countByGame[gameId] ?? 0);
+  if (count >= MAX_PER_GAME) return;
+
+  lastSentByKey[key] = now;
+  countByGame[gameId] = count + 1;
+
   apiClient
     .post("/agent-registry/action-feedback", { gameId, slot, actionType })
     .catch(() => {});

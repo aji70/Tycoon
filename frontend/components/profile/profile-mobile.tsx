@@ -505,6 +505,8 @@ export default function ProfilePageMobile() {
     ? (registrySmartWallet as Address)
     : accountSmartWallet;
   const smartWallet = smartWalletAddress;
+  const hasSmartWalletFromCurrentRegistry =
+    isValidWallet(registrySmartWallet) && (registrySmartWallet as string) !== "0x0000000000000000000000000000000000000000";
   const { data: smartWalletOwner } = useProfileOwner(smartWallet);
   const tycoonProfileOwnerAddress =
     (isValidWallet(smartWalletOwner) ? smartWalletOwner : null) ??
@@ -948,7 +950,7 @@ export default function ProfilePageMobile() {
                   <span className="italic">— (register in-game to get one)</span>
                 )}
               </p>
-              {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+              {isConnected && !hasSmartWalletFromCurrentRegistry && (
                 <button
                   type="button"
                   onClick={() => handleRecreate()}
