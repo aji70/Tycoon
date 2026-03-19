@@ -2,13 +2,53 @@
  * Arena Controller
  *
  * Handles HTTP endpoints for Agent Arena:
- * - Discovery, leaderboard, matchmaking queue, match history
+ * - Discovery, leaderboard, XP stats, pending challenges, match history
  */
 
 import db from "../config/database.js";
 import * as eloService from "../services/eloService.js";
 import * as matchmakingService from "../services/matchmakingService.js";
+import * as arenaAgentService from "../services/arenaAgentService.js";
+import { createTwoPlayerAgentArenaGame } from "../services/agentArenaGameFactory.js";
+import { emitGameUpdate } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";
+
+/** Map DB columns (elo_*) to XP + human-readable record for API/UI. */
+function enrichArenaAgent(agent) {
+  if (!agent) return agent;
+  const wins = Number(agent.arena_wins) || 0;
+  const losses = Number(agent.arena_losses) || 0;
+  const draws = Number(agent.arena_draws) || 0;
+  const total = wins + losses + draws;
+  const xp = Number(agent.elo_rating) || 1000;
+  const peakXp = Number(agent.elo_peak) || 1000;
+  return {
+    ...agent,
+    xp,
+    peak_xp: peakXp,
+    record: `${wins}W-${losses}L-${draws}D`,
+    win_rate_pct: total > 0 ? Math.round((wins / total) * 1000) / 10 : null,
+    win_rate: total > 0 ? (wins / total).toFixed(2) : null,
+    total_games: total,
+    tier: eloService.getTierName(xp),
+    tier_color: eloService.getTierColor(xp),
+  };
+}
+
+async function enrichChallengeRow(row) {
+  if (!row) return row;
+  const ca = await db("user_agents").where("id", row.challenger_agent_id).first();
+  const cd = await db("user_agents").where("id", row.challenged_agent_id).first();
+  const ua = ca ? await db("users").where("id", ca.user_id).select("username").first() : null;
+  const ub = cd ? await db("users").where("id", cd.user_id).select("username").first() : null;
+  return {
+    ...row,
+    challenger_agent_name: ca?.name || null,
+    challenged_agent_name: cd?.name || null,
+    challenger_username: ua?.username || null,
+    challenged_username: ub?.username || null,
+  };
+}
 
 // ============================================================================
 // Discovery & Leaderboard
@@ -16,7 +56,7 @@ import logger from "../config/logger.js";
 
 /**
  * GET /api/arena/agents
- * Paginated list of public agents with ELO and stats.
+ * Paginated list of public agents with XP and stats.
  * Excludes agents owned by the current user (if authenticated).
  */
 export async function getPublicAgents(req, res) {
@@ -56,15 +96,7 @@ export async function getPublicAgents(req, res) {
     }
     const totalCount = await totalQuery.count("* as count").first();
 
-    const enriched = agents.map((agent) => ({
-      ...agent,
-      tier: eloService.getTierName(agent.elo_rating),
-      tier_color: eloService.getTierColor(agent.elo_rating),
-      total_games: agent.arena_wins + agent.arena_losses + agent.arena_draws,
-      win_rate: agent.arena_wins + agent.arena_losses + agent.arena_draws > 0
-        ? (agent.arena_wins / (agent.arena_wins + agent.arena_losses + agent.arena_draws)).toFixed(2)
-        : null,
-    }));
+    const enriched = agents.map((agent) => enrichArenaAgent(agent));
 
     res.json({
       success: true,
@@ -123,27 +155,23 @@ export async function getAgentProfile(req, res) {
 
     const enrichedMatches = matches.map((match) => {
       const isAgentA = match.agent_a_id === parseInt(agentId);
+      const eloChange = isAgentA ? match.elo_change_a : match.elo_change_b;
+      const eloBefore = isAgentA ? match.elo_before_a : match.elo_before_b;
       return {
         match_id: match.id,
         opponent_agent_id: isAgentA ? match.agent_b_id : match.agent_a_id,
         opponent_user_id: isAgentA ? match.agent_b_user_id : match.agent_a_user_id,
         result: match.winner_agent_id === parseInt(agentId) ? "WIN" : match.winner_agent_id === null ? "DRAW" : "LOSS",
-        elo_change: isAgentA ? match.elo_change_a : match.elo_change_b,
-        elo_before: isAgentA ? match.elo_before_a : match.elo_before_b,
+        xp_change: eloChange,
+        elo_change: eloChange,
+        xp_before: eloBefore,
+        elo_before: eloBefore,
         completed_at: match.completed_at,
       };
     });
 
     res.json({
-      agent: {
-        ...agent,
-        tier: eloService.getTierName(agent.elo_rating),
-        tier_color: eloService.getTierColor(agent.elo_rating),
-        total_games: agent.arena_wins + agent.arena_losses + agent.arena_draws,
-        win_rate: agent.arena_wins + agent.arena_losses + agent.arena_draws > 0
-          ? (agent.arena_wins / (agent.arena_wins + agent.arena_losses + agent.arena_draws)).toFixed(2)
-          : null,
-      },
+      agent: enrichArenaAgent(agent),
       recent_matches: enrichedMatches,
     });
   } catch (err) {
@@ -154,7 +182,7 @@ export async function getAgentProfile(req, res) {
 
 /**
  * GET /api/arena/leaderboard
- * Top 50 agents by ELO with rank and tier.
+ * Top agents by XP (stored as elo_rating) with rank and tier.
  */
 export async function getLeaderboard(req, res) {
   try {
@@ -179,13 +207,7 @@ export async function getLeaderboard(req, res) {
 
     const leaderboard = agents.map((agent, index) => ({
       rank: index + 1,
-      ...agent,
-      tier: eloService.getTierName(agent.elo_rating),
-      tier_color: eloService.getTierColor(agent.elo_rating),
-      total_games: agent.arena_wins + agent.arena_losses + agent.arena_draws,
-      win_rate: agent.arena_wins + agent.arena_losses + agent.arena_draws > 0
-        ? (agent.arena_wins / (agent.arena_wins + agent.arena_losses + agent.arena_draws)).toFixed(2)
-        : null,
+      ...enrichArenaAgent(agent),
     }));
 
     res.json({ success: true, leaderboard });
@@ -199,98 +221,144 @@ export async function getLeaderboard(req, res) {
 }
 
 // ============================================================================
-// Matchmaking Queue
+// Pending challenges (replaces matchmaking queue)
 // ============================================================================
 
+/** @deprecated */
+export function joinQueue(_req, res) {
+  res.status(410).json({ error: "Matchmaking queue removed. Send challenge invites instead." });
+}
+
+/** @deprecated */
+export function leaveQueue(_req, res) {
+  res.status(410).json({ error: "Matchmaking queue removed." });
+}
+
+/** @deprecated */
+export function challengeAgent(_req, res) {
+  res.status(410).json({ error: "Use POST /arena/pending-challenges with opponent_agent_ids." });
+}
+
 /**
- * POST /api/arena/queue
- * Join matchmaking queue with your agent (requires auth).
+ * POST /api/arena/pending-challenges
+ * Body: { challenger_agent_id, opponent_agent_ids: number[] } (max 7)
  */
-export async function joinQueue(req, res) {
+export async function createPendingChallengeBatchHandler(req, res) {
   try {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { user_agent_id } = req.body;
-    if (!user_agent_id) return res.status(400).json({ error: "user_agent_id required" });
+    const { challenger_agent_id, opponent_agent_ids } = req.body || {};
+    if (!challenger_agent_id) return res.status(400).json({ error: "challenger_agent_id required" });
 
-    const result = await matchmakingService.joinQueue(user_agent_id, userId);
+    const result = await arenaAgentService.createPendingChallengeBatch(
+      Number(challenger_agent_id),
+      userId,
+      opponent_agent_ids
+    );
+
+    const enriched = await Promise.all((result.challenges || []).map((r) => enrichChallengeRow(r)));
 
     res.status(201).json({
-      queue_entry_id: result.queueEntryId,
-      expires_at: result.expiresAt,
-      message: "Joined matchmaking queue",
+      success: true,
+      challenges: enriched,
+      skipped: result.skipped,
+      expires_at: result.expires_at,
     });
   } catch (err) {
-    logger.error({ err: err?.message }, "Failed to join queue");
-    res.status(400).json({ error: err?.message || "Failed to join queue" });
+    logger.error({ err: err?.message }, "createPendingChallengeBatch failed");
+    res.status(400).json({ error: err?.message || "Failed to create challenges" });
   }
 }
 
 /**
- * DELETE /api/arena/queue
- * Leave matchmaking queue (requires auth).
+ * GET /api/arena/pending-challenges/incoming
  */
-export async function leaveQueue(req, res) {
+export async function listIncomingPending(req, res) {
   try {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
-    const { user_agent_id } = req.body;
-    if (!user_agent_id) return res.status(400).json({ error: "user_agent_id required" });
-
-    // Verify ownership
-    const agent = await db("user_agents").where("id", user_agent_id).first();
-    if (!agent || agent.user_id !== userId) {
-      return res.status(403).json({ error: "Agent does not belong to this user" });
-    }
-
-    await matchmakingService.leaveQueue(user_agent_id);
-
-    res.json({ message: "Left matchmaking queue" });
+    const rows = await arenaAgentService.listIncomingChallenges(userId);
+    const enriched = await Promise.all(rows.map((r) => enrichChallengeRow(r)));
+    res.json({ success: true, challenges: enriched });
   } catch (err) {
-    logger.error({ err: err?.message }, "Failed to leave queue");
-    res.status(400).json({ error: err?.message || "Failed to leave queue" });
+    logger.error({ err: err?.message }, "listIncomingPending failed");
+    res.status(500).json({ error: err?.message || "Failed" });
   }
 }
 
 /**
- * POST /api/arena/challenge/:opponentAgentId
- * Direct challenge another agent (requires auth).
+ * GET /api/arena/pending-challenges/outgoing
  */
-export async function challengeAgent(req, res) {
+export async function listOutgoingPending(req, res) {
   try {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const rows = await arenaAgentService.listOutgoingChallenges(userId);
+    const enriched = await Promise.all(rows.map((r) => enrichChallengeRow(r)));
+    res.json({ success: true, challenges: enriched });
+  } catch (err) {
+    logger.error({ err: err?.message }, "listOutgoingPending failed");
+    res.status(500).json({ error: err?.message || "Failed" });
+  }
+}
 
-    const { user_agent_id } = req.body;
-    const { opponentAgentId } = req.params;
+/**
+ * POST /api/arena/pending-challenges/:id/accept
+ */
+export async function acceptPendingChallengeHandler(req, res) {
+  try {
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const challengeId = Number(req.params.id);
+    if (!challengeId) return res.status(400).json({ error: "Invalid challenge id" });
 
-    if (!user_agent_id || !opponentAgentId) {
-      return res.status(400).json({ error: "user_agent_id and opponentAgentId required" });
-    }
-
-    // Verify ownership
-    const agent = await db("user_agents").where("id", user_agent_id).first();
-    if (!agent || agent.user_id !== userId) {
-      return res.status(403).json({ error: "Agent does not belong to this user" });
-    }
-
-    // Verify opponent exists
-    const opponent = await db("user_agents").where("id", opponentAgentId).first();
-    if (!opponent) return res.status(404).json({ error: "Opponent agent not found" });
-
-    const result = await matchmakingService.joinQueue(user_agent_id, userId, parseInt(opponentAgentId));
+    const { game } = await arenaAgentService.acceptPendingChallenge(challengeId, userId, async (payload) => {
+      const g = await createTwoPlayerAgentArenaGame(payload);
+      const io = req.app.get("io");
+      if (io && g?.code) emitGameUpdate(io, g.code);
+      return g;
+    });
 
     res.status(201).json({
-      queue_entry_id: result.queueEntryId,
-      opponent_agent_id: opponentAgentId,
-      expires_at: result.expiresAt,
-      message: "Challenge sent to opponent",
+      success: true,
+      game_id: game.id,
+      game_code: game.code,
+      board_type: "3d_desktop",
     });
   } catch (err) {
-    logger.error({ err: err?.message }, "Failed to challenge agent");
-    res.status(400).json({ error: err?.message || "Failed to challenge agent" });
+    logger.error({ err: err?.message }, "acceptPendingChallenge failed");
+    res.status(400).json({ error: err?.message || "Failed to accept" });
+  }
+}
+
+/**
+ * POST /api/arena/pending-challenges/:id/decline
+ */
+export async function declinePendingChallengeHandler(req, res) {
+  try {
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    await arenaAgentService.declinePendingChallenge(Number(req.params.id), userId);
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err: err?.message }, "declinePendingChallenge failed");
+    res.status(400).json({ error: err?.message || "Failed" });
+  }
+}
+
+/**
+ * POST /api/arena/pending-challenges/:id/cancel
+ */
+export async function cancelPendingChallengeHandler(req, res) {
+  try {
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    await arenaAgentService.cancelOutgoingChallenge(Number(req.params.id), userId);
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err: err?.message }, "cancelPendingChallenge failed");
+    res.status(400).json({ error: err?.message || "Failed" });
   }
 }
 
@@ -390,6 +458,12 @@ export async function getMatchDetails(req, res) {
         ...match,
         agent_a_elo_after: match.elo_before_a + match.elo_change_a,
         agent_b_elo_after: match.elo_before_b + match.elo_change_b,
+        agent_a_xp_after: match.elo_before_a + match.elo_change_a,
+        agent_b_xp_after: match.elo_before_b + match.elo_change_b,
+        xp_change_a: match.elo_change_a,
+        xp_change_b: match.elo_change_b,
+        xp_before_a: match.elo_before_a,
+        xp_before_b: match.elo_before_b,
       },
     });
   } catch (err) {
@@ -502,18 +576,9 @@ export async function startChallenge(req, res) {
   }
 }
 
-/**
- * GET /api/arena/queue-stats
- * Debug endpoint: current queue occupancy.
- */
-export async function getQueueStats(req, res) {
-  try {
-    const stats = await matchmakingService.getQueueStats();
-    res.json(stats);
-  } catch (err) {
-    logger.error({ err: err?.message }, "Failed to fetch queue stats");
-    res.status(500).json({ error: err?.message || "Internal server error" });
-  }
+/** @deprecated */
+export function getQueueStats(_req, res) {
+  res.status(410).json({ error: "Matchmaking queue removed." });
 }
 
 /**

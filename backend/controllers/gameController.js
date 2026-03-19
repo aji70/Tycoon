@@ -35,6 +35,7 @@ import { submitErc8004Feedback as submitErc8004FeedbackTx } from "../services/er
 import { getActiveByGameId } from "./auctionController.js";
 import UserAgent from "../models/UserAgent.js";
 import agentRegistry from "../services/agentRegistry.js";
+import * as arenaAgentService from "../services/arenaAgentService.js";
 import crypto from "crypto";
 
 function isValidEthAddress(maybeAddress) {
@@ -1241,6 +1242,18 @@ export const createAgentVsAgent = async (req, res) => {
         success: false,
         message: `agents must be an array with at least ${n} entries (one per slot)`,
       });
+    }
+
+    const boundAgentIds = agents
+      .map((a) => a?.user_agent_id ?? a?.userAgentId)
+      .filter((x) => x != null && Number(x) > 0)
+      .map(Number);
+    if (boundAgentIds.length) {
+      try {
+        await arenaAgentService.assertAgentsFreeForArena(boundAgentIds);
+      } catch (busyErr) {
+        return res.status(409).json({ success: false, message: busyErr?.message || "Agent already in a game" });
+      }
     }
 
     const normalizedChain = User.normalizeChain(chain || "CELO");

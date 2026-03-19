@@ -449,7 +449,7 @@ async function processCompletedArenaMatches() {
     // Find AGENT_VS_AGENT games that are COMPLETED but don't have a recorded match yet
     const completedGames = await db("games")
       .select("games.id", "games.game_type", "games.status")
-      .where("games.game_type", "AGENT_VS_AGENT")
+      .whereIn("games.game_type", ["AGENT_VS_AGENT", "ONCHAIN_AGENT_VS_AGENT"])
       .where("games.status", "COMPLETED")
       .whereNotExists(
         db("agent_arena_matches")
@@ -466,22 +466,30 @@ async function processCompletedArenaMatches() {
           .select("user_id", "balance", "turn_order");
 
         if (players.length !== 2) {
-          logger.warn({ gameId: game.id, playerCount: players.length }, "Expected 2 players in AGENT_VS_AGENT game");
+          logger.warn({ gameId: game.id, playerCount: players.length }, "Expected 2 players in agent arena game");
           continue;
         }
 
-        // Find user agents for both players
-        const player1Agents = await db("user_agents").where("user_id", players[0].user_id);
-        const player2Agents = await db("user_agents").where("user_id", players[1].user_id);
+        const bindings = await db("agent_slot_assignments")
+          .where("game_id", game.id)
+          .whereNotNull("user_agent_id")
+          .orderBy("slot", "asc");
 
-        const agentA = player1Agents.find((a) => a.status === "active");
-        const agentB = player2Agents.find((a) => a.status === "active");
+        let agentA;
+        let agentB;
+        if (bindings.length >= 2) {
+          agentA = await db("user_agents").where("id", bindings[0].user_agent_id).first();
+          agentB = await db("user_agents").where("id", bindings[1].user_agent_id).first();
+        }
+        if (!agentA || !agentB) {
+          const player1Agents = await db("user_agents").where("user_id", players[0].user_id);
+          const player2Agents = await db("user_agents").where("user_id", players[1].user_id);
+          agentA = player1Agents.find((a) => a.status === "active");
+          agentB = player2Agents.find((a) => a.status === "active");
+        }
 
         if (!agentA || !agentB) {
-          logger.warn(
-            { gameId: game.id, agent1Count: player1Agents.length, agent2Count: player2Agents.length },
-            "Could not find active agents for game players"
-          );
+          logger.warn({ gameId: game.id }, "Could not resolve user_agents for arena game");
           continue;
         }
 
