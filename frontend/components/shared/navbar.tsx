@@ -6,7 +6,7 @@ import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
-import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet, BookOpen, Bot } from 'lucide-react';
+import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet, BookOpen, Bot, MoreVertical } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { PiUserCircle } from 'react-icons/pi';
@@ -44,11 +44,16 @@ const NavBar = () => {
   const { onlineCount, onlineUsers } = useOnlineUsers(isConnected ? address : undefined);
   const [onlineDropdownOpen, setOnlineDropdownOpen] = useState(false);
   const onlineDropdownRef = useRef<HTMLDivElement>(null);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
       if (onlineDropdownRef.current && !onlineDropdownRef.current.contains(e.target as Node)) {
         setOnlineDropdownOpen(false);
+      }
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setMoreMenuOpen(false);
       }
     };
     document.addEventListener('click', close);
@@ -175,27 +180,6 @@ const NavBar = () => {
             </Link>
           )}
 
-          {/* Tournaments button */}
-          {isSignedIn && (
-            <Link
-              href="/tournaments"
-              className="w-[95px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
-            >
-              <Swords className="w-[16px] h-[16px]" />
-              <span className="text-[12px] font-[400] font-dmSans">Tournaments</span>
-            </Link>
-          )}
-
-          {/* Rooms button — general lobby with chat */}
-          {isSignedIn && (
-            <Link
-              href="/rooms"
-              className="w-[75px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
-            >
-              <MessageCircle className="w-[16px] h-[16px]" />
-              <span className="text-[12px] font-[400] font-dmSans">Rooms</span>
-            </Link>
-          )}
 
           {/* Profile button */}
           {isSignedIn && (
@@ -209,14 +193,6 @@ const NavBar = () => {
             </Link>
           )}
 
-          {/* How to Play — always visible */}
-          <Link
-            href="/how-to-play"
-            className="w-[95px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
-          >
-            <BookOpen className="w-[16px] h-[16px]" />
-            <span className="text-[12px] font-[400] font-dmSans">How to Play</span>
-          </Link>
 
           {/* Home button */}
           <Link
@@ -227,19 +203,85 @@ const NavBar = () => {
             <House className="w-[16px] h-[16px]" />
           </Link>
 
-          {/* Sound button */}
-          <button
-            type="button"
-            onClick={toggleSound}
-            aria-label={isSoundPlaying ? "Sound on" : "Sound off"}
-            className="w-[40px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center bg-[#011112] text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#011112]"
-          >
-            {isSoundPlaying ? (
-              <Volume2 className="w-[16px] h-[16px]" />
-            ) : (
-              <VolumeOff className="w-[16px] h-[16px]" />
+          {/* More Menu */}
+          <div className="relative hidden md:block" ref={moreMenuRef}>
+            <button
+              type="button"
+              onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+              className="w-[40px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] flex justify-center items-center bg-[#011112] text-[#00F0FF] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#011112]"
+              aria-label="More options"
+            >
+              <MoreVertical className="w-[16px] h-[16px]" />
+            </button>
+            {moreMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 rounded-lg border border-[#0E282A] bg-[#011112] shadow-xl z-50 py-2">
+                {/* Tournaments */}
+                {isSignedIn && (
+                  <Link
+                    href="/tournaments"
+                    className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
+                    onClick={() => setMoreMenuOpen(false)}
+                  >
+                    <Swords className="w-[16px] h-[16px]" />
+                    <span className="font-dmSans">Tournaments</span>
+                  </Link>
+                )}
+
+                {/* Rooms */}
+                {isSignedIn && (
+                  <Link
+                    href="/rooms"
+                    className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
+                    onClick={() => setMoreMenuOpen(false)}
+                  >
+                    <MessageCircle className="w-[16px] h-[16px]" />
+                    <span className="font-dmSans">Rooms</span>
+                  </Link>
+                )}
+
+                {/* How to Play */}
+                <Link
+                  href="/how-to-play"
+                  className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
+                  onClick={() => setMoreMenuOpen(false)}
+                >
+                  <BookOpen className="w-[16px] h-[16px]" />
+                  <span className="font-dmSans">How to Play</span>
+                </Link>
+
+                {/* Sound Toggle */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleSound();
+                    setMoreMenuOpen(false);
+                  }}
+                  className="w-full px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition text-left"
+                >
+                  {isSoundPlaying ? (
+                    <>
+                      <Volume2 className="w-[16px] h-[16px]" />
+                      <span className="font-dmSans">Sound Off</span>
+                    </>
+                  ) : (
+                    <>
+                      <VolumeOff className="w-[16px] h-[16px]" />
+                      <span className="font-dmSans">Sound On</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Online Players */}
+                {isConnected && (
+                  <div className="px-4 py-2.5 flex items-center gap-2 text-[#AFBAC0] text-sm border-t border-[#0E282A] mt-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="font-dmSans">{onlineCount} online</span>
+                  </div>
+                )}
+              </div>
             )}
-          </button>
+          </div>
+
 
           {/* Wallet, guest, or Privy: wallet when connected; guest when signed in from hero; Privy sign in / signed in in nav */}
           {isConnected ? (
