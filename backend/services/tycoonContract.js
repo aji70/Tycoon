@@ -280,6 +280,16 @@ const USER_REGISTRY_ABI = [
   },
   {
     type: "function",
+    name: "createWalletForUser",
+    inputs: [
+      { name: "ownerAddress", type: "address", internalType: "address" },
+      { name: "username", type: "string", internalType: "string" },
+    ],
+    outputs: [{ name: "wallet", type: "address", internalType: "address" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
     name: "createWalletForUserByBackend",
     inputs: [{ name: "username", type: "string", internalType: "string" }],
     outputs: [{ name: "wallet", type: "address", internalType: "address" }],
@@ -360,6 +370,41 @@ export function isWalletFirstConfigured(chain = "CELO") {
     process.env.REGISTRY_OWNER_PRIVATE_KEY ??
     cfg.privateKey;
   return Boolean(pk);
+}
+
+/**
+ * Create a smart wallet for an EOA owner (profile keyed by owner). Callable by registry owner. Use when user has linked_wallet and no profile on this registry yet.
+ * @returns {{ hash: string, wallet: string }}
+ */
+export async function createWalletForUser(ownerAddress, username, chain = "CELO") {
+  return withTxQueue(async () => {
+    if (!ownerAddress || !username || typeof username !== "string" || username.trim().length < 2) {
+      throw new Error("Invalid ownerAddress or username");
+    }
+    const registry = getRegistryOwnerContract(chain);
+    const tx = await registry.createWalletForUser(ownerAddress.trim(), username.trim());
+    const receipt = await tx.wait();
+    let walletAddr;
+    try {
+      const iface = new Interface([
+        "event WalletCreated(address indexed owner, string username, address indexed wallet)",
+      ]);
+      for (const log of receipt.logs || []) {
+        try {
+          const parsed = iface.parseLog({ topics: log.topics, data: log.data });
+          if (parsed?.name === "WalletCreated" && parsed.args?.wallet) {
+            walletAddr = String(parsed.args.wallet);
+            break;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+    if (!walletAddr) {
+      throw new Error("createWalletForUser: could not determine wallet address from logs");
+    }
+    logger.info({ ownerAddress, username: username.trim(), wallet: walletAddr, hash: receipt?.hash }, "UserRegistry createWalletForUser tx");
+    return { hash: receipt?.hash, wallet: walletAddr };
+  });
 }
 
 export async function createWalletForUserByBackend(username, chain = "CELO") {
