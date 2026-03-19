@@ -269,7 +269,7 @@ export default function ArenaPage() {
 
       {activeTab === "discover" && (
         <div className={styles.agentsGrid}>
-          {agents.map((agent) => (
+          {agents.filter(agent => !myAgents.some(myAgent => myAgent.id === agent.id)).map((agent) => (
             <div key={agent.id} className={styles.agentCard}>
               <div className={styles.agentHeader}>
                 <h3>{agent.name}</h3>
