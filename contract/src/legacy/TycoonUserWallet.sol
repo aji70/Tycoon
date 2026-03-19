@@ -5,6 +5,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -30,7 +32,7 @@ interface ITycoonRewardSystem {
 /// @title TycoonUserWallet
 /// @notice Smart wallet bound to a user profile. Holds CELO (native), ERC20 (USDC etc), ERC1155 (perks), ERC721 (e.g. ERC-8004).
 /// @dev Owner (user EOA) can withdraw/send and approve the game/shop to pull tokens and perks for buy/burn during games.
-contract TycoonUserWallet is ERC165, IERC1155Receiver {
+contract TycoonUserWallet is ERC165, IERC1155Receiver, IERC721Receiver, IERC1271 {
     address public owner;
     /// @notice Registry that created this wallet; only it may call transferOwnershipViaRegistry.
     address public registry;
@@ -192,6 +194,45 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
 
     receive() external payable {
         emit Received(msg.sender, msg.value);
+    }
+
+    // -------------------------------------------------------------------------
+    // Execution (Smart Account behaviour)
+    // -------------------------------------------------------------------------
+    function executeCall(address target, uint256 value, bytes calldata data) external payable onlyOwner returns (bytes memory) {
+        (bool success, bytes memory result) = target.call{value: value}(data);
+        if (!success) {
+            if (result.length > 0) {
+                assembly {
+                    let ptr := add(result, 0x20)
+                    let size := mload(result)
+                    revert(ptr, size)
+                }
+            } else {
+                revert("executeCall failed");
+            }
+        }
+        return result;
+    }
+
+    function executeCallWithAuth(address target, uint256 value, bytes calldata data, uint256 nonce, bytes calldata signature) external payable onlyOperator returns (bytes memory) {
+        bytes32 action = keccak256("execute_call");
+        bytes32 hash = keccak256(abi.encodePacked(address(this), target, value, keccak256(data), nonce));
+        _requireValidAuthority(hash, nonce, signature, action);
+
+        (bool success, bytes memory result) = target.call{value: value}(data);
+        if (!success) {
+            if (result.length > 0) {
+                assembly {
+                    let ptr := add(result, 0x20)
+                    let size := mload(result)
+                    revert(ptr, size)
+                }
+            } else {
+                revert("executeCall failed");
+            }
+        }
+        return result;
     }
 
     // -------------------------------------------------------------------------
@@ -383,6 +424,22 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
         emit WithdrewERC1155(collection, to, id, amount);
     }
 
+    /// @notice Operator withdraws ERC1155 tokens only with a signature from withdrawalAuthority.
+    function withdrawERC1155WithAuth(address collection, address to, uint256 id, uint256 amount, uint256 nonce, bytes calldata signature) external onlyOperator {
+        if (withdrawalAuthority == address(0)) revert InvalidAddress();
+        if (collection == address(0) || to == address(0)) revert InvalidAddress();
+        bytes32 action = keccak256("withdraw_erc1155");
+        bytes32 nonceKey = keccak256(abi.encodePacked(address(this), action, collection, to, id, amount, nonce));
+        require(!usedWithdrawalNonces[nonceKey], "Nonce used");
+        usedWithdrawalNonces[nonceKey] = true;
+        bytes32 hash = keccak256(abi.encodePacked(address(this), collection, to, id, amount, nonce));
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
+        address signer = ECDSA.recover(ethSignedHash, signature);
+        require(signer == withdrawalAuthority, "Bad signature");
+        IERC1155(collection).safeTransferFrom(address(this), to, id, amount, "");
+        emit WithdrewERC1155(collection, to, id, amount);
+    }
+
     function balanceERC1155(address collection, uint256 id) external view returns (uint256) {
         return IERC1155(collection).balanceOf(address(this), id);
     }
@@ -400,7 +457,26 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
-        return interfaceId == type(IERC1155Receiver).interfaceId || super.supportsInterface(interfaceId);
+        return
+            interfaceId == type(IERC1155Receiver).interfaceId ||
+            interfaceId == type(IERC721Receiver).interfaceId ||
+            interfaceId == type(IERC1271).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
+
+    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+
+    // -------------------------------------------------------------------------
+    // ERC1271 Signature Validation
+    // -------------------------------------------------------------------------
+    function isValidSignature(bytes32 hash, bytes memory signature) external view returns (bytes4 magicValue) {
+        address signer = ECDSA.recover(hash, signature);
+        if (signer == owner) {
+            return IERC1271.isValidSignature.selector; // 0x1626ba7e
+        }
+        return 0xffffffff;
     }
 
     // -------------------------------------------------------------------------
@@ -414,6 +490,22 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
 
     function withdrawERC721(address collection, address to, uint256 tokenId) external onlyOwner {
         if (collection == address(0) || to == address(0)) revert InvalidAddress();
+        IERC721(collection).safeTransferFrom(address(this), to, tokenId);
+        emit WithdrewERC721(collection, to, tokenId);
+    }
+
+    /// @notice Operator withdraws ERC721 tokens only with a signature from withdrawalAuthority.
+    function withdrawERC721WithAuth(address collection, address to, uint256 tokenId, uint256 nonce, bytes calldata signature) external onlyOperator {
+        if (withdrawalAuthority == address(0)) revert InvalidAddress();
+        if (collection == address(0) || to == address(0)) revert InvalidAddress();
+        bytes32 action = keccak256("withdraw_erc721");
+        bytes32 nonceKey = keccak256(abi.encodePacked(address(this), action, collection, to, tokenId, nonce));
+        require(!usedWithdrawalNonces[nonceKey], "Nonce used");
+        usedWithdrawalNonces[nonceKey] = true;
+        bytes32 hash = keccak256(abi.encodePacked(address(this), collection, to, tokenId, nonce));
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
+        address signer = ECDSA.recover(ethSignedHash, signature);
+        require(signer == withdrawalAuthority, "Bad signature");
         IERC721(collection).safeTransferFrom(address(this), to, tokenId);
         emit WithdrewERC721(collection, to, tokenId);
     }
