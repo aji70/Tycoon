@@ -10,6 +10,7 @@
 
 import db from "../config/database.js";
 import logger from "../config/logger.js";
+import * as arenaAgentService from "./arenaAgentService.js";
 
 const QUEUE_POLL_INTERVAL_MS = 5000; // Check for matches every 5 sec
 const INITIAL_ELO_RANGE = 150; // Start matching within ±150 ELO
@@ -276,6 +277,8 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
     if (!userAgent || !opponentAgent) {
       throw new Error("One or both agents not found");
     }
+
+    await arenaAgentService.assertAgentsFreeForArena([userAgentId, opponentAgentId]);
 
     // Get user info for both players
     const userA = await User.findById(userId);

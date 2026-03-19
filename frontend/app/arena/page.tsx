@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { apiClient } from "@/lib/api";
@@ -8,12 +8,17 @@ import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
 import ArenaMobile from "@/components/arena/arena-mobile";
 
+const MAX_CHALLENGE_TARGETS = 7;
+
 interface Agent {
   id: number;
   name: string;
   username: string;
-  elo_rating: number;
-  elo_peak: number;
+  elo_rating?: number;
+  elo_peak?: number;
+  xp?: number;
+  peak_xp?: number;
+  record?: string;
   arena_wins: number;
   arena_losses: number;
   arena_draws: number;
@@ -21,12 +26,37 @@ interface Agent {
   tier_color: string;
   total_games: number;
   win_rate?: string;
+  win_rate_pct?: number | null;
   is_public?: boolean;
   status?: string;
 }
 
 interface LeaderboardEntry extends Agent {
   rank: number;
+}
+
+interface PendingChallenge {
+  id: number;
+  challenger_agent_id: number;
+  challenged_agent_id: number;
+  challenger_agent_name?: string | null;
+  challenged_agent_name?: string | null;
+  challenger_username?: string | null;
+  challenged_username?: string | null;
+  expires_at: string;
+}
+
+function xpOf(a: Agent) {
+  return a.xp ?? a.elo_rating ?? 1000;
+}
+
+function peakXpOf(a: Agent) {
+  return a.peak_xp ?? a.elo_peak ?? 1000;
+}
+
+function recordOf(a: Agent) {
+  if (a.record) return a.record;
+  return `${a.arena_wins}W-${a.arena_losses}L-${a.arena_draws}D`;
 }
 
 const TierColors: Record<string, string> = {
@@ -40,15 +70,19 @@ const TierColors: Record<string, string> = {
 
 export default function ArenaPage() {
   const router = useRouter();
-  const { user, authenticated } = usePrivy();
-  const [activeTab, setActiveTab] = useState<"discover" | "leaderboard" | "my-agents">("discover");
+  const { authenticated } = usePrivy();
+  const [activeTab, setActiveTab] = useState<"discover" | "leaderboard" | "my-agents" | "invites">("discover");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myAgents, setMyAgents] = useState<Agent[]>([]);
+  const [incoming, setIncoming] = useState<PendingChallenge[]>([]);
+  const [outgoing, setOutgoing] = useState<PendingChallenge[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
+  const [selectedOpponents, setSelectedOpponents] = useState<number[]>([]);
+  const [challengerAgentId, setChallengerAgentId] = useState<number | null>(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -57,33 +91,55 @@ export default function ArenaPage() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Load user's agents on mount if authenticated
   useEffect(() => {
     if (authenticated) {
       fetchMyAgents();
     }
   }, [authenticated]);
 
-  // Fetch agents
+  useEffect(() => {
+    if (myAgents.length > 0 && challengerAgentId == null) {
+      setChallengerAgentId(myAgents[0].id);
+    }
+  }, [myAgents, challengerAgentId]);
+
   useEffect(() => {
     if (activeTab === "discover") {
       fetchPublicAgents(page);
     }
   }, [activeTab, page]);
 
-  // Fetch leaderboard
   useEffect(() => {
     if (activeTab === "leaderboard") {
       fetchLeaderboard();
     }
   }, [activeTab]);
 
-  // Fetch my agents
   useEffect(() => {
     if (activeTab === "my-agents") {
       fetchMyAgents();
     }
   }, [activeTab]);
+
+  const fetchInvites = useCallback(async () => {
+    if (!authenticated) return;
+    try {
+      const [inc, out] = await Promise.all([
+        apiClient.get<any>("/arena/pending-challenges/incoming"),
+        apiClient.get<any>("/arena/pending-challenges/outgoing"),
+      ]);
+      if (inc?.data?.challenges) setIncoming(inc.data.challenges);
+      if (out?.data?.challenges) setOutgoing(out.data.challenges);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [authenticated]);
+
+  useEffect(() => {
+    if (activeTab === "invites" && authenticated) {
+      fetchInvites();
+    }
+  }, [activeTab, authenticated, fetchInvites]);
 
   const fetchPublicAgents = async (pageNum: number) => {
     try {
@@ -160,70 +216,75 @@ export default function ArenaPage() {
     }
   };
 
-  const joinQueue = async (agentId: number) => {
+  const toggleOpponentSelect = (agentId: number) => {
+    setSelectedOpponents((prev) => {
+      if (prev.includes(agentId)) return prev.filter((id) => id !== agentId);
+      if (prev.length >= MAX_CHALLENGE_TARGETS) {
+        alert(`You can select up to ${MAX_CHALLENGE_TARGETS} agents per batch.`);
+        return prev;
+      }
+      return [...prev, agentId];
+    });
+  };
+
+  const sendChallengeBatch = async () => {
     if (!authenticated) {
-      alert("Please log in to join the queue");
+      alert("Please log in");
       return;
     }
-
+    if (!challengerAgentId) {
+      alert("Choose your agent");
+      return;
+    }
+    if (selectedOpponents.length === 0) {
+      alert("Select at least one opponent (checkbox on each card).");
+      return;
+    }
     try {
-      const res = await apiClient.post<any>(`/arena/queue`, { user_agent_id: agentId });
-      if (res?.data?.queue_entry_id) {
-        alert("Successfully joined matchmaking queue!");
+      const res = await apiClient.post<any>("/arena/pending-challenges", {
+        challenger_agent_id: challengerAgentId,
+        opponent_agent_ids: selectedOpponents,
+      });
+      const skipped = res?.data?.skipped as { opponent_agent_id: number; reason: string }[] | undefined;
+      let msg = `Sent ${selectedOpponents.length} challenge(s). Opponents can accept under Invites.`;
+      if (skipped?.length) {
+        msg += `\nSkipped: ${skipped.map((s) => `#${s.opponent_agent_id} (${s.reason})`).join(", ")}`;
+      }
+      alert(msg);
+      setSelectedOpponents([]);
+      fetchInvites();
+    } catch (err) {
+      alert(`Error: ${(err as Error).message}`);
+    }
+  };
+
+  const acceptInvite = async (id: number) => {
+    try {
+      const res = await apiClient.post<any>(`/arena/pending-challenges/${id}/accept`, {});
+      const code = res?.data?.game_code as string | undefined;
+      if (code) {
+        router.push(`/board-3d?gameCode=${encodeURIComponent(code)}`);
       } else {
-        throw new Error("Failed to join queue");
+        throw new Error("No game code returned");
       }
     } catch (err) {
       alert(`Error: ${(err as Error).message}`);
     }
   };
 
-  const challengeAgent = async (opponentAgentId: number, yourAgentId: number) => {
-    if (!authenticated) {
-      alert("Please log in to challenge");
-      return;
-    }
-
+  const declineInvite = async (id: number) => {
     try {
-      const settings = {
-        starting_cash: 1500,
-        auction: true,
-        rent_in_prison: false,
-        mortgage: true,
-        even_build: true,
-        randomize_play_order: false,
-      };
+      await apiClient.post<any>(`/arena/pending-challenges/${id}/decline`, {});
+      fetchInvites();
+    } catch (err) {
+      alert(`Error: ${(err as Error).message}`);
+    }
+  };
 
-      const yourAgent = myAgents.find(a => a.id === yourAgentId);
-      const opponentAgent = agents.find(a => a.id === opponentAgentId);
-
-      const res = await apiClient.post<any>(`/games/create-agent-vs-agent`, {
-        duration: 60,
-        chain: "CELO",
-        settings,
-        number_of_players: 2,
-        agents: [
-          {
-            slot: 1,
-            user_agent_id: yourAgentId,
-            name: yourAgent?.name || "Your Agent",
-          },
-          {
-            slot: 2,
-            user_agent_id: opponentAgentId,
-            name: opponentAgent?.name || "Opponent Agent",
-          },
-        ],
-      });
-
-      const game = (res as any)?.data?.data;
-      const gameCode = game?.code || "";
-      if (gameCode) {
-        alert("Challenge started! Redirecting to game board...");
-        router.push(`/board-3d?gameCode=${encodeURIComponent(gameCode)}`);
-      } else {
-        throw new Error("Failed to get game code");
-      }
+  const cancelOutgoing = async (id: number) => {
+    try {
+      await apiClient.post<any>(`/arena/pending-challenges/${id}/cancel`, {});
+      fetchInvites();
     } catch (err) {
       alert(`Error: ${(err as Error).message}`);
     }
@@ -233,11 +294,13 @@ export default function ArenaPage() {
     return <ArenaMobile />;
   }
 
+  const discoverList = agents.filter((agent) => !myAgents.some((m) => m.id === agent.id));
+
   return (
     <div className={styles.container}>
       <header className={styles.header}>
         <h1>⚔️ Agent Arena</h1>
-        <p>Battle your agents against the best</p>
+        <p>XP, records, and challenge invites — one active game per agent</p>
       </header>
 
       <div className={styles.tabs}>
@@ -248,13 +311,19 @@ export default function ArenaPage() {
             setPage(1);
           }}
         >
-          🔍 Discover Agents
+          🔍 Discover
         </button>
         <button
           className={`${styles.tab} ${activeTab === "leaderboard" ? styles.active : ""}`}
           onClick={() => setActiveTab("leaderboard")}
         >
           🏆 Leaderboard
+        </button>
+        <button
+          className={`${styles.tab} ${activeTab === "invites" ? styles.active : ""}`}
+          onClick={() => setActiveTab("invites")}
+        >
+          ✉️ Invites
         </button>
         <button
           className={`${styles.tab} ${activeTab === "my-agents" ? styles.active : ""}`}
@@ -267,9 +336,54 @@ export default function ArenaPage() {
       {error && <div className={styles.error}>{error}</div>}
       {loading && <div className={styles.loading}>Loading...</div>}
 
+      {activeTab === "discover" && authenticated && myAgents.length > 0 && (
+        <div
+          style={{
+            marginBottom: "1rem",
+            padding: "1rem",
+            background: "rgba(0,240,255,0.08)",
+            borderRadius: 12,
+            border: "1px solid rgba(0,240,255,0.25)",
+          }}
+        >
+          <p style={{ margin: "0 0 0.5rem", fontSize: "0.9rem", color: "#a8c4c8" }}>
+            Select up to {MAX_CHALLENGE_TARGETS} opponents below, choose your agent, then send invites. First
+            acceptance starts the match and cancels other pending invites for those agents.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "center" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span>Your agent:</span>
+              <select
+                value={challengerAgentId ?? ""}
+                onChange={(e) => setChallengerAgentId(Number(e.target.value))}
+                style={{ padding: "0.35rem 0.5rem", borderRadius: 8 }}
+              >
+                {myAgents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" className={styles.btnPrimary} onClick={sendChallengeBatch}>
+              Send challenges ({selectedOpponents.length})
+            </button>
+            {selectedOpponents.length > 0 && (
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={() => setSelectedOpponents([])}
+              >
+                Clear selection
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {activeTab === "discover" && (
         <div className={styles.agentsGrid}>
-          {agents.filter(agent => !myAgents.some(myAgent => myAgent.id === agent.id)).map((agent) => (
+          {discoverList.map((agent) => (
             <div key={agent.id} className={styles.agentCard}>
               <div className={styles.agentHeader}>
                 <h3>{agent.name}</h3>
@@ -283,44 +397,45 @@ export default function ArenaPage() {
 
               <div className={styles.agentStats}>
                 <div className={styles.statRow}>
-                  <span className={styles.label}>ELO Rating:</span>
-                  <span className={styles.value}>{agent.elo_rating}</span>
+                  <span className={styles.label}>XP:</span>
+                  <span className={styles.value}>{xpOf(agent)}</span>
                 </div>
                 <div className={styles.statRow}>
-                  <span className={styles.label}>Peak ELO:</span>
-                  <span className={styles.value}>{agent.elo_peak}</span>
-                </div>
-                <div className={styles.statRow}>
-                  <span className={styles.label}>Win Rate:</span>
-                  <span className={styles.value}>{agent.win_rate || "N/A"}</span>
+                  <span className={styles.label}>Peak XP:</span>
+                  <span className={styles.value}>{peakXpOf(agent)}</span>
                 </div>
                 <div className={styles.statRow}>
                   <span className={styles.label}>Record:</span>
+                  <span className={styles.value}>{recordOf(agent)}</span>
+                </div>
+                <div className={styles.statRow}>
+                  <span className={styles.label}>Win rate:</span>
                   <span className={styles.value}>
-                    {agent.arena_wins}W-{agent.arena_losses}L-{agent.arena_draws}D
+                    {agent.win_rate_pct != null ? `${agent.win_rate_pct}%` : agent.win_rate ?? "N/A"}
                   </span>
                 </div>
               </div>
 
               <div className={styles.agentFooter}>
                 <span className={styles.creatorName}>by {agent.username}</span>
-                {authenticated && (
-                  <div className={styles.buttonGroup}>
-                    <button
-                      className={styles.btnPrimary}
-                      onClick={() => joinQueue(agent.id)}
-                    >
-                      Find Match
-                    </button>
-                    <button
-                      className={styles.btnSecondary}
-                      disabled={myAgents.length === 0}
-                      onClick={() => myAgents.length > 0 && challengeAgent(agent.id, myAgents[0].id)}
-                      title={myAgents.length === 0 ? "Create an agent first" : "Challenge this agent"}
-                    >
-                      Challenge
-                    </button>
-                  </div>
+                {authenticated && myAgents.length > 0 && (
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      marginTop: 8,
+                      cursor: "pointer",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedOpponents.includes(agent.id)}
+                      onChange={() => toggleOpponentSelect(agent.id)}
+                    />
+                    Add to challenge list
+                  </label>
                 )}
               </div>
             </div>
@@ -337,9 +452,9 @@ export default function ArenaPage() {
                 <th>Agent Name</th>
                 <th>Creator</th>
                 <th>Tier</th>
-                <th>ELO Rating</th>
+                <th>XP</th>
                 <th>Record</th>
-                <th>Win Rate</th>
+                <th>Win rate</th>
               </tr>
             </thead>
             <tbody>
@@ -360,15 +475,81 @@ export default function ArenaPage() {
                       {entry.tier}
                     </span>
                   </td>
-                  <td className={styles.elo}>{entry.elo_rating}</td>
+                  <td className={styles.elo}>{xpOf(entry)}</td>
+                  <td>{recordOf(entry)}</td>
                   <td>
-                    {entry.arena_wins}W-{entry.arena_losses}L-{entry.arena_draws}D
+                    {entry.win_rate_pct != null ? `${entry.win_rate_pct}%` : entry.win_rate || "N/A"}
                   </td>
-                  <td>{entry.win_rate || "N/A"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {activeTab === "invites" && (
+        <div className={styles.myAgents}>
+          {!authenticated ? (
+            <p>Please log in to view invites.</p>
+          ) : (
+            <>
+              <h2 style={{ marginTop: 0 }}>Incoming</h2>
+              {incoming.length === 0 ? (
+                <p>No pending challenges.</p>
+              ) : (
+                <ul style={{ listStyle: "none", padding: 0 }}>
+                  {incoming.map((c) => (
+                    <li
+                      key={c.id}
+                      style={{
+                        padding: "1rem",
+                        marginBottom: "0.5rem",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        borderRadius: 12,
+                      }}
+                    >
+                      <strong>{c.challenger_agent_name || "Agent"}</strong> ({c.challenger_username}) wants to
+                      fight your <strong>{c.challenged_agent_name || "agent"}</strong>
+                      <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+                        <button type="button" className={styles.btnPrimary} onClick={() => acceptInvite(c.id)}>
+                          Accept & play
+                        </button>
+                        <button type="button" className={styles.btnSecondary} onClick={() => declineInvite(c.id)}>
+                          Decline
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <h2>Outgoing</h2>
+              {outgoing.length === 0 ? (
+                <p>No challenges sent.</p>
+              ) : (
+                <ul style={{ listStyle: "none", padding: 0 }}>
+                  {outgoing.map((c) => (
+                    <li
+                      key={c.id}
+                      style={{
+                        padding: "1rem",
+                        marginBottom: "0.5rem",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        borderRadius: 12,
+                      }}
+                    >
+                      Waiting for <strong>{c.challenged_agent_name || "opponent"}</strong> (
+                      {c.challenged_username})
+                      <div style={{ marginTop: 8 }}>
+                        <button type="button" className={styles.btnSecondary} onClick={() => cancelOutgoing(c.id)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -395,8 +576,16 @@ export default function ArenaPage() {
                         <span className={styles.value}>{agent.status || "unknown"}</span>
                       </div>
                       <div className={styles.statRow}>
-                        <span className={styles.label}>ELO Rating:</span>
-                        <span className={styles.value}>{agent.elo_rating || "N/A"}</span>
+                        <span className={styles.label}>XP:</span>
+                        <span className={styles.value}>{xpOf(agent)}</span>
+                      </div>
+                      <div className={styles.statRow}>
+                        <span className={styles.label}>Peak XP:</span>
+                        <span className={styles.value}>{peakXpOf(agent)}</span>
+                      </div>
+                      <div className={styles.statRow}>
+                        <span className={styles.label}>Record:</span>
+                        <span className={styles.value}>{recordOf(agent)}</span>
                       </div>
                       <div className={styles.statRow}>
                         <span className={styles.label}>Visibility:</span>

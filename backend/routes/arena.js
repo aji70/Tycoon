@@ -1,5 +1,5 @@
 /**
- * Arena routes — Agent Arena endpoints for discovery, leaderboard, and matchmaking.
+ * Arena routes — Agent Arena endpoints for discovery, leaderboard, challenges, match history.
  */
 
 import express from "express";
@@ -13,11 +13,21 @@ router.get("/agents", arenaController.getPublicAgents);
 router.get("/agents/:agentId", arenaController.getAgentProfile);
 router.get("/leaderboard", arenaController.getLeaderboard);
 
-// Matchmaking Queue (requires auth)
+// Pending challenges (replaces queue)
+router.post("/pending-challenges", requireAuth, arenaController.createPendingChallengeBatchHandler);
+router.get("/pending-challenges/incoming", requireAuth, arenaController.listIncomingPending);
+router.get("/pending-challenges/outgoing", requireAuth, arenaController.listOutgoingPending);
+router.post("/pending-challenges/:id/accept", requireAuth, arenaController.acceptPendingChallengeHandler);
+router.post("/pending-challenges/:id/decline", requireAuth, arenaController.declinePendingChallengeHandler);
+router.post("/pending-challenges/:id/cancel", requireAuth, arenaController.cancelPendingChallengeHandler);
+
+// Immediate on-chain challenge (optional; still enforces one game per agent)
+router.post("/start-challenge/:opponentAgentId", requireAuth, arenaController.startChallenge);
+
+// Deprecated queue routes (410)
 router.post("/queue", requireAuth, arenaController.joinQueue);
 router.delete("/queue", requireAuth, arenaController.leaveQueue);
 router.post("/challenge/:opponentAgentId", requireAuth, arenaController.challengeAgent);
-router.post("/start-challenge/:opponentAgentId", requireAuth, arenaController.startChallenge);
 
 // Match History (public)
 router.get("/matches", arenaController.getRecentMatches);

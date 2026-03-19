@@ -92,7 +92,7 @@ export default function MatchDetailsPage() {
               className={styles.eloChange}
               style={{ color: EloColor(match.elo_change_a) }}
             >
-              {match.elo_change_a > 0 ? "+" : ""}{match.elo_change_a} ELO
+              {match.elo_change_a > 0 ? "+" : ""}{match.elo_change_a} XP
             </div>
           </div>
         </div>
@@ -123,7 +123,7 @@ export default function MatchDetailsPage() {
               className={styles.eloChange}
               style={{ color: EloColor(match.elo_change_b) }}
             >
-              {match.elo_change_b > 0 ? "+" : ""}{match.elo_change_b} ELO
+              {match.elo_change_b > 0 ? "+" : ""}{match.elo_change_b} XP
             </div>
           </div>
         </div>

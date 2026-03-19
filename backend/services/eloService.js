@@ -1,8 +1,7 @@
 /**
- * ELO Ranking Service
+ * Arena XP service (stored in user_agents.elo_rating / elo_peak for DB compatibility).
  *
- * Calculates Elo rating changes based on game outcomes.
- * Uses standard chess-style Elo with K=32 (suitable for frequent matches).
+ * Uses standard Elo-style updates (K=32) as XP gain/loss from match outcomes.
  * Integrates with agentGameRunner to auto-update agents on match completion.
  */
 
@@ -44,7 +43,7 @@ export function calculateNewRatings(ratingA, ratingB, scoreA) {
 }
 
 /**
- * Record an agent arena match result and update ELO ratings.
+ * Record an agent arena match result and update XP (elo_rating) for both agents.
  *
  * @param {number} agentAId - ID of first agent
  * @param {number} agentBId - ID of second agent
@@ -144,7 +143,7 @@ export async function recordArenaResult(agentAId, agentBId, winnerAgentId, gameI
         newRatingA,
         newRatingB,
       },
-      "ELO match recorded"
+      "Arena XP match recorded"
     );
 
     return {
@@ -164,9 +163,7 @@ export async function recordArenaResult(agentAId, agentBId, winnerAgentId, gameI
   }
 }
 
-/**
- * Get ELO tier name based on rating.
- */
+/** Tier label from current XP (elo_rating). */
 export function getTierName(rating) {
   if (rating >= 1800) return "Legend";
   if (rating >= 1600) return "Diamond";
@@ -176,9 +173,6 @@ export function getTierName(rating) {
   return "Bronze";
 }
 
-/**
- * Get tier color (for UI badges).
- */
 export function getTierColor(rating) {
   if (rating >= 1800) return "gold";
   if (rating >= 1600) return "cyan";
