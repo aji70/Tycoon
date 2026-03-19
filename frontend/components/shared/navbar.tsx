@@ -215,6 +215,18 @@ const NavBar = () => {
             </button>
             {moreMenuOpen && (
               <div className="absolute right-0 mt-2 w-48 rounded-lg border border-[#0E282A] bg-[#011112] shadow-xl z-50 py-2">
+                {/* Arena */}
+                {isSignedIn && (
+                  <Link
+                    href="/arena"
+                    className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
+                    onClick={() => setMoreMenuOpen(false)}
+                  >
+                    <Swords className="w-[16px] h-[16px]" />
+                    <span className="font-dmSans">⚔️ Agent Arena</span>
+                  </Link>
+                )}
+
                 {/* Tournaments */}
                 {isSignedIn && (
                   <Link
@@ -222,7 +234,7 @@ const NavBar = () => {
                     className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
                     onClick={() => setMoreMenuOpen(false)}
                   >
-                    <Swords className="w-[16px] h-[16px]" />
+                    <Trophy className="w-[16px] h-[16px]" />
                     <span className="font-dmSans">Tournaments</span>
                   </Link>
                 )}
