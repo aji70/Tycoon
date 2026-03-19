@@ -185,12 +185,44 @@ export default function ArenaPage() {
     }
 
     try {
-      const res = await apiClient.post<any>(`/arena/start-challenge/${opponentAgentId}`, { user_agent_id: yourAgentId });
-      if (res?.data?.game_id) {
-        // Redirect to 3D game board
-        router.push(`/(room)/game-play-3d?gameId=${res.data.game_id}&code=${res.data.game_code}`);
+      const settings = {
+        starting_cash: 1500,
+        auction: true,
+        rent_in_prison: false,
+        mortgage: true,
+        even_build: true,
+        randomize_play_order: false,
+      };
+
+      const yourAgent = myAgents.find(a => a.id === yourAgentId);
+      const opponentAgent = agents.find(a => a.id === opponentAgentId);
+
+      const res = await apiClient.post<any>(`/games/create-agent-vs-agent`, {
+        duration: 60,
+        chain: "CELO",
+        settings,
+        number_of_players: 2,
+        agents: [
+          {
+            slot: 1,
+            user_agent_id: yourAgentId,
+            name: yourAgent?.name || "Your Agent",
+          },
+          {
+            slot: 2,
+            user_agent_id: opponentAgentId,
+            name: opponentAgent?.name || "Opponent Agent",
+          },
+        ],
+      });
+
+      const game = (res as any)?.data?.data;
+      const gameCode = game?.code || "";
+      if (gameCode) {
+        alert("Challenge started! Redirecting to game board...");
+        router.push(`/board-3d?gameCode=${encodeURIComponent(gameCode)}`);
       } else {
-        throw new Error("Failed to start challenge");
+        throw new Error("Failed to get game code");
       }
     } catch (err) {
       alert(`Error: ${(err as Error).message}`);
