@@ -116,16 +116,11 @@ function GuestProfileView({
   guestUser,
   onRecreateClick,
   recreatePending,
-  onRedeemVoucher,
-  redeemVoucherPending,
 }: {
   guestUser: { address: string; username: string; linked_wallet_address?: string | null; smart_wallet_address?: string | null };
   onRecreateClick?: () => void | Promise<void>;
   recreatePending?: boolean;
-  onRedeemVoucher?: (tokenId: bigint) => Promise<void>;
-  redeemVoucherPending?: boolean;
 }) {
-  const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
   const username = guestUser.username;
   // When wallet is not connected:
   // - stats/username use the "wallet linked" address when available
@@ -139,8 +134,6 @@ function GuestProfileView({
       ? (guestUser.smart_wallet_address as Address)
       : null;
   const guestOnChainAddress = linkedWalletAddress ?? smartWalletAddress ?? null;
-  // Prefer smart wallet for reward/perk/voucher reads so vouchers in smart wallet are visible when not connected.
-  const rewardQueryAddress = smartWalletAddress ?? linkedWalletAddress ?? null;
   // Key local profile storage by whichever address represents this profile.
   // For Privy-only users, fall back to their guest `address` so avatar updates persist.
   const profileKeyAddress = linkedWalletAddress ?? smartWalletAddress ?? guestUser.address;
@@ -191,45 +184,6 @@ function GuestProfileView({
     if (!playerData || !onChainUsername) return null;
     return parseUserFromContract(playerData, onChainUsername as string, guestOnChainAddress ?? undefined);
   }, [playerData, onChainUsername, guestOnChainAddress]);
-
-  const { data: offChainUserData } = useQuery({
-    queryKey: ['off-chain-user', guestUser.address],
-    queryFn: async () => {
-      try {
-        const res = await apiClient.get(`/users/by-address/${guestUser.address}`);
-        return res.data;
-      } catch (e) {
-        return null;
-      }
-    },
-    enabled: !!guestUser.address,
-  });
-
-  const displayStats = React.useMemo(() => {
-    if (userData) return { ...userData, isOnChain: true };
-    const offChain = offChainUserData as any;
-    if (offChain && offChain.id && (offChain.games_played > 0 || offChain.total_earned > 0)) {
-      const gp = Number(offChain.games_played) || 0;
-      const gw = Number(offChain.game_won) || 0;
-      const gl = Number(offChain.game_lost) || 0;
-      return {
-         username: offChain.username || guestUser.username,
-         shortAddress: guestUser.address ? `${guestUser.address.slice(0, 6)}...${guestUser.address.slice(-4)}` : '',
-         gamesPlayed: gp,
-         gamesWon: gw,
-         gamesLost: gl,
-         winRate: gp > 0 ? ((gw / gp) * 100).toFixed(1) + '%' : '0%',
-         totalStaked: Number(offChain.total_staked) || 0,
-         totalEarned: Number(offChain.total_earned) || 0,
-         totalWithdrawn: Number(offChain.total_withdrawn) || 0,
-         propertiesBought: 0,
-         propertiesSold: 0,
-         registeredAt: offChain.created_at ? new Date(offChain.created_at).getTime() / 1000 : 0,
-         isOnChain: false,
-      };
-    }
-    return null;
-  }, [userData, offChainUserData, guestUser]);
 
   const { data: tycTokenAddress } = useReadContract({
     address: rewardAddress,
@@ -286,9 +240,9 @@ function GuestProfileView({
     address: rewardAddress,
     abi: RewardABI,
     functionName: 'ownedTokenCount',
-    args: rewardQueryAddress ? [rewardQueryAddress] : undefined,
+    args: guestOnChainAddress ? [guestOnChainAddress] : undefined,
     chainId: CELO_CHAIN_ID,
-    query: { enabled: !!rewardQueryAddress && !!rewardAddress },
+    query: { enabled: !!guestOnChainAddress && !!rewardAddress },
   });
   const ownedCountNum = Number(ownedCount.data ?? 0);
   const tokenCalls = useMemo(() =>
@@ -296,12 +250,12 @@ function GuestProfileView({
       address: rewardAddress!,
       abi: RewardABI as Abi,
       functionName: 'tokenOfOwnerByIndex',
-      args: [rewardQueryAddress!, BigInt(i)],
+      args: [guestOnChainAddress!, BigInt(i)],
     } as const)),
-  [rewardAddress, rewardQueryAddress, ownedCountNum]);
+  [rewardAddress, guestOnChainAddress, ownedCountNum]);
   const tokenResults = useReadContracts({
     contracts: tokenCalls,
-    query: { enabled: ownedCountNum > 0 && !!rewardAddress && !!rewardQueryAddress },
+    query: { enabled: ownedCountNum > 0 && !!rewardAddress && !!guestOnChainAddress },
   });
   const allOwnedTokenIds = tokenResults.data
     ?.map(r => r.status === 'success' ? r.result as bigint : null)
@@ -651,25 +605,18 @@ function GuestProfileView({
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[260px] max-h-[60vh] overflow-y-auto">
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
-                {!displayStats ? (
+                {!userData ? (
                   <EmptyState
                     icon={<BarChart2 className="w-14 h-14 text-cyan-400/70" />}
-                    title="No stats yet"
-                    description="Play some games or link a wallet to start tracking stats."
+                    title="No on-chain stats yet"
+                    description="Link a wallet (or register in-game) to start tracking stats on-chain."
                     compact
                     className="border-cyan-500/20 bg-black/20"
                   />
                 ) : (
                   <>
-                    {!displayStats.isOnChain && (
-                      <div className="mb-4 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-between text-orange-200">
-                        <span className="text-xs font-semibold">Showing off-chain stats</span>
-                        <span className="text-[10px] px-2 py-1 rounded-md bg-orange-500/20 border border-orange-500/30">Link wallet to secure your progress on-chain</span>
-                      </div>
-                    )}
-
                     {(() => {
-                      const levelInfo = getLevelFromActivity({ gamesPlayed: displayStats.gamesPlayed, gamesWon: displayStats.gamesWon });
+                      const levelInfo = getLevelFromActivity({ gamesPlayed: userData.gamesPlayed, gamesWon: userData.gamesWon });
                       return (
                         <div className="mb-4 p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-2">
                           <div className="flex items-center justify-between gap-2">
@@ -687,10 +634,10 @@ function GuestProfileView({
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                       {[
-                        { icon: BarChart2, label: 'Games played', value: String(displayStats.gamesPlayed), accent: 'cyan' },
-                        { icon: Crown, label: 'Wins', value: String(displayStats.gamesWon), accent: 'amber', valueClass: 'text-amber-300' },
-                        { icon: Coins, label: 'Losses', value: String(displayStats.gamesLost), accent: 'slate', valueClass: 'text-slate-300' },
-                        { icon: BarChart2, label: 'Win rate', value: displayStats.winRate, accent: 'emerald', valueClass: 'text-emerald-300' },
+                        { icon: BarChart2, label: 'Games played', value: String(userData.gamesPlayed), accent: 'cyan' },
+                        { icon: Crown, label: 'Wins', value: String(userData.gamesWon), accent: 'amber', valueClass: 'text-amber-300' },
+                        { icon: Coins, label: 'Losses', value: String(userData.gamesLost), accent: 'slate', valueClass: 'text-slate-300' },
+                        { icon: BarChart2, label: 'Win rate', value: userData.winRate, accent: 'emerald', valueClass: 'text-emerald-300' },
                       ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
                         <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
                           <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
@@ -704,9 +651,9 @@ function GuestProfileView({
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
                       {[
-                        { icon: Wallet, label: 'Total staked', value: formatStakeOrEarned(displayStats.totalStaked) + ' BLOCK', accent: 'cyan' },
-                        { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(displayStats.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
-                        { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(displayStats.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
+                        { icon: Wallet, label: 'Total staked', value: formatStakeOrEarned(userData.totalStaked) + ' BLOCK', accent: 'cyan' },
+                        { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(userData.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
+                        { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(userData.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
                       ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
                         <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
                           <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
@@ -720,8 +667,8 @@ function GuestProfileView({
 
                     <div className="grid grid-cols-2 gap-3">
                       {[
-                        { icon: BarChart2, label: 'Properties bought', value: String(displayStats.propertiesBought), accent: 'cyan' },
-                        { icon: BarChart2, label: 'Properties sold', value: String(displayStats.propertiesSold), accent: 'amber', valueClass: 'text-amber-300' },
+                        { icon: BarChart2, label: 'Properties bought', value: String(userData.propertiesBought), accent: 'cyan' },
+                        { icon: BarChart2, label: 'Properties sold', value: String(userData.propertiesSold), accent: 'amber', valueClass: 'text-amber-300' },
                       ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
                         <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
                           <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
@@ -871,45 +818,25 @@ function GuestProfileView({
                   />
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {myVouchers.map((voucher) => {
-                      const canRedeemViaApi = !!rewardQueryAddress && !!onRedeemVoucher;
-                      const isRedeeming = redeemVoucherPending || redeemingId === voucher.tokenId;
-                      return (
-                        <motion.div
-                          key={voucher.tokenId.toString()}
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="rounded-2xl p-5 text-center border border-amber-500/20 bg-black/20"
+                    {myVouchers.map((voucher) => (
+                      <motion.div
+                        key={voucher.tokenId.toString()}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="rounded-2xl p-5 text-center border border-amber-500/20 bg-black/20"
+                      >
+                        <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
+                        <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
+                        <button
+                          type="button"
+                          disabled
+                          className="w-full py-2.5 rounded-xl font-semibold text-sm bg-white/10 text-white/50 cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                          <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
-                          <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
-                          <button
-                            type="button"
-                            disabled={!canRedeemViaApi || isRedeeming}
-                            onClick={async () => {
-                              if (!onRedeemVoucher) return;
-                              setRedeemingId(voucher.tokenId);
-                              try {
-                                await onRedeemVoucher(voucher.tokenId);
-                                toast.success("Voucher redeemed!");
-                              } catch (e: unknown) {
-                                const msg = e && typeof e === "object" && "response" in e && typeof (e as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
-                                  ? (e as { response: { data: { message: string } } }).response.data.message
-                                  : "Redeem failed";
-                                toast.error(msg);
-                              } finally {
-                                setRedeemingId(null);
-                              }
-                            }}
-                            className="w-full py-2.5 rounded-xl font-semibold text-sm bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                          >
-                            {isRedeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                            {isRedeeming ? "Redeeming…" : "Redeem"}
-                          </button>
-                          {!canRedeemViaApi && <p className="text-xs text-white/50 mt-2">Log in to redeem via your account (no wallet needed).</p>}
-                        </motion.div>
-                      );
-                    })}
+                          Redeem
+                        </button>
+                        <p className="text-xs text-white/50 mt-2">Connect a wallet to redeem vouchers.</p>
+                      </motion.div>
+                    ))}
                   </div>
                 )}
               </motion.div>
@@ -958,7 +885,7 @@ export default function Profile() {
   const tycBalance = useBalance({ address: walletAddress, token: tycTokenAddress, query: { enabled: !!walletAddress && !!tycTokenAddress } });
   const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
 
-  const { data: registrySmartWallet, refetch: refetchRegistryWallet } = useUserRegistryWallet(walletAddress);
+  const { data: registrySmartWallet } = useUserRegistryWallet(walletAddress);
   // Smart wallet can come from on-chain registry OR from the logged-in account (guest/Privy)
   // Depending on the connected chain / registry deployment, the registry lookup may be empty even though
   // the account has a smart wallet created on another supported chain. Prefer registry, then fall back.
@@ -970,8 +897,6 @@ export default function Profile() {
     ? (registrySmartWallet as Address)
     : accountSmartWallet;
   const smartWallet = smartWalletAddress;
-  const hasSmartWalletFromCurrentRegistry =
-    isValidWallet(registrySmartWallet) && (registrySmartWallet as string) !== "0x0000000000000000000000000000000000000000";
   const { data: smartWalletOwner } = useProfileOwner(smartWallet);
 
   const showDualWallets = !!smartWallet && !!walletAddress && smartWallet.toLowerCase() !== walletAddress.toLowerCase();
@@ -1191,36 +1116,16 @@ export default function Profile() {
     });
   };
 
-  const handleRedeemVoucherViaApi = React.useCallback(async (tokenId: bigint) => {
-    try {
-      setRedeemingId(tokenId);
-      await apiClient.post<ApiResponse>('auth/redeem-voucher', { tokenId: tokenId.toString(), chain: chainId });
-      tycBalanceSmart.refetch();
-      tycBalance.refetch();
-      toast.success('Voucher redeemed successfully!');
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } }; message?: string };
-      toast.error(err?.response?.data?.message ?? err?.message ?? 'Failed to redeem voucher');
-    } finally {
-      setRedeemingId(null);
-    }
-  }, [chainId, tycBalanceSmart, tycBalance]);
-
   const handleRedeemVoucher = (tokenId: bigint) => {
     if (!rewardAddress) return toast.error("Contract not available");
+    setRedeemingId(tokenId);
     const isSmartWalletVoucher = rewardOwnerAddress && walletAddress && rewardOwnerAddress.toLowerCase() !== walletAddress.toLowerCase();
-    
-    if (isSmartWalletVoucher) {
-      handleRedeemVoucherViaApi(tokenId);
-    } else {
-      setRedeemingId(tokenId);
-      writeContract({
-        address: rewardAddress,
-        abi: RewardABI,
-        functionName: 'redeemVoucher',
-        args: [tokenId],
-      });
-    }
+    writeContract({
+      address: rewardAddress,
+      abi: RewardABI,
+      functionName: isSmartWalletVoucher ? 'redeemVoucherFor' : 'redeemVoucher',
+      args: isSmartWalletVoucher ? [rewardOwnerAddress, tokenId] : [tokenId],
+    });
   };
 
   React.useEffect(() => {
@@ -1295,29 +1200,8 @@ export default function Profile() {
   };
 
   const refetchGuest = guestAuth?.refetchGuest;
-  const [recreateAnyPending, setRecreateAnyPending] = useState(false);
-  const handleRecreate = React.useCallback(async () => {
-    setRecreateAnyPending(true);
-    try {
-      await apiClient.post<ApiResponse & { data?: { smart_wallet_address?: string } }>('auth/recreate-smart-wallet');
-      await refetchGuest?.();
-      refetchRegistryWallet?.();
-      toast.success('Smart wallet recreated');
-    } catch (e: unknown) {
-      const err = e as { response?: { status?: number; data?: { message?: string } }; message?: string };
-      if (err?.response?.status === 401) {
-        toast.error('Log in (e.g. with email or social) to recreate your smart wallet. No wallet connection needed.');
-      } else if (err?.response?.status === 503) {
-        toast.error(err?.response?.data?.message ?? 'Recreate is not available right now. Try again later.');
-      } else {
-        toast.error(err?.response?.data?.message ?? err?.message ?? 'Failed to recreate');
-      }
-    } finally {
-      setRecreateAnyPending(false);
-    }
-  }, [refetchGuest, refetchRegistryWallet]);
-
   const [recreateApiPending, setRecreateApiPending] = useState(false);
+
   const handleRecreateViaApi = React.useCallback(async () => {
     setRecreateApiPending(true);
     try {
@@ -1339,7 +1223,6 @@ export default function Profile() {
           guestUser={guestUser}
           onRecreateClick={handleRecreateViaApi}
           recreatePending={recreateApiPending}
-          onRedeemVoucher={handleRedeemVoucherViaApi}
         />
       );
     }
@@ -1474,15 +1357,22 @@ export default function Profile() {
                       </span>
                     )}
                   </div>
-                  {isConnected && (
+                  {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
                     <button
                       type="button"
-                      onClick={() => handleRecreate()}
-                      disabled={recreateAnyPending}
+                      onClick={async () => {
+                        try {
+                          await recreateWallet();
+                          toast.info('Creating new smart wallet…');
+                        } catch (e: any) {
+                          toast.error(e?.shortMessage ?? e?.message ?? 'Failed to create new smart wallet');
+                        }
+                      }}
+                      disabled={recreateWalletPending}
                       className="w-full sm:w-auto px-4 py-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60"
-                      title="Create a new smart wallet via your account (no wallet signature needed)"
+                      title="Create a new smart wallet (old wallet stays; move funds manually)"
                     >
-                      {recreateAnyPending ? 'Creating…' : 'Recreate smart wallet'}
+                      {recreateWalletPending ? 'Creating…' : 'Recreate smart wallet'}
                     </button>
                   )}
                 </div>
@@ -1549,6 +1439,23 @@ export default function Profile() {
                     </div>
                   ))}
                 </div>
+                {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await recreateWallet();
+                        toast.info('Creating new smart wallet…');
+                      } catch (e: any) {
+                        toast.error(e?.shortMessage ?? e?.message ?? 'Failed to create new smart wallet');
+                      }
+                    }}
+                    disabled={recreateWalletPending}
+                    className="w-full mt-3 px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60"
+                  >
+                    {recreateWalletPending ? 'Creating…' : 'Recreate smart wallet'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
