@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
 import ArenaMobile from "@/components/arena/arena-mobile";
@@ -59,7 +59,11 @@ const TierColors: Record<string, string> = {
 
 export default function ArenaPage() {
   const router = useRouter();
-  const { authenticated } = usePrivy();
+  const guestCtx = useGuestAuthOptional();
+  const guestUser = guestCtx?.guestUser ?? null;
+  const authLoading = guestCtx?.isLoading ?? false;
+  /** Backend JWT session (guest, wallet login, or after Privy → privy-signin). Not the same as usePrivy().authenticated. */
+  const isAuthed = Boolean(guestUser);
   const [activeTab, setActiveTab] = useState<"discover" | "leaderboard" | "my-agents">("discover");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -80,10 +84,10 @@ export default function ArenaPage() {
   }, []);
 
   useEffect(() => {
-    if (authenticated) {
+    if (isAuthed) {
       fetchMyAgents();
     }
-  }, [authenticated]);
+  }, [isAuthed]);
 
   useEffect(() => {
     if (myAgents.length > 0 && challengerAgentId == null) {
@@ -196,8 +200,8 @@ export default function ArenaPage() {
   };
 
   const startArenaGame = async () => {
-    if (!authenticated) {
-      alert("Please log in");
+    if (!isAuthed) {
+      alert("Please log in (guest or Privy). If you use Privy, finish the username step if a modal is open.");
       return;
     }
     if (!challengerAgentId) {
@@ -272,7 +276,7 @@ export default function ArenaPage() {
       {error && <div className={styles.error}>{error}</div>}
       {loading && <div className={styles.loading}>Loading...</div>}
 
-      {activeTab === "discover" && authenticated && myAgents.length > 0 && (
+      {activeTab === "discover" && isAuthed && myAgents.length > 0 && (
         <section className={styles.challengePanel} aria-label="Challenge setup">
           <div className={styles.challengePanelHead}>
             <h2 className={styles.challengePanelTitle}>Challenge setup</h2>
@@ -368,7 +372,7 @@ export default function ArenaPage() {
 
               <div className={styles.agentFooter}>
                 <span className={styles.creatorName}>by {agent.username}</span>
-                {authenticated && myAgents.length > 0 && (
+                {isAuthed && myAgents.length > 0 && (
                   <div className={styles.pickRow}>
                     <button
                       type="button"
@@ -434,7 +438,9 @@ export default function ArenaPage() {
 
       {activeTab === "my-agents" && (
         <div className={styles.myAgents}>
-          {authenticated ? (
+          {authLoading ? (
+            <p>Loading session…</p>
+          ) : isAuthed ? (
             myAgents.length > 0 ? (
               <div className={styles.myAgentsGrid}>
                 {myAgents.map((agent) => (
@@ -489,7 +495,7 @@ export default function ArenaPage() {
               <p>No agents found. Create or import an agent to get started!</p>
             )
           ) : (
-            <p>Please log in to view your agents.</p>
+            <p>Please log in to view your agents. Guests: use Let&apos;s Go on the home page. Privy: complete the username modal if shown.</p>
           )}
         </div>
       )}

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena-mobile.module.css";
 
@@ -58,7 +58,10 @@ const TierColors: Record<string, string> = {
 
 export default function ArenaMobile() {
   const router = useRouter();
-  const { authenticated } = usePrivy();
+  const guestCtx = useGuestAuthOptional();
+  const guestUser = guestCtx?.guestUser ?? null;
+  const authLoading = guestCtx?.isLoading ?? false;
+  const isAuthed = Boolean(guestUser);
   const [activeTab, setActiveTab] = useState<"discover" | "leaderboard" | "my-agents">("discover");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -71,10 +74,10 @@ export default function ArenaMobile() {
   const [arenaStarting, setArenaStarting] = useState(false);
 
   useEffect(() => {
-    if (authenticated) {
+    if (isAuthed) {
       fetchMyAgents();
     }
-  }, [authenticated]);
+  }, [isAuthed]);
 
   useEffect(() => {
     if (myAgents.length > 0 && challengerAgentId == null) {
@@ -187,8 +190,8 @@ export default function ArenaMobile() {
   };
 
   const startArenaGame = async () => {
-    if (!authenticated || !challengerAgentId || selectedOpponents.length === 0) {
-      alert("Log in, pick your agent, and select opponents.");
+    if (!isAuthed || !challengerAgentId || selectedOpponents.length === 0) {
+      alert("Log in (guest or Privy), pick your agent, and select opponents.");
       return;
     }
     setArenaStarting(true);
@@ -251,7 +254,7 @@ export default function ArenaMobile() {
       {error && <div className={styles.error}>{error}</div>}
       {loading && <div className={styles.loading}>Loading...</div>}
 
-      {activeTab === "discover" && authenticated && myAgents.length > 0 && (
+      {activeTab === "discover" && isAuthed && myAgents.length > 0 && (
         <section className={styles.challengePanel} aria-label="Challenge setup">
           <div className={styles.challengePanelHead}>
             <h2 className={styles.challengePanelTitle}>Challenges</h2>
@@ -339,7 +342,7 @@ export default function ArenaMobile() {
                 </div>
               </div>
 
-              {authenticated && myAgents.length > 0 && (
+              {isAuthed && myAgents.length > 0 && (
                 <button
                   type="button"
                   className={`${styles.pickBtn} ${
@@ -389,7 +392,9 @@ export default function ArenaMobile() {
 
       {activeTab === "my-agents" && (
         <div className={styles.myAgentsList}>
-          {authenticated ? (
+          {authLoading ? (
+            <p className={styles.emptyState}>Loading session…</p>
+          ) : isAuthed ? (
             myAgents.length > 0 ? (
               myAgents.map((agent) => (
                 <div key={agent.id} className={styles.agentCard}>
@@ -436,7 +441,7 @@ export default function ArenaMobile() {
               <p className={styles.emptyState}>No agents found. Create or import an agent!</p>
             )
           ) : (
-            <p className={styles.emptyState}>Please log in to view your agents.</p>
+            <p className={styles.emptyState}>Log in (guest or Privy). Finish Privy username if prompted.</p>
           )}
         </div>
       )}

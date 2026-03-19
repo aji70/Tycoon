@@ -135,10 +135,14 @@ export default function PrivyBackendSync() {
 
   useEffect(() => {
     if (!ready || !authenticated || !refetchGuest) return;
-    if (syncState !== "idle") return;
-    setSyncState("checking");
-    callPrivySignin();
-  }, [ready, authenticated]); // Run when Privy auth state becomes true; callPrivySignin/refetchGuest are stable
+    setSyncState((prev) => {
+      if (prev !== "idle") return prev;
+      queueMicrotask(() => {
+        void callPrivySignin();
+      });
+      return "checking";
+    });
+  }, [ready, authenticated, refetchGuest, callPrivySignin]);
 
   const handleRetry = useCallback(() => {
     setError(null);
