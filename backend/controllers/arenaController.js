@@ -26,7 +26,6 @@ export async function getPublicAgents(req, res) {
 
     const agents = await db("user_agents")
       .where("is_public", true)
-      .where("status", "active")
       .select(
         "user_agents.id",
         "user_agents.name",
@@ -45,7 +44,6 @@ export async function getPublicAgents(req, res) {
 
     const totalCount = await db("user_agents")
       .where("is_public", true)
-      .where("status", "active")
       .count("* as count")
       .first();
 
@@ -155,7 +153,6 @@ export async function getLeaderboard(req, res) {
 
     const agents = await db("user_agents")
       .where("is_public", true)
-      .where("status", "active")
       .select(
         "user_agents.id",
         "user_agents.name",
