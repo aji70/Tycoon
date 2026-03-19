@@ -16,6 +16,8 @@ router.post("/:id/auto-fill-agents", resolveTournament, requireAuth, tournamentC
 router.post("/:id/close-registration", resolveTournament, tournamentController.closeRegistration);
 router.post("/:id/start-round/:roundIndex", resolveTournament, tournamentController.startRound);
 router.post("/:id/matches/:matchId/start-now", resolveTournament, requireAuth, tournamentController.requestMatchStart);
+router.get("/payouts/pending", requireAuth, tournamentController.getUserPendingPayouts);
+router.post("/:id/claim-payout/:payoutId", requireAuth, tournamentController.claimPayout);
 router.delete("/:id", resolveTournament, tournamentController.remove);
 
 export default router;

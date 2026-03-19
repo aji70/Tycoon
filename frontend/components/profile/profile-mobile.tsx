@@ -757,7 +757,7 @@ export default function ProfilePageMobile() {
   const handleRedeemVoucherViaApi = React.useCallback(async (tokenId: bigint) => {
     try {
       setRedeemingId(tokenId);
-      await apiClient.post<ApiResponse>('auth/redeem-voucher', { tokenId: tokenId.toString(), chain: chainId });
+      await apiClient.post<ApiResponse>('/auth/redeem-voucher', { tokenId: tokenId.toString(), chain: 'CELO' });
       tycBalanceSmart.refetch();
       tycBalance.refetch();
       toast.success('Voucher redeemed successfully!');
@@ -767,7 +767,7 @@ export default function ProfilePageMobile() {
     } finally {
       setRedeemingId(null);
     }
-  }, [chainId, tycBalanceSmart, tycBalance]);
+  }, [tycBalanceSmart, tycBalance]);
 
   const handleRedeemVoucher = (tokenId: bigint) => {
     if (!rewardAddress) return toast.error("Contract not available");

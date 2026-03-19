@@ -1,0 +1,250 @@
+/**
+ * Matchmaking Service
+ *
+ * Manages the agent matchmaking queue:
+ * - Players join WAITING status
+ * - Periodically scans for matches (ELO-based or challenge mode)
+ * - Auto-expands ELO range if no match found within timeout
+ * - Creates AGENT_VS_AGENT games via agentGameRunner
+ */
+
+import db from "../config/database.js";
+import logger from "../config/logger.js";
+
+const QUEUE_POLL_INTERVAL_MS = 5000; // Check for matches every 5 sec
+const INITIAL_ELO_RANGE = 150; // Start matching within ±150 ELO
+const MAX_ELO_RANGE = 500; // Never expand beyond ±500
+const RANGE_EXPANSION_INTERVAL_MS = 60000; // Expand range every 60s if no match
+const QUEUE_EXPIRY_MS = 10 * 60 * 1000; // Expire entries after 10 minutes
+
+let pollIntervalHandle = null;
+
+/**
+ * Join the matchmaking queue with an agent.
+ *
+ * @param {number} userAgentId - Agent to queue
+ * @param {number} userId - Owner user ID
+ * @param {number|null} preferredOpponentAgentId - Optional: challenge specific agent
+ * @returns {Promise<{queueEntryId: number, expiresAt: Date}>}
+ */
+export async function joinQueue(userAgentId, userId, preferredOpponentAgentId = null) {
+  const agent = await db("user_agents").where("id", userAgentId).first();
+  if (!agent) throw new Error(`Agent ${userAgentId} not found`);
+  if (agent.user_id !== userId) throw new Error("Agent does not belong to this user");
+
+  // Check if already queued
+  const existing = await db("matchmaking_queue")
+    .where("user_agent_id", userAgentId)
+    .whereIn("status", ["WAITING", "MATCHED"])
+    .first();
+
+  if (existing) throw new Error("Agent already in queue");
+
+  const expiresAt = new Date(Date.now() + QUEUE_EXPIRY_MS);
+
+  const [queueEntryId] = await db("matchmaking_queue").insert({
+    user_agent_id: userAgentId,
+    user_id: userId,
+    elo_rating: agent.elo_rating,
+    status: "WAITING",
+    preferred_opponent_agent_id: preferredOpponentAgentId,
+    expires_at: expiresAt,
+  });
+
+  logger.info(
+    {
+      queueEntryId,
+      userAgentId,
+      elo: agent.elo_rating,
+      isChallenge: !!preferredOpponentAgentId,
+    },
+    "Agent joined matchmaking queue"
+  );
+
+  return { queueEntryId, expiresAt };
+}
+
+/**
+ * Leave the matchmaking queue.
+ */
+export async function leaveQueue(userAgentId) {
+  await db("matchmaking_queue")
+    .where("user_agent_id", userAgentId)
+    .whereIn("status", ["WAITING", "MATCHED"])
+    .delete();
+
+  logger.info({ userAgentId }, "Agent left matchmaking queue");
+}
+
+/**
+ * Find a suitable match for a queue entry.
+ * Returns another waiting agent within ELO range, or null if no match.
+ */
+async function findMatchForEntry(entry, eloRange) {
+  const minElo = entry.elo_rating - eloRange;
+  const maxElo = entry.elo_rating + eloRange;
+
+  // If this is a challenge, find the specific opponent
+  if (entry.preferred_opponent_agent_id) {
+    const opponent = await db("matchmaking_queue")
+      .where("user_agent_id", entry.preferred_opponent_agent_id)
+      .where("status", "WAITING")
+      .where("id", "<", entry.id) // Avoid matching the same entry
+      .first();
+
+    if (opponent && !opponent.preferred_opponent_agent_id) {
+      // Opponent must not be waiting for someone else
+      return opponent;
+    }
+    return null;
+  }
+
+  // Standard ELO-based matching: find closest ELO that hasn't been checked recently
+  const opponent = await db("matchmaking_queue")
+    .where("status", "WAITING")
+    .whereBetween("elo_rating", [minElo, maxElo])
+    .where("id", "<", entry.id) // Avoid double-matching
+    .where("preferred_opponent_agent_id", null) // Don't match with someone in challenge mode
+    .orderBy(db.raw("abs(elo_rating - ?)", [entry.elo_rating])) // Closest ELO first
+    .first();
+
+  return opponent;
+}
+
+/**
+ * Main matchmaking loop: scan queue, find matches, create games.
+ * Called periodically by startMatchmakingPoll().
+ */
+async function pollForMatches() {
+  try {
+    // Clean expired entries
+    await db("matchmaking_queue")
+      .where("expires_at", "<", new Date())
+      .delete();
+
+    // Get all waiting entries, ordered by join time
+    const waitingEntries = await db("matchmaking_queue")
+      .where("status", "WAITING")
+      .orderBy("created_at", "asc");
+
+    if (waitingEntries.length === 0) return;
+
+    // Try to match each entry
+    for (const entry of waitingEntries) {
+      // Calculate ELO range based on how long they've been waiting
+      const waitTimeMs = Date.now() - new Date(entry.created_at).getTime();
+      const expansions = Math.floor(waitTimeMs / RANGE_EXPANSION_INTERVAL_MS);
+      const eloRange = Math.min(
+        MAX_ELO_RANGE,
+        INITIAL_ELO_RANGE + expansions * 50 // Expand by 50 every 60s
+      );
+
+      const opponent = await findMatchForEntry(entry, eloRange);
+      if (!opponent) continue;
+
+      // Found a match! Mark both as MATCHED and trigger game creation
+      await db("matchmaking_queue").where("id", entry.id).update({ status: "MATCHED" });
+      await db("matchmaking_queue").where("id", opponent.id).update({ status: "MATCHED" });
+
+      // Create agent match record and game
+      createMatchAndGame(entry, opponent);
+    }
+  } catch (err) {
+    logger.error({ err: err?.message }, "Matchmaking poll failed");
+  }
+}
+
+/**
+ * Create a game and agent_arena_matches record for two matched agents.
+ */
+async function createMatchAndGame(queueEntryA, queueEntryB) {
+  try {
+    const agentA = await db("user_agents").where("id", queueEntryA.user_agent_id).first();
+    const agentB = await db("user_agents").where("id", queueEntryB.user_agent_id).first();
+
+    if (!agentA || !agentB) {
+      logger.warn(
+        { agentAId: queueEntryA.user_agent_id, agentBId: queueEntryB.user_agent_id },
+        "One or both agents no longer exist"
+      );
+      return;
+    }
+
+    // Create agent_arena_matches entry
+    const [matchId] = await db("agent_arena_matches").insert({
+      match_type: "ARENA",
+      agent_a_id: agentA.id,
+      agent_b_id: agentB.id,
+      agent_a_user_id: agentA.user_id,
+      agent_b_user_id: agentB.user_id,
+      status: "PENDING",
+      elo_before_a: agentA.elo_rating,
+      elo_before_b: agentB.elo_rating,
+    });
+
+    logger.info(
+      {
+        matchId,
+        agentAId: agentA.id,
+        agentBId: agentB.id,
+        agentAElo: agentA.elo_rating,
+        agentBElo: agentB.elo_rating,
+      },
+      "Agents matched in arena"
+    );
+
+    // Cleanup queue entries (will be finalized after game starts)
+    // For now, just remove them from queue
+    await db("matchmaking_queue").where("id", queueEntryA.id).delete();
+    await db("matchmaking_queue").where("id", queueEntryB.id).delete();
+
+    // NOTE: Game creation will be handled by external orchestrator
+    // that watches agent_arena_matches.PENDING and calls agentGameRunner.createAgentGame
+  } catch (err) {
+    logger.error(
+      {
+        err: err?.message,
+        queueEntryAId: queueEntryA.id,
+        queueEntryBId: queueEntryB.id,
+      },
+      "Failed to create match and game"
+    );
+  }
+}
+
+/**
+ * Start polling for matches. Call once on server startup.
+ */
+export function startMatchmakingPoll() {
+  if (pollIntervalHandle) {
+    logger.warn("Matchmaking poll already running");
+    return;
+  }
+
+  logger.info("Starting matchmaking poll");
+  pollIntervalHandle = setInterval(pollForMatches, QUEUE_POLL_INTERVAL_MS);
+}
+
+/**
+ * Stop polling (e.g., on server shutdown).
+ */
+export function stopMatchmakingPoll() {
+  if (pollIntervalHandle) {
+    clearInterval(pollIntervalHandle);
+    pollIntervalHandle = null;
+    logger.info("Stopped matchmaking poll");
+  }
+}
+
+/**
+ * Get queue stats for monitoring.
+ */
+export async function getQueueStats() {
+  const waiting = await db("matchmaking_queue").where("status", "WAITING").count("* as count").first();
+  const matched = await db("matchmaking_queue").where("status", "MATCHED").count("* as count").first();
+
+  return {
+    waiting: waiting?.count || 0,
+    matched: matched?.count || 0,
+  };
+}

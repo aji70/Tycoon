@@ -8,6 +8,7 @@
 import db from "../config/database.js";
 import logger from "../config/logger.js";
 import agentRegistry from "./agentRegistry.js";
+import * as eloService from "./eloService.js";
 
 const ENABLED = process.env.ENABLE_AGENT_GAME_RUNNER === "true";
 const POLL_MS = Math.max(500, Number(process.env.AGENT_GAME_RUNNER_POLL_MS) || 2000);
@@ -439,6 +440,78 @@ async function stepGame(game) {
   await post("/game-players/end-turn", { user_id: nextUserId, game_id: gameId });
 }
 
+/**
+ * Check for newly completed AGENT_VS_AGENT games and record ELO changes.
+ * This runs separately from game stepping to handle post-game processing.
+ */
+async function processCompletedArenaMatches() {
+  try {
+    // Find AGENT_VS_AGENT games that are COMPLETED but don't have a recorded match yet
+    const completedGames = await db("games")
+      .select("games.id", "games.game_type", "games.status")
+      .where("games.game_type", "AGENT_VS_AGENT")
+      .where("games.status", "COMPLETED")
+      .whereNotExists(
+        db("agent_arena_matches")
+          .where("agent_arena_matches.game_id", db.raw("games.id"))
+          .where("agent_arena_matches.status", "COMPLETED")
+      )
+      .limit(10);
+
+    for (const game of completedGames) {
+      try {
+        // Get game players to find the agents and winner
+        const players = await db("game_players")
+          .where("game_id", game.id)
+          .select("user_id", "balance", "turn_order");
+
+        if (players.length !== 2) {
+          logger.warn({ gameId: game.id, playerCount: players.length }, "Expected 2 players in AGENT_VS_AGENT game");
+          continue;
+        }
+
+        // Find user agents for both players
+        const player1Agents = await db("user_agents").where("user_id", players[0].user_id);
+        const player2Agents = await db("user_agents").where("user_id", players[1].user_id);
+
+        const agentA = player1Agents.find((a) => a.status === "active");
+        const agentB = player2Agents.find((a) => a.status === "active");
+
+        if (!agentA || !agentB) {
+          logger.warn(
+            { gameId: game.id, agent1Count: player1Agents.length, agent2Count: player2Agents.length },
+            "Could not find active agents for game players"
+          );
+          continue;
+        }
+
+        // Winner is the player with higher balance
+        let winnerId = null;
+        if (players[0].balance > players[1].balance) {
+          winnerId = agentA.id;
+        } else if (players[1].balance > players[0].balance) {
+          winnerId = agentB.id;
+        }
+        // else: draw (both null)
+
+        // Record ELO result
+        await eloService.recordArenaResult(agentA.id, agentB.id, winnerId, game.id);
+        logger.info(
+          { gameId: game.id, agentAId: agentA.id, agentBId: agentB.id, winnerId },
+          "Recorded arena match result and ELO change"
+        );
+      } catch (err) {
+        logger.error(
+          { err: err?.message, gameId: game.id },
+          "Failed to process completed arena match"
+        );
+      }
+    }
+  } catch (err) {
+    logger.error({ err: err?.message }, "Failed to process completed arena matches");
+  }
+}
+
 async function pollOnce() {
   const games = await db("games")
     .select("id", "status", "next_player_id", "game_type", "duration", "created_at", "started_at")
@@ -449,6 +522,9 @@ async function pollOnce() {
   await Promise.all(
     (games || []).map((g) => withGameLock(g.id, () => stepGame(g)))
   );
+
+  // Process newly completed arena matches for ELO
+  await processCompletedArenaMatches();
 }
 
 export function startAgentGameRunner() {
