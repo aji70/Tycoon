@@ -84,6 +84,8 @@ export async function initializePayment({
   if (!Number.isFinite(amount) || amount < 200) {
     throw new Error("amount must be at least 200 Naira");
   }
+  // Whole naira, never below Flutterwave minimum (guard float edge cases e.g. 199.9999)
+  const amountRounded = Math.max(200, Math.round(amount));
   // Some guest usernames generate placeholder emails that Flutterwave rejects.
   // Fall back to a known-good sender email when the provided value is malformed.
   const customerEmail = isLikelyEmail(email) ? String(email).trim() : FLW_DEFAULT_EMAIL;
@@ -98,21 +100,16 @@ export async function initializePayment({
     customizationsOverride && typeof customizationsOverride === "object" && Object.keys(customizationsOverride).length > 0
       ? { ...defaultCustomizations, ...customizationsOverride }
       : defaultCustomizations;
-  // Standard POST /v3/payments: tx_ref, amount, currency, redirect_url, customer (email required).
-  // NGN checkout often rejects generic errors ("required parameters missing") if customer.name/fullname
-  // or phone is absent or mis-keyed; we send both name + fullname and phonenumber (Flutterwave's usual key).
-  // Amount: send as string — matches official examples and avoids strict numeric validation edge cases.
-  const amountRounded = Math.round(amount);
+  // Standard POST /v3/payments. Flutterwave expects numeric `amount` in JSON (string amount broke live init for some accounts).
   const payload = {
     tx_ref: String(txRef),
-    amount: String(amountRounded),
+    amount: amountRounded,
     currency: "NGN",
     redirect_url: String(redirectUrl),
     payment_options: "card,ussd,account",
     customer: {
       email: customerEmail,
       name: customerNameStr,
-      fullname: customerNameStr,
       phonenumber: customerPhone,
       country: "NG",
     },

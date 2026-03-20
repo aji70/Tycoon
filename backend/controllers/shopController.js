@@ -5,17 +5,25 @@ import { initializePayment, isFlutterwaveConfigured, verifyWebhookSignature, ver
 import { deliverBundleToUser, deliverCollectibleToUser } from "../services/tycoonContract.js";
 
 /**
- * Flutterwave validates redirect_url against your dashboard whitelist.
- * Prefer https FRONTEND_URL when set so checkout works even if the browser origin differs.
+ * redirect_url must be a valid URL Flutterwave accepts (some accounts enforce a dashboard allowlist).
+ * Prefer the client's https callback (browser origin + /game-shop) so it matches where the user actually is
+ * (www vs apex, Vercel previews). Fall back to FRONTEND_URL when the client sends http (e.g. local dev).
  */
 function resolveShopFlutterwaveRedirect(callbackFromBody) {
+  const fromClient = String(callbackFromBody || "").trim();
   const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "").trim();
+  if (fromClient.startsWith("https://")) {
+    return fromClient;
+  }
   if (base.startsWith("https://")) {
     return `${base}/game-shop`;
   }
-  const fromClient = String(callbackFromBody || "").trim();
-  if (fromClient.startsWith("http")) return fromClient;
-  if (base.startsWith("http://")) return `${base}/game-shop`;
+  if (fromClient.startsWith("http://")) {
+    return fromClient;
+  }
+  if (base.startsWith("http://")) {
+    return `${base}/game-shop`;
+  }
   return "";
 }
 
@@ -158,9 +166,9 @@ export async function flutterwaveInitialize(_req, res) {
     }
     const bundle = await db("perk_bundles").where({ id: bundleId }).first();
     if (!bundle) return res.status(404).json({ success: false, message: "Bundle not found" });
-    const amountNaira = Number(bundle.price_ngn);
+    const amountNaira = Math.round(Number(bundle.price_ngn));
     if (!Number.isFinite(amountNaira) || amountNaira < 200) {
-      return res.status(400).json({ success: false, message: "Bundle NGN price is invalid" });
+      return res.status(400).json({ success: false, message: "Bundle NGN price is invalid (must be at least ₦200)" });
     }
 
     const user = await db("users").where({ id: userId }).first();
@@ -176,7 +184,8 @@ export async function flutterwaveInitialize(_req, res) {
     if (!redirectUrl.startsWith("http")) {
       return res.status(400).json({
         success: false,
-        message: "Set FRONTEND_URL to your public https app URL (Flutterwave redirect whitelist) or pass a valid callback_url.",
+        message:
+          "Could not build redirect_url. Pass callback_url (https://your-domain/game-shop) from the app, or set FRONTEND_URL to your public https origin.",
       });
     }
 
@@ -243,7 +252,8 @@ export async function flutterwaveInitializePerk(_req, res) {
     if (!redirectUrl.startsWith("http")) {
       return res.status(400).json({
         success: false,
-        message: "Set FRONTEND_URL to your public https app URL (Flutterwave redirect whitelist) or pass a valid callback_url.",
+        message:
+          "Could not build redirect_url. Pass callback_url (https://your-domain/game-shop) from the app, or set FRONTEND_URL to your public https origin.",
       });
     }
 
