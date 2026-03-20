@@ -12,6 +12,7 @@ const BENIGN_TURN_SUBSTRINGS = [
   "you already rolled",
   "it's not your turn",
   "it is not your turn",
+  "not your turn to roll",
   "cannot end another player",
 ];
 

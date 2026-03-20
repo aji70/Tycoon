@@ -11,7 +11,6 @@ export const useMobilePropertyActions = (
 ) => {
   const handleBuild = useCallback(async (propertyId: number) => {
     if (!isMyTurn || !userId) {
-      showToast("Not your turn or invalid property", "error");
       return;
     }
 
@@ -34,7 +33,6 @@ export const useMobilePropertyActions = (
 
   const handleSellBuilding = useCallback(async (propertyId: number) => {
     if (!isMyTurn || !userId) {
-      showToast("Not your turn or invalid property", "error");
       return;
     }
 
@@ -57,7 +55,6 @@ export const useMobilePropertyActions = (
 
   const handleMortgageToggle = useCallback(async (propertyId: number, isUnmortgaging: boolean) => {
     if (!isMyTurn || !userId) {
-      showToast("Not your turn or invalid property", "error");
       return;
     }
 
@@ -84,7 +81,6 @@ export const useMobilePropertyActions = (
 
   const handleSellToBank = useCallback(async (propertyId: number) => {
     if (!isMyTurn || !userId) {
-      showToast("Not your turn or invalid property", "error");
       return;
     }
 

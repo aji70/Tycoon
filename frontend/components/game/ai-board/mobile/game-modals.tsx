@@ -4,7 +4,7 @@ import { toast } from "react-hot-toast";
 import { Crown, Trophy, Sparkles, Wallet, HeartHandshake } from "lucide-react";
 import { Game, Player } from "@/types/game";
 import { apiClient } from "@/lib/api";
-import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
 import { CardModal } from "../../modals/cards";
 
 interface GameModalsProps {
@@ -124,10 +124,10 @@ const GameModals: React.FC<GameModalsProps> = ({
         await apiClient.post(`/games/${currentGame.id}/erc8004-feedback`);
       } catch (_) {}
     } catch (err: any) {
-      toast.error(
-        getContractErrorMessage(err, "Something went wrong. Try again or refresh the page."),
-        { id: toastId, duration: 8000 }
-      );
+      hotToastContractError(err, "Something went wrong. Try again or refresh the page.", {
+        id: toastId,
+        duration: 8000,
+      });
     }
   };
 
@@ -156,10 +156,10 @@ const GameModals: React.FC<GameModalsProps> = ({
       } catch (_) {}
       window.location.href = "/";
     } catch (err: any) {
-      toast.error(
-        getContractErrorMessage(err, "Something went wrong. Try again or refresh the page."),
-        { id: toastId, duration: 8000 }
-      );
+      hotToastContractError(err, "Something went wrong. Try again or refresh the page.", {
+        id: toastId,
+        duration: 8000,
+      });
       setClaimAndLeaveInProgress(false);
     }
   }, [winner?.user_id, me?.user_id, currentGame?.id, onFinishGameByTime]);

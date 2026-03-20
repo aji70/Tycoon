@@ -3,7 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId } from "wagmi";
+import { useFundPrizePool } from "@/hooks/useFundPrizePool";
 import { useTournament } from "@/context/TournamentContext";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useRegisterForTournamentOnChain } from "@/hooks/useRegisterForTournamentOnChain";
@@ -17,6 +18,7 @@ import {
   Lock,
   Play,
   AlertCircle,
+  Wallet,
 } from "lucide-react";
 import type { Bracket, BracketRound, TournamentDetail } from "@/types/tournament";
 import { symbols as symbolOptions } from "@/lib/types/symbol";
@@ -26,6 +28,15 @@ function formatEntryFee(wei: string | number): string {
   if (n === 0) return "Free";
   if (n >= 1e6) return `$${(n / 1e6).toFixed(2)} USDC`;
   return `${n} wei`;
+}
+
+const USDC_DECIMALS = 6;
+
+function chainIdToBackendChain(chainId: number): string {
+  if (chainId === 137 || chainId === 80001) return "POLYGON";
+  if (chainId === 42220 || chainId === 44787) return "CELO";
+  if (chainId === 8453 || chainId === 84531) return "BASE";
+  return "CELO";
 }
 
 function statusColor(status: string): string {
@@ -88,6 +99,8 @@ export default function TournamentDetailPage() {
   const id = String(params?.id ?? "");
   const { guestUser } = useGuestAuthOptional() ?? {};
   const { address: walletAddress } = useAccount();
+  const walletChainId = useChainId();
+  const { fund: fundPrizePoolOnChain, isPending: fundPoolPending, isReady: fundPoolReady } = useFundPrizePool();
   const [registering, setRegistering] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -114,6 +127,7 @@ export default function TournamentDetailPage() {
   const [startNowModalMatchId, setStartNowModalMatchId] = useState<number | null>(null);
   const [selectedStartSymbol, setSelectedStartSymbol] = useState<string>("hat");
   const [creatingRoundIndex, setCreatingRoundIndex] = useState<number | null>(null);
+  const [fundPoolUsd, setFundPoolUsd] = useState("");
   const START_WINDOW_MINUTES = 5;
 
   const isInMatch = useCallback(
@@ -439,6 +453,85 @@ export default function TournamentDetailPage() {
             )}
           </div>
         </section>
+
+        {tournament.prize_source === "CREATOR_FUNDED" &&
+          isCreator &&
+          (tournament.status === "REGISTRATION_OPEN" || tournament.status === "BRACKET_LOCKED") && (
+            <section className="rounded-2xl border border-violet-500/35 bg-violet-950/15 p-5 space-y-3">
+              <h2 className="text-base font-semibold text-violet-300 flex items-center gap-2">
+                <Wallet className="w-5 h-5" />
+                Creator: put USDC in the prize pool
+              </h2>
+              <p className="text-sm text-white/65">
+                On <span className="text-cyan-300">{tournament.chain}</span>, approve USDC for the tournament escrow, then
+                call <code className="text-cyan-400/90 text-xs">fundPrizePool(tournamentId, amount)</code>. Amounts use 6
+                decimals (USDC). Your planned pool on file:{" "}
+                <strong className="text-white">
+                  {tournament.prize_pool_wei && Number(tournament.prize_pool_wei) > 0
+                    ? formatEntryFee(tournament.prize_pool_wei)
+                    : "not set — add when creating or contact support to update DB"}
+                </strong>
+                . Payout math uses that DB value; deposit at least that much on-chain before the event finishes.
+              </p>
+              <p className="text-xs text-white/50">
+                Winners: default split is 50% / 30% / 15% / 5% for placements 1–4 (see{" "}
+                <code className="text-cyan-500/80">prize_distribution</code> on the tournament). On completion, the backend
+                records payouts toward entrants&apos; smart wallets.
+              </p>
+              {walletAddress && chainIdToBackendChain(walletChainId) !== String(tournament.chain || "").toUpperCase() && (
+                <p className="text-amber-400/90 text-sm">
+                  Switch your wallet to {tournament.chain} before funding.
+                </p>
+              )}
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label htmlFor="fund_pool_usd" className="block text-xs text-white/60 mb-1">
+                    Amount (USDC)
+                  </label>
+                  <input
+                    id="fund_pool_usd"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={fundPoolUsd}
+                    onChange={(e) => setFundPoolUsd(e.target.value)}
+                    className="w-40 px-3 py-2 rounded-lg bg-[#011112] border border-[#0E282A] text-white text-sm"
+                    placeholder="e.g. 50"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={
+                    !fundPoolReady ||
+                    fundPoolPending ||
+                    !walletAddress ||
+                    chainIdToBackendChain(walletChainId) !== String(tournament.chain || "").toUpperCase()
+                  }
+                  onClick={async () => {
+                    const usd = parseFloat(fundPoolUsd);
+                    if (Number.isNaN(usd) || usd <= 0) {
+                      setActionError("Enter a USDC amount greater than 0");
+                      return;
+                    }
+                    setActionError(null);
+                    setActionSuccess(null);
+                    try {
+                      const wei = BigInt(Math.round(usd * 10 ** USDC_DECIMALS));
+                      await fundPrizePoolOnChain(tournament.id, wei);
+                      setActionSuccess("Prize pool deposit submitted. Wait for confirmation, then refresh.");
+                      setFundPoolUsd("");
+                    } catch (e) {
+                      setActionError((e as Error)?.message ?? "Fund failed");
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl bg-violet-500/25 border border-violet-500/50 text-violet-200 text-sm font-medium hover:bg-violet-500/35 disabled:opacity-50"
+                >
+                  {fundPoolPending ? <Loader2 className="w-4 h-4 animate-spin inline" /> : null}
+                  {fundPoolPending ? " Confirming…" : "Deposit to escrow"}
+                </button>
+              </div>
+            </section>
+          )}
 
         {/* Bracket */}
         {(tournament.status === "BRACKET_LOCKED" ||

@@ -156,7 +156,6 @@ export function usePlayerSidebar({
   const startTrade = useCallback(
     (targetPlayer: Player) => {
       if (!isNext) {
-        toast.error("Not your turn!");
         return;
       }
       setTradeModal({ open: true, target: targetPlayer });
