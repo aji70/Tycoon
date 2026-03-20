@@ -369,10 +369,14 @@ function GuestProfileViewMobile({
     setLocalBio(profile?.bio ?? '');
   }, [profile?.displayName, profile?.bio]);
 
-  const handleRedeemVoucherViaApi = useCallback(async (tokenId: bigint) => {
+  const handleRedeemVoucherViaApi = useCallback(async (tokenId: bigint, voucherOwner?: Address) => {
     try {
       setRedeemingId(tokenId);
-      await apiClient.post<ApiResponse>('/auth/redeem-voucher', { tokenId: tokenId.toString(), chain: 'CELO' });
+      await apiClient.post<ApiResponse>('/auth/redeem-voucher', {
+        tokenId: tokenId.toString(),
+        chain: 'CELO',
+        ...(voucherOwner ? { voucher_owner: voucherOwner } : {}),
+      });
       await tycBalanceLinked.refetch?.();
       await tycBalanceSmart.refetch?.();
       toast.success('Voucher redeemed successfully!');
@@ -802,7 +806,7 @@ function GuestProfileViewMobile({
                         ) : null}
                         <button
                           type="button"
-                          onClick={() => handleRedeemVoucherViaApi(voucher.tokenId)}
+                          onClick={() => handleRedeemVoucherViaApi(voucher.tokenId, voucher.heldBy)}
                           disabled={redeemingId === voucher.tokenId}
                           className="w-full py-2 rounded-lg font-medium text-xs bg-gradient-to-r from-amber-600 to-orange-600 disabled:opacity-50 flex items-center justify-center gap-1 text-black"
                         >
