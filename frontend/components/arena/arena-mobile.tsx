@@ -53,6 +53,7 @@ interface Agent {
   win_rate_pct?: number | null;
   is_public?: boolean;
   status?: string;
+  erc8004_agent_id?: string | null;
 }
 
 interface LeaderboardEntry extends Agent {
@@ -573,6 +574,9 @@ export default function ArenaMobile() {
                       </span>
                     </div>
                   </div>
+                  <p className={styles.creator} style={{ marginTop: 6 }}>
+                    ERC-8004: {agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "Not linked"}
+                  </p>
 
                   <button
                     className={agent.is_public ? styles.btnSecondary : styles.btnPrimary}
