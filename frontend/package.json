@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build",
+    "build:low-mem": "NEXT_TELEMETRY_DISABLED=1 NEXT_BUILD_CPUS=1 SENTRY_DISABLE_SOURCEMAP_UPLOAD=1 next build",
     "start": "next start",
     "lint": "next lint"
   },
