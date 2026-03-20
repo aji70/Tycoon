@@ -42,9 +42,7 @@ interface Agent {
   name: string;
   username: string;
   elo_rating?: number;
-  elo_peak?: number;
   xp?: number;
-  peak_xp?: number;
   arena_wins: number;
   arena_losses: number;
   arena_draws: number;
@@ -65,14 +63,6 @@ const ARENA_ELO_BASELINE = 1000;
 function xpOf(a: Agent) {
   if (a.xp != null && Number.isFinite(Number(a.xp))) return Math.max(0, Number(a.xp));
   const raw = Number(a.elo_rating);
-  if (Number.isFinite(raw)) return Math.max(0, raw - ARENA_ELO_BASELINE);
-  return 0;
-}
-
-function peakXpOf(a: Agent) {
-  if (a.peak_xp != null && Number.isFinite(Number(a.peak_xp)))
-    return Math.max(0, Number(a.peak_xp));
-  const raw = Number(a.elo_peak);
   if (Number.isFinite(raw)) return Math.max(0, raw - ARENA_ELO_BASELINE);
   return 0;
 }
@@ -548,9 +538,6 @@ export default function ArenaMobile() {
               <div className={styles.agentDiscoverMeta}>
                 <span>
                   XP <strong>{xpOf(agent)}</strong>
-                </span>
-                <span>
-                  Peak <strong>{peakXpOf(agent)}</strong>
                 </span>
                 <span>
                   8004 <strong>{agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "—"}</strong>
