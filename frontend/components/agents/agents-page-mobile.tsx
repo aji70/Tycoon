@@ -495,16 +495,23 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
       toast.error("Switch to Celo to register on ERC-8004");
       return;
     }
-    if (a.erc8004_agent_id) {
-      toast.info("Already registered on Celo");
-      return;
+    const existingId = a.erc8004_agent_id ? String(a.erc8004_agent_id).trim() : "";
+    if (existingId) {
+      const ok =
+        typeof window !== "undefined" &&
+        window.confirm(
+          `Replace ERC-8004 ID ${existingId} with a newly minted identity? The old link will be overwritten.`
+        );
+      if (!ok) return;
     }
     setRegisteringErc8004Id(a.id);
     try {
       const newAgentId = await registerOnCelo(a.id);
       if (newAgentId != null) {
         await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${a.id}`, { erc8004_agent_id: String(newAgentId) });
-        toast.success(`Registered on Celo. ID: ${newAgentId}`);
+        toast.success(
+          existingId ? `Re-linked on Celo. New ID: ${newAgentId}` : `Registered on Celo. ID: ${newAgentId}`
+        );
         await fetchAgents();
       } else {
         toast.error("Registration succeeded but could not read agent ID");
@@ -526,8 +533,12 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
       return;
     }
     if (formErc8004Id.trim()) {
-      toast.info("Clear the ID field first if you want to create a new one on Celo.");
-      return;
+      const ok =
+        typeof window !== "undefined" &&
+        window.confirm(
+          `Replace ID ${formErc8004Id.trim()} by minting a new ERC-8004 NFT?`
+        );
+      if (!ok) return;
     }
     setRegisteringErc8004Id(editingId);
     try {
@@ -777,9 +788,12 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
                       )}
                     </p>
                     {a.erc8004_agent_id && (
-                      <p className="text-xs text-purple-400 flex items-center gap-1 flex-wrap">
-                        <span>ERC-8004: {a.erc8004_agent_id}</span>
-                        <a href="https://www.8004scan.io/agents" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Reputation</a>
+                      <p className="text-xs text-purple-400 flex flex-col gap-0.5">
+                        <span className="flex items-center gap-1 flex-wrap">
+                          <span>ERC-8004: {a.erc8004_agent_id}</span>
+                          <a href="https://www.8004scan.io/agents" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Reputation</a>
+                        </span>
+                        <span className="text-[10px] text-gray-500">Linked: display XP bonus + ~12% more activity XP.</span>
                       </p>
                     )}
                     <p className={`text-[10px] mt-0.5 font-medium ${a.is_public ? "text-emerald-400/90" : "text-gray-500"}`}>
@@ -816,20 +830,20 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
                     >
                       <Trophy className="w-3.5 h-3.5" />
                     </button>
-                    {!a.erc8004_agent_id && isCelo && (
+                    {isCelo && (
                       <button
                         type="button"
                         onClick={() => handleRegisterOnCelo(a)}
                         disabled={isRegisteringErc8004 && registeringErc8004Id === a.id}
                         className="flex items-center gap-1 px-2 py-1 rounded border border-purple-500/40 text-purple-400 text-xs"
-                        title="Register on Celo via browser wallet (EOA). You pay gas."
+                        title={a.erc8004_agent_id ? "Re-link: mint new ID (confirm)" : "Register on Celo (EOA). You pay gas."}
                       >
                         {isRegisteringErc8004 && registeringErc8004Id === a.id ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
                         ) : (
                           <ShieldCheck className="w-3 h-3" />
                         )}
-                        Celo
+                        {a.erc8004_agent_id ? "Relink" : "Celo"}
                       </button>
                     )}
                     <button
@@ -1154,7 +1168,7 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
                       className="shrink-0 px-3 py-2.5 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/20 text-emerald-300 font-orbitron font-semibold text-xs flex items-center gap-1"
                     >
                       {isRegisteringErc8004 && registeringErc8004Id === editingId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                      Create on Celo
+                      {formErc8004Id.trim() ? "Mint (replace)" : "Create on Celo"}
                     </button>
                     {!(erc8004LoadState === "has_none" && !formErc8004Id.trim()) && (
                     <button

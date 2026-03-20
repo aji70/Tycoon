@@ -22,7 +22,22 @@ export const ACTIVITY_XP = Object.freeze({
   TOURNAMENT_MATCH_PLAYED: 8,
   TOURNAMENT_MATCH_WON: 20,
   TOURNAMENT_CHAMPION: 50,
+  /** One-time arena XP when an agent first links an ERC-8004 on-chain identity (PATCH erc8004_agent_id). */
+  ERC8004_LINKED: 40,
 });
+
+/** Extra XP shown in Arena Discover / leaderboards for agents with ERC-8004 linked (display + matchmaking visibility; raw elo unchanged). */
+export const ERC8004_ARENA_DISPLAY_XP_BONUS = 15;
+
+/**
+ * Multiplier on all activity-based XP (tournament, trades, turns, property actions, arena batch starts, etc.)
+ * when the agent has an ERC-8004 ID linked. Does not apply to head-to-head arena Elo from `recordArenaResult`.
+ */
+export const ERC8004_ACTIVITY_XP_MULTIPLIER = 1.12;
+
+function agentHasErc8004Linked(row) {
+  return row?.erc8004_agent_id != null && String(row.erc8004_agent_id).trim() !== "";
+}
 
 /**
  * Calculate expected win probability for player A given both ratings.
@@ -237,8 +252,11 @@ export function enrichAgentForArenaUi(agent) {
   const rawPeak = Number(agent.elo_peak);
   const eloSafe = Number.isFinite(rawElo) ? rawElo : ARENA_ELO_BASELINE;
   const peakSafe = Number.isFinite(rawPeak) ? rawPeak : ARENA_ELO_BASELINE;
-  const xp = Math.max(0, eloSafe - ARENA_ELO_BASELINE);
-  const peak_xp = Math.max(0, peakSafe - ARENA_ELO_BASELINE);
+  const hasErc8004 =
+    agent.erc8004_agent_id != null && String(agent.erc8004_agent_id).trim() !== "";
+  const idBonus = hasErc8004 ? ERC8004_ARENA_DISPLAY_XP_BONUS : 0;
+  const xp = Math.max(0, eloSafe - ARENA_ELO_BASELINE) + idBonus;
+  const peak_xp = Math.max(0, peakSafe - ARENA_ELO_BASELINE) + idBonus;
   return {
     ...agent,
     xp,
@@ -271,20 +289,29 @@ async function resolveUserAgentIdForGameUser(gameId, userId, trxOrDb = db) {
 
 export async function awardActivityXpByAgentId(userAgentId, points, reason = "activity", trxOrDb = db) {
   const agentId = Number(userAgentId);
-  const delta = Math.max(0, Number(points) || 0);
-  if (!agentId || delta <= 0) return false;
+  const baseDelta = Math.max(0, Number(points) || 0);
+  if (!agentId || baseDelta <= 0) return false;
 
-  const row = await trxOrDb("user_agents").where({ id: agentId }).select("id", "elo_rating", "elo_peak").first();
+  const row = await trxOrDb("user_agents")
+    .where({ id: agentId })
+    .select("id", "elo_rating", "elo_peak", "erc8004_agent_id")
+    .first();
   if (!row) return false;
+  const appliedDelta = agentHasErc8004Linked(row)
+    ? Math.ceil(baseDelta * ERC8004_ACTIVITY_XP_MULTIPLIER)
+    : baseDelta;
   const current = Number(row.elo_rating) || 1000;
-  const next = current + delta;
+  const next = current + appliedDelta;
   const peak = Math.max(Number(row.elo_peak) || 1000, next);
   await trxOrDb("user_agents").where({ id: agentId }).update({
     elo_rating: next,
     elo_peak: peak,
     updated_at: trxOrDb.fn.now(),
   });
-  logger.debug({ userAgentId: agentId, points: delta, reason }, "Awarded activity XP");
+  logger.debug(
+    { userAgentId: agentId, baseDelta, appliedDelta, reason, erc8004Boost: appliedDelta > baseDelta },
+    "Awarded activity XP"
+  );
   return true;
 }
 

@@ -311,9 +311,14 @@ export default function ArenaPage() {
       alert("Switch to Celo to register this agent on ERC-8004.");
       return;
     }
-    if (agent.erc8004_agent_id) {
-      alert("This agent is already linked to an ERC-8004 ID.");
-      return;
+    const existingId = agent.erc8004_agent_id ? String(agent.erc8004_agent_id).trim() : "";
+    if (existingId) {
+      const ok =
+        typeof window !== "undefined" &&
+        window.confirm(
+          `Replace ERC-8004 ID ${existingId} with a new on-chain identity? Use this if you minted a new agent or fixed a wrong ID. The old ID will no longer be linked to this Tycoon agent.`
+        );
+      if (!ok) return;
     }
     setRegisteringErc8004Id(agent.id);
     try {
@@ -323,7 +328,11 @@ export default function ArenaPage() {
       await fetchMyAgents({ silent: true });
       if (activeTab === "discover") await fetchPublicAgents(page);
       if (activeTab === "leaderboard") await fetchLeaderboard();
-      alert(`Registered on Celo. Agent ID: ${newAgentId}`);
+      alert(
+        existingId
+          ? `Re-linked on Celo. New agent ID: ${newAgentId}`
+          : `Registered on Celo. Agent ID: ${newAgentId}`
+      );
     } catch (err) {
       alert(`Registration failed: ${(err as Error)?.message || "Unknown error"}`);
     } finally {
@@ -779,6 +788,11 @@ export default function ArenaPage() {
                               <span className={styles.label}>ERC-8004</span>
                               <span className={styles.value}>{agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "—"}</span>
                             </div>
+                            {agent.erc8004_agent_id ? (
+                              <p className={styles.challengeHint} style={{ marginTop: 4, fontSize: "0.75rem" }}>
+                                Linked agents get higher shown XP and earn more from games, tournaments, and trades.
+                              </p>
+                            ) : null}
                           </div>
                           <div className={styles.agentFooter}>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -789,18 +803,25 @@ export default function ArenaPage() {
                               >
                                 {agent.is_public ? "Hide from Discover" : "Show in Discover"}
                               </button>
-                              {!agent.erc8004_agent_id && (
-                                <button
-                                  type="button"
-                                  className={styles.btnSecondary}
-                                  onClick={() => handleRegisterOnCelo(agent)}
-                                  disabled={isRegisteringErc8004 && registeringErc8004Id === agent.id}
-                                >
-                                  {isRegisteringErc8004 && registeringErc8004Id === agent.id
-                                    ? "Registering…"
+                              <button
+                                type="button"
+                                className={styles.btnSecondary}
+                                onClick={() => handleRegisterOnCelo(agent)}
+                                disabled={!isCelo || (isRegisteringErc8004 && registeringErc8004Id === agent.id)}
+                                title={
+                                  isCelo
+                                    ? agent.erc8004_agent_id
+                                      ? "Mint a new ERC-8004 ID and replace the stored link"
+                                      : "Register on ERC-8004 with your browser wallet"
+                                    : "Switch to Celo"
+                                }
+                              >
+                                {isRegisteringErc8004 && registeringErc8004Id === agent.id
+                                  ? "Registering…"
+                                  : agent.erc8004_agent_id
+                                    ? "Re-link on Celo (wallet)"
                                     : "Register on Celo (browser wallet)"}
-                                </button>
-                              )}
+                              </button>
                             </div>
                           </div>
                         </div>

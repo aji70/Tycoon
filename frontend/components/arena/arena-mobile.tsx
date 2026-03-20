@@ -294,9 +294,14 @@ export default function ArenaMobile() {
       alert("Switch to Celo for ERC-8004.");
       return;
     }
-    if (agent.erc8004_agent_id) {
-      alert("Already registered.");
-      return;
+    const existingId = agent.erc8004_agent_id ? String(agent.erc8004_agent_id).trim() : "";
+    if (existingId) {
+      const ok =
+        typeof window !== "undefined" &&
+        window.confirm(
+          `Replace ERC-8004 ID ${existingId} with a new on-chain identity? The old ID will no longer be linked to this Tycoon agent.`
+        );
+      if (!ok) return;
     }
     setRegisteringErc8004Id(agent.id);
     try {
@@ -306,7 +311,7 @@ export default function ArenaMobile() {
       await fetchMyAgents({ silent: true });
       if (activeTab === "discover") await fetchPublicAgents(page);
       if (activeTab === "leaderboard") await fetchLeaderboard();
-      alert(`Celo ID: ${newAgentId}`);
+      alert(existingId ? `Re-linked. New ID: ${newAgentId}` : `Celo ID: ${newAgentId}`);
     } catch (err) {
       alert(`Failed: ${(err as Error)?.message || "Unknown"}`);
     } finally {
@@ -710,6 +715,11 @@ export default function ArenaMobile() {
                         <p className={styles.creator} style={{ marginTop: 6 }}>
                           ERC-8004: {agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "—"}
                         </p>
+                        {agent.erc8004_agent_id ? (
+                          <p className={styles.challengeHint} style={{ fontSize: "0.7rem", marginTop: 4 }}>
+                            Linked: higher shown XP + extra activity XP from play.
+                          </p>
+                        ) : null}
                         <button
                           type="button"
                           className={agent.is_public ? styles.btnSecondary : styles.btnPrimary}
@@ -718,19 +728,19 @@ export default function ArenaMobile() {
                         >
                           {agent.is_public ? "Hide from Discover" : "Show in Discover"}
                         </button>
-                        {!agent.erc8004_agent_id && (
-                          <button
-                            type="button"
-                            className={styles.btnSecondary}
-                            onClick={() => handleRegisterOnCelo(agent)}
-                            style={{ width: "100%", marginTop: 8 }}
-                            disabled={isRegisteringErc8004 && registeringErc8004Id === agent.id}
-                          >
-                            {isRegisteringErc8004 && registeringErc8004Id === agent.id
-                              ? "Registering…"
+                        <button
+                          type="button"
+                          className={styles.btnSecondary}
+                          onClick={() => handleRegisterOnCelo(agent)}
+                          style={{ width: "100%", marginTop: 8 }}
+                          disabled={!isCelo || (isRegisteringErc8004 && registeringErc8004Id === agent.id)}
+                        >
+                          {isRegisteringErc8004 && registeringErc8004Id === agent.id
+                            ? "Registering…"
+                            : agent.erc8004_agent_id
+                              ? "Re-link on Celo (wallet)"
                               : "Register on Celo (browser wallet)"}
-                          </button>
-                        )}
+                        </button>
                       </div>
                     ))
                   ) : (

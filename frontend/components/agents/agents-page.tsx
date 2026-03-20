@@ -585,16 +585,23 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
       toast.error("Switch to Celo network to register on ERC-8004");
       return;
     }
-    if (a.erc8004_agent_id) {
-      toast.info("Already registered on Celo");
-      return;
+    const existingId = a.erc8004_agent_id ? String(a.erc8004_agent_id).trim() : "";
+    if (existingId) {
+      const ok =
+        typeof window !== "undefined" &&
+        window.confirm(
+          `Replace ERC-8004 ID ${existingId} with a newly minted identity? Use this for Tycoon-hosted agents if you need a new on-chain ID. The old link will be overwritten.`
+        );
+      if (!ok) return;
     }
     setRegisteringErc8004Id(a.id);
     try {
       const newAgentId = await registerOnCelo(a.id);
       if (newAgentId != null) {
         await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${a.id}`, { erc8004_agent_id: String(newAgentId) });
-        toast.success(`Registered on Celo. Agent ID: ${newAgentId}`);
+        toast.success(
+          existingId ? `Re-linked on Celo. New agent ID: ${newAgentId}` : `Registered on Celo. Agent ID: ${newAgentId}`
+        );
         await fetchAgents();
       } else {
         toast.error("Registration succeeded but could not read agent ID");
@@ -618,8 +625,12 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
       return;
     }
     if (formErc8004Id.trim()) {
-      toast.info("Clear the ID field first if you want to create a new one on Celo.");
-      return;
+      const ok =
+        typeof window !== "undefined" &&
+        window.confirm(
+          `You already have ID ${formErc8004Id.trim()} in the field. Mint a new ERC-8004 NFT anyway and replace it?`
+        );
+      if (!ok) return;
     }
     setRegisteringErc8004Id(editingId);
     try {
@@ -825,16 +836,21 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
                       <p className="text-xs text-cyan-400/80 mt-0.5">Uses saved key (e.g. Claude)</p>
                     )}
                     {a.erc8004_agent_id && (
-                      <p className="text-xs text-purple-400 mt-1 flex items-center gap-1.5 flex-wrap">
-                        <span>ERC-8004: {a.erc8004_agent_id}</span>
-                        <a
-                          href={`https://www.8004scan.io/agents`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-cyan-400 hover:underline"
-                        >
-                          View reputation
-                        </a>
+                      <p className="text-xs text-purple-400 mt-1 flex flex-col gap-0.5">
+                        <span className="flex items-center gap-1.5 flex-wrap">
+                          <span>ERC-8004: {a.erc8004_agent_id}</span>
+                          <a
+                            href="https://www.8004scan.io/agents"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-cyan-400 hover:underline"
+                          >
+                            View reputation
+                          </a>
+                        </span>
+                        <span className="text-[10px] text-gray-500">
+                          Linked: +Arena XP display bonus and ~12% more activity XP (games, tournaments, trades, turns).
+                        </span>
                       </p>
                     )}
                   </div>
@@ -872,20 +888,24 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
                       <Trophy className="w-3.5 h-3.5" />
                       Tournaments
                     </button>
-                    {!a.erc8004_agent_id && isCelo && (
+                    {isCelo && (
                       <button
                         type="button"
                         onClick={() => handleRegisterOnCelo(a)}
                         disabled={isRegisteringErc8004 && registeringErc8004Id === a.id}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-purple-500/40 text-purple-400 hover:bg-purple-500/10 transition disabled:opacity-50 text-sm"
-                        title="Register on Celo via your browser wallet (MetaMask etc.). You pay gas; the NFT is owned by that EOA."
+                        title={
+                          a.erc8004_agent_id
+                            ? "Mint a new ERC-8004 ID and replace the stored link (confirm)"
+                            : "Register on Celo via your browser wallet. You pay gas."
+                        }
                       >
                         {isRegisteringErc8004 && registeringErc8004Id === a.id ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
                           <ShieldCheck className="w-3.5 h-3.5" />
                         )}
-                        Register on Celo
+                        {a.erc8004_agent_id ? "Re-link on Celo" : "Register on Celo"}
                       </button>
                     )}
                     <button
@@ -1235,7 +1255,7 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
                       className="shrink-0 px-4 py-3 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/20 text-emerald-300 font-orbitron font-semibold text-sm hover:bg-emerald-500/30 disabled:opacity-50 flex items-center gap-2"
                     >
                       {isRegisteringErc8004 && registeringErc8004Id === editingId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                      Create on Celo
+                      {formErc8004Id.trim() ? "Mint new (replace)" : "Create on Celo"}
                     </button>
                     {!(erc8004LoadState === "has_none" && !formErc8004Id.trim()) && (
                     <button
@@ -1293,7 +1313,7 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
                   <p className="text-xs text-gray-500 mt-1">
                     {erc8004LoadState === "has_none" && !formErc8004Id.trim()
                       ? "Create on Celo to mint a new ERC-8004 ID (your wallet pays gas)."
-                      : "Create on Celo to mint a new ID, or paste an existing ID and Verify ownership."}
+                      : "Create on Celo to mint a new ID, or paste an existing ID and Verify ownership. First-time link earns bonus Arena XP."}
                   </p>
                 </div>
 
