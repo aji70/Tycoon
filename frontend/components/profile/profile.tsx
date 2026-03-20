@@ -405,7 +405,10 @@ function GuestProfileView({
         toast.error(res?.data?.message || 'Failed to redeem voucher');
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to redeem voucher');
+      const e = err as { response?: { data?: { message?: string; voucher_owner?: string | null } }; message?: string };
+      const owner = e?.response?.data?.voucher_owner;
+      const msg = e?.response?.data?.message ?? e?.message ?? 'Failed to redeem voucher';
+      toast.error(owner ? `${msg} (Owner: ${owner})` : msg);
     } finally {
       setRedeemingVoucherId(null);
     }
@@ -1181,7 +1184,10 @@ export default function Profile() {
         toast.error(res?.data?.message || 'Failed to redeem voucher');
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to redeem voucher');
+      const e = err as { response?: { data?: { message?: string; voucher_owner?: string | null } }; message?: string };
+      const owner = e?.response?.data?.voucher_owner;
+      const msg = e?.response?.data?.message ?? e?.message ?? 'Failed to redeem voucher';
+      toast.error(owner ? `${msg} (Owner: ${owner})` : msg);
     } finally {
       // Keep spinner active for on-chain writes until tx receipt handler runs.
       const redeemFromSmart =

@@ -779,8 +779,10 @@ export default function ProfilePageMobile() {
       tycBalance.refetch();
       toast.success('Voucher redeemed successfully!');
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } }; message?: string };
-      toast.error(err?.response?.data?.message ?? err?.message ?? 'Failed to redeem voucher');
+      const err = e as { response?: { data?: { message?: string; voucher_owner?: string | null } }; message?: string };
+      const owner = err?.response?.data?.voucher_owner;
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to redeem voucher';
+      toast.error(owner ? `${msg} (Owner: ${owner})` : msg);
     } finally {
       setRedeemingId(null);
     }
