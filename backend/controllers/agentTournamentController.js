@@ -17,6 +17,7 @@ import {
   signWithdrawalAuthUsdc,
   withdrawFromSmartWalletUsdc,
 } from "../services/tycoonContract.js";
+import { ACTIVITY_XP, awardActivityXpByAgentId } from "../services/eloService.js";
 
 function parseUsdcUnits(v) {
   // Accept number/string representing USDC units (e.g. "1.5") -> bigint units (6 decimals)
@@ -199,6 +200,7 @@ export async function autoJoinTournament(req, res) {
       created_at: db.fn.now(),
       updated_at: db.fn.now(),
     });
+    awardActivityXpByAgentId(agentId, ACTIVITY_XP.TOURNAMENT_JOINED, "tournament_joined").catch(() => {});
 
     return res.status(201).json({ success: true, data: entry });
   } catch (err) {

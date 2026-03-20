@@ -12,6 +12,7 @@ import {
 import logger from "../config/logger.js";
 import { invalidateGameById } from "../utils/gameCache.js";
 import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
+import { ACTIVITY_XP, awardActivityXpByGameUser } from "../services/eloService.js";
 
 const gameTradeController = {
   async create(req, res) {
@@ -103,6 +104,12 @@ const gameTradeController = {
 
             if (fromUserId) await incrementTradesInitiated(fromUserId);
             if (toUserId) await incrementTradesAccepted(toUserId);
+            if (trade?.game_id && fromUserId) {
+              awardActivityXpByGameUser(trade.game_id, fromUserId, ACTIVITY_XP.TRADE_COMPLETED, "trade_completed").catch(() => {});
+            }
+            if (trade?.game_id && toUserId) {
+              awardActivityXpByGameUser(trade.game_id, toUserId, ACTIVITY_XP.TRADE_COMPLETED, "trade_completed").catch(() => {});
+            }
 
             const propertyItems = items.filter((i) => i.type === "PROPERTY" || i.property_id);
             for (const item of propertyItems) {

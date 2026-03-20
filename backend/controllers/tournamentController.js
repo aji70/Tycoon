@@ -13,6 +13,7 @@ import UserAgent from "../models/UserAgent.js";
 import { getChainConfig } from "../config/chains.js";
 import crypto from "crypto";
 import { signWithdrawalAuthUsdc, withdrawFromSmartWalletUsdc } from "../services/tycoonContract.js";
+import { ACTIVITY_XP, awardActivityXpByAgentId } from "../services/eloService.js";
 
 export async function list(req, res) {
   try {
@@ -199,6 +200,7 @@ export async function autoFillAgents(req, res) {
           created_at: db.fn.now(),
           updated_at: db.fn.now(),
         });
+        awardActivityXpByAgentId(Number(p.user_agent_id), ACTIVITY_XP.TOURNAMENT_JOINED, "tournament_joined").catch(() => {});
 
         added += 1;
       } catch (err) {

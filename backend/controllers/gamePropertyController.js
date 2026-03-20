@@ -11,6 +11,7 @@ import {
 import { invalidateGameById } from "../utils/gameCache.js";
 import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";
+import { ACTIVITY_XP, awardActivityXpByGameUser } from "../services/eloService.js";
 
 const gamePropertyController = {
   async create(req, res) {
@@ -248,6 +249,7 @@ const gamePropertyController = {
 
       // Stats: record property purchase (bank)
       recordPropertyPurchase(user_id, property_id, game.id, "bank").catch(() => {});
+      awardActivityXpByGameUser(game.id, user_id, ACTIVITY_XP.PROPERTY_BOUGHT, "property_bought").catch(() => {});
 
       // On-chain: call transferPropertyOwnership (seller=Bank when buying from bank). Contract must have "Bank" registered.
       const chainForBuy = User.normalizeChain(game.chain || "CELO");
@@ -498,6 +500,7 @@ const gamePropertyController = {
       const ioDev = req.app.get("io");
       if (ioDev && game.id) await emitGameUpdateByGameId(ioDev, game.id);
       await invalidateGameById(game.id);
+      awardActivityXpByGameUser(game.id, user_id, ACTIVITY_XP.HOUSE_BUILT, "house_built").catch(() => {});
 
       return res
         .status(200)
@@ -982,6 +985,7 @@ const gamePropertyController = {
       if (sellerUsername) {
         incrementPropertiesSold(player.user_id).catch(() => {});
       }
+      awardActivityXpByGameUser(game.id, player.user_id, ACTIVITY_XP.PROPERTY_SOLD, "property_sold").catch(() => {});
 
       const chainForSell = User.normalizeChain(game.chain || "CELO");
       if (isContractConfigured(chainForSell) && sellerUsername) {

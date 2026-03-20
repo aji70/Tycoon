@@ -14,6 +14,7 @@ import { removePlayerFromGame, exitGameByBackend, endAIGameByBackend, isContract
 import { finishGameByNetWorthAndNotify } from "./gameController.js";
 import { getActiveByGameId } from "./auctionController.js";
 import { recordEvent } from "../services/analytics.js";
+import { ACTIVITY_XP, awardActivityXpByGameUser } from "../services/eloService.js";
 
 /** Pass to removePlayerFromGame so contract uses on-chain turnsPlayed (voluntary exit behavior). */
 const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
@@ -1486,6 +1487,9 @@ const gamePlayerController = {
         await trx.commit();
         await notifyGameUpdate(req, game_id);
         await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
+        if (is_double) {
+          awardActivityXpByGameUser(game_id, user_id, ACTIVITY_XP.ROLLED_DOUBLE, "rolled_double").catch(() => {});
+        }
         return res.json({
           success: true,
           message: "You've been sent to jail!",
@@ -1514,6 +1518,9 @@ const gamePlayerController = {
         await trx.commit();
         await notifyGameUpdate(req, game_id);
         await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
+        if (is_double) {
+          awardActivityXpByGameUser(game_id, user_id, ACTIVITY_XP.ROLLED_DOUBLE, "rolled_double").catch(() => {});
+        }
         return res.json({
           success: true,
           still_in_jail: true,
@@ -1622,6 +1629,9 @@ const gamePlayerController = {
         await trx.commit();
         await notifyGameUpdate(req, game_id);
         await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
+        if (is_double) {
+          awardActivityXpByGameUser(game_id, user_id, ACTIVITY_XP.ROLLED_DOUBLE, "rolled_double").catch(() => {});
+        }
         return res.json({
           success: true,
           message: "Position updated successfully.",
@@ -1656,6 +1666,9 @@ const gamePlayerController = {
         await trx.commit();
         await notifyGameUpdate(req, game_id);
         await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
+        if (is_double) {
+          awardActivityXpByGameUser(game_id, user_id, ACTIVITY_XP.ROLLED_DOUBLE, "rolled_double").catch(() => {});
+        }
         return res.json({
           success: true,
           message: "Still in jail. Try again next turn.",
@@ -2352,6 +2365,9 @@ const gamePlayerController = {
 
       await trx.commit();
       await notifyGameUpdate(req, game_id);
+      if (!timed_out) {
+        awardActivityXpByGameUser(game_id, user_id, ACTIVITY_XP.TURN_COMPLETED, "turn_completed").catch(() => {});
+      }
       res.json({
         success: true,
         message: "Turn ended. Next player set.",
