@@ -403,8 +403,17 @@ export default function GameShopMobile() {
 
   useEffect(() => {
     setBundles(computedBundles);
-    apiClient.get<{ ngn_available?: boolean }>('shop/bundles').then((r) => {
-      if (typeof r?.data?.ngn_available === 'boolean') setNgnAvailable(r.data.ngn_available);
+    apiClient.get<{ ngn_available?: boolean; data?: { ngn_available?: boolean } }>('shop/bundles').then((r) => {
+      const body = r.data;
+      const ngn =
+        body && typeof body === 'object'
+          ? typeof body.ngn_available === 'boolean'
+            ? body.ngn_available
+            : typeof body.data?.ngn_available === 'boolean'
+              ? body.data.ngn_available
+              : undefined
+          : undefined;
+      if (typeof ngn === 'boolean') setNgnAvailable(ngn);
     }).catch(() => {});
   }, [computedBundles]);
 
