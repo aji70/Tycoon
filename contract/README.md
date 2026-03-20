@@ -174,7 +174,7 @@ See **TOURNAMENT_ESCROW.md** for deployment and backend integration.
 4. Call `rewardSystem.setBackendMinter(address(tycoon))` so Tycoon can mint on register, AI end, and placement.
 5. Call `tycoon.setBackendGameController(backendWallet)` for vote-out, setTurnCount, and property stats.
 6. (Optional) `tycoon.setMinTurnsForPerks(20)` and `tycoon.setMinStake(...)`.
-7. **Tournament escrow:** Deploy **TycoonTournamentEscrow**(usdcAddress, owner). Call `setBackend(backendWallet)` so backend can create/lock/finalize/cancel.
+7. **Tournament escrow:** Deploy **TycoonTournamentEscrow**(usdcAddress, owner). Call `setBackend(backendWallet)` where **`backendWallet` is the address of `BACKEND_GAME_CONTROLLER_PRIVATE_KEY`** (same hot wallet as `tycoon.setBackendGameController`). If `backend` stays `0x0` or points at another key, `createTournament` reverts with **Not backend or owner**. From `contract/`: put `RPC_URL`, `PRIVATE_KEY` (escrow owner), `TOURNAMENT_ESCROW_ADDRESS`, and `BACKEND_GAME_CONTROLLER_PRIVATE_KEY` in `.env`, then run **`./run-set-tournament-escrow-backend.sh`** (optional `BACKEND_ADDRESS` to override). Use `DRY_RUN=1` to print addresses only.
 8. **TycoonUserRegistry (wallet-first signup):** Deploy and configure the user registry (smart wallets, wallet-first signup, buy/burn-with-auth). From `contract/` run:
    ```bash
    ./run-deploy-user-registry.sh

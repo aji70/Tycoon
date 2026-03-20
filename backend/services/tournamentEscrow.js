@@ -10,6 +10,23 @@ import logger from "../config/logger.js";
 
 const CHAIN_NAMES = { CELO: "celo", POLYGON: "polygon", BASE: "base" };
 
+const ESCROW_READ_ABI = [
+  {
+    type: "function",
+    name: "backend",
+    inputs: [],
+    outputs: [{ type: "address", internalType: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "owner",
+    inputs: [],
+    outputs: [{ type: "address", internalType: "address" }],
+    stateMutability: "view",
+  },
+];
+
 const ESCROW_ABI = [
   {
     type: "function",
@@ -34,12 +51,54 @@ const ESCROW_ABI = [
   },
 ];
 
+const ZERO = "0x0000000000000000000000000000000000000000";
+
+/**
+ * Ensure the wallet used for escrow txs is allowed by TycoonTournamentEscrow (backend or owner).
+ * Avoids opaque "Not backend or owner" reverts from estimateGas.
+ */
+async function assertEscrowSignerAuthorized(chain) {
+  const cfg = getChainConfig(chain);
+  const pkRaw = cfg.tournamentEscrowSignerPrivateKey ?? cfg.privateKey;
+  if (!cfg.rpcUrl || !cfg.tournamentEscrowAddress || !pkRaw) return;
+
+  const pk = String(pkRaw).startsWith("0x") ? pkRaw : `0x${pkRaw}`;
+  const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+  const network = new Network(networkName, cfg.chainId);
+  const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+  const wallet = new Wallet(pk, provider);
+  const read = new Contract(cfg.tournamentEscrowAddress, ESCROW_READ_ABI, provider);
+
+  const [onChainBackend, onChainOwner] = await Promise.all([read.backend(), read.owner()]);
+  const me = wallet.address.toLowerCase();
+  if (me === String(onChainOwner).toLowerCase()) return;
+
+  const be = String(onChainBackend).toLowerCase();
+  if (be === ZERO) {
+    throw new Error(
+      `Tournament escrow at ${cfg.tournamentEscrowAddress} has backend unset (0x0). ` +
+        `Contract owner ${onChainOwner} must call setBackend("${wallet.address}") so the same wallet as ` +
+        `BACKEND_GAME_CONTROLLER_* (or TOURNAMENT_ESCROW_SIGNER_PRIVATE_KEY*) can create tournaments.`
+    );
+  }
+  if (me !== be) {
+    throw new Error(
+      `Tournament escrow signer is ${wallet.address} but on-chain backend is ${onChainBackend}. ` +
+        `Either: (1) as owner ${onChainOwner}, call setBackend("${wallet.address}") on the escrow, or ` +
+        `(2) set TOURNAMENT_ESCROW_SIGNER_PRIVATE_KEY* to the private key for ${onChainBackend}.`
+    );
+  }
+}
+
 function getEscrowContract(chain) {
-  const { rpcUrl, privateKey, chainId, tournamentEscrowAddress, isConfigured } = getChainConfig(chain);
+  const { rpcUrl, privateKey, tournamentEscrowSignerPrivateKey, chainId, tournamentEscrowAddress, isConfigured } =
+    getChainConfig(chain);
   if (!isConfigured || !tournamentEscrowAddress) {
     return null;
   }
-  const pk = String(privateKey).startsWith("0x") ? privateKey : `0x${privateKey}`;
+  const pkRaw = tournamentEscrowSignerPrivateKey ?? privateKey;
+  if (!pkRaw) return null;
+  const pk = String(pkRaw).startsWith("0x") ? pkRaw : `0x${pkRaw}`;
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
   const network = new Network(networkName, chainId);
   const provider = new JsonRpcProvider(rpcUrl, network);
@@ -52,7 +111,8 @@ function getEscrowContract(chain) {
  */
 export function isEscrowConfigured(chain) {
   const cfg = getChainConfig(chain);
-  return Boolean(cfg.isConfigured && cfg.tournamentEscrowAddress);
+  const pk = cfg.tournamentEscrowSignerPrivateKey ?? cfg.privateKey;
+  return Boolean(cfg.isConfigured && cfg.tournamentEscrowAddress && pk);
 }
 
 /**
@@ -71,6 +131,7 @@ export async function createTournamentOnChain(tournamentId, entryFeeWei, creator
     return null;
   }
   return withTxQueue(async () => {
+    await assertEscrowSignerAuthorized(chain);
     const creator = creatorAddress && creatorAddress !== "0x0" ? creatorAddress : "0x0000000000000000000000000000000000000000";
     const tx = await escrow.createTournament(BigInt(tournamentId), BigInt(entryFeeWei ?? 0), creator);
     const receipt = await tx.wait();
@@ -97,6 +158,7 @@ export async function registerForTournamentFor(tournamentId, playerAddress, chai
     return null;
   }
   return withTxQueue(async () => {
+    await assertEscrowSignerAuthorized(chain);
     const player = playerAddress && playerAddress !== "0x0" ? playerAddress : null;
     if (!player) {
       logger.warn({ tournamentId, chain }, "registerForTournamentFor: no valid player address");

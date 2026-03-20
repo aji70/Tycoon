@@ -17,7 +17,7 @@ function normalizeChainName(chain) {
 /**
  * Get config for a given chain (CELO, POLYGON, BASE).
  * @param {string} chain - Chain name or chainId (e.g. "CELO", "Celo", 42220)
- * @returns {{ rpcUrl: string | undefined, contractAddress: string | undefined, privateKey: string | undefined, chainId: number, isConfigured: boolean }}
+ * @returns {{ rpcUrl: string | undefined, contractAddress: string | undefined, privateKey: string | undefined, tournamentEscrowSignerPrivateKey: string | undefined, chainId: number, tournamentEscrowAddress: string | undefined, isConfigured: boolean, ... }}
  */
 export function getChainConfig(chain) {
   const c = normalizeChainName(chain);
@@ -26,6 +26,11 @@ export function getChainConfig(chain) {
     const rpcUrl = process.env.CELO_RPC_URL;
     const contractAddress = process.env.TYCOON_CELO_CONTRACT_ADDRESS;
     const privateKey = process.env.BACKEND_GAME_CONTROLLER_PRIVATE_KEY ?? process.env.BACKEND_GAME_CONTROLLER_CELO_PRIVATE_KEY;
+    /** Same as game controller by default; must be the address set via TycoonTournamentEscrow.setBackend (or contract owner). */
+    const tournamentEscrowSignerPrivateKey =
+      process.env.TOURNAMENT_ESCROW_SIGNER_PRIVATE_KEY_CELO ??
+      process.env.TOURNAMENT_ESCROW_SIGNER_PRIVATE_KEY ??
+      privateKey;
     const chainId = Number(process.env.CELO_CHAIN_ID) || 42220;
     const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_CELO ?? process.env.TOURNAMENT_ESCROW_CELO;
     const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_CELO ?? process.env.TYCOON_USER_REGISTRY_ADDRESS;
@@ -39,6 +44,7 @@ export function getChainConfig(chain) {
       rpcUrl,
       contractAddress,
       privateKey,
+      tournamentEscrowSignerPrivateKey,
       chainId,
       tournamentEscrowAddress: tournamentEscrowAddress || undefined,
       userRegistryAddress: userRegistryAddress || undefined,
@@ -53,6 +59,10 @@ export function getChainConfig(chain) {
     const rpcUrl = process.env.POLYGON_RPC_URL;
     const contractAddress = process.env.TYCOON_POLYGON_CONTRACT_ADDRESS;
     const privateKey = process.env.BACKEND_GAME_CONTROLLER_POLYGON_PRIVATE_KEY ?? process.env.BACKEND_GAME_CONTROLLER_PRIVATE_KEY;
+    const tournamentEscrowSignerPrivateKey =
+      process.env.TOURNAMENT_ESCROW_SIGNER_PRIVATE_KEY_POLYGON ??
+      process.env.TOURNAMENT_ESCROW_SIGNER_PRIVATE_KEY ??
+      privateKey;
     const chainId = Number(process.env.POLYGON_CHAIN_ID) || 137;
     const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_POLYGON ?? process.env.TOURNAMENT_ESCROW_POLYGON;
     const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_POLYGON;
@@ -62,6 +72,7 @@ export function getChainConfig(chain) {
       rpcUrl,
       contractAddress,
       privateKey,
+      tournamentEscrowSignerPrivateKey,
       chainId,
       tournamentEscrowAddress: tournamentEscrowAddress || undefined,
       userRegistryAddress: userRegistryAddress || undefined,
@@ -75,6 +86,10 @@ export function getChainConfig(chain) {
     const rpcUrl = process.env.BASE_RPC_URL;
     const contractAddress = process.env.TYCOON_BASE_CONTRACT_ADDRESS;
     const privateKey = process.env.BACKEND_GAME_CONTROLLER_BASE_PRIVATE_KEY ?? process.env.BACKEND_GAME_CONTROLLER_PRIVATE_KEY;
+    const tournamentEscrowSignerPrivateKey =
+      process.env.TOURNAMENT_ESCROW_SIGNER_PRIVATE_KEY_BASE ??
+      process.env.TOURNAMENT_ESCROW_SIGNER_PRIVATE_KEY ??
+      privateKey;
     const chainId = Number(process.env.BASE_CHAIN_ID) || 8453;
     const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_BASE ?? process.env.TOURNAMENT_ESCROW_BASE;
     const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_BASE;
@@ -84,6 +99,7 @@ export function getChainConfig(chain) {
       rpcUrl,
       contractAddress,
       privateKey,
+      tournamentEscrowSignerPrivateKey,
       chainId,
       tournamentEscrowAddress: tournamentEscrowAddress || undefined,
       userRegistryAddress: userRegistryAddress || undefined,
@@ -97,6 +113,7 @@ export function getChainConfig(chain) {
     rpcUrl: undefined,
     contractAddress: undefined,
     privateKey: undefined,
+    tournamentEscrowSignerPrivateKey: undefined,
     chainId: 0,
     tournamentEscrowAddress: undefined,
     userRegistryAddress: undefined,

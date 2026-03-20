@@ -14,6 +14,7 @@ import { getChainConfig } from "../config/chains.js";
 import crypto from "crypto";
 import { signWithdrawalAuthUsdc, withdrawFromSmartWalletUsdc } from "../services/tycoonContract.js";
 import { ACTIVITY_XP, awardActivityXpByAgentId } from "../services/eloService.js";
+import { listAgentSmartWalletCandidates } from "../services/agentTournamentFreeAgents.js";
 
 export async function list(req, res) {
   try {
@@ -97,10 +98,10 @@ export async function register(req, res) {
 /**
  * POST /tournaments/:id/auto-fill-agents
  * Creator/admin convenience: auto-register eligible "bot agents" into the tournament (up to desired_count).
- * Eligibility:
- * - agent_tournament_permissions.enabled = true
- * - permission chain matches tournament chain (or null)
- * - max_entry_fee_usdc >= tournament.entry_fee_wei
+ * Eligibility (paid entry fee > 0):
+ * - agent_tournament_permissions.enabled = true, chain matches (or null), max_entry_fee_usdc >= entry fee
+ * Eligibility (free tournament, entry fee 0):
+ * - any user with a smart wallet and at least one agent — no tournament spending permission required
  * - one entry per user (tournament service enforces)
  */
 export async function autoFillAgents(req, res) {
@@ -134,19 +135,25 @@ export async function autoFillAgents(req, res) {
       return res.json({ success: true, added: 0, message: "Tournament already has enough entries" });
     }
 
-    const perms = await db("agent_tournament_permissions")
-      .where({ enabled: 1 })
-      .andWhere((qb) => qb.whereNull("chain").orWhere("chain", chain))
-      .select("user_id", "user_agent_id", "max_entry_fee_usdc", "daily_cap_usdc")
-      .orderBy("updated_at", "desc");
+    let perms = [];
+    let candidates = [];
 
-    // One agent per user (tournament limits one entry per user/address).
-    const permByUser = new Map();
-    for (const p of perms || []) {
-      const uid = Number(p.user_id);
-      if (!permByUser.has(uid)) permByUser.set(uid, p);
+    if (entryFeeUnits > 0n) {
+      perms = await db("agent_tournament_permissions")
+        .where({ enabled: 1 })
+        .andWhere((qb) => qb.whereNull("chain").orWhere("chain", chain))
+        .select("user_id", "user_agent_id", "max_entry_fee_usdc", "daily_cap_usdc")
+        .orderBy("updated_at", "desc");
+
+      const permByUser = new Map();
+      for (const p of perms || []) {
+        const uid = Number(p.user_id);
+        if (!permByUser.has(uid)) permByUser.set(uid, p);
+      }
+      candidates = Array.from(permByUser.values()).filter((p) => BigInt(p.max_entry_fee_usdc ?? "0") >= entryFeeUnits);
+    } else {
+      candidates = await listAgentSmartWalletCandidates();
     }
-    let candidates = Array.from(permByUser.values()).filter((p) => BigInt(p.max_entry_fee_usdc ?? "0") >= entryFeeUnits);
 
     if (preferredAgentIds.length > 0) {
       const ownedAgents = await db("user_agents")
@@ -154,22 +161,46 @@ export async function autoFillAgents(req, res) {
         .where("user_id", Number(tournament.creator_id))
         .select("id");
       const ownedSet = new Set((ownedAgents || []).map((a) => Number(a.id)));
-      const permByAgentId = new Map();
-      for (const p of perms || []) {
-        const aid = Number(p.user_agent_id);
-        if (!permByAgentId.has(aid)) permByAgentId.set(aid, p);
-      }
       const preferredOrdered = [];
       const preferredUsers = new Set();
-      for (const aid of preferredAgentIds) {
-        if (!ownedSet.has(aid)) continue;
-        const p = permByAgentId.get(aid);
-        if (!p) continue;
-        if (BigInt(p.max_entry_fee_usdc ?? "0") < entryFeeUnits) continue;
-        const uid = Number(p.user_id);
-        if (preferredUsers.has(uid)) continue;
-        preferredUsers.add(uid);
-        preferredOrdered.push(p);
+
+      if (entryFeeUnits > 0n) {
+        const permByAgentId = new Map();
+        for (const p of perms || []) {
+          const aid = Number(p.user_agent_id);
+          if (!permByAgentId.has(aid)) permByAgentId.set(aid, p);
+        }
+        for (const aid of preferredAgentIds) {
+          if (!ownedSet.has(aid)) continue;
+          const p = permByAgentId.get(aid);
+          if (!p) continue;
+          if (BigInt(p.max_entry_fee_usdc ?? "0") < entryFeeUnits) continue;
+          const uid = Number(p.user_id);
+          if (preferredUsers.has(uid)) continue;
+          preferredUsers.add(uid);
+          preferredOrdered.push(p);
+        }
+      } else {
+        const creatorId = Number(tournament.creator_id);
+        const creatorUser = await User.findById(creatorId);
+        const sw = String(creatorUser?.smart_wallet_address ?? "").trim();
+        const swOk =
+          sw &&
+          sw.toLowerCase() !== "0x0000000000000000000000000000000000000000";
+        if (swOk) {
+          for (const aid of preferredAgentIds) {
+            if (!ownedSet.has(aid)) continue;
+            if (preferredUsers.has(creatorId)) break;
+            preferredUsers.add(creatorId);
+            preferredOrdered.push({
+              user_id: creatorId,
+              user_agent_id: aid,
+              daily_cap_usdc: null,
+              max_entry_fee_usdc: "0",
+            });
+            break;
+          }
+        }
       }
       const rest = candidates.filter((p) => !preferredUsers.has(Number(p.user_id)));
       candidates = [...preferredOrdered, ...rest];

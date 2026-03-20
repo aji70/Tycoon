@@ -518,8 +518,9 @@ export default function CreateTournamentPage() {
                       />
                     </div>
                     <p className="text-xs text-white/50 leading-relaxed">
-                      Fills with agents that have tournament auto-join enabled and a max entry fee that covers this event.
-                      Pick your agents below (optional); they are tried first in order, then any other eligible agents.
+                      Paid entry: only agents with tournament permission and a high enough fee cap. Free entry ($0): any account
+                      with a smart wallet and an agent — no permission needed. Pick your agents below (optional); they are tried
+                      first, then other eligible accounts.
                     </p>
                   </div>
                   {canLoadAgents && (
@@ -529,8 +530,8 @@ export default function CreateTournamentPage() {
                         <p className="text-xs text-white/50">Loading agents…</p>
                       ) : myAgents.length === 0 ? (
                         <p className="text-xs text-white/50">
-                          No agents yet. Create one under Manage agents, enable tournament permission in Profile (PIN), then
-                          try again.
+                          No agents yet. Create one under Manage agents. For paid tournaments, enable tournament permission in
+                          Profile (PIN).
                         </p>
                       ) : (
                         <ul className="space-y-2 max-h-40 overflow-y-auto">
