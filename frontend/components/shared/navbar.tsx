@@ -20,7 +20,7 @@ import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 
-const PREFETCH_ROUTES = ['/game-shop', '/agents', '/profile', '/leaderboard'] as const;
+const PREFETCH_ROUTES = ['/game-shop', '/arena', '/profile', '/leaderboard'] as const;
 
 const NavBar = () => {
   const pathname = usePathname();
@@ -144,11 +144,11 @@ const NavBar = () => {
             </div>
           )}
 
-          {/* My Agents */}
+          {/* Agents → Agent Arena */}
           {isSignedIn && (
             <Link
-              href="/agents"
-              onMouseEnter={() => router.prefetch('/agents')}
+              href="/arena"
+              onMouseEnter={() => router.prefetch('/arena')}
               className="w-[90px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
             >
               <Bot className="w-[16px] h-[16px]" />

@@ -98,6 +98,16 @@
   box-shadow: 0 8px 28px rgba(0, 240, 255, 0.12);
 }
 
+button.heroLink {
+  cursor: pointer;
+  font: inherit;
+  appearance: none;
+}
+
+.myAgentsEmbed {
+  margin-top: 8px;
+}
+
 .tabBar {
   display: flex;
   flex-wrap: wrap;
@@ -378,9 +388,9 @@
 /* Agent Grid */
 .agentsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
-  margin-bottom: 40px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
 }
 
 .agentCard {
@@ -394,10 +404,101 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
 }
 
+/* Discover: compact opponent cards */
+.agentCardDiscover {
+  padding: 12px 14px;
+  border-radius: 12px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
+}
+
+.agentDiscoverTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.agentDiscoverTop h3 {
+  margin: 0;
+  color: #fff;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tierbadgeCompact {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: #0a0e12;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.agentDiscoverMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 0.72rem;
+  color: #7a939c;
+  margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.agentDiscoverMeta strong {
+  color: #7ee8ff;
+  font-weight: 700;
+}
+
+.agentDiscoverFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.agentDiscoverPick {
+  flex-shrink: 0;
+}
+
+.agentDiscoverPick .pickBtn {
+  width: auto;
+  min-width: 4.5rem;
+  padding: 0.32rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+.creatorNameCompact {
+  font-size: 0.72rem;
+  color: #6a858c;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .agentCard:hover {
   border-color: rgba(0, 240, 255, 0.45);
   box-shadow: 0 12px 40px rgba(0, 240, 255, 0.12), 0 0 0 1px rgba(0, 240, 255, 0.08);
   transform: translateY(-3px);
+}
+
+.agentCard.agentCardDiscover:hover {
+  box-shadow: 0 8px 28px rgba(0, 240, 255, 0.1);
+  transform: translateY(-2px);
 }
 
 .agentHeader {

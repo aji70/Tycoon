@@ -4,7 +4,14 @@ import React, { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
 import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2, CheckCircle2, XCircle, Trophy } from "lucide-react";
-import { apiClient } from "@/lib/api";
+import { apiClient, ApiError } from "@/lib/api";
+import {
+  mergeGameplayIntoBehaviorProfile,
+  normalizeBuildStyle,
+  normalizeBuyStyle,
+  normalizeTradeBehavior,
+  syncAgentSettingsFromSavedProfile,
+} from "@/lib/agentBehaviorProfile";
 import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
@@ -57,9 +64,9 @@ function behaviorToPrompt(name: string, profile: AgentBehaviorProfile) {
   const risk = profile.risk || "medium";
   const liquidity = profile.liquidity || "balanced";
   const focus = profile.property_focus || "balanced";
-  const trade = profile.trade_behavior || "balanced";
-  const buy = profile.buy_style || "balanced";
-  const build = profile.build_style || "balanced";
+  const trade = normalizeTradeBehavior(profile.trade_behavior);
+  const buy = normalizeBuyStyle(profile.buy_style);
+  const build = normalizeBuildStyle(profile.build_style);
   const notes = (profile.notes || "").trim();
 
   return [
@@ -109,7 +116,11 @@ type TournamentPermission = {
   chain: string | null;
 };
 
-export default function AgentsPage() {
+const ARENA_MANAGE_AGENTS_PATH = "/arena?tab=my-agents";
+
+export type AgentsPageProps = { embeddedInArena?: boolean };
+
+export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { address, isConnected } = useAccount();
@@ -137,11 +148,11 @@ export default function AgentsPage() {
     risk: "medium",
     liquidity: "balanced",
     property_focus: "balanced",
-    trade_behavior: "balanced",
-    buy_style: "balanced",
-    build_style: "balanced",
-    notes: "",
-  });
+    trade_behavior: "smart",
+      buy_style: "balanced",
+      build_style: "balanced",
+      notes: "",
+    });
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
@@ -255,11 +266,11 @@ export default function AgentsPage() {
         if (r.data?.success && r.data.fulfilled) {
           toast.success("Credits added!");
           fetchAgents();
-          router.replace("/agents", { scroll: false });
+          router.replace(embeddedInArena ? ARENA_MANAGE_AGENTS_PATH : "/agents", { scroll: false });
         }
       })
       .catch(() => {});
-  }, [fetchAgents, router, searchParams]);
+  }, [fetchAgents, router, searchParams, embeddedInArena]);
 
   // On form load: check if the connected wallet has an ERC-8004 agent on Celo; fill if yes, else show Create CTA
   React.useEffect(() => {
@@ -328,9 +339,10 @@ export default function AgentsPage() {
     setPurchasingNgn(true);
     try {
       const base = typeof window !== "undefined" ? window.location.origin : "";
+      const returnPath = embeddedInArena ? `${base}/arena?tab=my-agents` : `${base}/agents`;
       const res = await apiClient.post<{ success: boolean; link?: string; reference?: string }>(
         "/agents/hosted-credits/purchase/ngn/initialize",
-        { callback_url: `${base}/agents` }
+        { callback_url: returnPath }
       );
       if (res.data?.success && res.data.link) {
         window.location.href = res.data.link;
@@ -407,7 +419,7 @@ export default function AgentsPage() {
       risk: "medium",
       liquidity: "balanced",
       property_focus: "balanced",
-      trade_behavior: "balanced",
+      trade_behavior: "smart",
       buy_style: "balanced",
       build_style: "balanced",
       notes: "",
@@ -434,18 +446,19 @@ export default function AgentsPage() {
         risk: p.risk || "medium",
         liquidity: p.liquidity || "balanced",
         property_focus: p.property_focus || "balanced",
-        trade_behavior: p.trade_behavior || "balanced",
-        buy_style: p.buy_style || "balanced",
-        build_style: p.build_style || "balanced",
+        trade_behavior: normalizeTradeBehavior(p.trade_behavior),
+        buy_style: normalizeBuyStyle(p.buy_style),
+        build_style: normalizeBuildStyle(p.build_style),
         notes: typeof p.notes === "string" ? p.notes : "",
       });
+      syncAgentSettingsFromSavedProfile(p, updateAgentSettings);
     } else {
       setBehaviorProfile({
         goal: "win",
         risk: "medium",
         liquidity: "balanced",
         property_focus: "balanced",
-        trade_behavior: "balanced",
+        trade_behavior: "smart",
         buy_style: "balanced",
         build_style: "balanced",
         notes: "",
@@ -485,12 +498,23 @@ export default function AgentsPage() {
       }
       const existingConfig = editingId ? agents.find((x) => x.id === editingId)?.config : undefined;
       const configPayload: Record<string, unknown> = existingConfig && typeof existingConfig === "object" ? { ...existingConfig } : {};
-      const generated = behaviorToPrompt(name, behaviorProfile);
-      configPayload.behavior_profile = behaviorProfile;
+      const mergedProfile = mergeGameplayIntoBehaviorProfile(
+        { ...behaviorProfile } as Record<string, unknown>,
+        agentSettings
+      ) as unknown as AgentBehaviorProfile;
+      const generated = behaviorToPrompt(name, mergedProfile);
+      configPayload.behavior_profile = mergedProfile;
       configPayload.behavior_prompt = generated;
       // Use the generated behavior prompt as the agent "skill" every time.
       configPayload.skill = generated;
-      payload.config = Object.keys(configPayload).length > 0 ? configPayload : null;
+      let safeConfig: Record<string, unknown> | null = null;
+      try {
+        safeConfig = JSON.parse(JSON.stringify(configPayload)) as Record<string, unknown>;
+      } catch {
+        toast.error("Could not save agent settings (invalid data). Try shortening notes.");
+        return;
+      }
+      payload.config = Object.keys(safeConfig).length > 0 ? safeConfig : null;
       if (editingId) {
         await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, payload);
         toast.success("Agent updated");
@@ -501,7 +525,12 @@ export default function AgentsPage() {
       resetForm();
       await fetchAgents();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Request failed";
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String((err as Error).message)
+            : "Request failed";
       toast.error(msg);
     } finally {
       setSubmitting(false);
@@ -583,11 +612,15 @@ export default function AgentsPage() {
     }
   };
 
+  const authGateShell = embeddedInArena
+    ? "py-8 flex flex-col items-center justify-center px-4"
+    : "min-h-screen bg-settings bg-cover bg-fixed flex flex-col items-center justify-center p-6";
+
   if (authFailed) {
     const hasWallet = isConnected && !!address;
     if (hasWallet && !walletNotRegistered) {
       return (
-        <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col items-center justify-center p-6">
+        <div className={authGateShell}>
           <div className="max-w-md w-full bg-black/80 backdrop-blur-xl rounded-2xl border border-cyan-500/30 p-8 text-center">
             {linkingWallet ? (
               <>
@@ -613,7 +646,7 @@ export default function AgentsPage() {
     }
     if (hasWallet && walletNotRegistered) {
       return (
-        <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col items-center justify-center p-6">
+        <div className={authGateShell}>
           <div className="max-w-md w-full bg-black/80 backdrop-blur-xl rounded-2xl border border-cyan-500/30 p-8 text-center">
             <Bot className="w-16 h-16 text-cyan-400 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-white mb-2">Account needed</h2>
@@ -632,7 +665,7 @@ export default function AgentsPage() {
     }
     if (!hasWallet) {
       return (
-        <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col items-center justify-center p-6">
+        <div className={authGateShell}>
           <div className="max-w-md w-full bg-black/80 backdrop-blur-xl rounded-2xl border border-cyan-500/30 p-8 text-center">
             <Bot className="w-16 h-16 text-cyan-400 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-white mb-2">Connect your wallet</h2>
@@ -651,23 +684,28 @@ export default function AgentsPage() {
     }
   }
 
+  const mainShell = embeddedInArena
+    ? "w-full flex flex-col py-1"
+    : "min-h-screen bg-settings bg-cover bg-fixed flex flex-col p-6";
+
   return (
-    <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col p-6">
+    <div className={mainShell}>
       <div className="max-w-4xl mx-auto w-full">
-        {/* Header — gamy */}
-        <div className="flex justify-between items-center mb-8">
-          <button
-            onClick={() => router.push("/")}
-            className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 font-orbitron font-semibold text-sm uppercase tracking-wider transition"
-          >
-            <House className="w-5 h-5" />
-            BACK
-          </button>
-          <h1 className="text-3xl md:text-4xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 via-cyan-300 to-purple-500 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(0,240,255,0.3)]">
-            MY AGENTS
-          </h1>
-          <div className="w-20" />
-        </div>
+        {!embeddedInArena && (
+          <div className="flex justify-between items-center mb-8">
+            <button
+              onClick={() => router.push("/")}
+              className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 font-orbitron font-semibold text-sm uppercase tracking-wider transition"
+            >
+              <House className="w-5 h-5" />
+              BACK
+            </button>
+            <h1 className="text-3xl md:text-4xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 via-cyan-300 to-purple-500 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(0,240,255,0.3)]">
+              MY AGENTS
+            </h1>
+            <div className="w-20" />
+          </div>
+        )}
         {hostedCredits != null && agents.some((a) => a.use_tycoon_key) && (
           <div className="flex flex-col items-center gap-2 mb-4">
             <p className="text-sm text-cyan-400/90 text-center">
@@ -1020,34 +1058,6 @@ export default function AgentsPage() {
                         <option value="cashflow">Cashflow stability</option>
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-xs font-orbitron uppercase tracking-wider text-amber-300/90 mb-1">
-                        Trading
-                      </label>
-                      <select
-                        value={behaviorProfile.trade_behavior ?? "balanced"}
-                        onChange={(e) => setBehaviorProfile((p) => ({ ...p, trade_behavior: e.target.value as any }))}
-                        className="w-full px-3 py-2.5 rounded-xl bg-black/60 border border-amber-500/30 text-white text-sm"
-                      >
-                        <option value="avoid">Avoid trades</option>
-                        <option value="balanced">Balanced</option>
-                        <option value="aggressive">Aggressive</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-orbitron uppercase tracking-wider text-amber-300/90 mb-1">
-                        Buying
-                      </label>
-                      <select
-                        value={behaviorProfile.buy_style ?? "balanced"}
-                        onChange={(e) => setBehaviorProfile((p) => ({ ...p, buy_style: e.target.value as any }))}
-                        className="w-full px-3 py-2.5 rounded-xl bg-black/60 border border-amber-500/30 text-white text-sm"
-                      >
-                        <option value="conservative">Conservative</option>
-                        <option value="balanced">Balanced</option>
-                        <option value="aggressive">Aggressive</option>
-                      </select>
-                    </div>
                     <div className="md:col-span-2">
                       <label className="block text-xs font-orbitron uppercase tracking-wider text-amber-300/90 mb-1">
                         Extra instructions (optional)
@@ -1063,7 +1073,13 @@ export default function AgentsPage() {
                   <div className="rounded-xl border border-white/10 bg-black/40 p-3">
                     <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-2">Generated prompt preview</p>
                     <pre className="text-xs text-slate-200 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
-{behaviorToPrompt(formName.trim() || "My Agent", behaviorProfile)}
+{behaviorToPrompt(
+                        formName.trim() || "My Agent",
+                        mergeGameplayIntoBehaviorProfile(
+                          { ...behaviorProfile } as Record<string, unknown>,
+                          agentSettings
+                        ) as unknown as AgentBehaviorProfile
+                      )}
                     </pre>
                   </div>
                 </div>
@@ -1071,7 +1087,9 @@ export default function AgentsPage() {
                 {/* Agent behaviour settings */}
                 <div>
                   <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-1">Agent behaviour when playing as you</label>
-                  <p className="text-xs text-gray-500 mb-4">Controls buy / build / trade decisions when this agent plays on your behalf. Saved in this browser.</p>
+                  <p className="text-xs text-gray-500 mb-4">
+                    Trading, buying, and building — these are saved on your agent when you click Update / Create.
+                  </p>
                   <div className="space-y-4">
                     {(
                       [

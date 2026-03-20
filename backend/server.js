@@ -196,7 +196,7 @@ app.post(
   shopController.paystackWebhook
 );
 
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // Step 10: Health check (DB + Redis)

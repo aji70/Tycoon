@@ -5,10 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
 import ArenaMobile from "@/components/arena/arena-mobile";
+import AgentsPage from "@/components/agents/agents-page";
 import {
   Swords,
   Search,
@@ -17,7 +17,6 @@ import {
   UserRound,
   ChevronLeft,
   ChevronRight,
-  ExternalLink,
 } from "lucide-react";
 
 const MAX_CHALLENGE_TARGETS = 7;
@@ -131,9 +130,6 @@ export default function ArenaPage() {
   const [openTournaments, setOpenTournaments] = useState<ArenaTournamentRow[]>([]);
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
   const [tournamentsError, setTournamentsError] = useState<string | null>(null);
-  const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
-  const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
-  const { isCelo } = useVerifyErc8004AgentId();
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -147,6 +143,21 @@ export default function ArenaPage() {
       fetchMyAgents();
     }
   }, [isAuthed]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("tab") === "my-agents") {
+      setActiveTab("my-agents");
+      router.replace("/arena", { scroll: false });
+    }
+  }, [router]);
+
+  useEffect(() => {
+    if (activeTab === "discover" && isAuthed) {
+      fetchMyAgents();
+    }
+  }, [activeTab, isAuthed]);
 
   useEffect(() => {
     if (activeTab !== "tournaments") return;
@@ -196,12 +207,6 @@ export default function ArenaPage() {
   useEffect(() => {
     if (activeTab === "leaderboard") {
       fetchLeaderboard();
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (activeTab === "my-agents") {
-      fetchMyAgents();
     }
   }, [activeTab]);
 
@@ -259,27 +264,6 @@ export default function ArenaPage() {
     }
   };
 
-  const toggleAgentPublic = async (agentId: number, currentValue: boolean) => {
-    try {
-      const res = await apiClient.patch<any>(`/agents/${agentId}`, {
-        is_public: !currentValue,
-      });
-      if (res?.success && res?.data?.data) {
-        const updatedAgent = res.data.data;
-        setMyAgents(
-          myAgents.map((a) =>
-            a.id === agentId ? { ...a, is_public: updatedAgent.is_public } : a
-          )
-        );
-        alert(`Agent is now ${updatedAgent.is_public ? "public" : "private"}!`);
-      } else {
-        throw new Error("Failed to update agent");
-      }
-    } catch (err) {
-      alert(`Error: ${(err as Error).message}`);
-    }
-  };
-
   const toggleOpponentSelect = (agentId: number) => {
     setSelectedOpponents((prev) => {
       if (prev.includes(agentId)) return prev.filter((id) => id !== agentId);
@@ -328,31 +312,6 @@ export default function ArenaPage() {
     }
   };
 
-  const handleRegisterOnCelo = async (agent: Agent) => {
-    if (!isCelo) {
-      alert("Switch to Celo to register this agent on ERC-8004.");
-      return;
-    }
-    if (agent.erc8004_agent_id) {
-      alert("This agent is already linked to an ERC-8004 ID.");
-      return;
-    }
-    setRegisteringErc8004Id(agent.id);
-    try {
-      const newAgentId = await registerOnCelo(agent.id);
-      if (newAgentId == null) throw new Error("Registration succeeded but could not read on-chain agent ID");
-      await apiClient.patch(`/agents/${agent.id}`, { erc8004_agent_id: String(newAgentId) });
-      await fetchMyAgents();
-      if (activeTab === "discover") await fetchPublicAgents(page);
-      if (activeTab === "leaderboard") await fetchLeaderboard();
-      alert(`Registered on Celo. Agent ID: ${newAgentId}`);
-    } catch (err) {
-      alert(`Registration failed: ${(err as Error)?.message || "Unknown error"}`);
-    } finally {
-      setRegisteringErc8004Id(null);
-    }
-  };
-
   if (isMobile) {
     return <ArenaMobile />;
   }
@@ -372,13 +331,17 @@ export default function ArenaPage() {
             </span>
             <h1 className={styles.heroTitle}>Agent Arena</h1>
             <p className={styles.heroSubtitle}>
-              Challenge public agents on-chain, climb the leaderboard, and join bracket tournaments with optional USDC
-              pools.
+              Challenge public agents, climb ranks, and join tournaments — create your agents in the My agents tab.
             </p>
-            <Link href="/agents" className={styles.heroLink}>
-              <ExternalLink className="w-4 h-4" aria-hidden />
-              Manage &amp; register agents
-            </Link>
+            {isAuthed ? (
+              <button
+                type="button"
+                className={styles.heroLink}
+                onClick={() => setActiveTab("my-agents")}
+              >
+                My agents — create &amp; settings
+              </button>
+            ) : null}
           </div>
         </header>
 
@@ -428,8 +391,8 @@ export default function ArenaPage() {
           </button>
         </nav>
 
-      {error && <div className={styles.error}>{error}</div>}
-      {loading && <div className={styles.loading}>Loading</div>}
+      {error && activeTab !== "my-agents" && <div className={styles.error}>{error}</div>}
+      {loading && activeTab !== "my-agents" && <div className={styles.loading}>Loading</div>}
 
       {activeTab === "discover" && isAuthed && myAgents.length > 0 && (
         <section className={styles.challengePanel} aria-label="Challenge setup">
@@ -440,16 +403,14 @@ export default function ArenaPage() {
             </span>
           </div>
           <p className={styles.challengeHint}>
-            Tap <strong style={{ color: "#e8fbff" }}>Pick</strong> on up to {MAX_CHALLENGE_TARGETS} agents, then{" "}
-            <strong style={{ color: "#e8fbff" }}>Start game</strong>. We register <strong style={{ color: "#e8fbff" }}>every
-            player seat on-chain</strong> (create lobby, then each join), and the network confirms each step one after
-            another — usually <strong style={{ color: "#e8fbff" }}>1–3 minutes</strong>, sometimes longer if the chain is
-            busy. Each match runs <strong style={{ color: "#e8fbff" }}>30 minutes</strong>; when time is up, the winner is
-            decided by net worth and results are saved. For a flow that often feels snappier, try{" "}
+            <strong style={{ color: "#e8fbff" }}>Pick</strong> up to {MAX_CHALLENGE_TARGETS} opponents, then{" "}
+            <strong style={{ color: "#e8fbff" }}>Start</strong>. On-chain setup often takes{" "}
+            <strong style={{ color: "#e8fbff" }}>1–3 minutes</strong>; keep this tab open. Matches run{" "}
+            <strong style={{ color: "#e8fbff" }}>30 minutes</strong>. Faster lobby flow:{" "}
             <a href="/agent-battles" style={{ color: "#7ee8ff" }}>
               Agent Battles
-            </a>{" "}
-            (lobby first, then start).
+            </a>
+            .
           </p>
           {arenaStarting && (
             <div
@@ -468,9 +429,8 @@ export default function ArenaPage() {
               <strong style={{ color: "#e8fbff", display: "block", marginBottom: 6 }}>
                 Setting up on-chain…
               </strong>
-              Each participant is being registered on the blockchain: the game is created, then every seat joins in
-              sequence, and we wait for confirmations. That’s why this step takes a while — it’s normal.{" "}
-              <strong style={{ color: "#e8fbff" }}>Keep this tab open</strong> until you’re sent to the board.
+              Confirmations are queued one after another — this is normal.{" "}
+              <strong style={{ color: "#e8fbff" }}>Don’t close this tab</strong> until the board opens.
             </div>
           )}
           <div className={styles.challengeToolbar}>
@@ -514,36 +474,33 @@ export default function ArenaPage() {
         <>
           <div className={styles.agentsGrid}>
             {discoverList.map((agent) => (
-              <div key={agent.id} className={styles.agentCard}>
-                <div className={styles.agentHeader}>
-                  <h3>{agent.name}</h3>
+              <div key={agent.id} className={`${styles.agentCard} ${styles.agentCardDiscover}`}>
+                <div className={styles.agentDiscoverTop}>
+                  <h3 title={agent.name}>{agent.name}</h3>
                   <div
-                    className={styles.tierbadge}
+                    className={styles.tierbadgeCompact}
                     style={{ backgroundColor: TierColors[agent.tier_color] }}
                   >
                     {tierLabelOf(agent)}
                   </div>
                 </div>
-
-                <div className={styles.agentStats}>
-                  <div className={styles.statRow}>
-                    <span className={styles.label}>XP</span>
-                    <span className={styles.value}>{xpOf(agent)}</span>
-                  </div>
-                  <div className={styles.statRow}>
-                    <span className={styles.label}>Peak XP</span>
-                    <span className={styles.value}>{peakXpOf(agent)}</span>
-                  </div>
-                  <div className={styles.statRow}>
-                    <span className={styles.label}>ERC-8004</span>
-                    <span className={styles.value}>{agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "—"}</span>
-                  </div>
+                <div className={styles.agentDiscoverMeta}>
+                  <span>
+                    XP <strong>{xpOf(agent)}</strong>
+                  </span>
+                  <span>
+                    Peak <strong>{peakXpOf(agent)}</strong>
+                  </span>
+                  <span>
+                    8004 <strong>{agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "—"}</strong>
+                  </span>
                 </div>
-
-                <div className={styles.agentFooter}>
-                  <span className={styles.creatorName}>by {agent.username}</span>
+                <div className={styles.agentDiscoverFooter}>
+                  <span className={styles.creatorNameCompact} title={`by ${agent.username}`}>
+                    by {agent.username}
+                  </span>
                   {isAuthed && myAgents.length > 0 && (
-                    <div className={styles.pickRow}>
+                    <div className={styles.agentDiscoverPick}>
                       <button
                         type="button"
                         className={`${styles.pickBtn} ${
@@ -552,7 +509,7 @@ export default function ArenaPage() {
                         onClick={() => toggleOpponentSelect(agent.id)}
                         aria-pressed={selectedOpponents.includes(agent.id)}
                       >
-                        {selectedOpponents.includes(agent.id) ? "✓ Picked" : "+ Pick"}
+                        {selectedOpponents.includes(agent.id) ? "✓" : "+ Pick"}
                       </button>
                     </div>
                   )}
@@ -594,18 +551,10 @@ export default function ArenaPage() {
 
       {activeTab === "tournaments" && (
         <section className={styles.tournamentPanel} aria-label="Agent tournaments">
-          <h2>Bracket tournaments &amp; prize pool</h2>
+          <h2>Tournaments</h2>
           <p className={styles.tournamentExplainer}>
-            Tournaments use the <strong style={{ color: "#e8fbff" }}>TycoonTournamentEscrow</strong> contract: each
-            event is opened on-chain with the same id as in our database. You can run{" "}
-            <strong style={{ color: "#e8fbff" }}>free</strong> events,{" "}
-            <strong style={{ color: "#e8fbff" }}>entry-fee</strong> pools, or a{" "}
-            <strong style={{ color: "#e8fbff" }}>creator-funded</strong> prize. Registration records{" "}
-            <strong style={{ color: "#e8fbff" }}>players</strong> on-chain; you then attach{" "}
-            <strong style={{ color: "#e8fbff" }}>which agent</strong> plays for your entry (auto-join API or tournament
-            page). Matches spawn real Tycoon games; winners advance in the bracket until finals and{" "}
-            <strong style={{ color: "#e8fbff" }}>USDC payout</strong> from escrow. Full architecture:{" "}
-            <span style={{ color: "#7ee8ff" }}>docs/ARENA_AGENT_TOURNAMENTS.md</span> in the repo.
+            Free or paid entry, bracket play, real games — prizes paid in USDC when the event ends. Open an event below
+            to register and connect your agent.
           </p>
           <div className={styles.tournamentActions}>
             <Link href="/tournaments" className={styles.tournamentLinkBtn}>
@@ -615,13 +564,6 @@ export default function ArenaPage() {
               Create tournament
             </Link>
           </div>
-          <p className={styles.challengeHint} style={{ marginBottom: 12 }}>
-            <strong style={{ color: "#e8fbff" }}>Agents:</strong> allow tournament spend in Profile (PIN) for your agent,
-            then <code style={{ color: "#9ec8cf" }}>POST /api/agents/:id/auto-join-tournament</code> or use the tournament
-            detail page after we wire a one-click bind. Optional: set{" "}
-            <code style={{ color: "#9ec8cf" }}>ENABLE_AGENT_TOURNAMENT_RUNNER=true</code> on the server for passive
-            auto-register within your caps.
-          </p>
           {tournamentsLoading ? (
             <p className={styles.tournamentEmpty}>Loading open tournaments…</p>
           ) : tournamentsError ? (
@@ -706,82 +648,15 @@ export default function ArenaPage() {
       )}
 
       {activeTab === "my-agents" && (
-        <div className={styles.myAgents}>
-          <div className={styles.myAgentsToolbar}>
-            <Link href="/agents" className={styles.heroLink}>
-              <ExternalLink className="w-4 h-4" aria-hidden />
-              Open full agent manager
-            </Link>
-          </div>
+        <div className={styles.myAgentsEmbed}>
           {authLoading ? (
-            <p>Loading session…</p>
+            <p className={styles.challengeHint}>Loading session…</p>
           ) : isAuthed ? (
-            myAgents.length > 0 ? (
-              <div className={styles.myAgentsGrid}>
-                {myAgents.map((agent) => (
-                  <div key={agent.id} className={styles.agentCard}>
-                    <div className={styles.agentHeader}>
-                      <h3>{agent.name}</h3>
-                      <div
-                        className={styles.tierbadge}
-                        style={{ backgroundColor: TierColors[agent.tier_color] }}
-                      >
-                        {tierLabelOf(agent)}
-                      </div>
-                    </div>
-
-                    <div className={styles.agentStats}>
-                      <div className={styles.statRow}>
-                        <span className={styles.label}>Status:</span>
-                        <span className={styles.value}>{agent.status || "unknown"}</span>
-                      </div>
-                      <div className={styles.statRow}>
-                        <span className={styles.label}>XP:</span>
-                        <span className={styles.value}>{xpOf(agent)}</span>
-                      </div>
-                      <div className={styles.statRow}>
-                        <span className={styles.label}>Peak XP:</span>
-                        <span className={styles.value}>{peakXpOf(agent)}</span>
-                      </div>
-                      <div className={styles.statRow}>
-                        <span className={styles.label}>Visibility:</span>
-                        <span className={styles.value}>
-                          {agent.is_public ? "🌐 Public" : "🔒 Private"}
-                        </span>
-                      </div>
-                      <div className={styles.statRow}>
-                        <span className={styles.label}>ERC-8004:</span>
-                        <span className={styles.value}>{agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "Not linked"}</span>
-                      </div>
-                    </div>
-
-                    <div className={styles.agentFooter}>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <button
-                          className={agent.is_public ? styles.btnSecondary : styles.btnPrimary}
-                          onClick={() => toggleAgentPublic(agent.id, agent.is_public || false)}
-                        >
-                          {agent.is_public ? "Hide from Arena" : "Make Public"}
-                        </button>
-                        {!agent.erc8004_agent_id && (
-                          <button
-                            className={styles.btnSecondary}
-                            onClick={() => handleRegisterOnCelo(agent)}
-                            disabled={isRegisteringErc8004 && registeringErc8004Id === agent.id}
-                          >
-                            {isRegisteringErc8004 && registeringErc8004Id === agent.id ? "Registering..." : "Register on Celo"}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p>No agents found. Create or import an agent to get started!</p>
-            )
+            <AgentsPage embeddedInArena />
           ) : (
-            <p>Please log in to view your agents. Guests: use Let&apos;s Go on the home page. Privy: complete the username modal if shown.</p>
+            <p className={styles.challengeHint}>
+              Sign in (guest or from the header) to create and manage agents.
+            </p>
           )}
         </div>
       )}
