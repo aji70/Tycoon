@@ -6,6 +6,7 @@
 import express from "express";
 import { requireAuth } from "../middleware/auth.js";
 import UserAgent from "../models/UserAgent.js";
+import User from "../models/User.js";
 import * as eloService from "../services/eloService.js";
 import * as hostedAgentCreditsController from "../controllers/hostedAgentCreditsController.js";
 import {
@@ -35,6 +36,15 @@ router.get("/:id/erc8004-registration", async (req, res) => {
     if (!agent) {
       return res.status(404).json({ success: false, message: "Agent not found" });
     }
+    const ownerUser = await User.findById(agent.user_id);
+    const preferredOwner =
+      ownerUser?.smart_wallet_address && String(ownerUser.smart_wallet_address).trim() && String(ownerUser.smart_wallet_address).trim() !== "0x0000000000000000000000000000000000000000"
+        ? String(ownerUser.smart_wallet_address).trim()
+        : ownerUser?.linked_wallet_address && String(ownerUser.linked_wallet_address).trim()
+          ? String(ownerUser.linked_wallet_address).trim()
+          : ownerUser?.address && String(ownerUser.address).trim()
+            ? String(ownerUser.address).trim()
+            : null;
     const chainId = agent.chain_id === 44787 ? 44787 : 42220;
     const agentRegistry = `eip155:${chainId}:${ERC8004_IDENTITY_MAINNET.toLowerCase()}`;
     const callbackUrl = UserAgent.getCallbackUrl(agent);
@@ -47,6 +57,7 @@ router.get("/:id/erc8004-registration", async (req, res) => {
         ? [{ name: "web", endpoint: callbackUrl }]
         : [{ name: "web", endpoint: "https://tycoon.game" }],
       supportedTrust: ["reputation"],
+      owner: preferredOwner ? `eip155:${chainId}:${preferredOwner.toLowerCase()}` : undefined,
       registrations:
         agent.erc8004_agent_id != null && String(agent.erc8004_agent_id) !== ""
           ? [{ agentId: Number(agent.erc8004_agent_id), agentRegistry }]

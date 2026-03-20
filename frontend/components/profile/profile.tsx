@@ -17,7 +17,7 @@ import { apiClient } from '@/lib/api';
 import { ApiResponse } from '@/types/api';
 import { useQuery } from '@tanstack/react-query';
 import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
-import { useProfileOwner, useRecreateWalletForUser, useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
+import { useProfileOwner, useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
@@ -394,6 +394,7 @@ function GuestProfileView({
   const handleRedeemVoucher = async (voucherId: bigint) => {
     try {
       setRedeemingVoucherId(voucherId.toString());
+      // Guest (not connected): backend redeem path
       const res = await apiClient.post<ApiResponse>('/auth/redeem-voucher', {
         tokenId: voucherId.toString(),
         chain: 'CELO',
@@ -888,7 +889,6 @@ function GuestProfileView({
 
 export default function Profile() {
   const { address: walletAddress, isConnected, chainId } = useAccount();
-  const { recreate: recreateWallet, isPending: recreateWalletPending } = useRecreateWalletForUser();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const guestLoading = guestAuth?.isLoading ?? false;
@@ -1152,7 +1152,24 @@ export default function Profile() {
 
   const handleRedeemVoucher = async (tokenId: bigint) => {
     try {
+      if (!rewardAddress) {
+        toast.error('Reward contract not available');
+        return;
+      }
       setRedeemingId(tokenId);
+      const redeemFromSmart =
+        !!rewardOwnerAddress &&
+        !!walletAddress &&
+        rewardOwnerAddress.toLowerCase() !== walletAddress.toLowerCase();
+      if (redeemFromSmart) {
+        writeContract({
+          address: rewardAddress,
+          abi: RewardABI,
+          functionName: 'redeemVoucherFor',
+          args: [rewardOwnerAddress as Address, tokenId],
+        });
+        return;
+      }
       const res = await apiClient.post<ApiResponse>('/auth/redeem-voucher', {
         tokenId: tokenId.toString(),
         chain: 'CELO',
@@ -1166,7 +1183,12 @@ export default function Profile() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to redeem voucher');
     } finally {
-      setRedeemingId(null);
+      // Keep spinner active for on-chain writes until tx receipt handler runs.
+      const redeemFromSmart =
+        !!rewardOwnerAddress &&
+        !!walletAddress &&
+        rewardOwnerAddress.toLowerCase() !== walletAddress.toLowerCase();
+      if (!redeemFromSmart) setRedeemingId(null);
     }
   };
 
@@ -1247,9 +1269,13 @@ export default function Profile() {
   const handleRecreateViaApi = React.useCallback(async () => {
     setRecreateApiPending(true);
     try {
-      await apiClient.post<ApiResponse & { data?: { smart_wallet_address?: string } }>('auth/recreate-smart-wallet');
+      const res = await apiClient.post<ApiResponse & { data?: { smart_wallet_address?: string; migration?: { status?: string; error?: string } } }>('auth/recreate-smart-wallet');
       await refetchGuest?.();
-      toast.success('Smart wallet recreated');
+      if (res?.data?.data?.migration?.status === 'failed') {
+        toast.warn('Wallet recreated, but migration is incomplete. Contact support with your old wallet address.');
+      } else {
+        toast.success('Smart wallet recreated. CELO, USDC, TYC, perks, and vouchers migrated.');
+      }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
       toast.error(err?.response?.data?.message ?? err?.message ?? 'Failed to recreate');
@@ -1402,19 +1428,12 @@ export default function Profile() {
                   {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
                     <button
                       type="button"
-                      onClick={async () => {
-                        try {
-                          await recreateWallet();
-                          toast.info('Creating new smart wallet…');
-                        } catch (e: any) {
-                          toast.error(e?.shortMessage ?? e?.message ?? 'Failed to create new smart wallet');
-                        }
-                      }}
-                      disabled={recreateWalletPending}
+                      onClick={handleRecreateViaApi}
+                      disabled={recreateApiPending}
                       className="w-full sm:w-auto px-4 py-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60"
-                      title="Create a new smart wallet (old wallet stays; move funds manually)"
+                      title="Recreate smart wallet with safe migration"
                     >
-                      {recreateWalletPending ? 'Creating…' : 'Recreate smart wallet'}
+                      {recreateApiPending ? 'Migrating…' : 'Recreate smart wallet'}
                     </button>
                   )}
                 </div>
@@ -1484,18 +1503,11 @@ export default function Profile() {
                 {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
                   <button
                     type="button"
-                    onClick={async () => {
-                      try {
-                        await recreateWallet();
-                        toast.info('Creating new smart wallet…');
-                      } catch (e: any) {
-                        toast.error(e?.shortMessage ?? e?.message ?? 'Failed to create new smart wallet');
-                      }
-                    }}
-                    disabled={recreateWalletPending}
+                    onClick={handleRecreateViaApi}
+                    disabled={recreateApiPending}
                     className="w-full mt-3 px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60"
                   >
-                    {recreateWalletPending ? 'Creating…' : 'Recreate smart wallet'}
+                    {recreateApiPending ? 'Migrating…' : 'Recreate smart wallet'}
                   </button>
                 )}
               </div>
