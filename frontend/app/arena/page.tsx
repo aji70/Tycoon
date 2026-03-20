@@ -93,6 +93,20 @@ const TierColors: Record<string, string> = {
   brown: "#8B4513",
 };
 
+const TierLabels: Record<string, string> = {
+  gold: "Legend",
+  cyan: "Elite",
+  purple: "Master",
+  yellow: "Pro",
+  silver: "Challenger",
+  brown: "Rookie",
+};
+
+function tierLabelOf(a: Agent): string {
+  const key = String(a.tier_color || "").toLowerCase();
+  return TierLabels[key] || a.tier || "Tier";
+}
+
 export default function ArenaPage() {
   const router = useRouter();
   const guestCtx = useGuestAuthOptional();
@@ -442,7 +456,7 @@ export default function ArenaPage() {
                   className={styles.tierbadge}
                   style={{ backgroundColor: TierColors[agent.tier_color] }}
                 >
-                  {agent.tier}
+                  {tierLabelOf(agent)}
                 </div>
               </div>
 
@@ -580,7 +594,7 @@ export default function ArenaPage() {
                         color: "#000",
                       }}
                     >
-                      {entry.tier}
+                      {tierLabelOf(entry)}
                     </span>
                   </td>
                   <td className={styles.elo}>{xpOf(entry)}</td>
@@ -610,7 +624,7 @@ export default function ArenaPage() {
                         className={styles.tierbadge}
                         style={{ backgroundColor: TierColors[agent.tier_color] }}
                       >
-                        {agent.tier || "N/A"}
+                        {tierLabelOf(agent)}
                       </div>
                     </div>
 
