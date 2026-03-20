@@ -29,6 +29,8 @@ import { SkeletonPerkGrid, SkeletonCard } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
 import FirstTimeHint from '@/components/ui/FirstTimeHint';
 import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAssets';
+import { getPerkShopAsset } from '@/lib/perkShopAssets';
+import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
 const MAX_AVATAR_DIM = 512;
@@ -79,23 +81,6 @@ function formatStakeOrEarned(value: number): string {
   if (value >= 1e15) return (value / 1e18).toFixed(4);
   return String(value);
 }
-
-const getPerkMetadata = (perk: number) => {
-  const data = [
-    null,
-    { name: 'Extra Turn', icon: <div className="w-14 h-14 bg-yellow-500/20 rounded-2xl flex items-center justify-center text-2xl">⚡</div> },
-    { name: 'Jail Free', icon: <div className="w-14 h-14 bg-purple-500/20 rounded-2xl flex items-center justify-center text-2xl">👑</div> },
-    { name: 'Double Rent', icon: <div className="w-14 h-14 bg-green-500/20 rounded-2xl flex items-center justify-center text-2xl">💰</div> },
-    { name: 'Roll Boost', icon: <div className="w-14 h-14 bg-blue-500/20 rounded-2xl flex items-center justify-center text-2xl">✨</div> },
-    { name: 'Instant Cash', icon: <div className="w-14 h-14 bg-cyan-500/20 rounded-2xl flex items-center justify-center text-2xl">💎</div> },
-    { name: 'Teleport', icon: <div className="w-14 h-14 bg-pink-500/20 rounded-2xl flex items-center justify-center text-2xl">📍</div> },
-    { name: 'Shield', icon: <div className="w-14 h-14 bg-indigo-500/20 rounded-2xl flex items-center justify-center text-2xl">🛡️</div> },
-    { name: 'Property Discount', icon: <div className="w-14 h-14 bg-orange-500/20 rounded-2xl flex items-center justify-center text-2xl">🏠</div> },
-    { name: 'Tax Refund', icon: <div className="w-14 h-14 bg-teal-500/20 rounded-2xl flex items-center justify-center text-2xl">↩️</div> },
-    { name: 'Exact Roll', icon: <div className="w-14 h-14 bg-amber-500/20 rounded-2xl flex items-center justify-center text-2xl">🎯</div> },
-  ];
-  return data[perk] || { name: `Perk #${perk}`, icon: <div className="w-14 h-14 bg-gray-500/20 rounded-2xl flex items-center justify-center text-2xl">?</div> };
-};
 
 const CELO_CHAIN_ID = 42220;
 
@@ -622,11 +607,11 @@ export default function ProfilePageMobile() {
   const ownedCollectibles = useMemo(
     () =>
       mergedCollectibleRows.map((row) => {
-        const meta = getPerkMetadata(row.perk);
+        const asset = getPerkShopAsset(row.perk);
         return {
           ...row,
-          name: meta.name,
-          icon: meta.icon,
+          name: asset?.name ?? `Perk #${row.perk}`,
+          icon: <ProfilePerkCardImage perk={row.perk} className="w-14 h-14" />,
           isTiered: row.perk === 5 || row.perk === 9,
         };
       }),

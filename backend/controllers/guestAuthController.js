@@ -36,7 +36,12 @@ import { buildContractUsername } from "../utils/ensureContractAuth.js";
 import { getChainConfig } from "../config/chains.js";
 import logger from "../config/logger.js";
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "../constants/ngnPayments.js";
-import { transferToBankAccount, isFlutterwaveConfigured, initializePayment } from "../services/flutterwave.js";
+import {
+  transferToBankAccount,
+  isFlutterwaveConfigured,
+  initializePayment,
+  FLW_CHECKOUT_EMAIL,
+} from "../services/flutterwave.js";
 import { celoToNgn, ngnToCelo } from "../services/rates.js";
 
 /** User-facing message for smart-wallet shop contract reverts. */
@@ -1103,7 +1108,7 @@ export async function celoPurchaseInitialize(req, res) {
     // Same payload shape as shop (flutterwaveInitializeTest): fixed email, empty meta, simple customerName
     const { link, tx_ref } = await initializePayment({
       amountNaira: Number(amountNgn),
-      email: "realjaiboi70@gmail.com",
+      email: FLW_CHECKOUT_EMAIL,
       txRef,
       redirectUrl,
       meta: {},

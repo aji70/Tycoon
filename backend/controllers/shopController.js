@@ -2,27 +2,32 @@ import crypto from "crypto";
 import logger from "../config/logger.js";
 import db from "../config/database.js";
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "../constants/ngnPayments.js";
-import { initializePayment, isFlutterwaveConfigured, verifyWebhookSignature, verifyTransactionById, verifyTransactionByReference } from "../services/flutterwave.js";
+import {
+  initializePayment,
+  isFlutterwaveConfigured,
+  verifyWebhookSignature,
+  verifyTransactionById,
+  verifyTransactionByReference,
+  FLW_CHECKOUT_EMAIL,
+} from "../services/flutterwave.js";
 import { deliverBundleToUser, deliverCollectibleToUser } from "../services/tycoonContract.js";
 
 /**
- * Same base resolution as CELO Naira purchase (guestAuthController.celoPurchaseInitialize):
- * use client callback if it looks like a URL, else FRONTEND_URL / PUBLIC_APP_URL, else localhost.
- * Ensures Flutterwave always gets a valid redirect_url when keys work for buy-CELO.
- * Client normally sends .../game-shop; if they send origin only, append /game-shop.
+ * Same base resolution as celoPurchaseInitialize, then ensure path ends with /game-shop.
  */
 function resolveShopFlutterwaveRedirect(callbackFromBody) {
-  const trimmed = String(callbackFromBody || "").trim().replace(/\/$/, "");
-  let base = trimmed.startsWith("http")
-    ? trimmed
-    : (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "").trim();
-  if (!base || !base.startsWith("http")) {
-    base = "http://localhost:3000";
+  const fromBody = String(callbackFromBody || "").trim();
+  let redirectUrl =
+    fromBody.startsWith("http")
+      ? fromBody.replace(/\/$/, "")
+      : (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "").trim();
+  if (!redirectUrl || !redirectUrl.startsWith("http")) {
+    redirectUrl = "http://localhost:3000";
   }
-  if (/\/game-shop$/i.test(base)) {
-    return base;
+  if (!/\/game-shop$/i.test(redirectUrl)) {
+    redirectUrl = `${redirectUrl}/game-shop`;
   }
-  return `${base}/game-shop`;
+  return redirectUrl;
 }
 
 function clientSafeErrorMessage(err, fallback) {
@@ -178,29 +183,20 @@ export async function flutterwaveInitialize(_req, res) {
     if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
       return res.status(400).json({ success: false, message: "No smart wallet. Create one in Profile first." });
     }
-    const email = user.email || (user.username ? `${user.username}@tycoon.placeholder` : null);
-    if (!email) return res.status(400).json({ success: false, message: "Email required for payment" });
-
     const redirectUrl = resolveShopFlutterwaveRedirect(_req.body?.callback_url);
-    if (!redirectUrl.startsWith("http")) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Could not build redirect_url. Pass callback_url (https://your-domain/game-shop) from the app, or set FRONTEND_URL to your public https origin.",
-      });
-    }
 
     const txRef = `tycoon_bundle_${userId}_${bundleId}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    // Match buy-CELO-with-Naira Flutterwave payload (fixed email, empty meta) — fulfillment uses tx_ref in DB.
     const { link, tx_ref } = await initializePayment({
       amountNaira,
-      email,
+      email: FLW_CHECKOUT_EMAIL,
       txRef,
       redirectUrl,
-      meta: { user_id: String(userId), bundle_id: String(bundleId), product: "perk_bundle", wallet: smartWallet },
-      customerName: user.username || "Tycoon User",
+      meta: {},
+      customerName: "Tycoon Shop",
       customizations: {
-        title: "Tycoon - Perk Bundle",
-        description: "Pay in Naira and receive your bundle in your Tycoon smart wallet.",
+        title: "Tycoon — Perk Bundle",
+        description: "Pay in Naira; your bundle will be credited to your smart wallet after payment.",
       },
     });
     const ref = tx_ref || txRef;
@@ -248,29 +244,20 @@ export async function flutterwaveInitializePerk(_req, res) {
     if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
       return res.status(400).json({ success: false, message: "No smart wallet. Create one in Profile first." });
     }
-    const email = user.email || (user.username ? `${user.username}@tycoon.placeholder` : null);
-    if (!email) return res.status(400).json({ success: false, message: "Email required for payment" });
-
     const redirectUrl = resolveShopFlutterwaveRedirect(_req.body?.callback_url);
-    if (!redirectUrl.startsWith("http")) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Could not build redirect_url. Pass callback_url (https://your-domain/game-shop) from the app, or set FRONTEND_URL to your public https origin.",
-      });
-    }
 
     const txRef = `tycoon_perk_${userId}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    // Same Flutterwave shape as buy-CELO-with-Naira (fixed email, empty meta).
     const { link, tx_ref } = await initializePayment({
       amountNaira,
-      email,
+      email: FLW_CHECKOUT_EMAIL,
       txRef,
       redirectUrl,
-      meta: { user_id: String(userId), token_id: tokenId, product: "perk_item", wallet: smartWallet },
-      customerName: user.username || "Tycoon User",
+      meta: {},
+      customerName: "Tycoon Shop",
       customizations: {
-        title: "Tycoon - Perk Purchase",
-        description: "Pay in Naira and receive your perk in your Tycoon smart wallet.",
+        title: "Tycoon — Perk Shop",
+        description: "Pay in Naira; your perk will be credited to your smart wallet after payment.",
       },
     });
     const ref = tx_ref || txRef;
