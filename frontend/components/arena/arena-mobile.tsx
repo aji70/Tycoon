@@ -8,6 +8,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena-mobile.module.css";
+import { Swords, Search, Trophy, Target, UserRound, ExternalLink } from "lucide-react";
 
 const MAX_CHALLENGE_TARGETS = 7;
 
@@ -339,53 +340,71 @@ export default function ArenaMobile() {
   const selectedChallenger = myAgents.find((a) => a.id === challengerAgentId) ?? null;
 
   return (
-    <div className={styles.container}>
-      <header className={styles.header}>
-        <h1>⚔️ Arena</h1>
-        <p>XP & instant games</p>
-        <p style={{ marginTop: 8 }}>
-          <Link href="/agents" style={{ color: "#7ee8ff", textDecoration: "underline" }}>
-            Open My Agents →
-          </Link>
-        </p>
-      </header>
+    <div className={styles.pageShell}>
+      <div className={styles.container}>
+        <header className={styles.hero}>
+          <div className={styles.heroInner}>
+            <span className={styles.heroBadge}>
+              <Swords className="w-3 h-3" aria-hidden />
+              Arena
+            </span>
+            <h1 className={styles.heroTitle}>Agent Arena</h1>
+            <p className={styles.heroSubtitle}>Challenge agents, climb ranks, join tournaments.</p>
+            <Link href="/agents" className={styles.heroLink}>
+              <ExternalLink className="w-3.5 h-3.5" aria-hidden />
+              My agents
+            </Link>
+          </div>
+        </header>
 
-      <div className={styles.tabs}>
-        <button
-          className={`${styles.tab} ${activeTab === "discover" ? styles.active : ""}`}
-          onClick={() => {
-            setActiveTab("discover");
-            setPage(1);
-          }}
-        >
-          <span className={styles.tabIcon}>🔍</span>
-          <span className={styles.tabLabel}>Discover</span>
-        </button>
-        <button
-          className={`${styles.tab} ${activeTab === "leaderboard" ? styles.active : ""}`}
-          onClick={() => setActiveTab("leaderboard")}
-        >
-          <span className={styles.tabIcon}>🏆</span>
-          <span className={styles.tabLabel}>Ranks</span>
-        </button>
-        <button
-          className={`${styles.tab} ${activeTab === "tournaments" ? styles.active : ""}`}
-          onClick={() => setActiveTab("tournaments")}
-        >
-          <span className={styles.tabIcon}>🎯</span>
-          <span className={styles.tabLabel}>Tourneys</span>
-        </button>
-        <button
-          className={`${styles.tab} ${activeTab === "my-agents" ? styles.active : ""}`}
-          onClick={() => setActiveTab("my-agents")}
-        >
-          <span className={styles.tabIcon}>👤</span>
-          <span className={styles.tabLabel}>My Agents</span>
-        </button>
-      </div>
+        <nav className={styles.tabBar} aria-label="Arena sections">
+          <button
+            type="button"
+            className={`${styles.tab} ${activeTab === "discover" ? styles.active : ""}`}
+            onClick={() => {
+              setActiveTab("discover");
+              setPage(1);
+            }}
+          >
+            <span className={styles.tabIcon}>
+              <Search className="w-4 h-4" aria-hidden />
+            </span>
+            <span className={styles.tabLabel}>Discover</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.tab} ${activeTab === "leaderboard" ? styles.active : ""}`}
+            onClick={() => setActiveTab("leaderboard")}
+          >
+            <span className={styles.tabIcon}>
+              <Trophy className="w-4 h-4" aria-hidden />
+            </span>
+            <span className={styles.tabLabel}>Ranks</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.tab} ${activeTab === "tournaments" ? styles.active : ""}`}
+            onClick={() => setActiveTab("tournaments")}
+          >
+            <span className={styles.tabIcon}>
+              <Target className="w-4 h-4" aria-hidden />
+            </span>
+            <span className={styles.tabLabel}>Tourneys</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.tab} ${activeTab === "my-agents" ? styles.active : ""}`}
+            onClick={() => setActiveTab("my-agents")}
+          >
+            <span className={styles.tabIcon}>
+              <UserRound className="w-4 h-4" aria-hidden />
+            </span>
+            <span className={styles.tabLabel}>Mine</span>
+          </button>
+        </nav>
 
-      {error && <div className={styles.error}>{error}</div>}
-      {loading && <div className={styles.loading}>Loading...</div>}
+        {error && <div className={styles.error}>{error}</div>}
+        {loading && <div className={styles.loading}>Loading</div>}
 
       {activeTab === "discover" && isAuthed && myAgents.length > 0 && (
         <section className={styles.challengePanel} aria-label="Challenge setup">
@@ -613,8 +632,9 @@ export default function ArenaMobile() {
       {activeTab === "my-agents" && (
         <div className={styles.myAgentsList}>
           <div style={{ marginBottom: 12 }}>
-            <Link href="/agents" style={{ color: "#7ee8ff", textDecoration: "underline" }}>
-              Manage agents in /agents
+            <Link href="/agents" className={styles.heroLink}>
+              <ExternalLink className="w-3.5 h-3.5" aria-hidden />
+              Manage agents
             </Link>
           </div>
           <div className={styles.sectionHead}>
@@ -687,6 +707,7 @@ export default function ArenaMobile() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }
