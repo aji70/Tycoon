@@ -13,6 +13,12 @@ import { ChevronLeft, Loader2, Swords, Wallet, User, CheckCircle2 } from "lucide
 import { apiClient } from "@/lib/api";
 
 const USDC_DECIMALS = 6;
+const MAX_PLAYERS_ALLOWED = 512;
+const MIN_PLAYERS_ALLOWED = 2;
+
+function isPowerOfTwo(n: number): boolean {
+  return Number.isInteger(n) && n > 0 && (n & (n - 1)) === 0;
+}
 
 function chainIdToBackendChain(chainId: number): string {
   if (chainId === 137 || chainId === 80001) return "POLYGON";
@@ -50,6 +56,7 @@ export default function CreateTournamentPage() {
   const [autoFillBots, setAutoFillBots] = useState(false);
   const [autoFillCount, setAutoFillCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   const isPrivyAuthed = ready && authenticated;
   const isSignedIn = !!guestUser;
@@ -88,14 +95,23 @@ export default function CreateTournamentPage() {
       return;
     }
     setError(null);
+    setWarning(null);
     setStep("creating");
     try {
+      const sanitizedMaxPlayers = Math.min(MAX_PLAYERS_ALLOWED, Math.max(MIN_PLAYERS_ALLOWED, maxPlayers));
+      const sanitizedMinPlayers = Math.max(MIN_PLAYERS_ALLOWED, Math.min(sanitizedMaxPlayers, minPlayers));
+      if (!isPowerOfTwo(sanitizedMaxPlayers)) {
+        setError("Max players must be a power of two (2, 4, 8, 16, 32, ... 512).");
+        setStep("idle");
+        return;
+      }
+
       const body: Parameters<typeof createTournament>[0] & { address?: string; wallet_chain?: string } = {
         name: name.trim(),
         chain,
         prize_source: prizeSource,
-        max_players: Math.min(512, Math.max(2, maxPlayers)),
-        min_players: Math.max(2, Math.min(maxPlayers, minPlayers)),
+        max_players: sanitizedMaxPlayers,
+        min_players: sanitizedMinPlayers,
       };
       if (!isSignedIn && address) {
         body.address = address;
@@ -103,7 +119,12 @@ export default function CreateTournamentPage() {
       }
       if (prizeSource === "ENTRY_FEE_POOL") {
         const usd = parseFloat(entryFeeUsd);
-        body.entry_fee_wei = !Number.isNaN(usd) && usd >= 0 ? Math.round(usd * 10 ** USDC_DECIMALS) : 0;
+        if (Number.isNaN(usd) || usd <= 0) {
+          setError("Entry fee must be greater than 0 for entry-fee tournaments.");
+          setStep("idle");
+          return;
+        }
+        body.entry_fee_wei = Math.round(usd * 10 ** USDC_DECIMALS);
       }
       const created = await createTournament(body) as CreateTournamentResponse | null;
       const slug = created?.code ?? created?.id;
@@ -114,8 +135,12 @@ export default function CreateTournamentPage() {
             await apiClient.post(`/tournaments/${created.id}/auto-fill-agents`, { desired_count: desired });
             await apiClient.post(`/tournaments/${created.id}/close-registration`, { first_round_start_at: new Date().toISOString() });
             await apiClient.post(`/tournaments/${created.id}/start-round/0`, {});
-          } catch {
-            // Non-fatal: tournament still created.
+          } catch (fillErr) {
+            const msg =
+              (fillErr as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ||
+              (fillErr as Error)?.message ||
+              "Auto-fill/start failed after create.";
+            setWarning(`Tournament created, but quick-start did not fully complete: ${msg}`);
           }
         }
         setCreatedResult(created ?? null);
@@ -391,6 +416,7 @@ export default function CreateTournamentPage() {
             </div>
 
             {error && <p className="text-red-400 text-sm">{error}</p>}
+            {warning && <p className="text-amber-300 text-sm">{warning}</p>}
 
             <button
               type="submit"
