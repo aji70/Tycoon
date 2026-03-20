@@ -8,8 +8,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import avatar from '@/public/avatar.jpg';
-import { useAccount, useBalance, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { formatUnits, type Address, type Abi } from 'viem';
+import { useAccount, useBalance, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { type Address } from 'viem';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProfileForAddress } from '@/context/ProfileContext';
@@ -28,12 +28,7 @@ import { DailyClaim } from '@/components/rewards/DailyClaim';
 import { SkeletonPerkGrid, SkeletonCard } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
 import FirstTimeHint from '@/components/ui/FirstTimeHint';
-
-const VOUCHER_ID_START = 1_000_000_000;
-const COLLECTIBLE_ID_START = 2_000_000_000;
-
-const isVoucherToken = (tokenId: bigint): boolean =>
-  tokenId >= VOUCHER_ID_START && tokenId < COLLECTIBLE_ID_START;
+import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAssets';
 
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
 const MAX_AVATAR_DIM = 512;
@@ -540,7 +535,7 @@ export default function ProfilePageMobile() {
   const [error, setError] = useState<string | null>(null);
   const [sendAddress, setSendAddress] = useState('');
   const [sendingTokenId, setSendingTokenId] = useState<bigint | null>(null);
-  const [selectedPerkForTransfer, setSelectedPerkForTransfer] = useState<bigint | null>(null);
+  const [selectedPerkKey, setSelectedPerkKey] = useState<string | null>(null);
   const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
   const [showVouchers, setShowVouchers] = useState(false);
   const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
@@ -617,106 +612,26 @@ export default function ProfilePageMobile() {
     query: { enabled: !!username && !!tycoonAddress },
   });
 
-  // Owned Collectibles
-  const rewardOwnerAddress = (activeWalletView === 'smart' ? smartWallet : walletAddress) ?? walletAddress;
-  const ownedCount = useReadContract({
-    address: rewardAddress,
-    abi: RewardABI,
-    functionName: 'ownedTokenCount',
-    args: rewardOwnerAddress ? [rewardOwnerAddress] : undefined,
-    query: { enabled: !!rewardOwnerAddress && !!rewardAddress },
-  });
+  const {
+    ownedCollectibles: mergedCollectibleRows,
+    myVouchers,
+    isLoadingPerks,
+    isLoadingVouchers,
+  } = useMergedProfileRewardAssets(rewardAddress, chainId, [walletAddress, smartWallet]);
 
-  const ownedCountNum = Number(ownedCount.data ?? 0);
-
-  const tokenCalls = useMemo(() =>
-    Array.from({ length: ownedCountNum }, (_, i) => ({
-      address: rewardAddress!,
-      abi: RewardABI as Abi,
-      functionName: 'tokenOfOwnerByIndex',
-      args: [rewardOwnerAddress!, BigInt(i)],
-    } as const)),
-  [rewardAddress, rewardOwnerAddress, ownedCountNum]);
-
-  const tokenResults = useReadContracts({
-    contracts: tokenCalls,
-    query: { enabled: ownedCountNum > 0 && !!rewardAddress && !!rewardOwnerAddress },
-  });
-
-  const allOwnedTokenIds = tokenResults.data
-    ?.map(r => r.status === 'success' ? r.result as bigint : null)
-    .filter((id): id is bigint => id !== null) ?? [];
-
-  const infoCalls = useMemo(() =>
-    allOwnedTokenIds.map(id => ({
-      address: rewardAddress!,
-      abi: RewardABI as Abi,
-      functionName: 'getCollectibleInfo',
-      args: [id],
-    } as const)),
-  [rewardAddress, allOwnedTokenIds]);
-
-  const infoResults = useReadContracts({
-    contracts: infoCalls,
-    query: { enabled: allOwnedTokenIds.length > 0 },
-  });
-
-  const ownedCollectibles = useMemo(() => {
-    return infoResults.data?.map((res, i) => {
-      if (res?.status !== 'success') return null;
-      const [perkNum, strength, , , shopStock] = res.result as [bigint, bigint, bigint, bigint, bigint];
-      const perk = Number(perkNum);
-      if (perk === 0) return null;
-
-      const tokenId = allOwnedTokenIds[i];
-      const meta = getPerkMetadata(perk);
-
-      return {
-        tokenId,
-        name: meta.name,
-        icon: meta.icon,
-        strength: Number(strength),
-        shopStock: Number(shopStock),
-        isTiered: perk === 5 || perk === 9,
-      };
-    }).filter((c): c is NonNullable<typeof c> => c !== null) ?? [];
-  }, [infoResults.data, allOwnedTokenIds]);
-
-  // Vouchers
-  const voucherTokenIds = allOwnedTokenIds.filter(isVoucherToken);
-
-  const voucherInfoCalls = useMemo(() =>
-    voucherTokenIds.map(id => ({
-      address: rewardAddress!,
-      abi: RewardABI as Abi,
-      functionName: 'voucherRedeemValue',
-      args: [id],
-    } as const)),
-  [rewardAddress, voucherTokenIds]);
-
-  const voucherInfoResults = useReadContracts({
-    contracts: voucherInfoCalls,
-    query: { enabled: voucherTokenIds.length > 0 },
-  });
-
-  const myVouchers = useMemo(() => {
-    return voucherInfoResults.data?.map((res, i) => {
-      if (res?.status !== 'success') return null;
-      return {
-        tokenId: voucherTokenIds[i],
-        value: formatUnits(res.result as bigint, 18),
-      };
-    }).filter((v): v is NonNullable<typeof v> => v !== null) ?? [];
-  }, [voucherInfoResults.data, voucherTokenIds]);
-
-  const isLoadingPerks =
-    ownedCount.isLoading ||
-    (ownedCountNum > 0 && tokenResults.isLoading) ||
-    (allOwnedTokenIds.length > 0 && infoResults.isLoading);
-  const isLoadingVouchers =
-    ownedCount.isLoading ||
-    (ownedCountNum > 0 && tokenResults.isLoading) ||
-    (voucherTokenIds.length > 0 && voucherInfoResults.isLoading);
+  const ownedCollectibles = useMemo(
+    () =>
+      mergedCollectibleRows.map((row) => {
+        const meta = getPerkMetadata(row.perk);
+        return {
+          ...row,
+          name: meta.name,
+          icon: meta.icon,
+          isTiered: row.perk === 5 || row.perk === 9,
+        };
+      }),
+    [mergedCollectibleRows]
+  );
 
   useEffect(() => {
     setError(null);
@@ -758,8 +673,8 @@ export default function ProfilePageMobile() {
     }
   }, [isConnected, username, usernameLoading, usernameReadError, playerData, playerDataLoading, playerDataReadError, walletAddress]);
 
-  const handleSend = (tokenId: bigint) => {
-    if (!walletAddress || !rewardAddress) return toast.error("Wallet or contract not available");
+  const handleSend = (tokenId: bigint, fromAddress: Address) => {
+    if (!rewardAddress) return toast.error("Wallet or contract not available");
     if (!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress)) return toast.error('Invalid wallet address');
 
     setSendingTokenId(tokenId);
@@ -767,7 +682,7 @@ export default function ProfilePageMobile() {
       address: rewardAddress,
       abi: RewardABI,
       functionName: 'safeTransferFrom',
-      args: [walletAddress as `0x${string}`, sendAddress as `0x${string}`, tokenId, 1, '0x'],
+      args: [fromAddress as `0x${string}`, sendAddress as `0x${string}`, tokenId, 1, '0x'],
     });
   };
 
@@ -788,17 +703,18 @@ export default function ProfilePageMobile() {
     }
   }, [tycBalanceSmart, tycBalance]);
 
-  const handleRedeemVoucher = (tokenId: bigint) => {
+  const handleRedeemVoucher = (tokenId: bigint, voucherHolder: Address) => {
     if (!rewardAddress) return toast.error("Contract not available");
-    const isSmartWalletVoucher = rewardOwnerAddress && walletAddress && rewardOwnerAddress.toLowerCase() !== walletAddress.toLowerCase();
-    
+    const isSmartWalletVoucher =
+      !!walletAddress && voucherHolder.toLowerCase() !== walletAddress.toLowerCase();
+
     if (isSmartWalletVoucher) {
       setRedeemingId(tokenId);
       writeContract({
         address: rewardAddress,
         abi: RewardABI,
         functionName: 'redeemVoucherFor',
-        args: [rewardOwnerAddress as Address, tokenId],
+        args: [voucherHolder, tokenId],
       });
     } else {
       setRedeemingId(tokenId);
@@ -817,10 +733,11 @@ export default function ProfilePageMobile() {
       reset();
       setSendingTokenId(null);
       setRedeemingId(null);
-      setSelectedPerkForTransfer(null);
+      setSelectedPerkKey(null);
       tycBalance.refetch();
+      tycBalanceSmart.refetch();
     }
-  }, [txSuccess, txHash, reset, tycBalance]);
+  }, [txSuccess, txHash, reset, tycBalance, tycBalanceSmart]);
 
   useEffect(() => {
     setLocalDisplayName(profile?.displayName ?? '');
@@ -1332,18 +1249,25 @@ export default function ProfilePageMobile() {
                   />
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
-                    {ownedCollectibles.map((item) => (
+                    {ownedCollectibles.map((item) => {
+                      const rowKey = `${item.heldBy.toLowerCase()}-${item.tokenId.toString()}`;
+                      return (
                       <motion.div
-                        key={item.tokenId.toString()}
+                        key={rowKey}
                         whileTap={{ scale: 0.98 }}
                         className={`rounded-xl p-4 text-center border transition-all bg-black/20 ${
-                          selectedPerkForTransfer === item.tokenId ? 'border-purple-500/50 ring-2 ring-purple-500/20' : 'border-white/10'
+                          selectedPerkKey === rowKey ? 'border-purple-500/50 ring-2 ring-purple-500/20' : 'border-white/10'
                         }`}
                       >
                         {item.icon}
                         <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
                         {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-[10px] mt-0.5">Tier {item.strength}</p>}
-                        {selectedPerkForTransfer === item.tokenId ? (
+                        {smartWallet && item.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
+                          <p className="text-[9px] text-cyan-300/80 mt-1">Smart wallet</p>
+                        ) : walletAddress && item.heldBy.toLowerCase() === walletAddress.toLowerCase() ? (
+                          <p className="text-[9px] text-white/45 mt-1">Connected</p>
+                        ) : null}
+                        {selectedPerkKey === rowKey ? (
                           <div className="mt-3 space-y-2 text-left">
                             <p className="text-[10px] text-white/50 uppercase tracking-wider">Send to</p>
                             <input
@@ -1355,7 +1279,7 @@ export default function ProfilePageMobile() {
                             />
                             <div className="flex gap-1.5">
                               <button
-                                onClick={() => handleSend(item.tokenId)}
+                                onClick={() => handleSend(item.tokenId, item.heldBy)}
                                 disabled={!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress) || sendingTokenId === item.tokenId || isWriting || isConfirming}
                                 className="flex-1 py-2 rounded-lg font-medium text-[11px] bg-gradient-to-r from-purple-600 to-pink-600 disabled:opacity-50 flex items-center justify-center gap-1 text-white"
                               >
@@ -1364,7 +1288,7 @@ export default function ProfilePageMobile() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setSelectedPerkForTransfer(null)}
+                                onClick={() => setSelectedPerkKey(null)}
                                 className="px-2.5 py-2 rounded-lg font-medium text-[11px] bg-white/10 text-white/80"
                               >
                                 Cancel
@@ -1374,7 +1298,7 @@ export default function ProfilePageMobile() {
                         ) : (
                           <button
                             type="button"
-                            onClick={() => setSelectedPerkForTransfer(item.tokenId)}
+                            onClick={() => setSelectedPerkKey(rowKey)}
                             className="mt-3 w-full py-2 rounded-lg font-medium text-xs bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center gap-1 text-white"
                           >
                             <Send className="w-3.5 h-3.5" />
@@ -1382,7 +1306,8 @@ export default function ProfilePageMobile() {
                           </button>
                         )}
                       </motion.div>
-                    ))}
+                    );
+                    })}
                   </div>
                 )}
               </motion.div>
@@ -1411,13 +1336,18 @@ export default function ProfilePageMobile() {
                   <div className="grid grid-cols-2 gap-3">
                     {myVouchers.map((voucher) => (
                       <div
-                        key={voucher.tokenId.toString()}
+                        key={`${voucher.heldBy}-${voucher.tokenId.toString()}`}
                         className="profile-card rounded-xl p-4 border border-amber-500/20 text-center"
                       >
                         <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
                         <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
+                        {smartWallet && voucher.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
+                          <p className="text-[9px] text-amber-200/70 mb-2">Smart wallet</p>
+                        ) : walletAddress && voucher.heldBy.toLowerCase() === walletAddress.toLowerCase() ? (
+                          <p className="text-[9px] text-white/45 mb-2">Connected</p>
+                        ) : null}
                         <button
-                          onClick={() => handleRedeemVoucher(voucher.tokenId)}
+                          onClick={() => handleRedeemVoucher(voucher.tokenId, voucher.heldBy)}
                           disabled={redeemingId === voucher.tokenId || isWriting || isConfirming}
                           className="w-full py-2 rounded-lg font-medium text-xs bg-gradient-to-r from-amber-600 to-orange-600 disabled:opacity-50 flex items-center justify-center gap-1 text-black"
                         >

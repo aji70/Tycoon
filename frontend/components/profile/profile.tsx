@@ -5,8 +5,8 @@ import Image from 'next/image';
 import { BarChart2, Crown, Coins, Wallet, Ticket, ShoppingBag, Loader2, Send, ChevronDown, ChevronUp, Camera, Copy, Check, User, FileText, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import avatar from '@/public/avatar.jpg';
-import { useAccount, useBalance, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { formatUnits, type Address, type Abi } from 'viem';
+import { useAccount, useBalance, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { type Address } from 'viem';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProfileForAddress } from '@/context/ProfileContext';
@@ -25,12 +25,7 @@ import { DailyClaim } from '@/components/rewards/DailyClaim';
 import { SkeletonPerkGrid, SkeletonCard } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
 import FirstTimeHint from '@/components/ui/FirstTimeHint';
-
-const VOUCHER_ID_START = 1_000_000_000;
-const COLLECTIBLE_ID_START = 2_000_000_000;
-
-const isVoucherToken = (tokenId: bigint): boolean =>
-  tokenId >= VOUCHER_ID_START && tokenId < COLLECTIBLE_ID_START;
+import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAssets';
 
 const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
 const isValidWallet = (a: unknown): a is Address => {
@@ -237,96 +232,26 @@ function GuestProfileView({
     query: { enabled: !!smartWalletAddress },
   });
 
-  const ownedCount = useReadContract({
-    address: rewardAddress,
-    abi: RewardABI,
-    functionName: 'ownedTokenCount',
-    args: guestOnChainAddress ? [guestOnChainAddress] : undefined,
-    chainId: CELO_CHAIN_ID,
-    query: { enabled: !!guestOnChainAddress && !!rewardAddress },
-  });
-  const ownedCountNum = Number(ownedCount.data ?? 0);
-  const tokenCalls = useMemo(() =>
-    Array.from({ length: ownedCountNum }, (_, i) => ({
-      address: rewardAddress!,
-      abi: RewardABI as Abi,
-      functionName: 'tokenOfOwnerByIndex',
-      args: [guestOnChainAddress!, BigInt(i)],
-    } as const)),
-  [rewardAddress, guestOnChainAddress, ownedCountNum]);
-  const tokenResults = useReadContracts({
-    contracts: tokenCalls,
-    query: { enabled: ownedCountNum > 0 && !!rewardAddress && !!guestOnChainAddress },
-  });
-  const allOwnedTokenIds = tokenResults.data
-    ?.map(r => r.status === 'success' ? r.result as bigint : null)
-    .filter((id): id is bigint => id !== null) ?? [];
+  const {
+    ownedCollectibles: mergedCollectibleRows,
+    myVouchers,
+    isLoadingPerks,
+    isLoadingVouchers,
+  } = useMergedProfileRewardAssets(rewardAddress, CELO_CHAIN_ID, [linkedWalletAddress, smartWalletAddress]);
 
-  const infoCalls = useMemo(() =>
-    allOwnedTokenIds.map(id => ({
-      address: rewardAddress!,
-      abi: RewardABI as Abi,
-      functionName: 'getCollectibleInfo',
-      args: [id],
-    } as const)),
-  [rewardAddress, allOwnedTokenIds]);
-  const infoResults = useReadContracts({
-    contracts: infoCalls,
-    query: { enabled: allOwnedTokenIds.length > 0 && !!rewardAddress },
-  });
-
-  const ownedCollectibles = useMemo(() => {
-    return infoResults.data?.map((res, i) => {
-      if (res?.status !== 'success') return null;
-      const [perkNum, strength, , , shopStock] = res.result as [bigint, bigint, bigint, bigint, bigint];
-      const perk = Number(perkNum);
-      if (perk === 0) return null;
-
-      const tokenId = allOwnedTokenIds[i];
-      const meta = getPerkMetadata(perk);
-
-      return {
-        tokenId,
-        name: meta.name,
-        icon: meta.icon,
-        strength: Number(strength),
-        shopStock: Number(shopStock),
-        isTiered: perk === 5 || perk === 9,
-      };
-    }).filter((c): c is NonNullable<typeof c> => c !== null) ?? [];
-  }, [infoResults.data, allOwnedTokenIds]);
-
-  const voucherTokenIds = allOwnedTokenIds.filter(isVoucherToken);
-  const voucherInfoCalls = useMemo(() =>
-    voucherTokenIds.map(id => ({
-      address: rewardAddress!,
-      abi: RewardABI as Abi,
-      functionName: 'voucherRedeemValue',
-      args: [id],
-    } as const)),
-  [rewardAddress, voucherTokenIds]);
-  const voucherInfoResults = useReadContracts({
-    contracts: voucherInfoCalls,
-    query: { enabled: voucherTokenIds.length > 0 && !!rewardAddress },
-  });
-  const myVouchers = useMemo(() => {
-    return voucherInfoResults.data?.map((res, i) => {
-      if (res?.status !== 'success') return null;
-      return {
-        tokenId: voucherTokenIds[i],
-        value: formatUnits(res.result as bigint, 18),
-      };
-    }).filter((v): v is NonNullable<typeof v> => v !== null) ?? [];
-  }, [voucherInfoResults.data, voucherTokenIds]);
-
-  const isLoadingPerks =
-    ownedCount.isLoading ||
-    (ownedCountNum > 0 && tokenResults.isLoading) ||
-    (allOwnedTokenIds.length > 0 && infoResults.isLoading);
-  const isLoadingVouchers =
-    ownedCount.isLoading ||
-    (ownedCountNum > 0 && tokenResults.isLoading) ||
-    (voucherTokenIds.length > 0 && voucherInfoResults.isLoading);
+  const ownedCollectibles = useMemo(
+    () =>
+      mergedCollectibleRows.map((row) => {
+        const meta = getPerkMetadata(row.perk);
+        return {
+          ...row,
+          name: meta.name,
+          icon: meta.icon,
+          isTiered: row.perk === 5 || row.perk === 9,
+        };
+      }),
+    [mergedCollectibleRows]
+  );
 
   const { data: games = [] } = useQuery({
     queryKey: ['guest-my-games'],
@@ -795,7 +720,7 @@ function GuestProfileView({
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {ownedCollectibles.map((item, i) => (
                       <motion.div
-                        key={item.tokenId.toString()}
+                        key={`${item.heldBy}-${item.tokenId.toString()}`}
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.02 }}
@@ -805,6 +730,11 @@ function GuestProfileView({
                         {item.icon}
                         <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
                         {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-xs mt-0.5">Tier {item.strength}</p>}
+                        {smartWalletAddress && item.heldBy.toLowerCase() === smartWalletAddress.toLowerCase() ? (
+                          <p className="text-[10px] text-cyan-300/80 mt-1">Smart wallet</p>
+                        ) : linkedWalletAddress && item.heldBy.toLowerCase() === linkedWalletAddress.toLowerCase() ? (
+                          <p className="text-[10px] text-white/45 mt-1">Linked wallet</p>
+                        ) : null}
                         <p className="text-xs text-white/50 mt-3">Connect a wallet to transfer perks.</p>
                       </motion.div>
                     ))}
@@ -844,13 +774,18 @@ function GuestProfileView({
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                     {myVouchers.map((voucher) => (
                       <motion.div
-                        key={voucher.tokenId.toString()}
+                        key={`${voucher.heldBy}-${voucher.tokenId.toString()}`}
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="rounded-2xl p-5 text-center border border-amber-500/20 bg-black/20"
                       >
                         <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
                         <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
+                        {smartWalletAddress && voucher.heldBy.toLowerCase() === smartWalletAddress.toLowerCase() ? (
+                          <p className="text-[10px] text-amber-200/70 mb-2">Smart wallet</p>
+                        ) : linkedWalletAddress && voucher.heldBy.toLowerCase() === linkedWalletAddress.toLowerCase() ? (
+                          <p className="text-[10px] text-white/45 mb-2">Linked wallet</p>
+                        ) : null}
                         <button
                           type="button"
                           disabled={!smartWalletAddress || redeemingVoucherId === voucher.tokenId.toString()}
@@ -900,7 +835,7 @@ export default function Profile() {
   const [error, setError] = useState<string | null>(null);
   const [sendAddress, setSendAddress] = useState('');
   const [sendingTokenId, setSendingTokenId] = useState<bigint | null>(null);
-  const [selectedPerkForTransfer, setSelectedPerkForTransfer] = useState<bigint | null>(null);
+  const [selectedPerkKey, setSelectedPerkKey] = useState<string | null>(null);
   const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
   const [showVouchers, setShowVouchers] = useState(false);
   const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
@@ -988,112 +923,33 @@ export default function Profile() {
     query: { enabled: !!username && !!tycoonAddress },
   });
 
-  // ... (same data fetching logic for ownedCollectibles and myVouchers as before)
+  const {
+    ownedCollectibles: mergedCollectibleRows,
+    myVouchers,
+    isLoadingPerks,
+    isLoadingVouchers,
+  } = useMergedProfileRewardAssets(rewardAddress, chainId, [walletAddress, smartWallet]);
 
-  const ownedCount = useReadContract({
-    address: rewardAddress,
-    abi: RewardABI,
-    functionName: 'ownedTokenCount',
-    args: rewardOwnerAddress ? [rewardOwnerAddress] : undefined,
-    query: { enabled: !!rewardOwnerAddress && !!rewardAddress },
-  });
-
-  const ownedCountNum = Number(ownedCount.data ?? 0);
-
-  const tokenCalls = useMemo(() =>
-    Array.from({ length: ownedCountNum }, (_, i) => ({
-      address: rewardAddress!,
-      abi: RewardABI as Abi,
-      functionName: 'tokenOfOwnerByIndex',
-      args: [rewardOwnerAddress!, BigInt(i)],
-    } as const)),
-  [rewardAddress, rewardOwnerAddress, ownedCountNum]);
-
-  const tokenResults = useReadContracts({
-    contracts: tokenCalls,
-    query: { enabled: ownedCountNum > 0 && !!rewardAddress && !!rewardOwnerAddress },
-  });
-
-  const allOwnedTokenIds = tokenResults.data
-    ?.map(r => r.status === 'success' ? r.result as bigint : null)
-    .filter((id): id is bigint => id !== null) ?? [];
-
-  const infoCalls = useMemo(() =>
-    allOwnedTokenIds.map(id => ({
-      address: rewardAddress!,
-      abi: RewardABI as Abi,
-      functionName: 'getCollectibleInfo',
-      args: [id],
-    } as const)),
-  [rewardAddress, allOwnedTokenIds]);
-
-  const infoResults = useReadContracts({
-    contracts: infoCalls,
-    query: { enabled: allOwnedTokenIds.length > 0 },
-  });
-
-  const ownedCollectibles = useMemo(() => {
-    return infoResults.data?.map((res, i) => {
-      if (res?.status !== 'success') return null;
-      const [perkNum, strength, , , shopStock] = res.result as [bigint, bigint, bigint, bigint, bigint];
-      const perk = Number(perkNum);
-      if (perk === 0) return null;
-
-      const tokenId = allOwnedTokenIds[i];
-      const meta = getPerkMetadata(perk);
-
-      return {
-        tokenId,
-        name: meta.name,
-        icon: meta.icon,
-        strength: Number(strength),
-        shopStock: Number(shopStock),
-        isTiered: perk === 5 || perk === 9,
-      };
-    }).filter((c): c is NonNullable<typeof c> => c !== null) ?? [];
-  }, [infoResults.data, allOwnedTokenIds]);
-
-  const voucherTokenIds = allOwnedTokenIds.filter(isVoucherToken);
-
-  const voucherInfoCalls = useMemo(() =>
-    voucherTokenIds.map(id => ({
-      address: rewardAddress!,
-      abi: RewardABI as Abi,
-      functionName: 'voucherRedeemValue',
-      args: [id],
-    } as const)),
-  [rewardAddress, voucherTokenIds]);
-
-  const voucherInfoResults = useReadContracts({
-    contracts: voucherInfoCalls,
-    query: { enabled: voucherTokenIds.length > 0 },
-  });
-
-  const myVouchers = useMemo(() => {
-    return voucherInfoResults.data?.map((res, i) => {
-      if (res?.status !== 'success') return null;
-      return {
-        tokenId: voucherTokenIds[i],
-        value: formatUnits(res.result as bigint, 18),
-      };
-    }).filter((v): v is NonNullable<typeof v> => v !== null) ?? [];
-  }, [voucherInfoResults.data, voucherTokenIds]);
-
-  const isLoadingPerks =
-    ownedCount.isLoading ||
-    (ownedCountNum > 0 && tokenResults.isLoading) ||
-    (allOwnedTokenIds.length > 0 && infoResults.isLoading);
-  const isLoadingVouchers =
-    ownedCount.isLoading ||
-    (ownedCountNum > 0 && tokenResults.isLoading) ||
-    (voucherTokenIds.length > 0 && voucherInfoResults.isLoading);
+  const ownedCollectibles = useMemo(
+    () =>
+      mergedCollectibleRows.map((row) => {
+        const meta = getPerkMetadata(row.perk);
+        return {
+          ...row,
+          name: meta.name,
+          icon: meta.icon,
+          isTiered: row.perk === 5 || row.perk === 9,
+        };
+      }),
+    [mergedCollectibleRows]
+  );
 
   React.useEffect(() => {
     // Reset when wallet changes / reconnects
     setError(null);
     setUserData(null);
     setLoading(true);
-  }, [walletAddress, rewardOwnerAddress]);
+  }, [walletAddress, smartWallet]);
 
   React.useEffect(() => {
     if (!isConnected) return;
@@ -1137,11 +993,10 @@ export default function Profile() {
     playerData,
     playerDataLoading,
     playerDataReadError,
-    rewardOwnerAddress,
   ]);
 
-  const handleSend = (tokenId: bigint) => {
-    if (!walletAddress || !rewardAddress) return toast.error("Wallet or contract not available");
+  const handleSend = (tokenId: bigint, fromAddress: Address) => {
+    if (!rewardAddress) return toast.error("Wallet or contract not available");
     if (!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress)) return toast.error('Invalid wallet address');
 
     setSendingTokenId(tokenId);
@@ -1149,11 +1004,11 @@ export default function Profile() {
       address: rewardAddress,
       abi: RewardABI,
       functionName: 'safeTransferFrom',
-      args: [walletAddress as `0x${string}`, sendAddress as `0x${string}`, tokenId, 1, '0x'],
+      args: [fromAddress as `0x${string}`, sendAddress as `0x${string}`, tokenId, 1, '0x'],
     });
   };
 
-  const handleRedeemVoucher = async (tokenId: bigint) => {
+  const handleRedeemVoucher = async (tokenId: bigint, voucherHolder: Address) => {
     try {
       if (!rewardAddress) {
         toast.error('Reward contract not available');
@@ -1161,15 +1016,14 @@ export default function Profile() {
       }
       setRedeemingId(tokenId);
       const redeemFromSmart =
-        !!rewardOwnerAddress &&
         !!walletAddress &&
-        rewardOwnerAddress.toLowerCase() !== walletAddress.toLowerCase();
+        voucherHolder.toLowerCase() !== walletAddress.toLowerCase();
       if (redeemFromSmart) {
         writeContract({
           address: rewardAddress,
           abi: RewardABI,
           functionName: 'redeemVoucherFor',
-          args: [rewardOwnerAddress as Address, tokenId],
+          args: [voucherHolder, tokenId],
         });
         return;
       }
@@ -1189,11 +1043,9 @@ export default function Profile() {
       const msg = e?.response?.data?.message ?? e?.message ?? 'Failed to redeem voucher';
       toast.error(owner ? `${msg} (Owner: ${owner})` : msg);
     } finally {
-      // Keep spinner active for on-chain writes until tx receipt handler runs.
       const redeemFromSmart =
-        !!rewardOwnerAddress &&
         !!walletAddress &&
-        rewardOwnerAddress.toLowerCase() !== walletAddress.toLowerCase();
+        voucherHolder.toLowerCase() !== walletAddress.toLowerCase();
       if (!redeemFromSmart) setRedeemingId(null);
     }
   };
@@ -1204,10 +1056,11 @@ export default function Profile() {
       reset();
       setSendingTokenId(null);
       setRedeemingId(null);
-      setSelectedPerkForTransfer(null);
+      setSelectedPerkKey(null);
       tycBalance.refetch();
+      tycBalanceSmart.refetch();
     }
-  }, [txSuccess, txHash, reset, tycBalance]);
+  }, [txSuccess, txHash, reset, tycBalance, tycBalanceSmart]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1726,21 +1579,28 @@ export default function Profile() {
                   />
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {ownedCollectibles.map((item, i) => (
+                    {ownedCollectibles.map((item, i) => {
+                      const rowKey = `${item.heldBy.toLowerCase()}-${item.tokenId.toString()}`;
+                      return (
                       <motion.div
-                        key={item.tokenId.toString()}
+                        key={rowKey}
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.02 }}
                         whileHover={{ y: -2 }}
                         className={`rounded-2xl p-4 text-center border transition-all bg-black/20 ${
-                          selectedPerkForTransfer === item.tokenId ? 'border-purple-500/50 ring-2 ring-purple-500/20' : 'border-white/10 hover:border-purple-500/30'
+                          selectedPerkKey === rowKey ? 'border-purple-500/50 ring-2 ring-purple-500/20' : 'border-white/10 hover:border-purple-500/30'
                         }`}
                       >
                         {item.icon}
                         <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
                         {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-xs mt-0.5">Tier {item.strength}</p>}
-                        {selectedPerkForTransfer === item.tokenId ? (
+                        {smartWallet && item.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
+                          <p className="text-[10px] text-cyan-300/80 mt-1">Smart wallet</p>
+                        ) : walletAddress && item.heldBy.toLowerCase() === walletAddress.toLowerCase() ? (
+                          <p className="text-[10px] text-white/45 mt-1">Connected wallet</p>
+                        ) : null}
+                        {selectedPerkKey === rowKey ? (
                           <div className="mt-3 space-y-2 text-left">
                             <label className="text-[10px] font-medium text-white/50 uppercase tracking-wider block">Send to address</label>
                             <input
@@ -1752,7 +1612,7 @@ export default function Profile() {
                             />
                             <div className="flex gap-2">
                               <button
-                                onClick={() => handleSend(item.tokenId)}
+                                onClick={() => handleSend(item.tokenId, item.heldBy)}
                                 disabled={!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress) || sendingTokenId === item.tokenId || isWriting || isConfirming}
                                 className="flex-1 py-2 rounded-lg font-semibold text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 flex items-center justify-center gap-1.5 text-white"
                               >
@@ -1761,7 +1621,7 @@ export default function Profile() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setSelectedPerkForTransfer(null)}
+                                onClick={() => setSelectedPerkKey(null)}
                                 className="px-3 py-2 rounded-lg font-medium text-xs bg-white/10 text-white/80 hover:bg-white/15"
                               >
                                 Cancel
@@ -1771,7 +1631,7 @@ export default function Profile() {
                         ) : (
                           <button
                             type="button"
-                            onClick={() => setSelectedPerkForTransfer(item.tokenId)}
+                            onClick={() => setSelectedPerkKey(rowKey)}
                             className="mt-3 w-full py-2 rounded-xl font-semibold text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 flex items-center justify-center gap-1.5 text-white"
                           >
                             <Send className="w-3 h-3" />
@@ -1779,7 +1639,8 @@ export default function Profile() {
                           </button>
                         )}
                       </motion.div>
-                    ))}
+                    );
+                    })}
                   </div>
                 )}
               </motion.div>
@@ -1812,16 +1673,21 @@ export default function Profile() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                     {myVouchers.map((voucher) => (
                       <motion.div
-                        key={voucher.tokenId.toString()}
+                        key={`${voucher.heldBy}-${voucher.tokenId.toString()}`}
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="rounded-2xl p-5 text-center border border-amber-500/20 bg-black/20"
                       >
                         <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
                         <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
+                        {smartWallet && voucher.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
+                          <p className="text-[10px] text-amber-200/70 mb-2">Smart wallet</p>
+                        ) : walletAddress && voucher.heldBy.toLowerCase() === walletAddress.toLowerCase() ? (
+                          <p className="text-[10px] text-white/45 mb-2">Connected wallet</p>
+                        ) : null}
                         <button
                           type="button"
-                          onClick={() => handleRedeemVoucher(voucher.tokenId)}
+                          onClick={() => handleRedeemVoucher(voucher.tokenId, voucher.heldBy)}
                           disabled={redeemingId === voucher.tokenId}
                           className="w-full py-2.5 rounded-xl font-semibold text-sm bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black disabled:opacity-60 flex items-center justify-center gap-2 transition"
                         >
