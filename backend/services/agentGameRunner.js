@@ -65,6 +65,27 @@ async function post(path, body) {
   return json;
 }
 
+async function endGameByCaps(gameId, userId, reason) {
+  try {
+    await post("/game-players/vote-end-by-networth", { game_id: gameId, user_id: userId });
+    logger.info({ gameId, userId, reason }, "agent runner ended game by net-worth vote");
+    return true;
+  } catch (voteErr) {
+    logger.warn({ err: voteErr?.message, gameId, userId, reason }, "agent runner net-worth vote failed, trying finish-by-time fallback");
+    try {
+      await post(`/games/${gameId}/finish-by-time`, {});
+      logger.info({ gameId, reason }, "agent runner ended game by finish-by-time fallback");
+      return true;
+    } catch (finishErr) {
+      logger.error(
+        { err: finishErr?.message, voteErr: voteErr?.message, gameId, userId, reason },
+        "agent runner cap enforcement failed"
+      );
+      return false;
+    }
+  }
+}
+
 function rollDice() {
   const die1 = Math.floor(Math.random() * 6) + 1;
   const die2 = Math.floor(Math.random() * 6) + 1;
@@ -298,14 +319,7 @@ async function stepGame(game) {
     if (startMs != null && Number.isFinite(startMs)) {
       const endMs = startMs + UNTIMED_WALLCLOCK_CAP_MIN * 60 * 1000;
       if (Date.now() >= endMs) {
-        try {
-          await post("/game-players/vote-end-by-networth", { game_id: gameId, user_id: nextUserId });
-        } catch (err) {
-          logger.warn(
-            { err: err?.message, gameId, nextUserId },
-            "agent runner untimed wallclock cap ended game failed"
-          );
-        }
+        await endGameByCaps(gameId, nextUserId, "untimed_wallclock_cap");
         return;
       }
     }
@@ -323,14 +337,7 @@ async function stepGame(game) {
 
   // 2) Turn cap: end after too many turns (untimed games only).
   if (durationMinutes <= 0 && UNTIMED_TURN_CAP > 0 && Number(gp.turn_count || 0) >= UNTIMED_TURN_CAP) {
-    try {
-      await post("/game-players/vote-end-by-networth", { game_id: gameId, user_id: nextUserId });
-    } catch (err) {
-      logger.warn(
-        { err: err?.message, gameId, nextUserId, turn_count: gp.turn_count },
-        "agent runner untimed turn cap ended game failed"
-      );
-    }
+    await endGameByCaps(gameId, nextUserId, "untimed_turn_cap");
     return;
   }
 

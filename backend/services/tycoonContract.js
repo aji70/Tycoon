@@ -1377,7 +1377,28 @@ export async function deliverBundleToUser(toAddress, bundleId, chain = "CELO") {
  */
 export async function redeemVoucherForUser(voucherOwnerAddress, tokenId, chain = "CELO") {
   return withTxQueue(async () => {
-    const reward = await getRewardContract(chain);
+    const cfg = getChainConfig(chain);
+    const tycoon = getContract(chain);
+    const rewardAddress = await tycoon.rewardSystem();
+    if (!rewardAddress || rewardAddress === "0x0000000000000000000000000000000000000000") {
+      throw new Error(`Reward system not set on chain ${chain}`);
+    }
+    // Prefer smart-wallet operator key for redeemVoucherFor(owner, tokenId):
+    // TycoonRewardSystem accepts the wallet operator for contract-wallet owners.
+    // Fallback order keeps backward compatibility in envs that only set one key.
+    const redeemPk =
+      process.env.SMART_WALLET_OPERATOR_PRIVATE_KEY ??
+      process.env.WITHDRAWAL_AUTHORITY_PRIVATE_KEY ??
+      cfg.privateKey;
+    if (!cfg.rpcUrl || !redeemPk) {
+      throw new Error("Redeem signer not configured (set SMART_WALLET_OPERATOR_PRIVATE_KEY or chain backend key)");
+    }
+    const pk = String(redeemPk).startsWith("0x") ? redeemPk : `0x${redeemPk}`;
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const network = new Network(networkName, cfg.chainId);
+    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const wallet = new Wallet(pk, provider);
+    const reward = new Contract(rewardAddress, REWARD_ABI_MINT, wallet);
     const tx = await reward.redeemVoucherFor(voucherOwnerAddress, BigInt(tokenId));
     const receipt = await tx.wait();
     logger.info({ voucherOwner: voucherOwnerAddress, tokenId: String(tokenId), hash: receipt?.hash }, "redeemVoucherFor tx");
