@@ -293,6 +293,7 @@ export default function ArenaMobile() {
   };
 
   const discoverList = agents.filter((a) => !myAgents.some((m) => m.id === a.id));
+  const selectedChallenger = myAgents.find((a) => a.id === challengerAgentId) ?? null;
 
   return (
     <div className={styles.container}>
@@ -309,25 +310,29 @@ export default function ArenaMobile() {
             setPage(1);
           }}
         >
-          🔍
+          <span className={styles.tabIcon}>🔍</span>
+          <span className={styles.tabLabel}>Discover</span>
         </button>
         <button
           className={`${styles.tab} ${activeTab === "leaderboard" ? styles.active : ""}`}
           onClick={() => setActiveTab("leaderboard")}
         >
-          🏆
+          <span className={styles.tabIcon}>🏆</span>
+          <span className={styles.tabLabel}>Ranks</span>
         </button>
         <button
           className={`${styles.tab} ${activeTab === "tournaments" ? styles.active : ""}`}
           onClick={() => setActiveTab("tournaments")}
         >
-          🎯
+          <span className={styles.tabIcon}>🎯</span>
+          <span className={styles.tabLabel}>Tourneys</span>
         </button>
         <button
           className={`${styles.tab} ${activeTab === "my-agents" ? styles.active : ""}`}
           onClick={() => setActiveTab("my-agents")}
         >
-          👤
+          <span className={styles.tabIcon}>👤</span>
+          <span className={styles.tabLabel}>My Agents</span>
         </button>
       </div>
 
@@ -388,6 +393,11 @@ export default function ArenaMobile() {
               </option>
             ))}
           </select>
+          {selectedChallenger && (
+            <p className={styles.challengeHint} style={{ marginTop: -2, marginBottom: 10 }}>
+              <strong style={{ color: "#e8fbff" }}>{selectedChallenger.name}</strong> · XP {xpOf(selectedChallenger)} · {recordOf(selectedChallenger)}
+            </p>
+          )}
           <div className={styles.challengeActionRow}>
             <button
               type="button"
@@ -410,6 +420,10 @@ export default function ArenaMobile() {
 
       {activeTab === "discover" && (
         <div className={styles.agentsList}>
+          <div className={styles.sectionHead}>
+            <h2>Public Agents</h2>
+            <span>{discoverList.length}</span>
+          </div>
           {discoverList.map((agent) => (
             <div key={agent.id} className={styles.agentCard}>
               <div className={styles.cardTop}>
@@ -439,6 +453,9 @@ export default function ArenaMobile() {
                   <span className={styles.value}>{recordOf(agent)}</span>
                 </div>
               </div>
+              <p className={styles.creator}>
+                Win rate: {agent.win_rate_pct != null ? `${agent.win_rate_pct}%` : agent.win_rate ?? "N/A"}
+              </p>
 
               {isAuthed && myAgents.length > 0 && (
                 <button
@@ -462,6 +479,10 @@ export default function ArenaMobile() {
 
       {activeTab === "leaderboard" && (
         <div className={styles.leaderboardList}>
+          <div className={styles.sectionHead}>
+            <h2>Top Agents</h2>
+            <span>{leaderboard.length}</span>
+          </div>
           {leaderboard.map((entry) => (
             <div key={entry.id} className={styles.leaderboardItem}>
               <div className={styles.rankSection}>
@@ -479,6 +500,7 @@ export default function ArenaMobile() {
               </div>
               <div className={styles.eloSection}>
                 <span className={styles.eloValue}>{xpOf(entry)} XP</span>
+                <span className={styles.creator}>{recordOf(entry)}</span>
               </div>
             </div>
           ))}
@@ -539,6 +561,10 @@ export default function ArenaMobile() {
 
       {activeTab === "my-agents" && (
         <div className={styles.myAgentsList}>
+          <div className={styles.sectionHead}>
+            <h2>My Arena Agents</h2>
+            <span>{myAgents.length}</span>
+          </div>
           {authLoading ? (
             <p className={styles.emptyState}>Loading session…</p>
           ) : isAuthed ? (
