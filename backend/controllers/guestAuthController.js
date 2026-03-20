@@ -850,6 +850,7 @@ export async function recreateSmartWallet(req, res) {
  * Contract allows redeemVoucherFor only if caller is voucher owner, on-chain owner of that wallet, or approved.
  */
 export async function redeemVoucher(req, res) {
+  let resolvedVoucherOwner = null;
   try {
     if (!req.user) return res.status(401).json({ success: false, message: "Not authenticated" });
     const user = req.user;
@@ -896,17 +897,21 @@ export async function redeemVoucher(req, res) {
         message: "Voucher not found in your linked or smart wallets. Refresh profile and try again.",
       });
     }
+    resolvedVoucherOwner = voucherOwner;
 
     const { hash } = await redeemVoucherForUser(voucherOwner, tokenId, chain);
-    return res.json({ success: true, data: { hash } });
+    return res.json({ success: true, data: { hash, voucher_owner: voucherOwner } });
   } catch (err) {
     const msg = err?.message || "Redeem failed";
     logger.warn({ err: err?.message, userId: req.user?.id }, "redeemVoucher failed");
+    const authError = msg.includes("Not owner or approved") || msg.includes("ERC1155");
+    const ownerSuffix = resolvedVoucherOwner ? ` Voucher owner: ${resolvedVoucherOwner}` : "";
     return res.status(502).json({
       success: false,
-      message: msg.includes("Not owner or approved") || msg.includes("ERC1155")
-        ? "Redeem not authorized for this wallet. Try connecting the wallet that owns this account and redeem from the profile."
+      message: authError
+        ? `Redeem not authorized for this wallet.${ownerSuffix} Try connecting that wallet and redeem from profile.`
         : msg,
+      voucher_owner: resolvedVoucherOwner || null,
     });
   }
 }
