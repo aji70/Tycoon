@@ -40,6 +40,11 @@ import { Game, GameProperty } from "@/types/game";
 import { useRewardBurnCollectible } from "@/context/ContractProvider";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
+import {
+  buildTokenOfOwnerByIndexSlotCalls,
+  REWARD_OWNED_SLOT_SCAN_CAP,
+  takeTokenIdsUntilFirstFailure,
+} from "@/lib/rewardOwnedEnumerable";
 
 const COLLECTIBLE_ID_START = 2_000_000_000;
 
@@ -216,35 +221,21 @@ export default function CollectibleInventoryBar({
     }
   };
 
-  // === OWNED COLLECTIBLES ===
-  const { data: ownedCountRaw } = useReadContract({
-    address: contractAddress,
-    abi: RewardABI,
-    functionName: "ownedTokenCount",
-    args: address ? [address] : undefined,
-    query: { enabled: !!address && !!contractAddress },
-  });
-
-  const ownedCount = Number(ownedCountRaw ?? 0);
-
-  const tokenCalls = useMemo(() => 
-    Array.from({ length: ownedCount }, (_, i) => ({
-      address: contractAddress!,
-      abi: RewardABI as Abi,
-      functionName: "tokenOfOwnerByIndex" as const,
-      args: [address!, BigInt(i)],
-    })),
-    [contractAddress, address, ownedCount]
-  );
+  // === OWNED COLLECTIBLES === (slot-scan: see rewardOwnedEnumerable.ts)
+  const ownedTokenCalls = useMemo(() => {
+    if (!contractAddress || !address) return [];
+    return buildTokenOfOwnerByIndexSlotCalls(contractAddress, RewardABI as Abi, address, chainId, REWARD_OWNED_SLOT_SCAN_CAP);
+  }, [contractAddress, address, chainId]);
 
   const { data: tokenResults } = useReadContracts({
-    contracts: tokenCalls,
-    query: { enabled: ownedCount > 0 && !!contractAddress && !!address },
+    contracts: ownedTokenCalls,
+    query: { enabled: !!contractAddress && !!address },
   });
 
-  const ownedTokenIds = tokenResults
-    ?.map(r => r.status === "success" ? r.result as bigint : null)
-    .filter((id): id is bigint => id !== null && id >= BigInt(COLLECTIBLE_ID_START)) ?? [];
+  const ownedTokenIds = useMemo(() => {
+    const scanned = takeTokenIdsUntilFirstFailure(tokenResults);
+    return scanned.filter((id) => id >= BigInt(COLLECTIBLE_ID_START));
+  }, [tokenResults]);
 
   const infoCalls = useMemo(() => 
     ownedTokenIds.map(id => ({
@@ -312,34 +303,20 @@ export default function CollectibleInventoryBar({
   const totalOwned = ownedCollectiblesRaw.length;
 
   // === SHOP ITEMS ===
-  const { data: shopCountRaw } = useReadContract({
-    address: contractAddress,
-    abi: RewardABI,
-    functionName: "ownedTokenCount",
-    args: contractAddress ? [contractAddress] : undefined,
-    query: { enabled: !!contractAddress },
-  });
-
-  const shopCount = Number(shopCountRaw ?? 0);
-
-  const shopTokenCalls = useMemo(() => 
-    Array.from({ length: shopCount }, (_, i) => ({
-      address: contractAddress!,
-      abi: RewardABI as Abi,
-      functionName: "tokenOfOwnerByIndex" as const,
-      args: [contractAddress!, BigInt(i)],
-    })),
-    [contractAddress, shopCount]
-  );
+  const shopTokenCalls = useMemo(() => {
+    if (!contractAddress) return [];
+    return buildTokenOfOwnerByIndexSlotCalls(contractAddress, RewardABI as Abi, contractAddress, chainId, REWARD_OWNED_SLOT_SCAN_CAP);
+  }, [contractAddress, chainId]);
 
   const { data: shopTokenResults } = useReadContracts({
     contracts: shopTokenCalls,
-    query: { enabled: shopCount > 0 && !!contractAddress },
+    query: { enabled: !!contractAddress },
   });
 
-  const shopTokenIds = shopTokenResults
-    ?.map(r => r.status === "success" ? r.result as bigint : null)
-    .filter((id): id is bigint => id !== null && id >= BigInt(COLLECTIBLE_ID_START)) ?? [];
+  const shopTokenIds = useMemo(() => {
+    const scanned = takeTokenIdsUntilFirstFailure(shopTokenResults);
+    return scanned.filter((id) => id >= BigInt(COLLECTIBLE_ID_START));
+  }, [shopTokenResults]);
 
   const shopInfoCalls = useMemo(() => 
     shopTokenIds.map(id => ({

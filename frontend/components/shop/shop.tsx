@@ -53,6 +53,13 @@ import { apiClient } from '@/lib/api';
 import { useAppKit, useAppKitAccount } from '@reown/appkit/react';
 import { SkeletonPerkGrid } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
+import {
+  buildMergedHolderSlotCalls,
+  buildTokenOfOwnerByIndexSlotCalls,
+  mergeSlotScanResultsForHolders,
+  REWARD_OWNED_SLOT_SCAN_CAP,
+  takeTokenIdsUntilFirstFailure,
+} from '@/lib/rewardOwnedEnumerable';
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
 
@@ -273,38 +280,19 @@ export default function GameShop() {
   const payFromSmartWalletUnsupported = payWith === 'smart_wallet' && !smartWalletAddress;
 
   // ── Shop Items: Collectibles owned by contract (in shop stock) ──
-  const { data: contractOwnedCount } = useReadContract({
-    address: contractAddress,
-    abi: RewardABI,
-    functionName: 'ownedTokenCount',
-    args: contractAddress ? [contractAddress] : undefined,
-    query: { enabled: !!contractAddress },
-  });
-
-  const contractTokenCount = Number(contractOwnedCount ?? 0);
-
-  const contractTokenIdCalls = useMemo(
-    () =>
-      Array.from({ length: contractTokenCount }, (_, i) => ({
-        address: contractAddress!,
-        abi: RewardABI as Abi,
-        functionName: 'tokenOfOwnerByIndex' as const,
-        args: [contractAddress!, BigInt(i)] as const,
-      })),
-    [contractAddress, contractTokenCount]
-  );
+  const contractTokenIdCalls = useMemo(() => {
+    if (!contractAddress) return [];
+    return buildTokenOfOwnerByIndexSlotCalls(contractAddress, RewardABI as Abi, contractAddress, chainId, REWARD_OWNED_SLOT_SCAN_CAP);
+  }, [contractAddress, chainId]);
 
   const { data: contractTokenIdResults } = useReadContracts({
     contracts: contractTokenIdCalls,
-    query: { enabled: contractTokenCount > 0 && !!contractAddress },
+    query: { enabled: !!contractAddress },
   });
 
   const shopTokenIds = useMemo(() => {
-    return (
-      contractTokenIdResults
-        ?.map((res) => (res.status === 'success' ? (res.result as bigint) : undefined))
-        .filter((id): id is bigint => id !== undefined && isCollectibleToken(id)) ?? []
-    );
+    const scanned = takeTokenIdsUntilFirstFailure(contractTokenIdResults);
+    return scanned.filter((id) => isCollectibleToken(id));
   }, [contractTokenIdResults]);
 
   const shopInfoCalls = useMemo(
@@ -406,63 +394,24 @@ export default function GameShop() {
     return list;
   }, [smartWalletAddress, address]);
 
-  const voucherOwnedCountCalls = useMemo(
-    () =>
-      voucherOwners.map((owner) => ({
-        address: contractAddress!,
-        abi: RewardABI as Abi,
-        functionName: 'ownedTokenCount' as const,
-        args: [owner] as const,
-      })),
-    [voucherOwners, contractAddress]
-  );
+  const voucherSlotCalls = useMemo(() => {
+    if (!contractAddress || voucherOwners.length === 0) return [];
+    return buildMergedHolderSlotCalls(contractAddress, RewardABI as Abi, voucherOwners, chainId, REWARD_OWNED_SLOT_SCAN_CAP);
+  }, [contractAddress, voucherOwners, chainId]);
 
-  const { data: voucherOwnedCountResults } = useReadContracts({
-    contracts: voucherOwnedCountCalls,
-    query: { enabled: voucherOwners.length > 0 && !!contractAddress },
-  });
-
-  const voucherTokenIndexPlan = useMemo(() => {
-    if (!voucherOwnedCountResults) return [] as Array<{ owner: Address; index: bigint }>;
-    const plan: Array<{ owner: Address; index: bigint }> = [];
-    voucherOwners.forEach((owner, oi) => {
-      const res = voucherOwnedCountResults[oi];
-      if (res?.status !== 'success') return;
-      const n = Number(res.result as bigint);
-      for (let i = 0; i < n; i++) plan.push({ owner, index: BigInt(i) });
-    });
-    return plan;
-  }, [voucherOwners, voucherOwnedCountResults]);
-
-  const voucherTokenIdCalls = useMemo(
-    () =>
-      voucherTokenIndexPlan.map(({ owner, index }) => ({
-        address: contractAddress!,
-        abi: RewardABI as Abi,
-        functionName: 'tokenOfOwnerByIndex' as const,
-        args: [owner, index] as const,
-      })),
-    [voucherTokenIndexPlan, contractAddress]
-  );
-
-  const { data: voucherTokenIdResults } = useReadContracts({
-    contracts: voucherTokenIdCalls,
-    query: { enabled: voucherTokenIdCalls.length > 0 && !!contractAddress },
+  const { data: voucherSlotResults } = useReadContracts({
+    contracts: voucherSlotCalls,
+    query: { enabled: voucherSlotCalls.length > 0 && !!contractAddress },
   });
 
   const vouchersWithOwner = useMemo(() => {
-    if (!voucherTokenIdResults) return [] as Array<{ tokenId: bigint; voucherOwner: Address }>;
+    const { tokenIds, heldBy } = mergeSlotScanResultsForHolders(voucherOwners, voucherSlotResults, REWARD_OWNED_SLOT_SCAN_CAP);
     const out: Array<{ tokenId: bigint; voucherOwner: Address }> = [];
-    voucherTokenIdResults.forEach((res, i) => {
-      if (res.status !== 'success') return;
-      const tokenId = res.result as bigint;
-      if (!isVoucherToken(tokenId)) return;
-      const row = voucherTokenIndexPlan[i];
-      if (!row) return;
-      out.push({ tokenId, voucherOwner: row.owner });
+    tokenIds.forEach((tokenId, i) => {
+      if (isVoucherToken(tokenId)) out.push({ tokenId, voucherOwner: heldBy[i]! });
     });
     return out;
-  }, [voucherTokenIdResults, voucherTokenIndexPlan]);
+  }, [voucherOwners, voucherSlotResults]);
 
   const voucherInfoCalls = useMemo(
     () =>

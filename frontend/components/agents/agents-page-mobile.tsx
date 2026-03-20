@@ -110,6 +110,26 @@ type TournamentPermission = {
   chain: string | null;
 };
 
+/** API stores USDC amounts as integer strings (6 decimals). */
+function usdcStoredToDecimalInput(stored: string | null | undefined): string {
+  if (stored == null || String(stored).trim() === "") return "";
+  try {
+    let n = BigInt(String(stored));
+    const neg = n < 0n;
+    if (neg) n = -n;
+    const whole = n / 1_000_000n;
+    const frac = n % 1_000_000n;
+    let out = (neg ? "-" : "") + whole.toString();
+    if (frac !== 0n) {
+      const fracStr = frac.toString().padStart(6, "0").replace(/0+$/, "");
+      out += "." + fracStr;
+    }
+    return out;
+  } catch {
+    return "";
+  }
+}
+
 export type AgentsPageMobileProps = { embeddedInArena?: boolean };
 
 export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPageMobileProps) {
@@ -159,6 +179,7 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
   const [permModalAgent, setPermModalAgent] = useState<UserAgent | null>(null);
   const [permEnabled, setPermEnabled] = useState(false);
   const [permMaxFee, setPermMaxFee] = useState("0");
+  const [permDailyCap, setPermDailyCap] = useState("");
   const [permChain, setPermChain] = useState<string>("CELO");
   const [permPin, setPermPin] = useState("");
   const [permSaving, setPermSaving] = useState(false);
@@ -208,7 +229,9 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
     const p = tournamentPerms[a.id];
     setPermModalAgent(a);
     setPermEnabled(!!p?.enabled);
-    setPermMaxFee("0");
+    const maxDec = usdcStoredToDecimalInput(p?.max_entry_fee_usdc);
+    setPermMaxFee(maxDec === "" ? "0" : maxDec);
+    setPermDailyCap(usdcStoredToDecimalInput(p?.daily_cap_usdc));
     setPermChain((p?.chain || "CELO") as string);
     setPermPin("");
   };
@@ -217,7 +240,12 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
     if (!permModalAgent) return;
     setPermSaving(true);
     try {
-      const payload: any = { enabled: permEnabled, chain: permChain, max_entry_fee_usdc: permMaxFee };
+      const payload: any = {
+        enabled: permEnabled,
+        chain: permChain,
+        max_entry_fee_usdc: permMaxFee,
+        daily_cap_usdc: permDailyCap.trim() ? permDailyCap.trim() : null,
+      };
       if (permEnabled) payload.pin = permPin;
       const res = await apiClient.post(`/agents/${permModalAgent.id}/tournament-permissions`, payload);
       if ((res as any)?.data?.success) {
@@ -689,6 +717,15 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
                     <option value="POLYGON">POLYGON</option>
                   </select>
                 </div>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Daily cap (USDC, optional)</p>
+                <input
+                  value={permDailyCap}
+                  onChange={(e) => setPermDailyCap(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
+                  placeholder="Max per day from smart wallet"
+                />
               </div>
               {permEnabled && (
                 <div>

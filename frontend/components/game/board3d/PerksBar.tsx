@@ -1,11 +1,16 @@
 'use client';
 
 import React, { useMemo } from "react";
-import { useAccount, useChainId, useReadContract, useReadContracts } from "wagmi";
+import { useAccount, useChainId, useReadContracts } from "wagmi";
 import type { Address, Abi } from "viem";
 import { Zap, Crown, Coins, Sparkles, Gem, Shield, Percent, CircleDollarSign, MapPin } from "lucide-react";
 import RewardABI from "@/context/abi/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES } from "@/constants/contracts";
+import {
+  buildTokenOfOwnerByIndexSlotCalls,
+  REWARD_OWNED_SLOT_SCAN_CAP,
+  takeTokenIdsUntilFirstFailure,
+} from "@/lib/rewardOwnedEnumerable";
 
 const COLLECTIBLE_ID_START = 2_000_000_000;
 
@@ -55,35 +60,20 @@ export default function PerksBar({ onOpenModal, onUsePerk, className = "" }: Per
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
 
-  const { data: ownedCountRaw } = useReadContract({
-    address: contractAddress,
-    abi: RewardABI,
-    functionName: "ownedTokenCount",
-    args: address ? [address] : undefined,
-    query: { enabled: !!address && !!contractAddress },
-  });
-
-  const ownedCount = Number(ownedCountRaw ?? 0);
-
   const tokenCalls = useMemo(() => {
-    if (!contractAddress || !address || ownedCount <= 0) return [];
-    return Array.from({ length: ownedCount }, (_, i) => ({
-      address: contractAddress,
-      abi: RewardABI as Abi,
-      functionName: "tokenOfOwnerByIndex" as const,
-      args: [address, BigInt(i)],
-    }));
-  }, [contractAddress, address, ownedCount]);
+    if (!contractAddress || !address) return [];
+    return buildTokenOfOwnerByIndexSlotCalls(contractAddress, RewardABI as Abi, address, chainId, REWARD_OWNED_SLOT_SCAN_CAP);
+  }, [contractAddress, address, chainId]);
 
   const { data: tokenResults } = useReadContracts({
     contracts: tokenCalls,
-    query: { enabled: ownedCount > 0 && !!contractAddress && !!address },
+    query: { enabled: !!contractAddress && !!address },
   });
 
-  const ownedTokenIds =
-    tokenResults
-      ?.map((r) => (r.status === "success" ? (r.result as bigint) : null))
-      .filter((id): id is bigint => id !== null && id >= COLLECTIBLE_ID_START) ?? [];
+  const ownedTokenIds = useMemo(() => {
+    const scanned = takeTokenIdsUntilFirstFailure(tokenResults);
+    return scanned.filter((id) => id >= COLLECTIBLE_ID_START);
+  }, [tokenResults]);
 
   const infoCalls = useMemo(() => {
     if (!contractAddress || ownedTokenIds.length === 0) return [];
