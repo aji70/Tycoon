@@ -28,6 +28,9 @@ import {
   signWithdrawalAuthCelo,
   signWithdrawalAuthUsdc,
   redeemVoucherForUser,
+  buyCollectibleFromSmartWalletWithAuth,
+  buyBundleFromSmartWalletWithAuth,
+  burnCollectibleFromSmartWalletWithAuth,
 } from "../services/tycoonContract.js";
 import { buildContractUsername } from "../utils/ensureContractAuth.js";
 import { getChainConfig } from "../config/chains.js";
@@ -1276,6 +1279,106 @@ export async function smartWalletWithdrawUsdc(req, res) {
   } catch (err) {
     logger.error({ err: err?.message, userId: req.user?.id }, "smartWalletWithdrawUsdc failed");
     return res.status(500).json({ success: false, message: err?.message || "Withdrawal failed" });
+  }
+}
+
+/**
+ * POST /auth/smart-wallet/buy-collectible
+ * Buy a shop collectible using smart wallet funds (backend executes with auth). Requires PIN.
+ * Body: { tokenId: string|number, useUsdc?: boolean, maxPrice?: string|number, pin: string, chain?: string }
+ */
+export async function smartWalletBuyCollectible(req, res) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: "Not authenticated" });
+    const user = req.user;
+    if (!user.withdrawal_pin_hash) {
+      return res.status(400).json({ success: false, message: "Set a withdrawal PIN first (Profile → Manage smart wallet)." });
+    }
+    const pin = req.body?.pin != null ? String(req.body.pin).trim() : "";
+    if (!pin) return res.status(400).json({ success: false, message: "PIN required." });
+    const pinValid = await bcrypt.compare(pin, user.withdrawal_pin_hash);
+    if (!pinValid) return res.status(401).json({ success: false, message: "Invalid PIN." });
+
+    const chain = User.normalizeChain(req.body?.chain || user.chain || "CELO");
+    const smartWallet = user.smart_wallet_address && String(user.smart_wallet_address).trim();
+    if (!smartWallet || smartWallet === ZERO_ADDRESS) {
+      return res.status(400).json({ success: false, message: "No smart wallet. Create one in Profile first." });
+    }
+    const tokenId = req.body?.tokenId != null ? BigInt(String(req.body.tokenId)) : null;
+    if (!tokenId || tokenId <= 0n) return res.status(400).json({ success: false, message: "Provide tokenId." });
+    const useUsdc = req.body?.useUsdc !== false;
+    const maxPrice = req.body?.maxPrice != null ? BigInt(String(req.body.maxPrice)) : undefined;
+    const { hash } = await buyCollectibleFromSmartWalletWithAuth(smartWallet, tokenId, useUsdc, maxPrice, chain);
+    return res.status(200).json({ success: true, data: { hash } });
+  } catch (err) {
+    logger.error({ err: err?.message, userId: req.user?.id }, "smartWalletBuyCollectible failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to buy collectible" });
+  }
+}
+
+/**
+ * POST /auth/smart-wallet/buy-bundle
+ * Buy a bundle using smart wallet funds (backend executes with auth). Requires PIN.
+ * Body: { bundleId: string|number, useUsdc?: boolean, maxPrice?: string|number, pin: string, chain?: string }
+ */
+export async function smartWalletBuyBundle(req, res) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: "Not authenticated" });
+    const user = req.user;
+    if (!user.withdrawal_pin_hash) {
+      return res.status(400).json({ success: false, message: "Set a withdrawal PIN first (Profile → Manage smart wallet)." });
+    }
+    const pin = req.body?.pin != null ? String(req.body.pin).trim() : "";
+    if (!pin) return res.status(400).json({ success: false, message: "PIN required." });
+    const pinValid = await bcrypt.compare(pin, user.withdrawal_pin_hash);
+    if (!pinValid) return res.status(401).json({ success: false, message: "Invalid PIN." });
+
+    const chain = User.normalizeChain(req.body?.chain || user.chain || "CELO");
+    const smartWallet = user.smart_wallet_address && String(user.smart_wallet_address).trim();
+    if (!smartWallet || smartWallet === ZERO_ADDRESS) {
+      return res.status(400).json({ success: false, message: "No smart wallet. Create one in Profile first." });
+    }
+    const bundleId = req.body?.bundleId != null ? BigInt(String(req.body.bundleId)) : null;
+    if (!bundleId || bundleId <= 0n) return res.status(400).json({ success: false, message: "Provide bundleId." });
+    const useUsdc = req.body?.useUsdc !== false;
+    const maxPrice = req.body?.maxPrice != null ? BigInt(String(req.body.maxPrice)) : undefined;
+    const { hash } = await buyBundleFromSmartWalletWithAuth(smartWallet, bundleId, useUsdc, maxPrice, chain);
+    return res.status(200).json({ success: true, data: { hash } });
+  } catch (err) {
+    logger.error({ err: err?.message, userId: req.user?.id }, "smartWalletBuyBundle failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to buy bundle" });
+  }
+}
+
+/**
+ * POST /auth/smart-wallet/burn-collectible
+ * Burn a collectible from smart wallet (backend executes with auth). Requires PIN.
+ * Body: { tokenId: string|number, pin: string, chain?: string }
+ */
+export async function smartWalletBurnCollectible(req, res) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: "Not authenticated" });
+    const user = req.user;
+    if (!user.withdrawal_pin_hash) {
+      return res.status(400).json({ success: false, message: "Set a withdrawal PIN first (Profile → Manage smart wallet)." });
+    }
+    const pin = req.body?.pin != null ? String(req.body.pin).trim() : "";
+    if (!pin) return res.status(400).json({ success: false, message: "PIN required." });
+    const pinValid = await bcrypt.compare(pin, user.withdrawal_pin_hash);
+    if (!pinValid) return res.status(401).json({ success: false, message: "Invalid PIN." });
+
+    const chain = User.normalizeChain(req.body?.chain || user.chain || "CELO");
+    const smartWallet = user.smart_wallet_address && String(user.smart_wallet_address).trim();
+    if (!smartWallet || smartWallet === ZERO_ADDRESS) {
+      return res.status(400).json({ success: false, message: "No smart wallet. Create one in Profile first." });
+    }
+    const tokenId = req.body?.tokenId != null ? BigInt(String(req.body.tokenId)) : null;
+    if (!tokenId || tokenId <= 0n) return res.status(400).json({ success: false, message: "Provide tokenId." });
+    const { hash } = await burnCollectibleFromSmartWalletWithAuth(smartWallet, tokenId, chain);
+    return res.status(200).json({ success: true, data: { hash } });
+  } catch (err) {
+    logger.error({ err: err?.message, userId: req.user?.id }, "smartWalletBurnCollectible failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to burn collectible" });
   }
 }
 

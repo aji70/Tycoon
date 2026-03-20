@@ -16,6 +16,9 @@ import {
   vaultBalances,
   smartWalletWithdrawCelo,
   smartWalletWithdrawUsdc,
+  smartWalletBuyCollectible,
+  smartWalletBuyBundle,
+  smartWalletBurnCollectible,
   loginByWallet,
   connectEmail,
   verifyEmail,
@@ -41,6 +44,9 @@ router.get("/vault-balances", vaultBalances);
 router.post("/celo-purchase/initialize", requireAuth, celoPurchaseInitialize);
 router.post("/smart-wallet/withdraw-celo", requireAuth, smartWalletWithdrawCelo);
 router.post("/smart-wallet/withdraw-usdc", requireAuth, smartWalletWithdrawUsdc);
+router.post("/smart-wallet/buy-collectible", requireAuth, smartWalletBuyCollectible);
+router.post("/smart-wallet/buy-bundle", requireAuth, smartWalletBuyBundle);
+router.post("/smart-wallet/burn-collectible", requireAuth, smartWalletBurnCollectible);
 router.post("/login-by-wallet", loginByWallet);
 router.post("/connect-email", requireAuth, connectEmail);
 router.get("/verify-email", verifyEmail);

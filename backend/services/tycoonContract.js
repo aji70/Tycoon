@@ -8,6 +8,7 @@
  * only one transaction is in flight at a time. This prevents nonce collisions when many
  * guests (or other backend-triggered actions) hit the API at once.
  */
+import crypto from "crypto";
 import { JsonRpcProvider, Wallet, Contract, Network, Interface, keccak256, solidityPacked, getBytes } from "ethers";
 import { getChainConfig, isAnyChainConfigured } from "../config/chains.js";
 import logger from "../config/logger.js";
@@ -530,6 +531,43 @@ const USER_WALLET_ABI = [
     outputs: [],
     stateMutability: "nonpayable",
   },
+  {
+    type: "function",
+    name: "buyCollectibleWithAuth",
+    inputs: [
+      { name: "tokenId", type: "uint256", internalType: "uint256" },
+      { name: "useUsdc", type: "bool", internalType: "bool" },
+      { name: "maxPrice", type: "uint256", internalType: "uint256" },
+      { name: "nonce", type: "uint256", internalType: "uint256" },
+      { name: "signature", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "buyBundleWithAuth",
+    inputs: [
+      { name: "bundleId", type: "uint256", internalType: "uint256" },
+      { name: "useUsdc", type: "bool", internalType: "bool" },
+      { name: "maxPrice", type: "uint256", internalType: "uint256" },
+      { name: "nonce", type: "uint256", internalType: "uint256" },
+      { name: "signature", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "burnCollectibleForPerkWithAuth",
+    inputs: [
+      { name: "tokenId", type: "uint256", internalType: "uint256" },
+      { name: "nonce", type: "uint256", internalType: "uint256" },
+      { name: "signature", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
 ];
 
 /** TycoonNairaVault: processNairaWithdrawalCelo, creditCelo, creditUsdc, balanceCelo, balanceUsdc. */
@@ -608,6 +646,33 @@ const REWARD_ABI_MINT = [
     ],
     outputs: [],
     stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "collectibleTycPrice",
+    inputs: [{ name: "tokenId", type: "uint256", internalType: "uint256" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "collectibleUsdcPrice",
+    inputs: [{ name: "tokenId", type: "uint256", internalType: "uint256" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "bundles",
+    inputs: [{ name: "bundleId", type: "uint256", internalType: "uint256" }],
+    outputs: [
+      { name: "tokenIds", type: "uint256[]", internalType: "uint256[]" },
+      { name: "amounts", type: "uint256[]", internalType: "uint256[]" },
+      { name: "tycPrice", type: "uint256", internalType: "uint256" },
+      { name: "usdcPrice", type: "uint256", internalType: "uint256" },
+      { name: "active", type: "bool", internalType: "bool" },
+    ],
+    stateMutability: "view",
   },
 ];
 
@@ -1383,15 +1448,11 @@ export async function redeemVoucherForUser(voucherOwnerAddress, tokenId, chain =
     if (!rewardAddress || rewardAddress === "0x0000000000000000000000000000000000000000") {
       throw new Error(`Reward system not set on chain ${chain}`);
     }
-    // Prefer smart-wallet operator key for redeemVoucherFor(owner, tokenId):
-    // TycoonRewardSystem accepts the wallet operator for contract-wallet owners.
-    // Fallback order keeps backward compatibility in envs that only set one key.
-    const redeemPk =
-      process.env.SMART_WALLET_OPERATOR_PRIVATE_KEY ??
-      process.env.WITHDRAWAL_AUTHORITY_PRIVATE_KEY ??
-      cfg.privateKey;
+    // Use the backend game-controller signer only.
+    // Contract-level voucherRedeemer authorization determines redeem permissions.
+    const redeemPk = cfg.privateKey;
     if (!cfg.rpcUrl || !redeemPk) {
-      throw new Error("Redeem signer not configured (set SMART_WALLET_OPERATOR_PRIVATE_KEY or chain backend key)");
+      throw new Error("Redeem signer not configured (set BACKEND_GAME_CONTROLLER_*_PRIVATE_KEY for this chain)");
     }
     const pk = String(redeemPk).startsWith("0x") ? redeemPk : `0x${redeemPk}`;
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
@@ -1402,6 +1463,121 @@ export async function redeemVoucherForUser(voucherOwnerAddress, tokenId, chain =
     const tx = await reward.redeemVoucherFor(voucherOwnerAddress, BigInt(tokenId));
     const receipt = await tx.wait();
     logger.info({ voucherOwner: voucherOwnerAddress, tokenId: String(tokenId), hash: receipt?.hash }, "redeemVoucherFor tx");
+    return { hash: receipt?.hash };
+  });
+}
+
+function randomNonceBigInt() {
+  return BigInt(`0x${crypto.randomBytes(8).toString("hex")}`);
+}
+
+export async function buyCollectibleFromSmartWalletWithAuth(smartWalletAddress, tokenId, useUsdc = true, maxPrice, chain = "CELO") {
+  return withTxQueue(async () => {
+    const cfg = getChainConfig(chain);
+    const tycoon = getContract(chain);
+    const rewardAddress = await tycoon.rewardSystem();
+    if (!rewardAddress || rewardAddress === "0x0000000000000000000000000000000000000000") {
+      throw new Error(`Reward system not set on chain ${chain}`);
+    }
+    const operatorPk = cfg.privateKey;
+    if (!cfg.rpcUrl || !operatorPk) throw new Error("Backend controller key not configured for chain");
+    const key = String(operatorPk).startsWith("0x") ? operatorPk : `0x${operatorPk}`;
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const network = new Network(networkName, cfg.chainId);
+    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const operator = new Wallet(key, provider);
+    const rewardRead = new Contract(rewardAddress, REWARD_ABI_MINT, provider);
+    const userWallet = new Contract(smartWalletAddress, USER_WALLET_ABI, operator);
+    const authWallet = getWithdrawalAuthorityWallet(chain);
+    const id = BigInt(tokenId);
+    const price = useUsdc
+      ? BigInt(await rewardRead.collectibleUsdcPrice(id))
+      : BigInt(await rewardRead.collectibleTycPrice(id));
+    if (price <= 0n) throw new Error("Collectible is not for sale");
+    const limit = maxPrice != null ? BigInt(maxPrice) : price;
+    if (limit < price) throw new Error("maxPrice below current price");
+    const nonce = randomNonceBigInt();
+    const hash = keccak256(
+      solidityPacked(
+        ["address", "address", "uint256", "bool", "uint256", "uint256", "uint256"],
+        [smartWalletAddress, rewardAddress, id, !!useUsdc, price, limit, nonce]
+      )
+    );
+    const signature = await authWallet.signMessage(getBytes(hash));
+    const tx = await userWallet.buyCollectibleWithAuth(id, !!useUsdc, limit, nonce, signature);
+    const receipt = await tx.wait();
+    logger.info({ smartWalletAddress, tokenId: String(id), useUsdc: !!useUsdc, hash: receipt?.hash }, "buyCollectibleFromSmartWalletWithAuth tx");
+    return { hash: receipt?.hash };
+  });
+}
+
+export async function buyBundleFromSmartWalletWithAuth(smartWalletAddress, bundleId, useUsdc = true, maxPrice, chain = "CELO") {
+  return withTxQueue(async () => {
+    const cfg = getChainConfig(chain);
+    const tycoon = getContract(chain);
+    const rewardAddress = await tycoon.rewardSystem();
+    if (!rewardAddress || rewardAddress === "0x0000000000000000000000000000000000000000") {
+      throw new Error(`Reward system not set on chain ${chain}`);
+    }
+    const operatorPk = cfg.privateKey;
+    if (!cfg.rpcUrl || !operatorPk) throw new Error("Backend controller key not configured for chain");
+    const key = String(operatorPk).startsWith("0x") ? operatorPk : `0x${operatorPk}`;
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const network = new Network(networkName, cfg.chainId);
+    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const operator = new Wallet(key, provider);
+    const rewardRead = new Contract(rewardAddress, REWARD_ABI_MINT, provider);
+    const userWallet = new Contract(smartWalletAddress, USER_WALLET_ABI, operator);
+    const authWallet = getWithdrawalAuthorityWallet(chain);
+    const id = BigInt(bundleId);
+    const bundle = await rewardRead.bundles(id);
+    const price = !!useUsdc ? BigInt(bundle[3]) : BigInt(bundle[2]);
+    const active = Boolean(bundle[4]);
+    if (!active) throw new Error("Bundle is inactive");
+    if (price <= 0n) throw new Error("Bundle is not for sale");
+    const limit = maxPrice != null ? BigInt(maxPrice) : price;
+    if (limit < price) throw new Error("maxPrice below current price");
+    const nonce = randomNonceBigInt();
+    const hash = keccak256(
+      solidityPacked(
+        ["address", "address", "uint256", "bool", "uint256", "uint256", "uint256"],
+        [smartWalletAddress, rewardAddress, id, !!useUsdc, price, limit, nonce]
+      )
+    );
+    const signature = await authWallet.signMessage(getBytes(hash));
+    const tx = await userWallet.buyBundleWithAuth(id, !!useUsdc, limit, nonce, signature);
+    const receipt = await tx.wait();
+    logger.info({ smartWalletAddress, bundleId: String(id), useUsdc: !!useUsdc, hash: receipt?.hash }, "buyBundleFromSmartWalletWithAuth tx");
+    return { hash: receipt?.hash };
+  });
+}
+
+export async function burnCollectibleFromSmartWalletWithAuth(smartWalletAddress, tokenId, chain = "CELO") {
+  return withTxQueue(async () => {
+    const cfg = getChainConfig(chain);
+    const tycoon = getContract(chain);
+    const rewardAddress = await tycoon.rewardSystem();
+    if (!rewardAddress || rewardAddress === "0x0000000000000000000000000000000000000000") {
+      throw new Error(`Reward system not set on chain ${chain}`);
+    }
+    const operatorPk = cfg.privateKey;
+    if (!cfg.rpcUrl || !operatorPk) throw new Error("Backend controller key not configured for chain");
+    const key = String(operatorPk).startsWith("0x") ? operatorPk : `0x${operatorPk}`;
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const network = new Network(networkName, cfg.chainId);
+    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const operator = new Wallet(key, provider);
+    const userWallet = new Contract(smartWalletAddress, USER_WALLET_ABI, operator);
+    const authWallet = getWithdrawalAuthorityWallet(chain);
+    const id = BigInt(tokenId);
+    const nonce = randomNonceBigInt();
+    const hash = keccak256(
+      solidityPacked(["address", "address", "uint256", "uint256"], [smartWalletAddress, rewardAddress, id, nonce])
+    );
+    const signature = await authWallet.signMessage(getBytes(hash));
+    const tx = await userWallet.burnCollectibleForPerkWithAuth(id, nonce, signature);
+    const receipt = await tx.wait();
+    logger.info({ smartWalletAddress, tokenId: String(id), hash: receipt?.hash }, "burnCollectibleFromSmartWalletWithAuth tx");
     return { hash: receipt?.hash };
   });
 }
