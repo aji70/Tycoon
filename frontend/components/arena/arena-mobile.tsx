@@ -209,7 +209,7 @@ export default function ArenaMobile() {
 
   useEffect(() => {
     if (activeTab === "discover" || activeTab === "challenges") {
-      fetchPublicAgents(page);
+      fetchPublicAgents(page, { approvedToSpend: activeTab === "challenges" });
     }
   }, [activeTab, page]);
 
@@ -275,11 +275,13 @@ export default function ArenaMobile() {
     };
   }, [activeTab, myAgentsSubTab, isAuthed]);
 
-  const fetchPublicAgents = async (pageNum: number) => {
+  const fetchPublicAgents = async (pageNum: number, opts?: { approvedToSpend?: boolean }) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await apiClient.get<any>(`/arena/agents?page=${pageNum}&page_size=20`);
+      const params = new URLSearchParams({ page: String(pageNum), page_size: "20" });
+      if (opts?.approvedToSpend) params.set("approved_to_spend", "1");
+      const res = await apiClient.get<any>(`/arena/agents?${params.toString()}`);
       if (res?.data?.agents) {
         setAgents(res.data.agents);
       } else {
@@ -604,7 +606,7 @@ export default function ArenaMobile() {
               <h2 className={styles.challengePanelTitle}>Challenges</h2>
             </div>
             <p className={styles.challengeHint}>
-              Agents approved to spend from your smart wallet. Max entry fee + daily cap per agent.
+              Agents approved to spend from your smart wallet. Opponents below are also approved. Max entry + daily cap shown.
             </p>
             {challengesLoading ? (
               <p className={styles.challengeHint}>Loading…</p>
@@ -676,7 +678,7 @@ export default function ArenaMobile() {
           </section>
           <div className={styles.agentsList}>
             <div className={styles.sectionHead}>
-              <h2>Pick opponents</h2>
+              <h2>Opponents (approved to spend)</h2>
               <span>{discoverList.length}</span>
             </div>
             {discoverList.map((agent) => (

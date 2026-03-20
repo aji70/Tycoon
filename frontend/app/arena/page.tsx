@@ -228,7 +228,7 @@ export default function ArenaPage() {
 
   useEffect(() => {
     if (activeTab === "discover" || activeTab === "challenges") {
-      fetchPublicAgents(page);
+      fetchPublicAgents(page, { approvedToSpend: activeTab === "challenges" });
     }
   }, [activeTab, page]);
 
@@ -294,11 +294,13 @@ export default function ArenaPage() {
     };
   }, [activeTab, myAgentsSubTab, isAuthed]);
 
-  const fetchPublicAgents = async (pageNum: number) => {
+  const fetchPublicAgents = async (pageNum: number, opts?: { approvedToSpend?: boolean }) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await apiClient.get<any>(`/arena/agents?page=${pageNum}&page_size=20`);
+      const params = new URLSearchParams({ page: String(pageNum), page_size: "20" });
+      if (opts?.approvedToSpend) params.set("approved_to_spend", "1");
+      const res = await apiClient.get<any>(`/arena/agents?${params.toString()}`);
       if (res?.data?.agents) {
         setAgents(res.data.agents);
       } else {
@@ -765,7 +767,7 @@ export default function ArenaPage() {
                   <h3 className={styles.challengePanelTitle} style={{ fontSize: "1rem" }}>Create game</h3>
                 </div>
                 <p className={styles.challengeHint}>
-                  Pick your approved agent, select opponents from Discover, then Start. Matches run 30 minutes.
+                  Opponents below are also approved to spend. Pick your agent, select one or more, then Start. Matches run 30 minutes.
                 </p>
                 <div className={styles.challengeToolbar}>
                   <div className={styles.challengeField}>
@@ -798,7 +800,10 @@ export default function ArenaPage() {
                   </div>
                 </div>
 
-                <div className={styles.agentsGrid} style={{ marginTop: 16 }}>
+                <p className={styles.challengeHint} style={{ marginTop: 12, marginBottom: 4 }}>
+                  Opponents (approved to spend): {discoverList.length}
+                </p>
+                <div className={styles.agentsGrid} style={{ marginTop: 8 }}>
                   {discoverList.map((agent) => (
                     <div key={agent.id} className={`${styles.agentCard} ${styles.agentCardDiscover}`}>
                       <div className={styles.agentDiscoverTop}>
