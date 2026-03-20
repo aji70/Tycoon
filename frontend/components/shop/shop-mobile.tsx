@@ -28,7 +28,6 @@ import {
   MapPin,
   Banknote,
   Smartphone,
-  Landmark,
 } from 'lucide-react';
 
 import RewardABI from '@/context/abi/rewardabi.json';
@@ -300,16 +299,6 @@ export default function GameShopMobile() {
   });
   const usdcBalance = usdcBalanceData ? Number(usdcBalanceData.formatted).toFixed(2) : '0.00';
 
-  const {
-    data: contractUsdcData,
-    isLoading: contractUsdcLoading,
-    refetch: refetchContractUsdc,
-  } = useBalance({
-    address: contractAddress,
-    token: usdcTokenAddress,
-    query: { enabled: !!contractAddress && !!usdcTokenAddress },
-  });
-  const contractUsdcBalance = contractUsdcData ? Number(contractUsdcData.formatted).toFixed(2) : '0.00';
 
   const payFromSmartWalletUnsupported = payWith === 'smart_wallet' && !smartWalletAddress;
 
@@ -966,31 +955,6 @@ export default function GameShopMobile() {
           </button>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl px-4 py-3 flex items-start justify-between gap-3 border border-emerald-500/20 bg-emerald-950/20 backdrop-blur-xl"
-        >
-          <div className="flex items-start gap-3 min-w-0">
-            <Landmark className="w-5 h-5 text-emerald-400/90 shrink-0 mt-0.5" />
-            <div className="min-w-0">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider">Perk contract USDC</p>
-              <p className="text-lg font-bold text-emerald-300/95 font-[family-name:var(--font-orbitron-sans)]">
-                {contractUsdcLoading ? <Loader2 className="inline animate-spin" size={18} /> : `$${contractUsdcBalance}`}
-              </p>
-              <p className="text-[10px] text-slate-500 mt-1 leading-snug">
-                Shop USDC payments go to this contract on-chain; the protocol owner can withdraw.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => refetchContractUsdc()}
-            className="text-xs text-emerald-400/90 flex items-center gap-1 shrink-0"
-          >
-            <RefreshCw size={12} /> Refresh
-          </button>
-        </motion.div>
 
         {payFromSmartWalletUnsupported && (
           <p className="text-center text-amber-200/90 text-xs">No smart wallet to pay from. Use Connected wallet or create/link one in Profile.</p>
