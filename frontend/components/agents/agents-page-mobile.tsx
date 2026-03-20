@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2, CheckCircle2, XCircle, Trophy } from "lucide-react";
+import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2, CheckCircle2, XCircle, Trophy, Eye, EyeOff } from "lucide-react";
 import { apiClient, ApiError } from "@/lib/api";
 import {
   mergeGameplayIntoBehaviorProfile,
@@ -38,6 +38,7 @@ export interface UserAgent {
   provider?: string | null;
   has_api_key?: boolean;
   use_tycoon_key?: boolean;
+  is_public?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -144,6 +145,7 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
   });
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [togglingDiscoverId, setTogglingDiscoverId] = useState<number | null>(null);
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
   const { verifyAgentId, isCelo, getAgentIdOwnedByAddress } = useVerifyErc8004AgentId();
@@ -461,6 +463,26 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
     }
   };
 
+  const toggleDiscoverVisibility = async (a: UserAgent) => {
+    const next = !a.is_public;
+    setTogglingDiscoverId(a.id);
+    try {
+      await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${a.id}`, { is_public: next });
+      toast.success(next ? "Listed in Discover" : "Hidden from Discover");
+      await fetchAgents();
+    } catch (err: unknown) {
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String((err as Error).message)
+            : "Could not update visibility";
+      toast.error(msg);
+    } finally {
+      setTogglingDiscoverId(null);
+    }
+  };
+
   const handleRegisterOnCelo = async (a: UserAgent) => {
     if (!isCelo) {
       toast.error("Switch to Celo to register on ERC-8004");
@@ -753,8 +775,31 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
                         <a href="https://www.8004scan.io/agents" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Reputation</a>
                       </p>
                     )}
+                    <p className={`text-[10px] mt-0.5 font-medium ${a.is_public ? "text-emerald-400/90" : "text-gray-500"}`}>
+                      {a.is_public ? "Listed in Arena Discover" : "Not in Discover"}
+                    </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => toggleDiscoverVisibility(a)}
+                      disabled={togglingDiscoverId === a.id}
+                      className={`p-2 rounded-lg border ${
+                        a.is_public
+                          ? "border-emerald-500/45 text-emerald-300 bg-emerald-500/10"
+                          : "border-white/15 text-gray-400"
+                      } disabled:opacity-50`}
+                      aria-label={a.is_public ? "Remove from Discover" : "Show in Arena Discover"}
+                      title={a.is_public ? "Hide from Discover" : "List in Arena Discover"}
+                    >
+                      {togglingDiscoverId === a.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : a.is_public ? (
+                        <Eye className="w-3.5 h-3.5" />
+                      ) : (
+                        <EyeOff className="w-3.5 h-3.5" />
+                      )}
+                    </button>
                     <button
                       type="button"
                       onClick={() => openTournamentPerms(a)}
