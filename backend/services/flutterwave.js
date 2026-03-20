@@ -9,7 +9,10 @@ import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "../constants/ngnPayments.js";
 
 const FLW_SECRET = process.env.FLW_SECRET_KEY || "";
 const FLW_BASE = "https://api.flutterwave.com/v3";
-const FLW_DEFAULT_EMAIL = "realjaiboi70@gmail.com";
+/** Same address used for buy-CELO-with-Naira checkout (Flutterwave is picky about customer email). */
+export const FLW_CHECKOUT_EMAIL =
+  (process.env.FLW_CHECKOUT_EMAIL && String(process.env.FLW_CHECKOUT_EMAIL).trim()) || "realjaiboi70@gmail.com";
+const FLW_DEFAULT_EMAIL = FLW_CHECKOUT_EMAIL;
 const FLW_DEFAULT_PHONE = "08060332714";
 
 /** Flutterwave expects a valid customer phone; normalize to digits, prefer 234… for Nigeria. */
@@ -89,7 +92,7 @@ export async function initializePayment({
   const amountRounded = Math.max(MIN_FLUTTERWAVE_CHECKOUT_NGN, Math.round(amount));
   // Some guest usernames generate placeholder emails that Flutterwave rejects.
   // Fall back to a known-good sender email when the provided value is malformed.
-  const customerEmail = isLikelyEmail(email) ? String(email).trim() : FLW_DEFAULT_EMAIL;
+  const customerEmail = isLikelyEmail(email) ? String(email).trim() : FLW_CHECKOUT_EMAIL;
   const customerNameStr = (customerName && String(customerName).trim()) || "Tycoon Player";
   const customerPhone = normalizeFlutterwavePhone(FLW_DEFAULT_PHONE);
   const defaultCustomizations = {

@@ -32,6 +32,7 @@ import RewardABI from '@/context/abi/rewardabi.json';
 import Erc20Abi from '@/context/abi/ERC20abi.json';
 import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from '@/lib/constants/ngnPayments';
+import { shopPerkRow } from '@/lib/shopPerkRow';
 
 import {
   useRewardBuyCollectible,
@@ -104,22 +105,22 @@ const BUNDLE_DEFS: BundleDef[] = [
   { name: "Ultimate Pack", description: "A bit of everything to dominate the board.", items: [{ perk: 1, strength: 1, quantity: 1 }, { perk: 3, strength: 1, quantity: 1 }, { perk: 7, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
 ];
 
-// Perk metadata — real descriptions for shop and collectibles
+// Perk metadata — names/images from lib/perkShopAssets (same card art as profile)
 const perkMetadata = [
-  { perk: 1, name: "Extra Turn", desc: "Use on your turn to take an extra roll after this one. One more chance to land where you need.", icon: <Zap className="w-12 h-12 text-yellow-400" />, image: "/shopcards/extraturn.jpg" },
-  { perk: 2, name: "Jail Free Card", desc: "Use when in Jail to get out without paying or rolling doubles. Keep your cash and stay in the game.", icon: <Crown className="w-12 h-12 text-purple-400" />, image: "/shopcards/jailfree.jpg" },
-  { perk: 3, name: "Double Rent", desc: "When someone lands on your property, charge double the normal rent once. Maximize your income.", icon: <Coins className="w-12 h-12 text-green-400" />, image: "/shopcards/double_rent.jpg" },
-  { perk: 4, name: "Roll Boost", desc: "Add +1 to your next dice roll (capped at 12). Nudge the odds in your favor.", icon: <Sparkles className="w-12 h-12 text-blue-400" />, image: "/shopcards/roll_boost.jpg" },
-  { perk: 5, name: "Instant Cash", desc: "Burn during a game to receive TYC based on tier (100–1000). Instant liquidity when you need it.", icon: <Gem className="w-12 h-12 text-cyan-400" />, image: "/shopcards/Cash_tiered.jpg" },
-  { perk: 6, name: "Teleport", desc: "Move your token to any property on the board. Buy that key lot or skip past danger.", icon: <Zap className="w-12 h-12 text-pink-400" />, image: "/shopcards/teleport.jpg" },
-  { perk: 7, name: "Shield", desc: "Block the next rent or fee you would pay (one use). Stay solvent when the board turns against you.", icon: <Shield className="w-12 h-12 text-indigo-400" />, image: "/shopcards/rent_immunity.jpg" },
-  { perk: 8, name: "Property Discount", desc: "Get 30–50% off the next property you buy (tiered). Stretch your cash and complete sets faster.", icon: <Coins className="w-12 h-12 text-orange-400" />, image: "/shopcards/Cash_tiered.jpg" },
-  { perk: 9, name: "Tax Refund", desc: "Receive TYC back when you pay Income or Luxury Tax (tiered). Turn tax hits into partial recovery.", icon: <Gem className="w-12 h-12 text-teal-400" />, image: "/shopcards/tax_refund.jpg" },
-  { perk: 10, name: "Exact Roll", desc: "Choose your next roll (2–12) instead of rolling the dice. Land on the exact space you need.", icon: <Sparkles className="w-12 h-12 text-amber-400" />, image: "/shopcards/roll_boost.jpg" },
-  { perk: 11, name: "Rent Cashback", desc: "Next rent you receive is +25% extra. Great for property owners.", icon: <Percent className="w-12 h-12 text-emerald-400" />, image: "/shopcards/rent_cashback.jpg" },
-  { perk: 12, name: "Interest", desc: "At the start of your next turn, receive $200. A little boost when it's your turn.", icon: <CircleDollarSign className="w-12 h-12 text-lime-400" />, image: "/shopcards/interest.jpg" },
-  { perk: 13, name: "Lucky 7", desc: "Your next roll will be 7. The most common roll—land where you need.", icon: <Sparkles className="w-12 h-12 text-yellow-300" />, image: "/shopcards/lucky_7.jpg" },
-  { perk: 14, name: "Free Parking Bonus", desc: "Next time you land on Free Parking, collect $500. A classic Monopoly moment.", icon: <MapPin className="w-12 h-12 text-sky-400" />, image: "/shopcards/freeparking_bonus.jpg" },
+  shopPerkRow(1, "Use on your turn to take an extra roll after this one. One more chance to land where you need.", <Zap className="w-12 h-12 text-yellow-400" />),
+  shopPerkRow(2, "Use when in Jail to get out without paying or rolling doubles. Keep your cash and stay in the game.", <Crown className="w-12 h-12 text-purple-400" />),
+  shopPerkRow(3, "When someone lands on your property, charge double the normal rent once. Maximize your income.", <Coins className="w-12 h-12 text-green-400" />),
+  shopPerkRow(4, "Add +1 to your next dice roll (capped at 12). Nudge the odds in your favor.", <Sparkles className="w-12 h-12 text-blue-400" />),
+  shopPerkRow(5, "Burn during a game to receive TYC based on tier (100–1000). Instant liquidity when you need it.", <Gem className="w-12 h-12 text-cyan-400" />),
+  shopPerkRow(6, "Move your token to any property on the board. Buy that key lot or skip past danger.", <Zap className="w-12 h-12 text-pink-400" />),
+  shopPerkRow(7, "Block the next rent or fee you would pay (one use). Stay solvent when the board turns against you.", <Shield className="w-12 h-12 text-indigo-400" />),
+  shopPerkRow(8, "Get 30–50% off the next property you buy (tiered). Stretch your cash and complete sets faster.", <Coins className="w-12 h-12 text-orange-400" />),
+  shopPerkRow(9, "Receive TYC back when you pay Income or Luxury Tax (tiered). Turn tax hits into partial recovery.", <Gem className="w-12 h-12 text-teal-400" />),
+  shopPerkRow(10, "Choose your next roll (2–12) instead of rolling the dice. Land on the exact space you need.", <Sparkles className="w-12 h-12 text-amber-400" />),
+  shopPerkRow(11, "Next rent you receive is +25% extra. Great for property owners.", <Percent className="w-12 h-12 text-emerald-400" />),
+  shopPerkRow(12, "At the start of your next turn, receive $200. A little boost when it's your turn.", <CircleDollarSign className="w-12 h-12 text-lime-400" />),
+  shopPerkRow(13, "Your next roll will be 7. The most common roll—land where you need.", <Sparkles className="w-12 h-12 text-yellow-300" />),
+  shopPerkRow(14, "Next time you land on Free Parking, collect $500. A classic Monopoly moment.", <MapPin className="w-12 h-12 text-sky-400" />),
 ];
 
 // Calculate NGN price with discount for purchases over 1000 NGN

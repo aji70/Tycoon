@@ -26,6 +26,8 @@ import { SkeletonPerkGrid, SkeletonCard } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
 import FirstTimeHint from '@/components/ui/FirstTimeHint';
 import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAssets';
+import { getPerkShopAsset } from '@/lib/perkShopAssets';
+import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 
 const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
 const isValidWallet = (a: unknown): a is Address => {
@@ -33,23 +35,6 @@ const isValidWallet = (a: unknown): a is Address => {
   const s = a.trim();
   if (!s) return false;
   return s.toLowerCase() !== zeroAddress.toLowerCase();
-};
-
-const getPerkMetadata = (perk: number) => {
-  const data = [
-    null,
-    { name: 'Extra Turn', icon: <div className="w-16 h-16 bg-yellow-500/20 rounded-2xl flex items-center justify-center text-3xl">⚡</div> },
-    { name: 'Get Out of Jail Free', icon: <div className="w-16 h-16 bg-purple-500/20 rounded-2xl flex items-center justify-center text-3xl">👑</div> },
-    { name: 'Double Rent', icon: <div className="w-16 h-16 bg-green-500/20 rounded-2xl flex items-center justify-center text-3xl">💰</div> },
-    { name: 'Roll Boost', icon: <div className="w-16 h-16 bg-blue-500/20 rounded-2xl flex items-center justify-center text-3xl">✨</div> },
-    { name: 'Instant Cash', icon: <div className="w-16 h-16 bg-cyan-500/20 rounded-2xl flex items-center justify-center text-3xl">💎</div> },
-    { name: 'Teleport', icon: <div className="w-16 h-16 bg-pink-500/20 rounded-2xl flex items-center justify-center text-3xl">📍</div> },
-    { name: 'Shield', icon: <div className="w-16 h-16 bg-indigo-500/20 rounded-2xl flex items-center justify-center text-3xl">🛡️</div> },
-    { name: 'Property Discount', icon: <div className="w-16 h-16 bg-orange-500/20 rounded-2xl flex items-center justify-center text-3xl">🏠</div> },
-    { name: 'Tax Refund', icon: <div className="w-16 h-16 bg-teal-500/20 rounded-2xl flex items-center justify-center text-3xl">↩️</div> },
-    { name: 'Exact Roll', icon: <div className="w-16 h-16 bg-amber-500/20 rounded-2xl flex items-center justify-center text-3xl">🎯</div> },
-  ];
-  return data[perk] || { name: `Perk #${perk}`, icon: <div className="w-16 h-16 bg-gray-500/20 rounded-2xl flex items-center justify-center text-3xl">?</div> };
 };
 
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
@@ -242,11 +227,11 @@ function GuestProfileView({
   const ownedCollectibles = useMemo(
     () =>
       mergedCollectibleRows.map((row) => {
-        const meta = getPerkMetadata(row.perk);
+        const asset = getPerkShopAsset(row.perk);
         return {
           ...row,
-          name: meta.name,
-          icon: meta.icon,
+          name: asset?.name ?? `Perk #${row.perk}`,
+          icon: <ProfilePerkCardImage perk={row.perk} className="w-16 h-16" />,
           isTiered: row.perk === 5 || row.perk === 9,
         };
       }),
@@ -933,11 +918,11 @@ export default function Profile() {
   const ownedCollectibles = useMemo(
     () =>
       mergedCollectibleRows.map((row) => {
-        const meta = getPerkMetadata(row.perk);
+        const asset = getPerkShopAsset(row.perk);
         return {
           ...row,
-          name: meta.name,
-          icon: meta.icon,
+          name: asset?.name ?? `Perk #${row.perk}`,
+          icon: <ProfilePerkCardImage perk={row.perk} className="w-16 h-16" />,
           isTiered: row.perk === 5 || row.perk === 9,
         };
       }),

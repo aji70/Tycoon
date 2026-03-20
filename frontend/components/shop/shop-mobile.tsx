@@ -34,6 +34,7 @@ import RewardABI from '@/context/abi/rewardabi.json';
 import Erc20Abi from '@/context/abi/ERC20abi.json';
 import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from '@/lib/constants/ngnPayments';
+import { shopPerkRow } from '@/lib/shopPerkRow';
 
 import {
   useRewardBuyCollectible,
@@ -110,20 +111,20 @@ const BUNDLE_DEFS: BundleDef[] = [
 ];
 
 const perkMetadata = [
-  { perk: 1, name: "Extra Turn", desc: "Use on your turn to take an extra roll after this one.", icon: <Zap />, image: "/shopcards/extraturn.jpg" },
-  { perk: 2, name: "Jail Free Card", desc: "Use when in Jail to get out without paying or rolling doubles.", icon: <Crown />, image: "/shopcards/jailfree.jpg" },
-  { perk: 3, name: "Double Rent", desc: "When someone lands on your property, charge double the normal rent once.", icon: <Coins />, image: "/shopcards/double_rent.jpg" },
-  { perk: 4, name: "Roll Boost", desc: "Add +1 to your next dice roll (capped at 12).", icon: <Sparkles />, image: "/shopcards/roll_boost.jpg" },
-  { perk: 5, name: "Instant Cash", desc: "Burn to receive TYC based on tier (100–1000).", icon: <Gem />, image: "/shopcards/Cash_tiered.jpg" },
-  { perk: 6, name: "Teleport", desc: "Move your token to any property on the board.", icon: <Zap />, image: "/shopcards/teleport.jpg" },
-  { perk: 7, name: "Shield", desc: "Block the next rent or fee you would pay (one use).", icon: <Shield />, image: "/shopcards/rent_immunity.jpg" },
-  { perk: 8, name: "Property Discount", desc: "Get 30–50% off the next property you buy (tiered).", icon: <Coins />, image: "/shopcards/Cash_tiered.jpg" },
-  { perk: 9, name: "Tax Refund", desc: "Receive TYC back when you pay Income or Luxury Tax (tiered).", icon: <Gem />, image: "/shopcards/tax_refund.jpg" },
-  { perk: 10, name: "Exact Roll", desc: "Choose your next roll (2–12) instead of rolling the dice.", icon: <Sparkles />, image: "/shopcards/roll_boost.jpg" },
-  { perk: 11, name: "Rent Cashback", desc: "Next rent you receive is +25% extra.", icon: <Percent />, image: "/shopcards/rent_cashback.jpg" },
-  { perk: 12, name: "Interest", desc: "At the start of your next turn, receive $200.", icon: <CircleDollarSign />, image: "/shopcards/interest.jpg" },
-  { perk: 13, name: "Lucky 7", desc: "Your next roll will be 7.", icon: <Sparkles />, image: "/shopcards/lucky_7.jpg" },
-  { perk: 14, name: "Free Parking Bonus", desc: "Land on Free Parking to collect $500.", icon: <MapPin />, image: "/shopcards/freeparking_bonus.jpg" },
+  shopPerkRow(1, "Use on your turn to take an extra roll after this one.", <Zap />),
+  shopPerkRow(2, "Use when in Jail to get out without paying or rolling doubles.", <Crown />),
+  shopPerkRow(3, "When someone lands on your property, charge double the normal rent once.", <Coins />),
+  shopPerkRow(4, "Add +1 to your next dice roll (capped at 12).", <Sparkles />),
+  shopPerkRow(5, "Burn to receive TYC based on tier (100–1000).", <Gem />),
+  shopPerkRow(6, "Move your token to any property on the board.", <Zap />),
+  shopPerkRow(7, "Block the next rent or fee you would pay (one use).", <Shield />),
+  shopPerkRow(8, "Get 30–50% off the next property you buy (tiered).", <Coins />),
+  shopPerkRow(9, "Receive TYC back when you pay Income or Luxury Tax (tiered).", <Gem />),
+  shopPerkRow(10, "Choose your next roll (2–12) instead of rolling the dice.", <Sparkles />),
+  shopPerkRow(11, "Next rent you receive is +25% extra.", <Percent />),
+  shopPerkRow(12, "At the start of your next turn, receive $200.", <CircleDollarSign />),
+  shopPerkRow(13, "Your next roll will be 7.", <Sparkles />),
+  shopPerkRow(14, "Land on Free Parking to collect $500.", <MapPin />),
 ];
 
 export default function GameShopMobile() {
