@@ -10,6 +10,20 @@ import logger from "../config/logger.js";
 
 const K_FACTOR = 32; // Rating adjustment magnitude
 
+export const ACTIVITY_XP = Object.freeze({
+  GAME_CREATED: 10,
+  TURN_COMPLETED: 1,
+  ROLLED_DOUBLE: 2,
+  PROPERTY_BOUGHT: 8,
+  HOUSE_BUILT: 6,
+  PROPERTY_SOLD: 4,
+  TRADE_COMPLETED: 5,
+  TOURNAMENT_JOINED: 12,
+  TOURNAMENT_MATCH_PLAYED: 8,
+  TOURNAMENT_MATCH_WON: 20,
+  TOURNAMENT_CHAMPION: 50,
+});
+
 /**
  * Calculate expected win probability for player A given both ratings.
  * Ranges 0–1 where 0.5 means equally matched.
@@ -235,4 +249,46 @@ export function enrichAgentForArenaUi(agent) {
     tier: getTierNameArena(eloSafe),
     tier_color: getTierColorArena(eloSafe),
   };
+}
+
+async function resolveUserAgentIdForGameUser(gameId, userId, trxOrDb = db) {
+  const gp = await trxOrDb("game_players")
+    .where({ game_id: Number(gameId), user_id: Number(userId) })
+    .select("turn_order")
+    .first();
+  if (!gp?.turn_order) return null;
+  const assignment = await trxOrDb("agent_slot_assignments")
+    .where({
+      game_id: Number(gameId),
+      slot: Number(gp.turn_order),
+    })
+    .whereNotNull("user_agent_id")
+    .select("user_agent_id")
+    .first();
+  return assignment?.user_agent_id ? Number(assignment.user_agent_id) : null;
+}
+
+export async function awardActivityXpByAgentId(userAgentId, points, reason = "activity", trxOrDb = db) {
+  const agentId = Number(userAgentId);
+  const delta = Math.max(0, Number(points) || 0);
+  if (!agentId || delta <= 0) return false;
+
+  const row = await trxOrDb("user_agents").where({ id: agentId }).select("id", "elo_rating", "elo_peak").first();
+  if (!row) return false;
+  const current = Number(row.elo_rating) || 1000;
+  const next = current + delta;
+  const peak = Math.max(Number(row.elo_peak) || 1000, next);
+  await trxOrDb("user_agents").where({ id: agentId }).update({
+    elo_rating: next,
+    elo_peak: peak,
+    updated_at: trxOrDb.fn.now(),
+  });
+  logger.debug({ userAgentId: agentId, points: delta, reason }, "Awarded activity XP");
+  return true;
+}
+
+export async function awardActivityXpByGameUser(gameId, userId, points, reason = "activity", trxOrDb = db) {
+  const userAgentId = await resolveUserAgentIdForGameUser(gameId, userId, trxOrDb);
+  if (!userAgentId) return false;
+  return awardActivityXpByAgentId(userAgentId, points, reason, trxOrDb);
 }

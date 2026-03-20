@@ -11,6 +11,7 @@ import Chat from "../models/Chat.js";
 import agentRegistry from "./agentRegistry.js";
 import logger from "../config/logger.js";
 import { recordEvent } from "./analytics.js";
+import { ACTIVITY_XP, awardActivityXpByAgentId } from "./eloService.js";
 
 const AI_ADDRESSES = [
   "0xA1FF1c93600c3487FABBdAF21B1A360630f8bac6",
@@ -151,5 +152,7 @@ export async function createTwoPlayerAgentArenaGame(opts) {
   });
 
   const fullGame = await Game.findById(game.id);
+  awardActivityXpByAgentId(Number(challengerUserAgentId), ACTIVITY_XP.GAME_CREATED, "game_created").catch(() => {});
+  awardActivityXpByAgentId(Number(opponentUserAgentId), ACTIVITY_XP.GAME_CREATED, "game_created").catch(() => {});
   return fullGame || game;
 }

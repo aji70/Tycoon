@@ -17,6 +17,7 @@ import { createTournamentOnChain, registerForTournamentFor, isEscrowConfigured }
 import logger from "../config/logger.js";
 import agentRegistry from "./agentRegistry.js";
 import * as bracketEngine from "./tournamentBracketEngine.js";
+import { ACTIVITY_XP, awardActivityXpByAgentId } from "./eloService.js";
 
 const TOURNAMENT_SYMBOLS = ["hat", "car", "dog", "thimble", "wheelbarrow", "battleship", "boot", "iron"];
 const DEFAULT_STARTING_CASH = 1500;
@@ -379,6 +380,7 @@ async function createMatchGame(tournamentId, matchId) {
         chainId: 42220,
         name: a.agent_name || "Agent",
       });
+      awardActivityXpByAgentId(Number(a.user_agent_id), ACTIVITY_XP.GAME_CREATED, "game_created").catch(() => {});
     }
     if (b?.user_agent_id) {
       await agentRegistry.registerAgent({
@@ -389,6 +391,7 @@ async function createMatchGame(tournamentId, matchId) {
         chainId: 42220,
         name: b.agent_name || "Agent",
       });
+      awardActivityXpByAgentId(Number(b.user_agent_id), ACTIVITY_XP.GAME_CREATED, "game_created").catch(() => {});
     }
   } catch (err) {
     logger.warn({ err: err?.message, tournamentId, matchId }, "tournament entry agent binding failed");
@@ -645,6 +648,27 @@ export async function onGameFinished(gameId) {
 
   await TournamentMatch.update(match.id, { winner_entry_id: winnerEntry.id, status: "COMPLETED" });
 
+  try {
+    const entryAgentRows = await db("tournament_entry_agents")
+      .whereIn("tournament_entry_id", [match.slot_a_entry_id, match.slot_b_entry_id].filter(Boolean))
+      .select("tournament_entry_id", "user_agent_id");
+    const byEntry = new Map(entryAgentRows.map((r) => [Number(r.tournament_entry_id), Number(r.user_agent_id)]));
+    const slotAAgentId = byEntry.get(Number(match.slot_a_entry_id));
+    const slotBAgentId = byEntry.get(Number(match.slot_b_entry_id));
+    if (slotAAgentId) {
+      awardActivityXpByAgentId(slotAAgentId, ACTIVITY_XP.TOURNAMENT_MATCH_PLAYED, "tournament_match_played").catch(() => {});
+    }
+    if (slotBAgentId) {
+      awardActivityXpByAgentId(slotBAgentId, ACTIVITY_XP.TOURNAMENT_MATCH_PLAYED, "tournament_match_played").catch(() => {});
+    }
+    const winnerAgentId = byEntry.get(Number(winnerEntry.id));
+    if (winnerAgentId) {
+      awardActivityXpByAgentId(winnerAgentId, ACTIVITY_XP.TOURNAMENT_MATCH_WON, "tournament_match_won").catch(() => {});
+    }
+  } catch (err) {
+    logger.warn({ err: err?.message, gameId }, "Tournament XP awards failed");
+  }
+
   const tournament = await Tournament.findById(match.tournament_id);
   const nextRoundMatches = await TournamentMatch.findByTournamentAndRound(match.tournament_id, match.round_index + 1);
   for (const next of nextRoundMatches || []) {
@@ -682,6 +706,18 @@ export async function onGameFinished(gameId) {
   const finalCompleted = finalMatch && (await TournamentMatch.findById(finalMatch.id))?.status === "COMPLETED";
   if (finalCompleted) {
     await Tournament.update(match.tournament_id, { status: "COMPLETED" });
+    try {
+      const winnerAgentRow = await db("tournament_entry_agents")
+        .where({ tournament_entry_id: winnerEntry.id })
+        .select("user_agent_id")
+        .first();
+      const winnerAgentId = Number(winnerAgentRow?.user_agent_id || 0);
+      if (winnerAgentId) {
+        awardActivityXpByAgentId(winnerAgentId, ACTIVITY_XP.TOURNAMENT_CHAMPION, "tournament_champion").catch(() => {});
+      }
+    } catch (err) {
+      logger.warn({ err: err?.message, gameId }, "Tournament champion XP award failed");
+    }
     const t = await Tournament.findById(match.tournament_id);
     if (t.prize_source !== "NO_POOL" && (Number(t.prize_pool_wei) > 0 || Number(t.entry_fee_wei) > 0)) {
       try {

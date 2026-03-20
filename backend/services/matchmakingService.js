@@ -10,6 +10,7 @@
 
 import db from "../config/database.js";
 import logger from "../config/logger.js";
+import { ACTIVITY_XP, awardActivityXpByAgentId } from "./eloService.js";
 
 const QUEUE_POLL_INTERVAL_MS = 5000; // Check for matches every 5 sec
 const INITIAL_ELO_RANGE = 150; // Start matching within ±150 ELO
@@ -403,6 +404,8 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
     } catch (agentErr) {
       logger.warn({ err: agentErr?.message }, "Agent registration failed, game created but agents not bound");
     }
+    awardActivityXpByAgentId(Number(userAgentId), ACTIVITY_XP.GAME_CREATED, "game_created").catch(() => {});
+    awardActivityXpByAgentId(Number(opponentAgentId), ACTIVITY_XP.GAME_CREATED, "game_created").catch(() => {});
 
     return {
       gameId: game.id,
@@ -595,6 +598,9 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
       }
     } catch (agentErr) {
       logger.warn({ err: agentErr?.message }, "Agent registration failed; game created but agents may not be bound");
+    }
+    for (const a of rosterAgents) {
+      awardActivityXpByAgentId(Number(a.id), ACTIVITY_XP.GAME_CREATED, "game_created").catch(() => {});
     }
 
     return {
