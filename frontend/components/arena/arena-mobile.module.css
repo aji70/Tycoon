@@ -86,6 +86,37 @@ button.heroLink {
   margin-top: 4px;
 }
 
+.myAgentsSubTabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 5px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(0, 240, 255, 0.12);
+}
+
+.myAgentsSubTab {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: #8aa8b0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.myAgentsSubTabActive {
+  color: #021014;
+  background: linear-gradient(135deg, #6effe8 0%, #00c8d4 100%);
+  box-shadow: 0 2px 12px rgba(0, 240, 255, 0.2);
+}
+
 /* Pill tabs */
 .tabBar {
   display: flex;

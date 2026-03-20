@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena-mobile.module.css";
 import AgentsPageMobile from "@/components/agents/agents-page-mobile";
@@ -118,6 +119,10 @@ export default function ArenaMobile() {
   const [openTournaments, setOpenTournaments] = useState<ArenaTournamentRow[]>([]);
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
   const [tournamentsError, setTournamentsError] = useState<string | null>(null);
+  const [myAgentsSubTab, setMyAgentsSubTab] = useState<"overview" | "manage">("overview");
+  const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
+  const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
+  const { isCelo } = useVerifyErc8004AgentId();
 
   useEffect(() => {
     if (isAuthed) {
@@ -130,6 +135,7 @@ export default function ArenaMobile() {
     const q = new URLSearchParams(window.location.search);
     if (q.get("tab") === "my-agents") {
       setActiveTab("my-agents");
+      setMyAgentsSubTab(q.get("sub") === "manage" ? "manage" : "overview");
       router.replace("/arena", { scroll: false });
     }
   }, [router]);
@@ -194,6 +200,25 @@ export default function ArenaMobile() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab !== "my-agents" || myAgentsSubTab !== "overview" || !isAuthed) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiClient.get<ApiResponse<Agent[]>>("/agents");
+        if (cancelled) return;
+        if (res?.data?.success && res.data.data) {
+          setMyAgents(res.data.data);
+        }
+      } catch (e) {
+        console.error("Refresh my agents (overview):", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, myAgentsSubTab, isAuthed]);
+
   const fetchPublicAgents = async (pageNum: number) => {
     try {
       setLoading(true);
@@ -230,10 +255,13 @@ export default function ArenaMobile() {
     }
   };
 
-  const fetchMyAgents = async () => {
+  const fetchMyAgents = async (options?: { silent?: boolean }) => {
+    const silent = !!options?.silent;
     try {
-      setLoading(true);
-      setError(null);
+      if (!silent) {
+        setLoading(true);
+        setError(null);
+      }
       const res = await apiClient.get<ApiResponse<Agent[]>>("/agents");
       if (res?.data?.success && res.data.data) {
         setMyAgents(res.data.data);
@@ -242,9 +270,57 @@ export default function ArenaMobile() {
       }
     } catch (err) {
       console.error("Fetch error:", err);
-      setError(`Failed to fetch your agents: ${(err as Error).message}`);
+      if (!silent) {
+        setError(`Failed to fetch your agents: ${(err as Error).message}`);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const toggleAgentPublic = async (agentId: number, currentValue: boolean) => {
+    try {
+      const res = await apiClient.patch<any>(`/agents/${agentId}`, {
+        is_public: !currentValue,
+      });
+      if (res?.success && res?.data?.data) {
+        const updatedAgent = res.data.data;
+        setMyAgents((prev) =>
+          prev.map((a) => (a.id === agentId ? { ...a, is_public: updatedAgent.is_public } : a))
+        );
+        alert(updatedAgent.is_public ? "Now public in Discover" : "Hidden from Discover");
+      } else {
+        throw new Error("Failed to update");
+      }
+    } catch (err) {
+      alert(`Error: ${(err as Error).message}`);
+    }
+  };
+
+  const handleRegisterOnCelo = async (agent: Agent) => {
+    if (!isCelo) {
+      alert("Switch to Celo for ERC-8004.");
+      return;
+    }
+    if (agent.erc8004_agent_id) {
+      alert("Already registered.");
+      return;
+    }
+    setRegisteringErc8004Id(agent.id);
+    try {
+      const newAgentId = await registerOnCelo(agent.id);
+      if (newAgentId == null) throw new Error("Could not read on-chain ID");
+      await apiClient.patch(`/agents/${agent.id}`, { erc8004_agent_id: String(newAgentId) });
+      await fetchMyAgents({ silent: true });
+      if (activeTab === "discover") await fetchPublicAgents(page);
+      if (activeTab === "leaderboard") await fetchLeaderboard();
+      alert(`Celo ID: ${newAgentId}`);
+    } catch (err) {
+      alert(`Failed: ${(err as Error)?.message || "Unknown"}`);
+    } finally {
+      setRegisteringErc8004Id(null);
     }
   };
 
@@ -303,7 +379,14 @@ export default function ArenaMobile() {
             <h1 className={styles.heroTitle}>Agent Arena</h1>
             <p className={styles.heroSubtitle}>Challenge agents, climb ranks, join tournaments — create agents in Mine.</p>
             {isAuthed ? (
-              <button type="button" className={styles.heroLink} onClick={() => setActiveTab("my-agents")}>
+              <button
+                type="button"
+                className={styles.heroLink}
+                onClick={() => {
+                  setActiveTab("my-agents");
+                  setMyAgentsSubTab("overview");
+                }}
+              >
                 My agents
               </button>
             ) : null}
@@ -347,7 +430,10 @@ export default function ArenaMobile() {
           <button
             type="button"
             className={`${styles.tab} ${activeTab === "my-agents" ? styles.active : ""}`}
-            onClick={() => setActiveTab("my-agents")}
+            onClick={() => {
+              setActiveTab("my-agents");
+              setMyAgentsSubTab("overview");
+            }}
           >
             <span className={styles.tabIcon}>
               <UserRound className="w-4 h-4" aria-hidden />
@@ -583,7 +669,91 @@ export default function ArenaMobile() {
           {authLoading ? (
             <p className={styles.emptyState}>Loading session…</p>
           ) : isAuthed ? (
-            <AgentsPageMobile embeddedInArena />
+            <>
+              <div className={styles.myAgentsSubTabs} role="tablist" aria-label="My agents views">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={myAgentsSubTab === "overview"}
+                  className={`${styles.myAgentsSubTab} ${myAgentsSubTab === "overview" ? styles.myAgentsSubTabActive : ""}`}
+                  onClick={() => setMyAgentsSubTab("overview")}
+                >
+                  Mine
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={myAgentsSubTab === "manage"}
+                  className={`${styles.myAgentsSubTab} ${myAgentsSubTab === "manage" ? styles.myAgentsSubTabActive : ""}`}
+                  onClick={() => setMyAgentsSubTab("manage")}
+                >
+                  Full manager
+                </button>
+              </div>
+              {myAgentsSubTab === "overview" ? (
+                <div className={styles.myAgentsList}>
+                  <p className={styles.challengeHint} style={{ marginBottom: 12, fontSize: "0.8rem" }}>
+                    Quick: Discover + Celo. <strong>Full manager</strong> for create, keys, skills.
+                  </p>
+                  {myAgents.length > 0 ? (
+                    myAgents.map((agent) => (
+                      <div key={agent.id} className={styles.agentCard}>
+                        <div className={styles.cardTop}>
+                          <div className={styles.nameSection}>
+                            <h3>{agent.name}</h3>
+                            <span className={styles.status}>{agent.status || "unknown"}</span>
+                          </div>
+                          <div
+                            className={styles.tierbadge}
+                            style={{ backgroundColor: TierColors[agent.tier_color] }}
+                          >
+                            {tierLabelOf(agent)}
+                          </div>
+                        </div>
+                        <div className={styles.statsRow}>
+                          <div className={styles.stat}>
+                            <span className={styles.label}>XP</span>
+                            <span className={styles.value}>{xpOf(agent)}</span>
+                          </div>
+                          <div className={styles.stat}>
+                            <span className={styles.label}>Discover</span>
+                            <span className={styles.value}>{agent.is_public ? "On" : "Off"}</span>
+                          </div>
+                        </div>
+                        <p className={styles.creator} style={{ marginTop: 6 }}>
+                          ERC-8004: {agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "—"}
+                        </p>
+                        <button
+                          type="button"
+                          className={agent.is_public ? styles.btnSecondary : styles.btnPrimary}
+                          onClick={() => toggleAgentPublic(agent.id, agent.is_public || false)}
+                          style={{ width: "100%" }}
+                        >
+                          {agent.is_public ? "Hide from Discover" : "Show in Discover"}
+                        </button>
+                        {!agent.erc8004_agent_id && (
+                          <button
+                            type="button"
+                            className={styles.btnSecondary}
+                            onClick={() => handleRegisterOnCelo(agent)}
+                            style={{ width: "100%", marginTop: 8 }}
+                            disabled={isRegisteringErc8004 && registeringErc8004Id === agent.id}
+                          >
+                            {isRegisteringErc8004 && registeringErc8004Id === agent.id
+                              ? "Registering…"
+                              : "Register on Celo"}
+                          </button>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className={styles.emptyState}>No agents — use Full manager to create one.</p>
+                  )}
+                </div>
+              ) : (
+                <AgentsPageMobile embeddedInArena />
+              )}
+            </>
           ) : (
             <p className={styles.emptyState}>Sign in to create and manage agents.</p>
           )}

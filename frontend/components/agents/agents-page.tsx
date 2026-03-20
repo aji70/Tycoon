@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2, CheckCircle2, XCircle, Trophy } from "lucide-react";
+import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2, CheckCircle2, XCircle, Trophy, Eye, EyeOff } from "lucide-react";
 import { apiClient, ApiError } from "@/lib/api";
 import {
   mergeGameplayIntoBehaviorProfile,
@@ -38,6 +38,7 @@ export interface UserAgent {
   provider?: string | null;
   has_api_key?: boolean;
   use_tycoon_key?: boolean;
+  is_public?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -116,7 +117,7 @@ type TournamentPermission = {
   chain: string | null;
 };
 
-const ARENA_MANAGE_AGENTS_PATH = "/arena?tab=my-agents";
+const ARENA_MANAGE_AGENTS_PATH = "/arena?tab=my-agents&sub=manage";
 
 export type AgentsPageProps = { embeddedInArena?: boolean };
 
@@ -155,6 +156,7 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
     });
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [togglingDiscoverId, setTogglingDiscoverId] = useState<number | null>(null);
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
   const { verifyAgentId, isCelo, getAgentIdOwnedByAddress } = useVerifyErc8004AgentId();
@@ -339,7 +341,7 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
     setPurchasingNgn(true);
     try {
       const base = typeof window !== "undefined" ? window.location.origin : "";
-      const returnPath = embeddedInArena ? `${base}/arena?tab=my-agents` : `${base}/agents`;
+      const returnPath = embeddedInArena ? `${base}/arena?tab=my-agents&sub=manage` : `${base}/agents`;
       const res = await apiClient.post<{ success: boolean; link?: string; reference?: string }>(
         "/agents/hosted-credits/purchase/ngn/initialize",
         { callback_url: returnPath }
@@ -548,6 +550,26 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
       toast.error("Failed to delete agent");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const toggleDiscoverVisibility = async (a: UserAgent) => {
+    const next = !a.is_public;
+    setTogglingDiscoverId(a.id);
+    try {
+      await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${a.id}`, { is_public: next });
+      toast.success(next ? "Listed in Arena → Discover" : "Hidden from Discover");
+      await fetchAgents();
+    } catch (err: unknown) {
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String((err as Error).message)
+            : "Could not update visibility";
+      toast.error(msg);
+    } finally {
+      setTogglingDiscoverId(null);
     }
   };
 
@@ -809,7 +831,31 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleDiscoverVisibility(a)}
+                      disabled={togglingDiscoverId === a.id}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition disabled:opacity-50 ${
+                        a.is_public
+                          ? "border-emerald-500/45 text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/15"
+                          : "border-white/15 text-gray-400 hover:border-cyan-500/40 hover:text-cyan-300"
+                      }`}
+                      title={
+                        a.is_public
+                          ? "Shown in Arena → Discover. Click to hide."
+                          : "Not listed in Discover. Click to make visible for challenges."
+                      }
+                    >
+                      {togglingDiscoverId === a.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                      ) : a.is_public ? (
+                        <Eye className="w-3.5 h-3.5 shrink-0" />
+                      ) : (
+                        <EyeOff className="w-3.5 h-3.5 shrink-0" />
+                      )}
+                      {a.is_public ? "In Discover" : "Discover off"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => openTournamentPerms(a)}

@@ -108,6 +108,42 @@ button.heroLink {
   margin-top: 8px;
 }
 
+.myAgentsSubTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 6px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(0, 240, 255, 0.12);
+}
+
+.myAgentsSubTab {
+  flex: 1;
+  min-width: 140px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: #8aa8b0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.myAgentsSubTab:hover {
+  color: #e8fbff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.myAgentsSubTabActive {
+  color: #021014;
+  background: linear-gradient(135deg, #6effe8 0%, #00c8d4 100%);
+  box-shadow: 0 2px 14px rgba(0, 240, 255, 0.22);
+}
+
 .tabBar {
   display: flex;
   flex-wrap: wrap;
