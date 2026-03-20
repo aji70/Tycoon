@@ -11,7 +11,7 @@ import {
   usePublicClient,
 } from 'wagmi';
 import { celo } from 'wagmi/chains';
-import { Address, decodeEventLog, getAddress, zeroAddress } from 'viem';
+import { Address, decodeEventLog, getAddress, hexToBigInt, parseEventLogs, zeroAddress } from 'viem';
 import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
 import Erc20Abi from './abi/ERC20abi.json';
@@ -710,6 +710,57 @@ const ERC8004_REGISTERED_EVENT = {
   ],
 };
 
+/** keccak256("Transfer(address,address,uint256)") — ERC-721 mint uses indexed tokenId (often empty `data`). */
+const ERC721_TRANSFER_TOPIC0 =
+  '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef' as const;
+
+function txHashEq(a: string | undefined, b: string | undefined): boolean {
+  if (!a || !b) return false;
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+/** Decode `address` from a 32-byte log topic (last 20 bytes). */
+function topicToAddress(topic: `0x${string}` | undefined): Address | null {
+  if (!topic || topic.length < 66) return null;
+  try {
+    return getAddress(`0x${topic.slice(-40)}` as `0x${string}`);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fallback when viem decode is flaky: read mint Transfer(from=0) from the identity registry only.
+ * Smart-wallet / batched txs may include other contracts’ logs; we only inspect `registryAddress`.
+ */
+function parseAgentIdFromRawErc721MintLogs(
+  logs: readonly { address: Address; topics: readonly `0x${string}`[] }[],
+  registryAddress: Address,
+  ownerAddress: Address | undefined
+): number | null {
+  const reg = getAddress(registryAddress);
+  const owner = ownerAddress ? getAddress(ownerAddress) : null;
+  const mints: { tokenId: number; to: Address }[] = [];
+
+  for (const log of logs) {
+    if (getAddress(log.address) !== reg) continue;
+    if (log.topics[0] !== ERC721_TRANSFER_TOPIC0 || log.topics.length !== 4) continue;
+    const from = topicToAddress(log.topics[1]);
+    if (!from || getAddress(from) !== getAddress(zeroAddress)) continue;
+    const to = topicToAddress(log.topics[2]);
+    if (!to) continue;
+    mints.push({ tokenId: Number(hexToBigInt(log.topics[3]!)), to });
+  }
+
+  if (mints.length === 1) return mints[0].tokenId;
+  if (owner && mints.length > 0) {
+    const hit = mints.find((m) => getAddress(m.to) === owner);
+    if (hit) return hit.tokenId;
+  }
+  if (mints.length > 0) return mints[mints.length - 1].tokenId;
+  return null;
+}
+
 function parseAgentIdFromRegisterReceipt(
   receipt: { logs: readonly { address: Address; data: `0x${string}`; topics: readonly `0x${string}`[] }[] },
   registryAddress: Address,
@@ -717,11 +768,53 @@ function parseAgentIdFromRegisterReceipt(
 ): number | null {
   const reg = getAddress(registryAddress);
   const owner = ownerAddress ? getAddress(ownerAddress) : null;
-  /** ERC-721 mints in this tx from the registry (register() emits one mint). */
-  const mintTokenIds: number[] = [];
+  const registryLogs = receipt.logs.filter((l) => getAddress(l.address) === reg);
 
-  for (const log of receipt.logs) {
-    if (getAddress(log.address) !== reg) continue;
+  try {
+    const registered = parseEventLogs({
+      abi: ERC8004IdentityABI,
+      eventName: 'Registered',
+      logs: registryLogs,
+    });
+    if (registered.length === 1) return Number(registered[0].args.agentId);
+    if (registered.length > 1 && owner) {
+      const hit = registered.find(
+        (e) => e.args.owner && getAddress(e.args.owner as Address) === owner
+      );
+      if (hit) return Number(hit.args.agentId);
+    }
+    if (registered.length > 0) return Number(registered[registered.length - 1].args.agentId);
+  } catch {
+    // continue
+  }
+
+  try {
+    const transfers = parseEventLogs({
+      abi: ERC8004IdentityABI,
+      eventName: 'Transfer',
+      logs: registryLogs,
+    });
+    const mints = transfers.filter(
+      (t) => t.args.from && getAddress(t.args.from as Address) === getAddress(zeroAddress)
+    );
+    if (mints.length === 1) return Number(mints[0].args.tokenId);
+    if (owner && mints.length > 0) {
+      const hit = mints.find(
+        (t) => t.args.to && getAddress(t.args.to as Address) === owner
+      );
+      if (hit) return Number(hit.args.tokenId);
+    }
+    if (mints.length > 0) return Number(mints[mints.length - 1].args.tokenId);
+  } catch {
+    // continue
+  }
+
+  const raw = parseAgentIdFromRawErc721MintLogs(receipt.logs, registryAddress, ownerAddress);
+  if (raw != null) return raw;
+
+  /** Legacy per-log decode (covers ABI edge cases parseEventLogs misses). */
+  const mintTokenIds: number[] = [];
+  for (const log of registryLogs) {
     try {
       const decoded = decodeEventLog({
         abi: ERC8004IdentityABI as never,
@@ -784,8 +877,11 @@ export function useRegisterAgentERC8004() {
       });
       if (!publicClient || !hash) return null;
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      const receiptFromRpc = await publicClient.getTransactionReceipt({ hash }).catch(() => null);
+      const logsSource =
+        receiptFromRpc && receiptFromRpc.logs.length > receipt.logs.length ? receiptFromRpc : receipt;
 
-      let agentId = parseAgentIdFromRegisterReceipt(receipt, identityRegistryAddress, address);
+      let agentId = parseAgentIdFromRegisterReceipt(logsSource, identityRegistryAddress, address);
       if (agentId != null) return agentId;
 
       // Fallback: query logs in the block (some RPCs omit full log decoding in receipt)
@@ -797,7 +893,7 @@ export function useRegisterAgentERC8004() {
           fromBlock: receipt.blockNumber,
           toBlock: receipt.blockNumber,
         });
-        const mintsThisTx = allMintsInBlock.filter((l) => l.transactionHash === hash);
+        const mintsThisTx = allMintsInBlock.filter((l) => txHashEq(l.transactionHash, hash));
         if (mintsThisTx.length === 1 && mintsThisTx[0].args?.tokenId != null) {
           return Number(mintsThisTx[0].args.tokenId);
         }
@@ -810,6 +906,31 @@ export function useRegisterAgentERC8004() {
             return Number(toOwner.args.tokenId);
           }
         }
+        const lastMint = mintsThisTx[mintsThisTx.length - 1];
+        if (lastMint?.args?.tokenId != null) {
+          return Number(lastMint.args.tokenId);
+        }
+      } catch {
+        // continue
+      }
+
+      try {
+        const registeredInBlock = await publicClient.getLogs({
+          address: identityRegistryAddress,
+          event: ERC8004_REGISTERED_EVENT,
+          fromBlock: receipt.blockNumber,
+          toBlock: receipt.blockNumber,
+        });
+        const registeredThisTx = registeredInBlock.filter((l) => txHashEq(l.transactionHash, hash));
+        if (address && registeredThisTx.length > 0) {
+          const owner = getAddress(address as Address);
+          const forOwner = registeredThisTx.find(
+            (l) => l.args?.owner != null && getAddress(l.args.owner as Address) === owner
+          );
+          if (forOwner?.args?.agentId != null) return Number(forOwner.args.agentId);
+        }
+        const lastReg = registeredThisTx[registeredThisTx.length - 1];
+        if (lastReg?.args?.agentId != null) return Number(lastReg.args.agentId);
       } catch {
         // continue
       }
@@ -823,7 +944,7 @@ export function useRegisterAgentERC8004() {
             fromBlock: receipt.blockNumber,
             toBlock: receipt.blockNumber,
           });
-          const exactTxLog = registeredLogs.find((l) => l.transactionHash === hash);
+          const exactTxLog = registeredLogs.find((l) => txHashEq(l.transactionHash, hash));
           if (exactTxLog?.args?.agentId != null) {
             return Number(exactTxLog.args.agentId);
           }

@@ -1,6 +1,14 @@
 /**
- * One-time script: register Tycoon AI as an agent on ERC-8004 Identity Registry (Celo).
- * Run once to get an agentId, then set NEXT_PUBLIC_ERC8004_AGENT_ID in the frontend.
+ * One-time script: call ERC-8004 Identity Registry `register(agentURI)` on Celo (server wallet pays gas).
+ *
+ * IMPORTANT — user agents (My Agents):
+ * The registrant wallet becomes on-chain ownerOf(agentId). For end users you should NOT use this
+ * script: use the app (Register on Celo) so *their* wallet signs. If you register with this script
+ * using a UserAgent’s public JSON URL, the JSON may list the user as `owner` but the NFT owner will
+ * be the server key — inconsistent for trust / reputation.
+ *
+ * Good uses: one Tycoon-hosted AI identity (static AGENT_URI), ops/testing, or when you explicitly
+ * want the server wallet to own the ERC-8004 NFT.
  *
  * Usage:
  *   AGENT_URI="https://your-domain.com/tycoon-ai.json" \
@@ -8,7 +16,12 @@
  *   ERC8004_REGISTRANT_PRIVATE_KEY="0x..." \
  *   node scripts/register-erc8004-agent.js
  *
- * Or use a .env in backend with these vars and: node -r dotenv/config scripts/register-erc8004-agent.js
+ * Or derive URI from your public API base + DB agent id (same caveat on ownership):
+ *   TYCOON_PUBLIC_API_BASE="https://api.example.com" TYCOON_USER_AGENT_ID=42 \
+ *   CELO_RPC_URL=... ERC8004_REGISTRANT_PRIVATE_KEY=0x... node -r dotenv/config scripts/register-erc8004-agent.js
+ *   → AGENT_URI = {base}/api/agents/42/erc8004-registration
+ *
+ * Or use a .env in backend with these vars and: npm run register-erc8004-agent
  */
 
 import { ethers } from "ethers";
@@ -19,9 +32,19 @@ const IDENTITY_REGISTRY_ABI = [
   "function register(string calldata agentURI) external returns (uint256 agentId)",
 ];
 
+function resolveAgentUri() {
+  const explicit = process.env.AGENT_URI?.trim();
+  if (explicit) return explicit;
+  const base = process.env.TYCOON_PUBLIC_API_BASE?.replace(/\/$/, "");
+  const id = process.env.TYCOON_USER_AGENT_ID?.trim();
+  if (base && id) {
+    return `${base}/api/agents/${id}/erc8004-registration`;
+  }
+  return "https://base-monopoly.vercel.app/tycoon-ai.json";
+}
+
 async function main() {
-  const agentUri =
-    process.env.AGENT_URI || "https://base-monopoly.vercel.app/tycoon-ai.json";
+  const agentUri = resolveAgentUri();
   const rpcUrl = process.env.CELO_RPC_URL || "https://rpc.ankr.com/celo";
   const privateKey =
     process.env.ERC8004_REGISTRANT_PRIVATE_KEY || process.env.BACKEND_GAME_CONTROLLER_PRIVATE_KEY;
@@ -75,8 +98,16 @@ async function main() {
 
   console.log("\n✅ Agent registered!");
   console.log("agentId:", agentId.toString());
-  console.log("\nAdd to your frontend .env.local:");
+  console.log("\nIf this is the hosted Tycoon AI, add to frontend .env:");
   console.log("NEXT_PUBLIC_ERC8004_AGENT_ID=" + agentId.toString());
+  console.log("And backend .env: ERC8004_AGENT_ID=" + agentId.toString());
+  const uaId = process.env.TYCOON_USER_AGENT_ID?.trim();
+  if (uaId) {
+    console.log("\nIf linking UserAgent row " + uaId + " (server owns NFT — see script header):");
+    console.log(
+      "  PATCH /api/agents/" + uaId + "  body: { \"erc8004_agent_id\": \"" + agentId.toString() + "\" }"
+    );
+  }
 }
 
 main().catch((err) => {
