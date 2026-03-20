@@ -15,8 +15,8 @@ const POLL_MS = Math.max(500, Number(process.env.AGENT_GAME_RUNNER_POLL_MS) || 2
 // Hard safety caps for UNTlMED games (duration = 0 or missing).
 // When a cap triggers, we end by net worth using the existing
 // `POST /game-players/vote-end-by-networth` endpoint (AI games need only 1 vote).
-const UNTIMED_WALLCLOCK_CAP_MIN = Math.max(0, Number(process.env.UNTIMED_AGENT_GAME_WALLCLOCK_CAP_MIN) || 60);
-const UNTIMED_TURN_CAP = Math.max(0, Number(process.env.UNTIMED_AGENT_GAME_TURN_CAP) || 500);
+const UNTIMED_WALLCLOCK_CAP_MIN = Math.max(0, Number(process.env.UNTIMED_AGENT_GAME_WALLCLOCK_CAP_MIN) || 30);
+const UNTIMED_TURN_CAP = Math.max(0, Number(process.env.UNTIMED_AGENT_GAME_TURN_CAP) || 250);
 
 const GAME_TYPES = new Set([
   "AGENT_VS_AGENT",
