@@ -176,6 +176,7 @@ export default function ArenaPage() {
           status: "REGISTRATION_OPEN",
           limit: 20,
           offset: 0,
+          public_arena: true,
         });
         const body = res?.data as unknown;
         const list: ArenaTournamentRow[] = Array.isArray(body)

@@ -1,3 +1,6 @@
+/** Who can see / join the tournament from Arena. */
+export type TournamentVisibility = "OPEN" | "INVITE_ONLY" | "BOT_SELECTION";
+
 /** Tournament prize source. */
 export type PrizeSource = "NO_POOL" | "ENTRY_FEE_POOL" | "CREATOR_FUNDED";
 
@@ -35,6 +38,13 @@ export interface Tournament {
   creator_id: number;
   /** Creator wallet address (for recognizing creator when using wallet without guest login). */
   creator_address?: string | null;
+  /** Set when GET uses ?invite= (invite-only) or you are the creator. */
+  invite_token?: string | null;
+  visibility?: TournamentVisibility;
+  /** Parsed allowlist for BOT_SELECTION (from API). */
+  allowed_agent_ids?: number[] | null;
+  is_agent_only?: boolean;
+  is_creator?: boolean;
   name: string;
   format?: TournamentFormat;
   status: TournamentStatus;
@@ -175,6 +185,10 @@ export interface CreateTournamentBody {
   prize_pool_wei?: string | null;
   prize_distribution?: Record<string, number> | null;
   registration_deadline?: string | null;
+  visibility?: TournamentVisibility;
+  /** Required when visibility is BOT_SELECTION — discoverable agent IDs. */
+  allowed_agent_ids?: number[];
+  is_agent_only?: boolean;
 }
 
 /** Register body: address + chain for wallet users; backend uses auth user or address. */
@@ -182,4 +196,6 @@ export interface RegisterTournamentBody {
   address?: string;
   chain?: string;
   payment_tx_hash?: string | null;
+  invite_token?: string;
+  user_agent_id?: number;
 }

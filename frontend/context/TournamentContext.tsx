@@ -38,20 +38,20 @@ type TournamentContextValue = {
   tournament: TournamentDetail | null;
   detailLoading: boolean;
   detailError: string | null;
-  fetchTournament: (id: string) => Promise<void>;
+  fetchTournament: (id: string, query?: Record<string, string>) => Promise<void>;
   clearTournament: () => void;
 
   // Bracket
   bracket: Bracket | null;
   bracketLoading: boolean;
   bracketError: string | null;
-  fetchBracket: (id: string) => Promise<void>;
+  fetchBracket: (id: string, query?: Record<string, string>) => Promise<void>;
 
   // Leaderboard
   leaderboard: LeaderboardData | null;
   leaderboardLoading: boolean;
   leaderboardError: string | null;
-  fetchLeaderboard: (id: string, phase?: "live" | "final") => Promise<void>;
+  fetchLeaderboard: (id: string, phase?: "live" | "final", query?: Record<string, string>) => Promise<void>;
 
   // Mutations
   createTournament: (body: CreateTournamentBody) => Promise<CreateTournamentResponse | null>;
@@ -116,13 +116,25 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
       status?: string;
       chain?: string;
       prize_source?: string;
+      public_arena?: boolean;
       limit?: number;
       offset?: number;
     }) => {
       setListLoading(true);
       setListError(null);
       try {
-        const res = await apiClient.get<Tournament[]>(TOURNAMENTS_BASE, params);
+        const axiosParams =
+          params != null
+            ? {
+                status: params.status,
+                chain: params.chain,
+                prize_source: params.prize_source,
+                limit: params.limit,
+                offset: params.offset,
+                ...(params.public_arena ? { public_arena: "1" } : {}),
+              }
+            : undefined;
+        const res = await apiClient.get<Tournament[]>(TOURNAMENTS_BASE, axiosParams);
         const data = res?.data;
         // Handle direct array or wrapped { data: [] } from different API formats
         const list: Tournament[] = Array.isArray(data)
@@ -146,12 +158,12 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const fetchTournament = useCallback(async (id: string) => {
+  const fetchTournament = useCallback(async (id: string, query?: Record<string, string>) => {
     setDetailLoading(true);
     setDetailError(null);
     setBracket(null);
     try {
-      const res = await apiClient.get<TournamentDetail>(`${TOURNAMENTS_BASE}/${id}`);
+      const res = await apiClient.get<TournamentDetail>(`${TOURNAMENTS_BASE}/${id}`, query);
       setTournament(res?.data ?? null);
     } catch (err: unknown) {
       const message =
@@ -175,11 +187,11 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
     setLeaderboardError(null);
   }, []);
 
-  const fetchBracket = useCallback(async (id: string) => {
+  const fetchBracket = useCallback(async (id: string, query?: Record<string, string>) => {
     setBracketLoading(true);
     setBracketError(null);
     try {
-      const res = await apiClient.get<Bracket>(`${TOURNAMENTS_BASE}/${id}/bracket`);
+      const res = await apiClient.get<Bracket>(`${TOURNAMENTS_BASE}/${id}/bracket`, query);
       const data = res?.data;
       setBracket(data && typeof data === "object" && "rounds" in data ? data : null);
     } catch (err: unknown) {
@@ -196,14 +208,14 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchLeaderboard = useCallback(
-    async (id: string, phase: "live" | "final" = "live") => {
+    async (id: string, phase: "live" | "final" = "live", query?: Record<string, string>) => {
       setLeaderboardLoading(true);
       setLeaderboardError(null);
       try {
-        const res = await apiClient.get<LeaderboardData>(
-          `${TOURNAMENTS_BASE}/${id}/leaderboard`,
-          { phase }
-        );
+        const res = await apiClient.get<LeaderboardData>(`${TOURNAMENTS_BASE}/${id}/leaderboard`, {
+          phase,
+          ...query,
+        });
         setLeaderboard(res?.data ?? null);
       } catch (err: unknown) {
         const message =

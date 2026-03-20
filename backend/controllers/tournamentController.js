@@ -50,8 +50,16 @@ export async function getSpectate(req, res) {
 
 export async function list(req, res) {
   try {
-    const { status, chain, prize_source, limit = 50, offset = 0 } = req.query;
-    const tournaments = await Tournament.findAll({ status, chain, prize_source, limit: Number(limit) || 50, offset: Number(offset) || 0 });
+    const { status, chain, prize_source, limit = 50, offset = 0, public_arena } = req.query;
+    const publicArena = public_arena === "1" || public_arena === "true";
+    const tournaments = await Tournament.findAll({
+      status,
+      chain,
+      prize_source,
+      limit: Number(limit) || 50,
+      offset: Number(offset) || 0,
+      public_arena: publicArena,
+    });
     return res.json(tournaments);
   } catch (err) {
     logger.error({ err: err?.message }, "tournament list failed");
@@ -71,9 +79,29 @@ export async function getById(req, res) {
       creator?.address ||
       creator?.linked_wallet_address ||
       null;
+    const isCreator = req.user?.id && Number(req.user.id) === Number(tournament.creator_id);
+    const vis = String(tournament.visibility || "OPEN").toUpperCase();
+    const safe = { ...tournament };
+    delete safe.allowed_agent_ids;
+    if (vis === "INVITE_ONLY" && !isCreator) {
+      delete safe.invite_token;
+    }
+    let allowed_agent_ids = null;
+    if (vis === "BOT_SELECTION" && tournament.allowed_agent_ids != null) {
+      try {
+        allowed_agent_ids =
+          typeof tournament.allowed_agent_ids === "string"
+            ? JSON.parse(tournament.allowed_agent_ids)
+            : tournament.allowed_agent_ids;
+      } catch {
+        allowed_agent_ids = null;
+      }
+    }
     return res.json({
-      ...tournament,
+      ...safe,
+      allowed_agent_ids,
       creator_address: creator_address || undefined,
+      is_creator: Boolean(isCreator),
       entries,
       rounds,
       matches,
@@ -115,8 +143,16 @@ export async function register(req, res) {
   try {
     const tournamentId = req.params.id;
     const userId = req.user?.id;
-    const { address, chain, payment_tx_hash } = req.body;
-    const entry = await tournamentService.registerPlayer(tournamentId, { userId, address, chain }, payment_tx_hash);
+    const { address, chain, payment_tx_hash, invite_token, user_agent_id } = req.body || {};
+    const entry = await tournamentService.registerPlayer(
+      tournamentId,
+      { userId, address, chain },
+      payment_tx_hash,
+      {
+        invite_token,
+        user_agent_id: user_agent_id != null ? Number(user_agent_id) : undefined,
+      }
+    );
     return res.status(201).json({ success: true, data: entry });
   } catch (err) {
     if (err?.message?.includes("Already registered") || err?.message?.includes("already registered")) return res.status(409).json({ success: false, message: err.message });
@@ -292,16 +328,15 @@ export async function autoFillAgents(req, res) {
           if (!paymentTxHash) continue;
         }
 
-        const entry = await tournamentService.registerPlayer(String(tournamentId), { userId, address: null, chain }, paymentTxHash);
-        const agent = await UserAgent.findByIdAndUser(Number(p.user_agent_id), userId);
-        await db("tournament_entry_agents").insert({
-          tournament_entry_id: entry.id,
-          user_agent_id: Number(p.user_agent_id),
-          agent_name: agent?.name || null,
-          created_at: db.fn.now(),
-          updated_at: db.fn.now(),
-        });
-        awardActivityXpByAgentId(Number(p.user_agent_id), ACTIVITY_XP.TOURNAMENT_JOINED, "tournament_joined").catch(() => {});
+        await tournamentService.registerPlayer(
+          String(tournamentId),
+          { userId, address: null, chain },
+          paymentTxHash,
+          {
+            invite_token: tournament.invite_token,
+            user_agent_id: Number(p.user_agent_id),
+          }
+        );
 
         added += 1;
       } catch (err) {

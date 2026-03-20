@@ -13,7 +13,6 @@
 import db from "../config/database.js";
 import logger from "../config/logger.js";
 import User from "../models/User.js";
-import UserAgent from "../models/UserAgent.js";
 import Tournament from "../models/Tournament.js";
 import TournamentEntry from "../models/TournamentEntry.js";
 import * as tournamentService from "./tournamentService.js";
@@ -57,6 +56,20 @@ async function tryAutoRegisterOne(perm, tournament) {
   // Skip if already registered
   const already = await TournamentEntry.hasEntry(tournamentId, { userId });
   if (already) return;
+
+  const vis = String(tournament.visibility || "OPEN").toUpperCase();
+  if (vis === "INVITE_ONLY") return;
+  if (vis === "BOT_SELECTION") {
+    let allowed = tournament.allowed_agent_ids;
+    if (typeof allowed === "string") {
+      try {
+        allowed = JSON.parse(allowed);
+      } catch {
+        allowed = [];
+      }
+    }
+    if (!Array.isArray(allowed) || !allowed.map(Number).includes(agentId)) return;
+  }
 
   const entryFeeUnits = BigInt(tournament.entry_fee_wei ?? 0);
   const maxUnits = BigInt(perm.max_entry_fee_usdc ?? "0");
@@ -103,16 +116,9 @@ async function tryAutoRegisterOne(perm, tournament) {
     });
   }
 
-  const entry = await tournamentService.registerPlayer(String(tournamentId), { userId, address: null, chain }, paymentTxHash);
-
-  // Bind entry -> agent
-  const agent = await UserAgent.findByIdAndUser(agentId, userId);
-  await db("tournament_entry_agents").insert({
-    tournament_entry_id: entry.id,
+  await tournamentService.registerPlayer(String(tournamentId), { userId, address: null, chain }, paymentTxHash, {
+    invite_token: tournament.invite_token,
     user_agent_id: agentId,
-    agent_name: agent?.name || null,
-    created_at: db.fn.now(),
-    updated_at: db.fn.now(),
   });
 }
 

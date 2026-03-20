@@ -41,6 +41,57 @@ export function splitIntoBalancedGroups(entryIds, minP = MIN_DEFAULT, maxP = MAX
 }
 
 /**
+ * Agent arena: ≤4 players → one table; &gt;4 → tables of 3–4 only (no 2-bot duels unless the whole event is 2 players).
+ * Leftover single entrants get a bye match (handled by caller).
+ * @returns {{ groups: number[][], byes: number[] }}
+ */
+export function splitIntoAgentArenaGroups(entryIds) {
+  const ids = [...entryIds];
+  const n = ids.length;
+  if (n < 2) throw new Error("Need at least 2 participants");
+  if (n === 2) return { groups: [ids], byes: [] };
+  if (n <= 4) return { groups: [ids], byes: [] };
+
+  const groups = [];
+  const byes = [];
+  let rest = [...ids];
+
+  while (rest.length > 0) {
+    const len = rest.length;
+    if (len <= 4) {
+      groups.push(rest);
+      rest = [];
+      break;
+    }
+    if (len === 5) {
+      groups.push(rest.slice(0, 4));
+      byes.push(rest[4]);
+      rest = [];
+      break;
+    }
+    if (len === 6) {
+      groups.push(rest.slice(0, 3), rest.slice(3, 6));
+      rest = [];
+      break;
+    }
+    if (len === 7) {
+      groups.push(rest.slice(0, 4), rest.slice(4, 7));
+      rest = [];
+      break;
+    }
+    if (len === 8) {
+      groups.push(rest.slice(0, 4), rest.slice(4, 8));
+      rest = [];
+      break;
+    }
+    groups.push(rest.slice(0, 4));
+    rest = rest.slice(4);
+  }
+
+  return { groups, byes };
+}
+
+/**
  * @param {object} match - tournament_matches row
  * @returns {number[]}
  */

@@ -2,8 +2,10 @@
  * Tournament service: create, register, bracket, start round, on game finished.
  * All on-chain match actions (create game, join players) are done by the backend.
  */
+import crypto from "crypto";
 import db from "../config/database.js";
 import Tournament from "../models/Tournament.js";
+import UserAgent from "../models/UserAgent.js";
 import TournamentEntry from "../models/TournamentEntry.js";
 import TournamentRound from "../models/TournamentRound.js";
 import TournamentMatch from "../models/TournamentMatch.js";
@@ -124,16 +126,59 @@ export async function createTournament(data) {
     prize_distribution = null,
     registration_deadline = null,
     chain,
+    visibility: rawVisibility,
+    allowed_agent_ids: rawAllowedAgents,
+    is_agent_only: rawAgentOnly,
   } = data;
 
   if (!creator_id || !name) throw new Error("creator_id and name required");
   if (chain == null || String(chain).trim() === "") throw new Error("chain is required (e.g. POLYGON, BASE, CELO)");
-  const max = Math.min(512, Math.max(2, Number(max_players) || 32));
-  const min = Math.max(2, Math.min(max, Number(min_players) || 2));
+
+  const visUpper = rawVisibility ? String(rawVisibility).toUpperCase() : "OPEN";
+  const visibility = ["OPEN", "INVITE_ONLY", "BOT_SELECTION"].includes(visUpper) ? visUpper : "OPEN";
+
+  let allowedIds = [];
+  if (visibility === "BOT_SELECTION") {
+    const raw = rawAllowedAgents;
+    if (Array.isArray(raw)) allowedIds = [...new Set(raw.map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0))];
+    else if (raw != null && typeof raw === "string") {
+      try {
+        const p = JSON.parse(raw);
+        if (Array.isArray(p)) allowedIds = [...new Set(p.map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0))];
+      } catch {
+        allowedIds = [];
+      }
+    }
+    if (allowedIds.length < 2) throw new Error("Bot-selection tournaments need at least two discoverable agents");
+    const agents = await db("user_agents").whereIn("id", allowedIds).select("id", "is_public");
+    if (agents.length !== allowedIds.length) throw new Error("One or more agent IDs are invalid");
+    const allPublic = agents.every((a) => Number(a.is_public) === 1 || a.is_public === true);
+    if (!allPublic) throw new Error("All invited agents must be public (visible in Discover)");
+  }
+
+  let max = Math.min(512, Math.max(2, Number(max_players) || 32));
+  let min = Math.max(2, Math.min(max, Number(min_players) || 2));
+  if (visibility === "BOT_SELECTION") {
+    max = Math.min(512, Math.max(2, allowedIds.length));
+    min = Math.min(min, max);
+  }
 
   const normalizedChain = User.normalizeChain(chain);
   const allowedFormats = ["SINGLE_ELIMINATION", "ROUND_ROBIN", "SWISS", "BATTLE_ROYALE", "GROUP_ELIMINATION"];
   const fmt = data.format && allowedFormats.includes(String(data.format).toUpperCase()) ? String(data.format).toUpperCase() : "SINGLE_ELIMINATION";
+
+  if (prize_source === "CREATOR_FUNDED") {
+    const pw = prize_pool_wei != null ? Number(prize_pool_wei) : 0;
+    if (!Number.isFinite(pw) || pw <= 0) {
+      throw new Error("Creator-funded tournaments require a prize pool amount (USDC in wei). Set prize_pool_wei before creating.");
+    }
+  }
+
+  const inviteToken = visibility === "INVITE_ONLY" ? crypto.randomBytes(24).toString("hex") : null;
+  const allowedJson =
+    visibility === "BOT_SELECTION" && allowedIds.length ? JSON.stringify(allowedIds) : null;
+  const is_agent_only =
+    visibility === "BOT_SELECTION" ? true : Boolean(rawAgentOnly);
 
   const payload = {
     creator_id,
@@ -148,6 +193,10 @@ export async function createTournament(data) {
     prize_distribution: prize_source === "NO_POOL" ? null : prize_distribution || null,
     registration_deadline: registration_deadline || null,
     chain: normalizedChain,
+    visibility,
+    invite_token: inviteToken,
+    allowed_agent_ids: allowedJson,
+    is_agent_only,
   };
 
   const tournament = await Tournament.create(payload);
@@ -197,11 +246,33 @@ export async function createTournament(data) {
 /**
  * Register a player for a tournament (off-chain only).
  * Rejects if user_id or address already has an entry (dual presence).
+ * @param {{ invite_token?: string, user_agent_id?: number }} meta
  */
-export async function registerPlayer(tournamentId, { userId, address, chain }, paymentTxHash = null) {
+export async function registerPlayer(tournamentId, { userId, address, chain }, paymentTxHash = null, meta = {}) {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) throw new Error("Tournament not found");
   if (tournament.status !== "REGISTRATION_OPEN") throw new Error("Registration is closed");
+
+  const vis = String(tournament.visibility || "OPEN").toUpperCase();
+  if (vis === "INVITE_ONLY") {
+    const need = String(tournament.invite_token || "").trim();
+    const got = String(meta.invite_token || "").trim();
+    if (!need || got !== need) throw new Error("Valid tournament invite is required to register");
+  }
+  if (vis === "BOT_SELECTION") {
+    const aid = Number(meta.user_agent_id);
+    if (!Number.isInteger(aid) || aid <= 0) throw new Error("user_agent_id is required for this tournament");
+    let allowed = tournament.allowed_agent_ids;
+    if (typeof allowed === "string") {
+      try {
+        allowed = JSON.parse(allowed);
+      } catch {
+        allowed = [];
+      }
+    }
+    const ok = Array.isArray(allowed) && allowed.map(Number).includes(aid);
+    if (!ok) throw new Error("This agent is not on the invitation list for this tournament");
+  }
 
   const normalizedChain = User.normalizeChain(chain || tournament.chain);
 
@@ -270,7 +341,7 @@ export async function registerPlayer(tournamentId, { userId, address, chain }, p
     }
   }
 
-  return TournamentEntry.create({
+  const entry = await TournamentEntry.create({
     tournament_id: tournamentId,
     user_id: user.id,
     address: user.address,
@@ -279,6 +350,22 @@ export async function registerPlayer(tournamentId, { userId, address, chain }, p
     payment_tx_hash: txHash || null,
     status: "CONFIRMED",
   });
+
+  const regAgentId = Number(meta.user_agent_id);
+  if (Number.isInteger(regAgentId) && regAgentId > 0) {
+    const agent = await UserAgent.findByIdAndUser(regAgentId, user.id);
+    if (!agent) throw new Error("You do not own this agent");
+    await db("tournament_entry_agents").insert({
+      tournament_entry_id: entry.id,
+      user_agent_id: regAgentId,
+      agent_name: agent.name || null,
+      created_at: db.fn.now(),
+      updated_at: db.fn.now(),
+    });
+    awardActivityXpByAgentId(regAgentId, ACTIVITY_XP.TOURNAMENT_JOINED, "tournament_joined").catch(() => {});
+  }
+
+  return entry;
 }
 
 const START_WINDOW_MINUTES = 5;
@@ -299,7 +386,10 @@ export async function generateBracket(tournamentId, options = {}) {
 
   // Dispatch based on tournament format
   const format = tournament.format || "SINGLE_ELIMINATION";
-  const result = await bracketEngine.generateBracketByFormat(tournamentId, format, entries, options);
+  const result = await bracketEngine.generateBracketByFormat(tournamentId, format, entries, {
+    ...options,
+    isAgentOnly: Boolean(tournament.is_agent_only),
+  });
 
   logger.info({ tournamentId, format, ...result }, "Generated tournament bracket");
   return result;
@@ -1127,11 +1217,12 @@ async function handleGroupEliminationAfterMatchResolved(match, winnerEntry) {
 
   const winnerEntries = await Promise.all(winners.map((id) => TournamentEntry.findById(id)));
   const nextRoundIndex = match.round_index + 1;
+  const t = await Tournament.findById(match.tournament_id);
   await bracketEngine.createGroupEliminationRound(
     match.tournament_id,
     nextRoundIndex,
     winnerEntries.filter(Boolean),
-    { scheduled_start_at: null }
+    { scheduled_start_at: null, isAgentOnly: Boolean(t?.is_agent_only) }
   );
   return { tournamentCompleted: false };
 }
