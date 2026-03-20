@@ -124,6 +124,8 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     ? BigInt(contractGame.stakePerPlayer)
     : BigInt(0);
 
+  const guestCannotJoinStaked = !!guestUser && stakePerPlayer > BigInt(0);
+
   const {
     write: joinGame,
     isPending: isJoining,
@@ -413,7 +415,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
           ? "Connect your wallet to join this tournament match, or sign in as guest (Join Room)."
           : isFree
             ? "Sign in as guest to join this free game. Go to Join Room and sign in as guest, then return here."
-            : "Connect a wallet or sign in as guest to join. Staked games need a smart wallet + PIN when joining as guest."
+            : "Connect a wallet or sign in as guest to join. Staked games require a connected wallet."
       );
       return;
     }
@@ -426,52 +428,23 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
 
     // Use guest join only when signed in as guest and no wallet connected; wallet users must use wallet flow
     if (guestUser && !address) {
-      let pinForStake: string | undefined;
       if (stakePerPlayer > BigInt(0)) {
-        const sw = guestUser.smart_wallet_address?.trim();
-        if (!sw) {
-          setError("Create a smart wallet in Profile to join staked games without connecting a wallet.");
-          actionGuardRef.current = false;
-          setActionLoading(false);
-          toast.update(toastId, {
-            render: "Create a smart wallet in Profile to join staked games.",
-            type: "error",
-            isLoading: false,
-            autoClose: 6000,
-          });
-          return;
-        }
-        if (!guestUser.withdrawal_pin_set) {
-          setError("Set a withdrawal PIN in Profile to pay the stake from your smart wallet.");
-          actionGuardRef.current = false;
-          setActionLoading(false);
-          toast.update(toastId, {
-            render: "Set a withdrawal PIN in Profile to join staked games.",
-            type: "error",
-            isLoading: false,
-            autoClose: 6000,
-          });
-          return;
-        }
-        const pin =
-          typeof window !== "undefined"
-            ? window.prompt("Enter your withdrawal PIN to pay the stake from your smart wallet")?.trim() ?? ""
-            : "";
-        if (!pin) {
-          setError("PIN is required to join this staked game.");
-          actionGuardRef.current = false;
-          setActionLoading(false);
-          toast.update(toastId, { render: "PIN required.", type: "error", isLoading: false, autoClose: 4000 });
-          return;
-        }
-        pinForStake = pin;
+        setError("Guests cannot join staked games. Connect a wallet to join this game.");
+        actionGuardRef.current = false;
+        setActionLoading(false);
+        toast.update(toastId, {
+          render: "Guests cannot join staked games. Connect a wallet to join.",
+          type: "error",
+          isLoading: false,
+          autoClose: 6000,
+        });
+        return;
       }
       try {
         await apiClient.post("/games/join-as-guest", {
           code: game.code,
           symbol: playerSymbol.value,
           joinCode: game.code,
-          ...(pinForStake ? { pin: pinForStake } : {}),
         });
         if (mountedRef.current) {
           setIsJoined(true);
@@ -665,6 +638,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     approvePending,
     approveConfirming,
     stakePerPlayer,
+    guestCannotJoinStaked,
     guestUser,
     joinGame,
     isJoining,
