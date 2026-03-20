@@ -693,7 +693,7 @@ const REWARD_ABI_MINT = [
  * Get contract instance for a given chain. Defaults to CELO.
  * @param {string} [chain] - "CELO" | "POLYGON" | "BASE" (or normalized name)
  */
-function getContract(chain = "CELO") {
+export function getContract(chain = "CELO") {
   const { rpcUrl, contractAddress, privateKey, isConfigured, chainId } = getChainConfig(chain);
   if (!isConfigured) {
     throw new Error(

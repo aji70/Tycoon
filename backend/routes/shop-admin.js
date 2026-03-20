@@ -1,18 +1,21 @@
 /**
  * Shop admin routes - stock perks and bundles using the backend's private key.
  * These endpoints call the reward system contract to add items to the shop.
- * NOTE: Should require admin authentication (add middleware as needed).
+ * Optional: set SHOP_ADMIN_SECRET and send header x-shop-admin-secret on every request.
  */
 
 import express from "express";
 import * as shopAdminController from "../controllers/shopAdminController.js";
+import { requireShopAdminSecret } from "../middleware/shopAdminAuth.js";
 
 const router = express.Router();
+
+router.use(requireShopAdminSecret);
 
 /**
  * POST /api/shop-admin/stock-perk
  * Stock a new perk in the shop.
- * Body: { amount, perk (0-7), strength, tycPrice, usdcPrice }
+ * Body: { amount, perk (1-14), strength, tycPrice, usdcPrice }
  * Returns: { success, data: { txHash, blockNumber } }
  */
 router.post("/stock-perk", shopAdminController.stockPerk);
@@ -48,5 +51,17 @@ router.post("/stock-bundle", shopAdminController.stockBundle);
  * Returns: { success, data: { txHash, blockNumber } }
  */
 router.post("/bundle-active", shopAdminController.setBundleActive);
+
+/**
+ * POST /api/shop-admin/stock-all-perks
+ * Body: { chain?: string, amount?: number }
+ */
+router.post("/stock-all-perks", shopAdminController.stockAllPerks);
+
+/**
+ * POST /api/shop-admin/stock-all-bundles
+ * Body: { chain?: string }
+ */
+router.post("/stock-all-bundles", shopAdminController.stockAllBundles);
 
 export default router;

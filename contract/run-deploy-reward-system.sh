@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
-# Deploy a NEW TycoonRewardSystem (dual minter: faucet + game proxy).
-# Requires contract/.env: RPC_URL, PRIVATE_KEY, TYC_ADDRESS, USDC_ADDRESS, TYCOON_OWNER,
-#                        TYCOON_REWARDS_FAUCET_ADDRESS, TYCOON_PROXY_ADDRESS
+# Deploy TycoonRewardSystem and wire it to the game proxy (+ optional user registry).
+# Uses: script/DeployAndConfigureRewardSystem.s.sol
 #
-# After deploy, update:
-# - contract/.env: NEW_TYCOON_REWARD_SYSTEM=<printed address>
-# - frontend `REWARD_CONTRACT_ADDRESSES` / backend config to point to the new contract
+# Required in contract/.env:
+#   RPC_URL, PRIVATE_KEY, TYC_ADDRESS, USDC_ADDRESS, TYCOON_OWNER,
+#   TYCOON_PROXY_ADDRESS, GAME_CONTROLLER
+# Optional:
+#   TYCOON_USER_REGISTRY_ADDRESS
 #
-# Optional: pass --verify to include Foundry verification flags.
+# Usage:
+#   ./run-deploy-reward-system.sh
+#   ./run-deploy-reward-system.sh --verify   # needs ETHERSCAN_API_KEY in .env
 
 set -euo pipefail
 cd "$(dirname "$0")"
 
 if [ -f .env ]; then
   set -a
+  # shellcheck source=/dev/null
   source .env
   set +a
 fi
@@ -23,26 +27,26 @@ fi
 : "${TYC_ADDRESS:?Set TYC_ADDRESS in .env}"
 : "${USDC_ADDRESS:?Set USDC_ADDRESS in .env}"
 : "${TYCOON_OWNER:?Set TYCOON_OWNER in .env}"
-: "${TYCOON_REWARDS_FAUCET_ADDRESS:?Set TYCOON_REWARDS_FAUCET_ADDRESS in .env}"
 : "${TYCOON_PROXY_ADDRESS:?Set TYCOON_PROXY_ADDRESS in .env}"
+: "${GAME_CONTROLLER:?Set GAME_CONTROLLER in .env}"
 
-EXTRA=
-[[ "${1:-}" == "--verify" ]] && EXTRA="--verify"
+EXTRA=()
+if [[ "${1:-}" == "--verify" ]]; then
+  : "${ETHERSCAN_API_KEY:?Set ETHERSCAN_API_KEY in .env for --verify}"
+  EXTRA=(--verify --etherscan-api-key "$ETHERSCAN_API_KEY")
+fi
 
-echo "Deploying NEW TycoonRewardSystem (dual minter)"
+echo "Deploy + configure TycoonRewardSystem"
 echo "RPC_URL=$RPC_URL"
-echo "TYC_ADDRESS=$TYC_ADDRESS"
-echo "USDC_ADDRESS=$USDC_ADDRESS"
-echo "TYCOON_OWNER=$TYCOON_OWNER"
-echo "TYCOON_REWARDS_FAUCET_ADDRESS=$TYCOON_REWARDS_FAUCET_ADDRESS"
 echo "TYCOON_PROXY_ADDRESS=$TYCOON_PROXY_ADDRESS"
+echo "GAME_CONTROLLER=$GAME_CONTROLLER"
 echo ""
 
-forge script script/DeployNewRewardSystemWithDualMinter.s.sol:DeployNewRewardSystemWithDualMinterScript \
+forge script script/DeployAndConfigureRewardSystem.s.sol:DeployAndConfigureRewardSystemScript \
   --rpc-url "$RPC_URL" \
   --broadcast \
-  $EXTRA \
-  --private-key "$PRIVATE_KEY"
+  --private-key "$PRIVATE_KEY" \
+  "${EXTRA[@]}"
 
 echo ""
-echo "Done. Copy the printed address into contract/.env as NEW_TYCOON_REWARD_SYSTEM=0x..."
+echo "Done. Set TYCOON_REWARD_SYSTEM / NEW_TYCOON_REWARD_SYSTEM in .env to the printed address; update backend/frontend env if needed."

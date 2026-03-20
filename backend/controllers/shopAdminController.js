@@ -19,8 +19,8 @@ export async function stockPerk(req, res) {
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, error: "amount must be > 0" });
     }
-    if (perk === undefined || perk < 0 || perk > 7) {
-      return res.status(400).json({ success: false, error: "perk must be 0-7" });
+    if (perk === undefined || perk < 1 || perk > 14) {
+      return res.status(400).json({ success: false, error: "perk must be 1-14 (CollectiblePerk enum)" });
     }
     if (!strength || strength <= 0) {
       return res.status(400).json({ success: false, error: "strength must be > 0" });
@@ -178,6 +178,61 @@ export async function stockBundle(req, res) {
  * Activate or deactivate a bundle.
  * Body: { bundleId, active: true/false }
  */
+/**
+ * POST /api/shop-admin/stock-all-perks
+ * Body: { chain?: "CELO", amount?: number } — stocks missing INITIAL_COLLECTIBLES only (default amount 50).
+ */
+export async function stockAllPerks(req, res) {
+  try {
+    const chain = String(req.body?.chain || "CELO").toUpperCase();
+    const amount = req.body?.amount != null ? Number(req.body.amount) : 50;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ success: false, error: "amount must be a positive number" });
+    }
+
+    const result = await rewardSystemContract.stockAllInitialPerks(chain, amount);
+    return res.json({
+      success: true,
+      data: result,
+      message:
+        result.stocked === 0
+          ? "All perks already present in shop; nothing to mint."
+          : `Stocked ${result.stocked} perk row(s); skipped ${result.skippedAlreadyPresent} already present.`,
+    });
+  } catch (err) {
+    logger.error("stockAllPerks error:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Failed to stock all perks",
+    });
+  }
+}
+
+/**
+ * POST /api/shop-admin/stock-all-bundles
+ * Body: { chain?: "CELO" } — registers every bundle in BUNDLE_DEFS_FOR_STOCK (perks must exist first).
+ */
+export async function stockAllBundles(req, res) {
+  try {
+    const chain = String(req.body?.chain || "CELO").toUpperCase();
+    const result = await rewardSystemContract.stockAllBundlesFromDefs(chain);
+    const status = result.success ? 200 : 207;
+    return res.status(status).json({
+      success: result.success,
+      data: result,
+      message: result.success
+        ? `Registered ${result.stocked} bundle(s).`
+        : `Partial failure: ${result.errors?.length ?? 0} bundle(s) failed.`,
+    });
+  } catch (err) {
+    logger.error("stockAllBundles error:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Failed to stock bundles",
+    });
+  }
+}
+
 export async function setBundleActive(req, res) {
   try {
     const { bundleId, active } = req.body;
