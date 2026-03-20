@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useCallback, useMemo } from 'react';
+import { createContext, useContext, useCallback, useMemo, useState } from 'react';
 import {
   useReadContract,
   useReadContracts,
@@ -20,6 +20,7 @@ import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRES
 import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
 import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
+import { registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
 
 // Fixed stake amount (adjust if needed)
 const STAKE_AMOUNT = 1; // 1 wei for testing? Or change to actual value like 0.01 ether = 10000000000000000n
@@ -854,13 +855,12 @@ function parseAgentIdFromRegisterReceipt(
 
 /**
  * Register a Tycoon agent on Celo ERC-8004 Identity Registry.
- * User owns the NFT and pays gas. Builds agentURI from backend registration file, calls register(agentURI), parses new agentId and returns it so caller can PATCH the agent.
+ * Uses the injected browser wallet (EOA) only — not wagmi / WalletConnect — so the NFT owner is always the extension account.
  */
 export function useRegisterAgentERC8004() {
-  const { address } = useAccount();
   const chainId = useChainId();
-  const { writeContractAsync, isPending, error: writeError, reset } = useWriteContract();
   const publicClient = usePublicClient();
+  const [isPending, setIsPending] = useState(false);
 
   const register = useCallback(
     async (agentDbId: number): Promise<number | null> => {
@@ -868,24 +868,26 @@ export function useRegisterAgentERC8004() {
       if (!base) return null;
       const agentURI = `${base}/agents/${agentDbId}/erc8004-registration`;
       const identityRegistryAddress = ERC8004_IDENTITY_REGISTRY_ADDRESSES[chainId];
-      if (!identityRegistryAddress) return null;
-      const hash = await writeContractAsync({
-        address: identityRegistryAddress,
-        abi: ERC8004IdentityABI as never,
-        functionName: 'register',
-        args: [agentURI],
-      });
-      if (!publicClient || !hash) return null;
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      const receiptFromRpc = await publicClient.getTransactionReceipt({ hash }).catch(() => null);
-      const logsSource =
-        receiptFromRpc && receiptFromRpc.logs.length > receipt.logs.length ? receiptFromRpc : receipt;
+      if (!identityRegistryAddress || !publicClient) return null;
 
-      let agentId = parseAgentIdFromRegisterReceipt(logsSource, identityRegistryAddress, address);
-      if (agentId != null) return agentId;
-
-      // Fallback: query logs in the block (some RPCs omit full log decoding in receipt)
+      setIsPending(true);
       try {
+        const { account: eoaAddress, hash } = await registerErc8004AgentViaInjectedEoa({
+          chainId,
+          contractAddress: identityRegistryAddress,
+          abi: ERC8004IdentityABI as never,
+          agentURI,
+        });
+        const receipt = await publicClient.waitForTransactionReceipt({ hash });
+        const receiptFromRpc = await publicClient.getTransactionReceipt({ hash }).catch(() => null);
+        const logsSource =
+          receiptFromRpc && receiptFromRpc.logs.length > receipt.logs.length ? receiptFromRpc : receipt;
+
+        let agentId = parseAgentIdFromRegisterReceipt(logsSource, identityRegistryAddress, eoaAddress);
+        if (agentId != null) return agentId;
+
+        // Fallback: query logs in the block (some RPCs omit full log decoding in receipt)
+        try {
         const allMintsInBlock = await publicClient.getLogs({
           address: identityRegistryAddress,
           event: ERC8004_TRANSFER_EVENT,
@@ -897,8 +899,8 @@ export function useRegisterAgentERC8004() {
         if (mintsThisTx.length === 1 && mintsThisTx[0].args?.tokenId != null) {
           return Number(mintsThisTx[0].args.tokenId);
         }
-        if (address && mintsThisTx.length > 0) {
-          const owner = getAddress(address as Address);
+        if (mintsThisTx.length > 0) {
+          const owner = getAddress(eoaAddress);
           const toOwner = mintsThisTx.find(
             (l) => l.args?.to != null && getAddress(l.args.to as Address) === owner
           );
@@ -910,20 +912,20 @@ export function useRegisterAgentERC8004() {
         if (lastMint?.args?.tokenId != null) {
           return Number(lastMint.args.tokenId);
         }
-      } catch {
-        // continue
-      }
+        } catch {
+          // continue
+        }
 
-      try {
-        const registeredInBlock = await publicClient.getLogs({
+        try {
+          const registeredInBlock = await publicClient.getLogs({
           address: identityRegistryAddress,
           event: ERC8004_REGISTERED_EVENT,
           fromBlock: receipt.blockNumber,
           toBlock: receipt.blockNumber,
         });
         const registeredThisTx = registeredInBlock.filter((l) => txHashEq(l.transactionHash, hash));
-        if (address && registeredThisTx.length > 0) {
-          const owner = getAddress(address as Address);
+        if (registeredThisTx.length > 0) {
+          const owner = getAddress(eoaAddress);
           const forOwner = registeredThisTx.find(
             (l) => l.args?.owner != null && getAddress(l.args.owner as Address) === owner
           );
@@ -935,53 +937,54 @@ export function useRegisterAgentERC8004() {
         // continue
       }
 
-      if (address) {
-        try {
-          const registeredLogs = await publicClient.getLogs({
-            address: identityRegistryAddress,
-            event: ERC8004_REGISTERED_EVENT,
-            args: { owner: getAddress(address as Address) },
-            fromBlock: receipt.blockNumber,
-            toBlock: receipt.blockNumber,
-          });
-          const exactTxLog = registeredLogs.find((l) => txHashEq(l.transactionHash, hash));
-          if (exactTxLog?.args?.agentId != null) {
-            return Number(exactTxLog.args.agentId);
-          }
-        } catch {
-          // continue
+      try {
+        const registeredLogs = await publicClient.getLogs({
+          address: identityRegistryAddress,
+          event: ERC8004_REGISTERED_EVENT,
+          args: { owner: getAddress(eoaAddress) },
+          fromBlock: receipt.blockNumber,
+          toBlock: receipt.blockNumber,
+        });
+        const exactTxLog = registeredLogs.find((l) => txHashEq(l.transactionHash, hash));
+        if (exactTxLog?.args?.agentId != null) {
+          return Number(exactTxLog.args.agentId);
         }
+      } catch {
+        // continue
       }
 
       // Last resort: ERC721Enumerable (not on all deployments — often reverts)
-      if (address) {
-        try {
-          const balance = await publicClient.readContract({
+      try {
+        const balance = await publicClient.readContract({
+          address: identityRegistryAddress,
+          abi: ERC8004IdentityABI as never,
+          functionName: 'balanceOf',
+          args: [eoaAddress],
+        });
+        const bal = Number(balance ?? 0);
+        if (bal > 0) {
+          const tokenId = await publicClient.readContract({
             address: identityRegistryAddress,
             abi: ERC8004IdentityABI as never,
-            functionName: 'balanceOf',
-            args: [address as Address],
+            functionName: 'tokenOfOwnerByIndex',
+            args: [eoaAddress, BigInt(bal - 1)],
           });
-          const bal = Number(balance ?? 0);
-          if (bal > 0) {
-            const tokenId = await publicClient.readContract({
-              address: identityRegistryAddress,
-              abi: ERC8004IdentityABI as never,
-              functionName: 'tokenOfOwnerByIndex',
-              args: [address as Address, BigInt(bal - 1)],
-            });
-            if (tokenId != null) return Number(tokenId);
-          }
-        } catch {
-          // enumerable not supported
+          if (tokenId != null) return Number(tokenId);
         }
+      } catch {
+        // enumerable not supported
       }
-      return null;
+        return null;
+      } finally {
+        setIsPending(false);
+      }
     },
-    [writeContractAsync, publicClient, address, chainId]
+    [publicClient, chainId]
   );
 
-  return { register, isPending, error: writeError, reset };
+  const reset = useCallback(() => {}, []);
+
+  return { register, isPending, error: null, reset };
 }
 
 export type Erc8004VerifyResult = {
