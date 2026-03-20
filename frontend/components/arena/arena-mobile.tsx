@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
@@ -8,6 +9,30 @@ import { ApiResponse } from "@/types/api";
 import styles from "./arena-mobile.module.css";
 
 const MAX_CHALLENGE_TARGETS = 7;
+
+interface ArenaTournamentRow {
+  id: number;
+  code?: string | null;
+  name: string;
+  status: string;
+  chain: string;
+  entry_fee_wei: string | number;
+  prize_source?: string;
+  participant_count?: number;
+  max_players?: number;
+}
+
+function formatTournamentEntryFee(wei: string | number): string {
+  const n = Number(wei);
+  if (!Number.isFinite(n) || n === 0) return "Free";
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(2)} USDC`;
+  return `${n} fee`;
+}
+
+function tournamentHref(t: ArenaTournamentRow): string {
+  const c = t.code != null && String(t.code).trim() !== "" ? String(t.code).trim() : "";
+  return `/tournaments/${c || t.id}`;
+}
 
 interface Agent {
   id: number;
@@ -71,7 +96,7 @@ export default function ArenaMobile() {
   const guestUser = guestCtx?.guestUser ?? null;
   const authLoading = guestCtx?.isLoading ?? false;
   const isAuthed = Boolean(guestUser);
-  const [activeTab, setActiveTab] = useState<"discover" | "leaderboard" | "my-agents">("discover");
+  const [activeTab, setActiveTab] = useState<"discover" | "leaderboard" | "tournaments" | "my-agents">("discover");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myAgents, setMyAgents] = useState<Agent[]>([]);
@@ -81,6 +106,9 @@ export default function ArenaMobile() {
   const [selectedOpponents, setSelectedOpponents] = useState<number[]>([]);
   const [challengerAgentId, setChallengerAgentId] = useState<number | null>(null);
   const [arenaStarting, setArenaStarting] = useState(false);
+  const [openTournaments, setOpenTournaments] = useState<ArenaTournamentRow[]>([]);
+  const [tournamentsLoading, setTournamentsLoading] = useState(false);
+  const [tournamentsError, setTournamentsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAuthed) {
@@ -93,6 +121,42 @@ export default function ArenaMobile() {
       setChallengerAgentId(myAgents[0].id);
     }
   }, [myAgents, challengerAgentId]);
+
+  useEffect(() => {
+    if (activeTab !== "tournaments") return;
+    let cancelled = false;
+    (async () => {
+      setTournamentsLoading(true);
+      setTournamentsError(null);
+      try {
+        const res = await apiClient.get<ArenaTournamentRow[] | { data?: ArenaTournamentRow[] }>("/tournaments", {
+          status: "REGISTRATION_OPEN",
+          limit: 20,
+          offset: 0,
+        });
+        const body = res?.data as unknown;
+        const list: ArenaTournamentRow[] = Array.isArray(body)
+          ? body
+          : body != null &&
+              typeof body === "object" &&
+              "data" in body &&
+              Array.isArray((body as { data: ArenaTournamentRow[] }).data)
+            ? (body as { data: ArenaTournamentRow[] }).data
+            : [];
+        if (!cancelled) setOpenTournaments(list);
+      } catch (e) {
+        if (!cancelled) {
+          setTournamentsError((e as Error)?.message || "Failed to load tournaments");
+          setOpenTournaments([]);
+        }
+      } finally {
+        if (!cancelled) setTournamentsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === "discover") {
@@ -251,6 +315,12 @@ export default function ArenaMobile() {
           onClick={() => setActiveTab("leaderboard")}
         >
           🏆
+        </button>
+        <button
+          className={`${styles.tab} ${activeTab === "tournaments" ? styles.active : ""}`}
+          onClick={() => setActiveTab("tournaments")}
+        >
+          🎯
         </button>
         <button
           className={`${styles.tab} ${activeTab === "my-agents" ? styles.active : ""}`}
@@ -415,6 +485,55 @@ export default function ArenaMobile() {
             <p className={styles.emptyState}>No leaderboard data</p>
           )}
         </div>
+      )}
+
+      {activeTab === "tournaments" && (
+        <section className={styles.tournamentPanel} aria-label="Agent tournaments">
+          <h2>Tournaments</h2>
+          <p className={styles.tournamentExplainer}>
+            Register your agent into bracket tournaments using the tournament contract. Events can be{" "}
+            <strong style={{ color: "#e8fbff" }}>free</strong> or include an{" "}
+            <strong style={{ color: "#e8fbff" }}>entry-fee prize pool</strong>. Pick any open event below to register
+            your seat and bind your agent.
+          </p>
+          <div className={styles.tournamentActions}>
+            <Link href="/tournaments" className={styles.tournamentLinkBtn}>
+              Browse all
+            </Link>
+            <Link href="/tournaments/create" className={styles.tournamentLinkBtn}>
+              Create one
+            </Link>
+          </div>
+          {tournamentsLoading ? (
+            <p className={styles.tournamentEmpty}>Loading open tournaments…</p>
+          ) : tournamentsError ? (
+            <p className={styles.error} style={{ marginTop: 0 }}>
+              {tournamentsError}
+            </p>
+          ) : openTournaments.length === 0 ? (
+            <p className={styles.tournamentEmpty}>No tournaments open for registration right now.</p>
+          ) : (
+            <ul className={styles.tournamentList}>
+              {openTournaments.map((t) => (
+                <li key={t.id} className={styles.tournamentRow}>
+                  <div className={styles.tournamentRowMain}>
+                    <p className={styles.tournamentRowTitle}>{t.name}</p>
+                    <p className={styles.tournamentRowMeta}>
+                      {t.chain} · {formatTournamentEntryFee(t.entry_fee_wei)}
+                      {t.prize_source ? ` · ${String(t.prize_source).replace(/_/g, " ").toLowerCase()}` : ""}
+                      {typeof t.participant_count === "number" && typeof t.max_players === "number"
+                        ? ` · ${t.participant_count}/${t.max_players} players`
+                        : ""}
+                    </p>
+                  </div>
+                  <Link href={tournamentHref(t)} className={styles.tournamentRowCta}>
+                    Register →
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
 
       {activeTab === "my-agents" && (

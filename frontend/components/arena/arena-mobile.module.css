@@ -72,6 +72,100 @@
   font-size: 1rem;
 }
 
+.tournamentPanel {
+  background: linear-gradient(135deg, #0a1618 0%, #122428 100%);
+  border: 1px solid #1a4a52;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 20px;
+}
+
+.tournamentPanel h2 {
+  margin: 0 0 8px 0;
+  font-size: 1.05rem;
+  color: #e8fbff;
+}
+
+.tournamentExplainer {
+  color: #9ec8cf;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0 0 12px 0;
+}
+
+.tournamentActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.tournamentLinkBtn {
+  display: block;
+  text-align: center;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #00c8d4;
+  background: rgba(0, 240, 255, 0.12);
+  color: #7ee8ff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.tournamentList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tournamentRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid #2a4a50;
+  border-radius: 10px;
+}
+
+.tournamentRowMain {
+  min-width: 0;
+}
+
+.tournamentRowTitle {
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.tournamentRowMeta {
+  font-size: 0.78rem;
+  color: #8ab4bc;
+  margin: 0;
+}
+
+.tournamentRowCta {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #00a8b8;
+  color: #7ee8ff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.tournamentEmpty {
+  color: #7a9a9f;
+  font-size: 0.9rem;
+  margin: 8px 0 0 0;
+}
+
 /* Discover Agents List */
 .agentsList {
   display: flex;
