@@ -6,26 +6,23 @@ import { initializePayment, isFlutterwaveConfigured, verifyWebhookSignature, ver
 import { deliverBundleToUser, deliverCollectibleToUser } from "../services/tycoonContract.js";
 
 /**
- * redirect_url must be a valid URL Flutterwave accepts (some accounts enforce a dashboard allowlist).
- * Prefer the client's https callback (browser origin + /game-shop) so it matches where the user actually is
- * (www vs apex, Vercel previews). Fall back to FRONTEND_URL when the client sends http (e.g. local dev).
+ * Same base resolution as CELO Naira purchase (guestAuthController.celoPurchaseInitialize):
+ * use client callback if it looks like a URL, else FRONTEND_URL / PUBLIC_APP_URL, else localhost.
+ * Ensures Flutterwave always gets a valid redirect_url when keys work for buy-CELO.
+ * Client normally sends .../game-shop; if they send origin only, append /game-shop.
  */
 function resolveShopFlutterwaveRedirect(callbackFromBody) {
-  const fromClient = String(callbackFromBody || "").trim();
-  const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "").trim();
-  if (fromClient.startsWith("https://")) {
-    return fromClient;
+  const trimmed = String(callbackFromBody || "").trim().replace(/\/$/, "");
+  let base = trimmed.startsWith("http")
+    ? trimmed
+    : (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "").trim();
+  if (!base || !base.startsWith("http")) {
+    base = "http://localhost:3000";
   }
-  if (base.startsWith("https://")) {
-    return `${base}/game-shop`;
+  if (/\/game-shop$/i.test(base)) {
+    return base;
   }
-  if (fromClient.startsWith("http://")) {
-    return fromClient;
-  }
-  if (base.startsWith("http://")) {
-    return `${base}/game-shop`;
-  }
-  return "";
+  return `${base}/game-shop`;
 }
 
 function clientSafeErrorMessage(err, fallback) {
