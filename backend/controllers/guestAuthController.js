@@ -854,12 +854,6 @@ export async function redeemVoucher(req, res) {
     if (!req.user) return res.status(401).json({ success: false, message: "Not authenticated" });
     const user = req.user;
     const smartWallet = user.smart_wallet_address && String(user.smart_wallet_address).trim();
-    if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
-      return res.status(400).json({
-        success: false,
-        message: "No smart wallet. Vouchers in your account are held in a smart wallet; create one in Profile first.",
-      });
-    }
     const tokenId = req.body?.tokenId;
     if (tokenId == null || (typeof tokenId !== "string" && typeof tokenId !== "number")) {
       return res.status(400).json({ success: false, message: "Provide tokenId (voucher token ID)." });
@@ -868,7 +862,42 @@ export async function redeemVoucher(req, res) {
     if (!isContractConfigured(chain)) {
       return res.status(503).json({ success: false, message: "Reward contract not configured for this chain." });
     }
-    const { hash } = await redeemVoucherForUser(smartWallet, tokenId, chain);
+    const cfg = getChainConfig(chain);
+    const provider = new ethers.JsonRpcProvider(cfg.rpcUrl);
+    const tycoon = new ethers.Contract(cfg.contractAddress, TYCOON_REWARD_ADDR_ABI, provider);
+    const rewardAddress = await tycoon.rewardSystem();
+    if (!rewardAddress || String(rewardAddress).toLowerCase() === ZERO_ADDRESS.toLowerCase()) {
+      return res.status(503).json({ success: false, message: "Reward contract not configured for this chain." });
+    }
+    const reward = new ethers.Contract(rewardAddress, ERC1155_BALANCE_OF_ABI, provider);
+    const tokenIdBig = BigInt(tokenId);
+    const candidateOwners = [
+      smartWallet,
+      user.legacy_smart_wallet_address,
+      user.linked_wallet_address,
+      user.address,
+    ]
+      .map((v) => asAddressOrNull(v))
+      .filter((v, i, arr) => !!v && arr.indexOf(v) === i);
+
+    let voucherOwner = null;
+    for (const owner of candidateOwners) {
+      try {
+        const bal = await reward.balanceOf(owner, tokenIdBig);
+        if (bal > 0n) {
+          voucherOwner = owner;
+          break;
+        }
+      } catch (_) {}
+    }
+    if (!voucherOwner) {
+      return res.status(404).json({
+        success: false,
+        message: "Voucher not found in your linked or smart wallets. Refresh profile and try again.",
+      });
+    }
+
+    const { hash } = await redeemVoucherForUser(voucherOwner, tokenId, chain);
     return res.json({ success: true, data: { hash } });
   } catch (err) {
     const msg = err?.message || "Redeem failed";
