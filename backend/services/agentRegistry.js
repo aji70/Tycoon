@@ -17,6 +17,8 @@ import * as hostedAgentCredits from "./hostedAgentCredits.js";
 
 const AGENT_REQUEST_TIMEOUT_MS = Number(process.env.AGENT_DECISION_TIMEOUT_MS) || 8000;
 const USE_INTERNAL_AGENT = process.env.USE_INTERNAL_AI_AGENT !== "false";
+/** Sentinel: slot uses backend's internal agent (Claude), no external callback. */
+const INTERNAL_AGENT_URL = "internal://tycoon";
 // Set HOSTED_AGENT_CREDITS_PAUSED=true in .env to let the agent run without using or checking credits.
 const HOSTED_AGENT_CREDITS_PAUSED = process.env.HOSTED_AGENT_CREDITS_PAUSED === "true";
 const TABLE = "agent_slot_assignments";
@@ -68,24 +70,26 @@ async function rehydrateFromDb() {
 /**
  * Register an agent for a slot (global or per-game). Persists to DB and in-memory.
  * Slot 2-8 = AI seats; slot 1 (only when gameId is set) = "my agent plays for me" (user's seat).
- * Either callbackUrl (external agent) or user_agent_id (saved API key) must be provided.
- * @param {object} opts - { slot, agentId, callbackUrl?, user_agent_id?, chainId?, name?, gameId? }
+ * Provide one of: callbackUrl (external agent), user_agent_id (saved API key), or useInternalAgent (backend's Claude).
+ * @param {object} opts - { slot, agentId, callbackUrl?, user_agent_id?, useInternalAgent?, chainId?, name?, gameId? }
  */
 async function registerAgent(opts) {
-  const { slot, agentId, callbackUrl, user_agent_id, chainId = 42220, name, gameId } = opts;
+  const { slot, agentId, callbackUrl, user_agent_id, useInternalAgent, chainId = 42220, name, gameId } = opts;
   if (slot == null || slot < 1 || slot > 8) throw new Error("slot must be 1-8");
   if (gameId == null && slot === 1) throw new Error("slot 1 (user's agent) requires gameId");
   const hasCallback = callbackUrl && String(callbackUrl).startsWith("http");
   const hasUserAgentId = user_agent_id != null && Number(user_agent_id) > 0;
-  if (!hasCallback && !hasUserAgentId) throw new Error("callbackUrl or user_agent_id required");
+  const useInternal = !!useInternalAgent;
+  if (!hasCallback && !hasUserAgentId && !useInternal) throw new Error("callbackUrl, user_agent_id, or useInternalAgent required");
 
   const gid = gameId != null ? Number(gameId) : 0;
   const key = registryKey(gameId, slot);
+  const resolvedCallback = useInternal ? INTERNAL_AGENT_URL : (hasCallback ? String(callbackUrl).replace(/\/$/, "") : null);
   const payload = {
     game_id: gid,
     slot: Number(slot),
     user_agent_id: hasUserAgentId ? Number(user_agent_id) : null,
-    callback_url: hasCallback ? String(callbackUrl).replace(/\/$/, "") : null,
+    callback_url: resolvedCallback,
     agent_id: String(agentId || ""),
     name: name || `Agent ${slot}`,
     chain_id: Number(chainId) || 42220,
@@ -101,7 +105,7 @@ async function registerAgent(opts) {
 
   slotRegistry.set(key, {
     agentId: payload.agent_id,
-    callbackUrl: payload.callback_url,
+    callbackUrl: resolvedCallback,
     user_agent_id: payload.user_agent_id,
     chainId: payload.chain_id,
     name: payload.name,
@@ -268,6 +272,25 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
     return null;
   }
 
+  // Backend internal agent (useInternalAgent) — uses ANTHROPIC_API_KEY, no external process
+  if (agent?.callbackUrl === INTERNAL_AGENT_URL) {
+    try {
+      const decision = await internalAgent.getDecision(
+        Number(gameId),
+        Number(slot),
+        decisionType,
+        context || {}
+      );
+      if (decision) {
+        logger.info({ gameId, slot, decisionType, action: decision.action, source: "internal-agent" }, "AI decision");
+        return decision;
+      }
+    } catch (err) {
+      logger.warn({ gameId, slot, err: err?.message }, "Internal agent decision failed");
+    }
+    return null;
+  }
+
   // External callback URL
   if (agent?.callbackUrl) {
     const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -365,6 +388,35 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
   return null;
 }
 
+/**
+ * Auto-register slots to use backend's internal agent (Claude) on startup.
+ * Set TYCOON_INTERNAL_AGENT_SLOTS=2,3,4,5,6,7,8 to have those slots always use backend's ANTHROPIC_API_KEY.
+ * No separate tycoon-celo-agent process needed.
+ */
+async function autoRegisterInternalAgentSlots() {
+  const raw = process.env.TYCOON_INTERNAL_AGENT_SLOTS;
+  if (!raw || typeof raw !== "string" || !raw.trim()) return;
+  const slots = raw
+    .split(",")
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => Number.isInteger(n) && n >= 2 && n <= 8);
+  if (slots.length === 0) return;
+  const agentId = process.env.ERC8004_AGENT_ID || "tycoon-celo-agent";
+  for (const slot of slots) {
+    try {
+      await registerAgent({
+        slot,
+        agentId: `${agentId}-slot-${slot}`,
+        useInternalAgent: true,
+        name: `Tycoon Celo Agent (slot ${slot})`,
+      });
+      logger.info({ slot }, "Auto-registered internal agent slot");
+    } catch (err) {
+      logger.warn({ slot, err: err?.message }, "Auto-register internal agent slot failed");
+    }
+  }
+}
+
 export default {
   registerAgent,
   unregisterAgent,
@@ -373,5 +425,6 @@ export default {
   getAgentForSlot,
   getAIDecision,
   rehydrateFromDb,
+  autoRegisterInternalAgentSlots,
   cleanupGame,
 };

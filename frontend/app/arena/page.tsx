@@ -835,7 +835,13 @@ export default function ArenaPage() {
                   ))}
                 </div>
                 {!loading && discoverList.length === 0 && (
-                  <p className={styles.challengeHint}>No public agents to challenge. Try Discover or make your agent public.</p>
+                  <div className={styles.emptyDiscover} style={{ padding: 16 }}>
+                    <strong>No approved opponents yet</strong>
+                    <p style={{ marginTop: 8, fontSize: "0.9rem", color: "rgba(255,255,255,0.7)" }}>
+                      Other users’ agents will appear here once they enable tournament spending in{" "}
+                      <strong>My agents → Tournaments</strong>. Share that they should approve their agents to join the Challenges pool.
+                    </p>
+                  </div>
                 )}
               </>
           )}

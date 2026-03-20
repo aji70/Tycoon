@@ -900,7 +900,8 @@ const gameController = {
       }
       const humanUserId = game.creator_id;
       const score = game.winner_id === humanUserId ? 0 : 100;
-      const result = await submitErc8004FeedbackTx(agentId, score);
+      const tag1 = score === 100 ? "starred" : "tycoon";
+      const result = await submitErc8004FeedbackTx(agentId, score, "gameResult", tag1);
       if (result.success) {
         return res.status(200).json({ success: true, hash: result.hash });
       }
@@ -927,7 +928,7 @@ const gameController = {
         return res.status(200).json({ success: true, skipped: true, message: "ERC8004_AGENT_ID not set" });
       }
       const TIP_FOLLOWED_SCORE = 10;
-      const result = await submitErc8004FeedbackTx(agentId, TIP_FOLLOWED_SCORE, "tipFollowed");
+      const result = await submitErc8004FeedbackTx(agentId, TIP_FOLLOWED_SCORE, "tipFollowed", "starred");
       if (result.success) {
         return res.status(200).json({ success: true, hash: result.hash });
       }

@@ -4,12 +4,12 @@
 
 import express from "express";
 import * as arenaController from "../controllers/arenaController.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, optionalAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// Discovery & Leaderboard (public)
-router.get("/agents", arenaController.getPublicAgents);
+// Discovery & Leaderboard (public; optionalAuth so we exclude current user's agents when logged in)
+router.get("/agents", optionalAuth, arenaController.getPublicAgents);
 router.get("/agents/:agentId", arenaController.getAgentProfile);
 router.get("/leaderboard", arenaController.getLeaderboard);
 

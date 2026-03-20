@@ -7,6 +7,7 @@
  */
 
 import http from "node:http";
+import { getLLMDecision } from "./llmDecision.js";
 import { decide } from "./decisionLogic.js";
 
 const PORT = Number(process.env.PORT) || 4077;
@@ -36,7 +37,13 @@ const server = http.createServer(async (req, res) => {
   }
 
   const { requestId, decisionType, context } = payload;
-  const result = decide(decisionType || "property", context || {});
+  const dt = decisionType || "property";
+  const ctx = context || {};
+  let result = await getLLMDecision(dt, ctx);
+  if (!result) {
+    result = decide(dt, ctx);
+    console.log("[Agent] Using rule-based fallback:", result.action);
+  }
   const response = {
     requestId,
     action: result.action,
@@ -44,6 +51,7 @@ const server = http.createServer(async (req, res) => {
     reasoning: result.reasoning,
     confidence: result.confidence,
   };
+  if (result.counterOffer) response.counterOffer = result.counterOffer;
   console.log("[Agent] Sending decision response:", response);
 
   res.writeHead(200, { "Content-Type": "application/json" });

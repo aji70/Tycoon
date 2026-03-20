@@ -1,9 +1,9 @@
 # Tycoon Celo Agent
 
-A small server that implements the decision API Tycoon expects (`POST /decision`). Lets you plug in **your own** logic (or a real AI) when you're ready.
+A small server that implements the decision API Tycoon expects (`POST /decision`). Uses **Claude (Anthropic)** for LLM-based decisions when `ANTHROPIC_API_KEY` is set; otherwise falls back to rule-based logic.
 
 - **Main default in Tycoon:** The built-in rule-based logic (in the app) is the primary behavior — no API costs, no external service. That stays as-is.
-- **This project:** Placeholder fixed rules only (no intelligence). Replace `src/decisionLogic.js` with your own LLM or smarter logic when you want "my agent" or an AI seat to use something else. Compatible with **Build Agents for the Real World** (Celo hackathon) and **ERC-8004**.
+- **This project:** Hybrid LLM + rules. Set `ANTHROPIC_API_KEY` for Claude-powered buy/skip, trade, and build decisions. On timeout or API failure, falls back to `src/decisionLogic.js` so the game never stalls. Compatible with **Build Agents for the Real World** (Celo hackathon) and **ERC-8004**.
 
 ## Quick start
 
@@ -52,7 +52,26 @@ Response:
 
 ## Register with Tycoon
 
-Point Tycoon backend at this agent so it asks this service for decisions (fallback remains built-in logic when agent is down):
+### Option A: Use backend's internal agent (recommended — no separate process)
+
+Register slots to use the backend's Claude (ANTHROPIC_API_KEY). Always online when the backend runs.
+
+**One-time env in backend `.env`:**
+```bash
+TYCOON_INTERNAL_AGENT_SLOTS=2,3,4,5,6,7,8
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+On backend startup, slots 2–8 are auto-registered. No `npm run register` needed.
+
+**Or register a single slot manually:**
+```bash
+USE_INTERNAL_AGENT=true TYCOON_API_URL=http://localhost:3000 AGENT_SLOT=2 npm run register
+```
+
+### Option B: External agent (this server)
+
+Run this agent as a separate process and point the backend at it:
 
 ```bash
 TYCOON_API_URL=http://localhost:3000 \
