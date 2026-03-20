@@ -123,7 +123,13 @@ function GuestProfileViewMobile({
 
   const guestOnChainAddress = linkedWalletAddress ?? smartWalletAddress ?? null;
   const profileKeyAddress = linkedWalletAddress ?? smartWalletAddress ?? guestUser.address;
-  const { profile, setAvatar } = useProfileForAddress(profileKeyAddress);
+  const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfileForAddress(profileKeyAddress);
+
+  const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
+  const [localDisplayName, setLocalDisplayName] = useState('');
+  const [localBio, setLocalBio] = useState('');
+  const [editingBio, setEditingBio] = useState(false);
+  const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -298,8 +304,89 @@ function GuestProfileViewMobile({
   });
   const gameCount = games.length;
 
+  const statsForDisplay = React.useMemo(() => {
+    if (displayStats) return displayStats;
+    return {
+      username: guestUser.username,
+      shortAddress: guestUser.address ? `${guestUser.address.slice(0, 6)}...${guestUser.address.slice(-4)}` : '',
+      gamesPlayed: gameCount,
+      gamesWon: 0,
+      gamesLost: 0,
+      winRate: '0%',
+      totalStaked: 0,
+      totalEarned: 0,
+      totalWithdrawn: 0,
+      propertiesBought: 0,
+      propertiesSold: 0,
+      registeredAt: 0,
+      isOnChain: false,
+    };
+  }, [displayStats, guestUser.username, guestUser.address, gameCount]);
+
+  const {
+    ownedCollectibles: mergedCollectibleRows,
+    myVouchers,
+    isLoadingPerks,
+    isLoadingVouchers,
+  } = useMergedProfileRewardAssets(rewardAddress, CELO_CHAIN_ID, [linkedWalletAddress, smartWalletAddress]);
+
+  const ownedCollectibles = useMemo(
+    () =>
+      mergedCollectibleRows.map((row) => {
+        const asset = getPerkShopAsset(row.perk);
+        return {
+          ...row,
+          name: asset?.name ?? `Perk #${row.perk}`,
+          icon: <ProfilePerkCardImage perk={row.perk} className="w-14 h-14" />,
+          isTiered: row.perk === 5 || row.perk === 9,
+        };
+      }),
+    [mergedCollectibleRows]
+  );
+
+  const walletEoa = linkedWalletAddress ?? undefined;
+  const smartWallet = smartWalletAddress ?? undefined;
+
+  useEffect(() => {
+    setLocalDisplayName(profile?.displayName ?? '');
+    setLocalBio(profile?.bio ?? '');
+  }, [profile?.displayName, profile?.bio]);
+
+  const handleRedeemVoucherViaApi = useCallback(async (tokenId: bigint) => {
+    try {
+      setRedeemingId(tokenId);
+      await apiClient.post<ApiResponse>('/auth/redeem-voucher', { tokenId: tokenId.toString(), chain: 'CELO' });
+      await tycBalanceLinked.refetch?.();
+      await tycBalanceSmart.refetch?.();
+      toast.success('Voucher redeemed successfully!');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string; voucher_owner?: string | null } }; message?: string };
+      const owner = err?.response?.data?.voucher_owner;
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to redeem voucher';
+      toast.error(owner ? `${msg} (Owner: ${owner})` : msg);
+    } finally {
+      setRedeemingId(null);
+    }
+  }, [tycBalanceLinked, tycBalanceSmart]);
+
+  const saveDisplayName = () => {
+    const trimmed = localDisplayName.trim() || null;
+    setDisplayName(trimmed);
+    setProfile({ displayName: trimmed });
+    toast.success('Display name saved');
+  };
+
+  const saveBio = () => {
+    const trimmed = localBio.trim() || null;
+    setBio(trimmed);
+    setProfile({ bio: trimmed });
+    toast.success('Bio saved');
+  };
+
+  const displayName = profile?.displayName?.trim() || null;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] px-4 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] px-4 pb-24 profile-page">
       <header className="sticky top-0 z-20 border-b border-white/5 bg-[#030c0d]/90 backdrop-blur-xl py-4">
         <Link href="/" className="flex items-center gap-2 text-cyan-300/90 text-sm font-medium">
           <ArrowLeft className="w-5 h-5" /> Back
@@ -329,6 +416,7 @@ function GuestProfileViewMobile({
           </div>
 
           <h2 className="text-lg font-bold text-white mb-2 text-center">{username}</h2>
+          {displayName && <p className="text-cyan-300/80 text-xs text-center mb-1">"{displayName}"</p>}
           {!guestOnChainAddress && (
             <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account.</p>
           )}
@@ -428,86 +516,289 @@ function GuestProfileViewMobile({
           </div>
         )}
 
-        {displayStats && (
-          <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
-            <h3 className="text-sm font-semibold text-cyan-400 mb-3">{displayStats.isOnChain ? 'On-chain stats' : 'Stats'}</h3>
-            
-            {!displayStats.isOnChain && (
-              <div className="mb-4 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 flex flex-col gap-1 text-orange-200">
-                <span className="text-xs font-semibold">Showing off-chain stats</span>
-                <span className="text-[10px] text-orange-200/80">Link your wallet to secure your progress on-chain.</span>
-              </div>
+        {/* Game stats | About you | My Perks | Reward Vouchers — tabs (visible without wallet connection) */}
+        <section className="pb-4">
+          <div className="flex gap-1 mb-3 flex-wrap">
+            {[
+              { id: 'stats' as const, label: 'Game stats', icon: BarChart2 },
+              { id: 'about' as const, label: 'About you', icon: User },
+              { id: 'perks' as const, label: 'My Perks', icon: ShoppingBag, badge: ownedCollectibles.length },
+              { id: 'vouchers' as const, label: 'Reward Vouchers', icon: Ticket, badge: myVouchers.length },
+            ].map(({ id, label, icon: Icon, badge }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setProfileTab(id)}
+                className={`flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 rounded-xl font-semibold text-[10px] transition-all ${
+                  profileTab === id
+                    ? 'bg-cyan-500/20 border-2 border-cyan-500/50 text-cyan-200'
+                    : 'bg-white/5 border border-white/10 text-white/70'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <span className="flex items-center gap-1 min-w-0 justify-center flex-wrap text-center leading-tight">
+                  <span className="break-words">{label}</span>
+                  {badge !== undefined && badge > 0 && (
+                    <span className="shrink-0 min-w-[1rem] h-4 px-1 rounded text-[10px] flex items-center justify-center bg-white/10">{badge}</span>
+                  )}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="rounded-2xl border border-white/10 overflow-hidden min-h-[220px] max-h-[50vh] overflow-y-auto bg-[#011112]/80">
+            {profileTab === 'stats' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                <FirstTimeHint
+                  storageKey="profile_stats_guest"
+                  message="Your stats and level progress live here. Claim rewards after games from the results screen."
+                  link={{ href: '/how-to-play', label: 'How to Play' }}
+                  compact
+                  className="mb-4"
+                />
+                <div className="mb-4">
+                  <DailyClaim chain="CELO" />
+                </div>
+                {displayStats && !displayStats.isOnChain && (
+                  <div className="mb-4 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 flex flex-col gap-1 text-orange-200">
+                    <span className="text-xs font-semibold">Showing off-chain stats</span>
+                    <span className="text-[10px] text-orange-200/80">Link your wallet to secure your progress on-chain.</span>
+                  </div>
+                )}
+                {statsForDisplay && (() => {
+                  const levelInfo = getLevelFromActivity({ gamesPlayed: statsForDisplay.gamesPlayed, gamesWon: statsForDisplay.gamesWon });
+                  return (
+                    <>
+                      <div className="mb-3 p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[9px] font-medium text-cyan-400/90 uppercase tracking-widest">Level</span>
+                          <span className="font-bold text-cyan-300 text-sm">Level {levelInfo.level} · {levelInfo.label}</span>
+                        </div>
+                        {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
+                          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-cyan-500/80 transition-all duration-500"
+                              style={{ width: `${Math.round(levelInfo.progress * 100)}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+                        <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                          <BarChart2 className="w-4 h-4 text-cyan-400" />
+                          <p className="text-[10px] text-white/50">Games</p>
+                          <p className="text-sm font-bold text-white">{statsForDisplay.gamesPlayed}</p>
+                        </div>
+                        <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                          <Crown className="w-4 h-4 text-amber-400" />
+                          <p className="text-[10px] text-white/50">Wins</p>
+                          <p className="text-sm font-bold text-amber-300">{statsForDisplay.gamesWon}</p>
+                        </div>
+                        <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                          <Coins className="w-4 h-4 text-slate-400" />
+                          <p className="text-[10px] text-white/50">Losses</p>
+                          <p className="text-sm font-bold text-slate-300">{statsForDisplay.gamesLost}</p>
+                        </div>
+                        <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                          <BarChart2 className="w-4 h-4 text-emerald-400" />
+                          <p className="text-[10px] text-white/50">Win rate</p>
+                          <p className="text-sm font-bold text-emerald-300">{statsForDisplay.winRate}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 mb-2">
+                        <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
+                          <p className="text-[9px] text-white/50">Staked</p>
+                          <p className="text-xs font-bold text-white truncate">{formatStakeOrEarned(statsForDisplay.totalStaked)}</p>
+                        </div>
+                        <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
+                          <p className="text-[9px] text-white/50">Earned</p>
+                          <p className="text-xs font-bold text-emerald-300 truncate">{formatStakeOrEarned(statsForDisplay.totalEarned)}</p>
+                        </div>
+                        <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
+                          <p className="text-[9px] text-white/50">Withdrawn</p>
+                          <p className="text-xs font-bold text-slate-300 truncate">{formatStakeOrEarned(statsForDisplay.totalWithdrawn)}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
+                          <p className="text-[9px] text-white/50">Props bought</p>
+                          <p className="text-sm font-bold text-cyan-300">{statsForDisplay.propertiesBought}</p>
+                        </div>
+                        <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
+                          <p className="text-[9px] text-white/50">Props sold</p>
+                          <p className="text-sm font-bold text-amber-300">{statsForDisplay.propertiesSold}</p>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </motion.div>
             )}
 
-            {(() => {
-              const levelInfo = getLevelFromActivity({ gamesPlayed: displayStats.gamesPlayed, gamesWon: displayStats.gamesWon });
-              return (
-                <>
-                  <div className="mb-3 p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[9px] font-medium text-cyan-400/90 uppercase tracking-widest">Level</span>
-                      <span className="font-bold text-cyan-300 text-sm">Level {levelInfo.level} · {levelInfo.label}</span>
+            {profileTab === 'about' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                <p className="text-[10px] font-medium text-cyan-400/90 uppercase tracking-widest mb-4">About you</p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-white/70 mb-1.5">Display name</label>
+                    <div className="flex gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 focus-within:border-cyan-500/30 transition-colors">
+                      <User className="w-4 h-4 text-cyan-400/80 shrink-0 mt-0.5" />
+                      <input
+                        type="text"
+                        placeholder="How should we call you?"
+                        value={localDisplayName}
+                        onChange={(e) => setLocalDisplayName(e.target.value)}
+                        onBlur={saveDisplayName}
+                        className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1819] rounded text-sm min-w-0"
+                      />
+                      <button type="button" onClick={saveDisplayName} className="shrink-0 px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-semibold">Save</button>
                     </div>
-                    {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
-                      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-                        <div className="h-full rounded-full bg-cyan-500/80 transition-all duration-500" style={{ width: `${Math.round(levelInfo.progress * 100)}%` }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-white/70 mb-1.5">Short bio</label>
+                    {editingBio ? (
+                      <div className="rounded-xl bg-white/5 border border-cyan-500/30 px-3 py-2.5">
+                        <textarea
+                          placeholder="A line or two about you."
+                          value={localBio}
+                          onChange={(e) => setLocalBio(e.target.value)}
+                          rows={3}
+                          className="w-full bg-transparent text-white placeholder-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1819] rounded text-sm resize-none leading-relaxed"
+                          autoFocus
+                        />
+                        <div className="flex justify-end gap-2 mt-2">
+                          <button type="button" onClick={() => setEditingBio(false)} className="px-3 py-1.5 rounded-lg bg-white/10 text-white/80 text-xs font-semibold">Cancel</button>
+                          <button type="button" onClick={() => { saveBio(); setEditingBio(false); }} className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-semibold">Save bio</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 flex items-start justify-between gap-2">
+                        <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap break-words flex-1 min-w-0">
+                          {localBio.trim() || <span className="text-slate-500">No bio yet.</span>}
+                        </p>
+                        <button type="button" onClick={() => setEditingBio(true)} className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 text-white/80 hover:bg-cyan-500/20 hover:text-cyan-300 text-xs font-medium">
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit
+                        </button>
                       </div>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
-                    <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
-                      <BarChart2 className="w-4 h-4 text-cyan-400" />
-                      <p className="text-[10px] text-white/50">Games</p>
-                      <p className="text-sm font-bold text-white">{displayStats.gamesPlayed}</p>
-                    </div>
-                    <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
-                      <Crown className="w-4 h-4 text-amber-400" />
-                      <p className="text-[10px] text-white/50">Wins</p>
-                      <p className="text-sm font-bold text-amber-300">{displayStats.gamesWon}</p>
-                    </div>
-                    <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
-                      <Coins className="w-4 h-4 text-slate-400" />
-                      <p className="text-[10px] text-white/50">Losses</p>
-                      <p className="text-sm font-bold text-slate-300">{displayStats.gamesLost}</p>
-                    </div>
-                    <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
-                      <BarChart2 className="w-4 h-4 text-emerald-400" />
-                      <p className="text-[10px] text-white/50">Win rate</p>
-                      <p className="text-sm font-bold text-emerald-300">{displayStats.winRate}</p>
-                    </div>
+                </div>
+              </motion.div>
+            )}
+
+            {profileTab === 'perks' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                <p className="text-[10px] text-white/50 mb-3 text-center">Connect a wallet from the menu to transfer perks on-chain.</p>
+                {isLoadingPerks ? (
+                  <>
+                    <p className="text-slate-400 text-sm text-center mb-3">Loading perks…</p>
+                    <SkeletonPerkGrid count={4} gridClass="grid grid-cols-2 gap-3" />
+                  </>
+                ) : ownedCollectibles.length === 0 ? (
+                  <EmptyState
+                    icon={<ShoppingBag className="w-12 h-12 text-purple-400/70" />}
+                    title="No perks yet"
+                    description="Perks give you in-game advantages. Buy them in the Perk Shop or during a game from My Perks."
+                    action={{ label: 'Visit Perk Shop', href: '/game-shop' }}
+                    compact
+                    className="border-purple-500/20 bg-black/20 py-6"
+                  />
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {ownedCollectibles.map((item) => {
+                      const rowKey = `${item.heldBy.toLowerCase()}-${item.tokenId.toString()}`;
+                      return (
+                        <motion.div
+                          key={rowKey}
+                          whileTap={{ scale: 0.98 }}
+                          className="rounded-xl p-4 text-center border transition-all bg-black/20 border-white/10"
+                        >
+                          {item.icon}
+                          <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
+                          {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-[10px] mt-0.5">Tier {item.strength}</p>}
+                          {smartWallet && item.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
+                            <p className="text-[9px] text-cyan-300/80 mt-1">Smart wallet</p>
+                          ) : walletEoa && item.heldBy.toLowerCase() === walletEoa.toLowerCase() ? (
+                            <p className="text-[9px] text-white/45 mt-1">Linked wallet</p>
+                          ) : null}
+                          <button
+                            type="button"
+                            disabled
+                            className="mt-3 w-full py-2 rounded-lg font-medium text-xs bg-white/10 text-white/45 cursor-not-allowed flex items-center justify-center gap-1"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            Connect wallet to transfer
+                          </button>
+                        </motion.div>
+                      );
+                    })}
                   </div>
-                  <div className="grid grid-cols-3 gap-2 mb-2">
-                    <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
-                      <p className="text-[9px] text-white/50">Staked</p>
-                      <p className="text-xs font-bold text-white truncate">{formatStakeOrEarned(displayStats.totalStaked)}</p>
+                )}
+              </motion.div>
+            )}
+
+            {profileTab === 'vouchers' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                {isLoadingVouchers ? (
+                  <>
+                    <p className="text-slate-400 text-sm text-center mb-3">Loading vouchers…</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <SkeletonCard key={i} hasImage={false} lines={2} className="rounded-xl p-4 border border-amber-500/20" />
+                      ))}
                     </div>
-                    <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
-                      <p className="text-[9px] text-white/50">Earned</p>
-                      <p className="text-xs font-bold text-emerald-300 truncate">{formatStakeOrEarned(displayStats.totalEarned)}</p>
-                    </div>
-                    <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
-                      <p className="text-[9px] text-white/50">Withdrawn</p>
-                      <p className="text-xs font-bold text-slate-300 truncate">{formatStakeOrEarned(displayStats.totalWithdrawn)}</p>
-                    </div>
+                  </>
+                ) : myVouchers.length === 0 ? (
+                  <EmptyState
+                    icon={<Ticket className="w-12 h-12 text-amber-400/70" />}
+                    title="No vouchers yet"
+                    description="Win games to earn reward vouchers and redeem them here."
+                    compact
+                    className="border-amber-500/20 bg-black/20 py-6"
+                  />
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {myVouchers.map((voucher) => (
+                      <div
+                        key={`${voucher.heldBy}-${voucher.tokenId.toString()}`}
+                        className="profile-card rounded-xl p-4 border border-amber-500/20 text-center"
+                      >
+                        <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
+                        <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
+                        {smartWallet && voucher.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
+                          <p className="text-[9px] text-amber-200/70 mb-2">Smart wallet</p>
+                        ) : walletEoa && voucher.heldBy.toLowerCase() === walletEoa.toLowerCase() ? (
+                          <p className="text-[9px] text-white/45 mb-2">Linked wallet</p>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => handleRedeemVoucherViaApi(voucher.tokenId)}
+                          disabled={redeemingId === voucher.tokenId}
+                          className="w-full py-2 rounded-lg font-medium text-xs bg-gradient-to-r from-amber-600 to-orange-600 disabled:opacity-50 flex items-center justify-center gap-1 text-black"
+                        >
+                          {redeemingId === voucher.tokenId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Coins className="w-3.5 h-3.5" />}
+                          {redeemingId === voucher.tokenId ? 'Redeeming...' : 'Redeem'}
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
-                      <p className="text-[9px] text-white/50">Props bought</p>
-                      <p className="text-sm font-bold text-cyan-300">{displayStats.propertiesBought}</p>
-                    </div>
-                    <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
-                      <p className="text-[9px] text-white/50">Props sold</p>
-                      <p className="text-sm font-bold text-amber-300">{displayStats.propertiesSold}</p>
-                    </div>
-                  </div>
-                </>
-              );
-            })()}
+                )}
+              </motion.div>
+            )}
           </div>
-        )}
+        </section>
 
         <AccountLinkWallet />
       </main>
+
+      <style jsx global>{`
+        .profile-page .profile-card {
+          background: rgba(15, 23, 42, 0.45);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          backdrop-filter: blur(12px);
+        }
+      `}</style>
     </div>
   );
 }
@@ -1046,28 +1337,28 @@ export default function ProfilePageMobile() {
           </div>
         )}
 
-        {/* Game stats | About | Perks | Vouchers — one line of tabs, content below */}
+        {/* Game stats | About you | My Perks | Reward Vouchers — tabs, content below */}
         <section className="pb-4">
-          <div className="flex gap-1.5 mb-3">
+          <div className="flex gap-1 mb-3 flex-wrap">
             {[
-              { id: 'stats' as const, label: 'Stats', icon: BarChart2 },
-              { id: 'about' as const, label: 'About', icon: User },
-              { id: 'perks' as const, label: 'Perks', icon: ShoppingBag, badge: ownedCollectibles.length },
-              { id: 'vouchers' as const, label: 'Vouchers', icon: Ticket, badge: myVouchers.length },
+              { id: 'stats' as const, label: 'Game stats', icon: BarChart2 },
+              { id: 'about' as const, label: 'About you', icon: User },
+              { id: 'perks' as const, label: 'My Perks', icon: ShoppingBag, badge: ownedCollectibles.length },
+              { id: 'vouchers' as const, label: 'Reward Vouchers', icon: Ticket, badge: myVouchers.length },
             ].map(({ id, label, icon: Icon, badge }) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setProfileTab(id)}
-                className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 py-2.5 px-1.5 rounded-xl font-semibold text-[11px] transition-all ${
+                className={`flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 rounded-xl font-semibold text-[10px] transition-all ${
                   profileTab === id
                     ? 'bg-cyan-500/20 border-2 border-cyan-500/50 text-cyan-200'
                     : 'bg-white/5 border border-white/10 text-white/70'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5 shrink-0" />
-                <span className="flex items-center gap-1 min-w-0 justify-center flex-wrap">
-                  <span className="text-center leading-tight break-words">{label}</span>
+                <span className="flex items-center gap-1 min-w-0 justify-center flex-wrap text-center leading-tight">
+                  <span className="break-words">{label}</span>
                   {badge !== undefined && badge > 0 && (
                     <span className="shrink-0 min-w-[1rem] h-4 px-1 rounded text-[10px] flex items-center justify-center bg-white/10">{badge}</span>
                   )}
