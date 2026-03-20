@@ -11,6 +11,12 @@ const FLW_BASE = "https://api.flutterwave.com/v3";
 const FLW_DEFAULT_EMAIL = "realjaiboi70@gmail.com";
 const FLW_DEFAULT_PHONE = "08060332714";
 
+function isLikelyEmail(value) {
+  if (!value) return false;
+  const v = String(value).trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+}
+
 /** Optional: full URL to your logo (e.g. https://yoursite.com/logo.png). Shown on Flutterwave checkout. */
 function getCheckoutLogoUrl() {
   const fromEnv = process.env.FLW_LOGO_URL || process.env.FLUTTERWAVE_LOGO_URL;
@@ -66,7 +72,9 @@ export async function initializePayment({
   if (!Number.isFinite(amount) || amount < 200) {
     throw new Error("amount must be at least 200 Naira");
   }
-  const customerEmail = (email && String(email).trim()) || FLW_DEFAULT_EMAIL;
+  // Some guest usernames generate placeholder emails that Flutterwave rejects.
+  // Fall back to a known-good sender email when the provided value is malformed.
+  const customerEmail = isLikelyEmail(email) ? String(email).trim() : FLW_DEFAULT_EMAIL;
   const customerNameStr = (customerName && String(customerName).trim()) || "Tycoon Player";
   const defaultCustomizations = {
     title: "Tycoon — Perk Bundle",

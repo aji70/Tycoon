@@ -37,6 +37,7 @@ import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import {
   useRewardBuyCollectible,
   useRewardBuyCollectibleFrom,
+  useRewardBuyBundleFrom,
   useRewardRedeemVoucher,
   useRewardRedeemVoucherFor,
   useApprove,
@@ -154,6 +155,14 @@ export default function GameShopMobile() {
     (isValidWallet(registrySmartWallet) ? registrySmartWallet : null) ??
     (isValidWallet(guestSmartWallet) ? (guestSmartWallet as Address) : null);
 
+  const readAppSessionToken = (): string | null => {
+    try {
+      return typeof window !== 'undefined' ? window.localStorage?.getItem('token') : null;
+    } catch {
+      return null;
+    }
+  };
+
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
   const [shopTab, setShopTab] = useState<'perks' | 'bundles'>('perks');
   const [payWith, setPayWith] = useState<'connected' | 'smart_wallet'>('connected');
@@ -189,6 +198,12 @@ export default function GameShopMobile() {
   };
 
   const payerAddress = payWith === 'smart_wallet' && smartWalletAddress ? smartWalletAddress : address ?? undefined;
+
+  useEffect(() => {
+    if (smartWalletAddress && !isConnected) {
+      setPayWith('smart_wallet');
+    }
+  }, [smartWalletAddress, isConnected]);
 
   useEffect(() => {
     const ref = searchParams.get('reference') ?? searchParams.get('tx_ref');
@@ -263,6 +278,7 @@ export default function GameShopMobile() {
   // Buy / Approve / Redeem hooks
   const { buy, isPending: buyingPending, isConfirming: buyingConfirming, isSuccess: buySuccess, error: buyError, reset: resetBuy } = useRewardBuyCollectible();
   const { buyFrom, isPending: buyFromPending, isConfirming: buyFromConfirming, isSuccess: buyFromSuccess, reset: resetBuyFrom } = useRewardBuyCollectibleFrom();
+  const { buyBundleFrom } = useRewardBuyBundleFrom();
   const { approve, isPending: approvePending, isSuccess: approveSuccess, error: approveError, reset: resetApprove } = useApprove();
   const { approveERC20: smartWalletApprove, isPending: smartWalletApprovePending } = useUserWalletApproveERC20(smartWalletAddress ?? undefined);
   const { redeem, isPending: redeemingPending, isConfirming: redeemingConfirming, isSuccess: redeemSuccess, error: redeemError, reset: resetRedeem } = useRewardRedeemVoucher();
@@ -279,7 +295,7 @@ export default function GameShopMobile() {
   const { data: usdcBalanceData, isLoading: usdcLoading, refetch: refetchUsdc } = useBalance({
     address: payerAddress,
     token: usdcTokenAddress,
-    query: { enabled: !!payerAddress && !!usdcTokenAddress && isConnected },
+    query: { enabled: !!payerAddress && !!usdcTokenAddress },
   });
   const usdcBalance = usdcBalanceData ? Number(usdcBalanceData.formatted).toFixed(2) : '0.00';
 
@@ -574,25 +590,28 @@ export default function GameShopMobile() {
     }
     const price = BigInt(Math.round(priceNum * 1e6));
     try {
-      if (payWith === 'smart_wallet' && smartWalletAddress && !isConnected) {
-        const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to buy with smart wallet')?.trim() : '';
-        if (!pin) {
-          toast.error('PIN is required');
-          return;
+      if (payWith === 'smart_wallet' && smartWalletAddress) {
+        const session = readAppSessionToken();
+        if (session) {
+          const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to pay from your smart wallet')?.trim() : '';
+          if (!pin) {
+            toast.error('PIN is required');
+            return;
+          }
+          const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-collectible', {
+            tokenId: item.tokenId.toString(),
+            useUsdc: true,
+            maxPrice: price.toString(),
+            pin,
+          });
+          if (!res?.success && !res?.data?.success) {
+            throw new Error(res?.data?.message || 'Purchase failed');
+          }
+          toast.success('Purchase successful!');
+        } else {
+          await smartWalletApprove(usdcTokenAddress, contractAddress, price);
+          await buyFrom(smartWalletAddress, item.tokenId, true);
         }
-        const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-collectible', {
-          tokenId: item.tokenId.toString(),
-          useUsdc: true,
-          maxPrice: price.toString(),
-          pin,
-        });
-        if (!res?.success && !res?.data?.success) {
-          throw new Error(res?.data?.message || 'Purchase failed');
-        }
-        toast.success('Purchase successful!');
-      } else if (payWith === 'smart_wallet' && smartWalletAddress) {
-        await smartWalletApprove(usdcTokenAddress, contractAddress, price);
-        await buyFrom(smartWalletAddress, item.tokenId, true);
       } else {
         if (usdcAllowance === undefined || usdcAllowance === null) {
           toast.info('Approval required');
@@ -675,7 +694,7 @@ export default function GameShopMobile() {
       toast.error('Smart wallet not available');
       return;
     }
-    if (!usdcTokenAddress) {
+    if (!contractAddress || !usdcTokenAddress) {
       toast.error('USDC not supported on this network');
       return;
     }
@@ -692,22 +711,31 @@ export default function GameShopMobile() {
 
     setBundleBuyingName(def.name);
     try {
-      if (payWith === 'smart_wallet' && !isConnected) {
-        const bundleEntry = bundles.find((b) => b.name === bundleName);
-        if (!bundleEntry || typeof bundleEntry.id !== 'number') throw new Error('Bundle not found');
-        const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to buy bundle with smart wallet')?.trim() : '';
-        if (!pin) {
-          toast.error('PIN is required');
+      if (payWith === 'smart_wallet') {
+        if (!smartWalletAddress) {
+          toast.error('Smart wallet not available');
           return;
         }
-        const usdcPrice = BigInt(Math.round(Number(bundleEntry.price_usdc) * 1e6));
-        const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-bundle', {
-          bundleId: String(bundleEntry.id),
-          useUsdc: true,
-          maxPrice: usdcPrice.toString(),
-          pin,
-        });
-        if (!res?.success && !res?.data?.success) throw new Error(res?.data?.message || 'Bundle purchase failed');
+        const bundleEntry = bundles.find((b) => b.name === bundleName);
+        if (!bundleEntry || typeof bundleEntry.id !== 'number') throw new Error('Bundle not found');
+        const session = readAppSessionToken();
+        if (session) {
+          const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to buy bundle with smart wallet')?.trim() : '';
+          if (!pin) {
+            toast.error('PIN is required');
+            return;
+          }
+          const usdcPrice = BigInt(Math.round(Number(bundleEntry.price_usdc) * 1e6));
+          const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-bundle', {
+            bundleId: String(bundleEntry.id),
+            useUsdc: true,
+            maxPrice: usdcPrice.toString(),
+            pin,
+          });
+          if (!res?.success && !res?.data?.success) throw new Error(res?.data?.message || 'Bundle purchase failed');
+        } else {
+          await buyBundleFrom(smartWalletAddress, BigInt(bundleEntry.id), true);
+        }
       } else {
         for (const li of def.items) {
           const key = `${li.perk}:${li.strength}`;
@@ -872,15 +900,17 @@ export default function GameShopMobile() {
 
       <div className="px-4 pt-6 pb-32 max-w-xl mx-auto space-y-8">
         {/* Pay from: Connected wallet | Smart wallet */}
-        {isConnected && (
+        {(isConnected || smartWalletAddress) && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] text-slate-500 uppercase tracking-wider">Pay from:</span>
             <button
               type="button"
               onClick={() => setPayWith('connected')}
+              disabled={!isConnected || !address}
+              title={!isConnected || !address ? 'Connect a wallet to pay from it' : undefined}
               className={`min-h-[36px] px-3 py-2 rounded-lg text-xs font-medium border ${
                 payWith === 'connected' ? 'bg-[#00F0FF]/15 border-[#00F0FF]/50 text-[#00F0FF]' : 'bg-[#0E1415]/60 border-[#003B3E] text-slate-400'
-              }`}
+              } ${!isConnected || !address ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <Wallet size={12} className="inline mr-1.5 align-middle" />
               Connected
@@ -910,8 +940,13 @@ export default function GameShopMobile() {
             <div>
               <p className="text-[10px] text-slate-500 uppercase tracking-wider">USDC</p>
               <p className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-                {usdcLoading ? <Loader2 className="inline animate-spin" size={18} /> : `$${usdcBalance}`}
+                {usdcLoading ? <Loader2 className="inline animate-spin" size={18} /> : payerAddress ? `$${usdcBalance}` : '—'}
               </p>
+              {payerAddress && (
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  {payWith === 'smart_wallet' ? 'Smart wallet' : 'Connected wallet'}
+                </p>
+              )}
             </div>
           </div>
           <button onClick={() => refetchUsdc()} className="text-xs text-[#00F0FF] flex items-center gap-1">

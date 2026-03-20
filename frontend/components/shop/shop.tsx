@@ -174,6 +174,15 @@ export default function GameShop() {
     (isValidWallet(registrySmartWallet) ? registrySmartWallet : null) ??
     (isValidWallet(guestSmartWallet) ? (guestSmartWallet as Address) : null);
 
+  /** Session JWT — smart-wallet shop purchases can use PIN + API instead of wallet popups. */
+  const readAppSessionToken = (): string | null => {
+    try {
+      return typeof window !== 'undefined' ? window.localStorage?.getItem('token') : null;
+    } catch {
+      return null;
+    }
+  };
+
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
   const [shopTab, setShopTab] = useState<'perks' | 'bundles'>('perks');
   const [payWith, setPayWith] = useState<'connected' | 'smart_wallet'>('connected');
@@ -191,6 +200,13 @@ export default function GameShop() {
   const USDC_TO_NGN_RATE = 1600; // approximate; min charge 200 NGN
 
   const payerAddress = payWith === 'smart_wallet' && smartWalletAddress ? smartWalletAddress : address ?? undefined;
+
+  // Guest / app session with smart wallet but no wagmi connection: pay from smart wallet and show its USDC.
+  useEffect(() => {
+    if (smartWalletAddress && !isConnected) {
+      setPayWith('smart_wallet');
+    }
+  }, [smartWalletAddress, isConnected]);
 
   const { data: usdcAllowance } = useReadContract({
   address: usdcTokenAddress,
@@ -246,7 +262,7 @@ export default function GameShop() {
   const { data: usdcBalanceData, isLoading: usdcLoading, refetch: refetchUsdc } = useBalance({
     address: payerAddress,
     token: usdcTokenAddress,
-    query: { enabled: !!payerAddress && !!usdcTokenAddress && isConnected },
+    query: { enabled: !!payerAddress && !!usdcTokenAddress },
   });
 
   const usdcBalance = usdcBalanceData ? Number(usdcBalanceData.formatted).toFixed(2) : '0.00';
@@ -498,26 +514,28 @@ export default function GameShop() {
       return;
     }
     try {
-      if (payWith === 'smart_wallet' && smartWalletAddress && !isConnected) {
-        const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to buy with smart wallet')?.trim() : '';
-        if (!pin) {
-          toast.error('PIN is required');
-          return;
+      if (payWith === 'smart_wallet' && smartWalletAddress) {
+        const session = readAppSessionToken();
+        if (session) {
+          const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to pay from your smart wallet')?.trim() : '';
+          if (!pin) {
+            toast.error('PIN is required');
+            return;
+          }
+          const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-collectible', {
+            tokenId: item.tokenId.toString(),
+            useUsdc: true,
+            maxPrice: price.toString(),
+            pin,
+          });
+          if (!res?.success && !res?.data?.success) {
+            throw new Error(res?.data?.message || 'Purchase failed');
+          }
+          toast.success('Purchase successful!');
+        } else {
+          await smartWalletApprove(usdcTokenAddress, contractAddress, price);
+          await buyFrom(smartWalletAddress, item.tokenId, true);
         }
-        const price = BigInt(Math.round(priceNum * 1e6));
-        const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-collectible', {
-          tokenId: item.tokenId.toString(),
-          useUsdc: true,
-          maxPrice: price.toString(),
-          pin,
-        });
-        if (!res?.success && !res?.data?.success) {
-          throw new Error(res?.data?.message || 'Purchase failed');
-        }
-        toast.success('Purchase successful!');
-      } else if (payWith === 'smart_wallet' && smartWalletAddress) {
-        await smartWalletApprove(usdcTokenAddress, contractAddress, price);
-        await buyFrom(smartWalletAddress, item.tokenId, true);
       } else {
         if (usdcAllowance === undefined || usdcAllowance === null) {
           toast.info('Approval required');
@@ -617,28 +635,31 @@ export default function GameShop() {
 
     setBundleBuyingName(def.name);
     try {
-      if (payWith === 'smart_wallet' && !isConnected) {
-        const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to buy bundle with smart wallet')?.trim() : '';
-        if (!pin) {
-          toast.error('PIN is required');
-          return;
-        }
-        const usdcPrice = BigInt(Math.round(Number(bundleEntry.price_usdc) * 1e6));
-        const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-bundle', {
-          bundleId: String(bundleEntry.id),
-          useUsdc: true,
-          maxPrice: usdcPrice.toString(),
-          pin,
-        });
-        if (!res?.success && !res?.data?.success) {
-          throw new Error(res?.data?.message || 'Bundle purchase failed');
-        }
-      } else if (payWith === 'smart_wallet') {
+      if (payWith === 'smart_wallet') {
         if (!smartWalletAddress) {
           toast.error('Smart wallet not available');
           return;
         }
-        await buyBundleFrom(smartWalletAddress, BigInt(bundleEntry.id), true); // true = useUsdc
+        const session = readAppSessionToken();
+        if (session) {
+          const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to buy bundle with smart wallet')?.trim() : '';
+          if (!pin) {
+            toast.error('PIN is required');
+            return;
+          }
+          const usdcPrice = BigInt(Math.round(Number(bundleEntry.price_usdc) * 1e6));
+          const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-bundle', {
+            bundleId: String(bundleEntry.id),
+            useUsdc: true,
+            maxPrice: usdcPrice.toString(),
+            pin,
+          });
+          if (!res?.success && !res?.data?.success) {
+            throw new Error(res?.data?.message || 'Bundle purchase failed');
+          }
+        } else {
+          await buyBundleFrom(smartWalletAddress, BigInt(bundleEntry.id), true);
+        }
       } else {
         await buyBundle(BigInt(bundleEntry.id), true); // true = useUsdc
       }
@@ -930,18 +951,20 @@ export default function GameShop() {
           </button>
         </div>
 
-        {/* Pay from: Connected wallet | Smart wallet */}
-        {isConnected && (
+        {/* Pay from: Connected wallet | Smart wallet (show if either exists — guests may have smart wallet only) */}
+        {(isConnected || smartWalletAddress) && (
           <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
             <span className="text-xs text-slate-500 uppercase tracking-wider mr-1">Pay from:</span>
             <button
               type="button"
               onClick={() => setPayWith('connected')}
+              disabled={!isConnected || !address}
+              title={!isConnected || !address ? 'Connect a wallet to pay from it' : undefined}
               className={`min-h-[36px] px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
                 payWith === 'connected'
                   ? 'bg-[#00F0FF]/15 border-[#00F0FF]/50 text-[#00F0FF]'
                   : 'bg-[#0E1415]/60 border-[#003B3E] text-slate-400 hover:text-slate-300'
-              }`}
+              } ${!isConnected || !address ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <Wallet className="w-4 h-4 inline mr-2 align-middle" />
               Connected wallet
@@ -976,8 +999,13 @@ export default function GameShop() {
             <div className="text-left">
               <p className="text-[10px] text-slate-500 uppercase tracking-wider">USDC</p>
               <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-                {usdcLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `$${usdcBalance}`}
+                {usdcLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : payerAddress ? `$${usdcBalance}` : '—'}
               </p>
+              {payerAddress && (
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  {payWith === 'smart_wallet' ? 'Smart wallet' : 'Connected wallet'}
+                </p>
+              )}
             </div>
             <button onClick={() => refetchUsdc()} className="p-1 rounded text-slate-500 hover:text-[#00F0FF]">
               <RefreshCw className="w-4 h-4" />
