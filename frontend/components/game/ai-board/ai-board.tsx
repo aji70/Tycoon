@@ -44,7 +44,7 @@ function totalToDice(total: number): { die1: number; die2: number; total: number
   return { die1, die2: t - die1, total: t };
 }
 import { MONOPOLY_STATS, BOARD_SQUARES, ROLL_ANIMATION_MS, MOVE_ANIMATION_MS_PER_SQUARE, JAIL_POSITION, getDiceValues, BUILD_PRIORITY } from "../constants";
-import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
 import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW, calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUtils";
 import { useAiBankruptcy } from "@/hooks/useAiBankruptcy";
 import { reportAiAction } from "@/lib/agentFeedback";
@@ -356,7 +356,7 @@ const AiBoard = ({
         // Backend submits ERC-8004 feedback; best-effort
       }
     } catch (err: any) {
-      toast.error(getContractErrorMessage(err, "Something went wrong. Try again or refresh the page."));
+      hotToastContractError(err, "Something went wrong. Try again or refresh the page.");
     } finally {
       setFinalizeInProgress(false);
     }
@@ -384,7 +384,7 @@ const AiBoard = ({
       }
       window.location.href = "/";
     } catch (err: any) {
-      toast.error(getContractErrorMessage(err, "Something went wrong. Try again or refresh the page."));
+      hotToastContractError(err, "Something went wrong. Try again or refresh the page.");
       setClaimAndLeaveInProgress(false);
     } finally {
       setClaimAndLeaveInProgress(false);
@@ -470,7 +470,7 @@ const AiBoard = ({
       });
       // Turn state visible on board — no toast
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Failed to end turn"));
+      hotToastContractError(err, "Failed to end turn");
     } finally {
       unlockAction();
       turnEndInProgress.current = false;
@@ -523,7 +523,7 @@ const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
 
   } catch (err: any) {
     console.error("Buy failed:", err);
-    toast.error(getContractErrorMessage(err, "Purchase failed"));
+    hotToastContractError(err, "Purchase failed");
   }
 }, [
   currentPlayer,
@@ -604,7 +604,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
         throw new Error(response.data?.message || "Transfer failed");
       }
     } catch (error: any) {
-      toast.error(getContractErrorMessage(error, "Failed to transfer property"));
+      hotToastContractError(error, "Failed to transfer property");
       console.error("Property transfer failed:", error);
     }
   };
@@ -992,7 +992,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
         }
       }
     } catch (err: unknown) {
-      toast.error(getContractErrorMessage(err, "Failed to vote"));
+      hotToastContractError(err, "Failed to vote");
     } finally {
       setEndByNetWorthLoading(false);
     }
@@ -1095,7 +1095,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
                 setTimeout(END_TURN, 1000);
               }
             } catch (err) {
-              toast.error(getContractErrorMessage(err, "Jail roll failed"));
+              hotToastContractError(err, "Jail roll failed");
               try {
                 await END_TURN();
                 await onRefetchGame?.();
@@ -1160,7 +1160,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
         if (forAI) rolledForPlayerId.current = currentPlayerId;
       } catch (err) {
         console.error("Move failed:", err);
-        toast.error(getContractErrorMessage(err, "Move failed"));
+        hotToastContractError(err, "Move failed");
         try {
           await END_TURN();
           await onRefetchGame?.();
@@ -1503,7 +1503,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
       toast.success("Paid $50. You may now roll.");
       await fetchGameState();
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Pay jail fine failed"));
+      hotToastContractError(err, "Pay jail fine failed");
     }
   }, [me, game?.id, fetchGameState]);
 
@@ -1520,7 +1520,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
         toast.success("Used Get Out of Jail Free. You may now roll.");
         await fetchGameState();
       } catch (err) {
-        toast.error(getContractErrorMessage(err, "Use card failed"));
+        hotToastContractError(err, "Use card failed");
       }
     },
     [me, game?.id, fetchGameState]
@@ -1534,7 +1534,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
       await fetchGameState();
       END_TURN();
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Stay in jail failed"));
+      hotToastContractError(err, "Stay in jail failed");
     }
   }, [me, game?.id, fetchGameState, END_TURN]);
 
@@ -1576,7 +1576,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
       showToast("Game over! You have declared bankruptcy.", "error");
       setShowBankruptcyModal(true);
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Failed to end game"));
+      hotToastContractError(err, "Failed to end game");
     }
   };
 

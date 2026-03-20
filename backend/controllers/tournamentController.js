@@ -116,6 +116,17 @@ export async function autoFillAgents(req, res) {
     const entryFeeUnits = BigInt(tournament.entry_fee_wei ?? 0);
     const desired = Math.max(0, Math.min(Number(tournament.max_players || 32), Number(req.body?.desired_count ?? 32)));
 
+    const rawPreferred = req.body?.user_agent_ids;
+    const preferredAgentIds = Array.isArray(rawPreferred)
+      ? [...new Set(rawPreferred.map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0))]
+      : [];
+    if (preferredAgentIds.length > 0 && Number(req.user?.id) !== Number(tournament.creator_id)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the tournament creator can choose which agents to auto-fill",
+      });
+    }
+
     const currentCount = await db("tournament_entries").where({ tournament_id: tournamentId }).count("* as c").first();
     const alreadyCount = Number(currentCount?.c ?? 0);
     const remaining = Math.max(0, desired - alreadyCount);
@@ -135,7 +146,34 @@ export async function autoFillAgents(req, res) {
       const uid = Number(p.user_id);
       if (!permByUser.has(uid)) permByUser.set(uid, p);
     }
-    const candidates = Array.from(permByUser.values()).filter((p) => BigInt(p.max_entry_fee_usdc ?? "0") >= entryFeeUnits);
+    let candidates = Array.from(permByUser.values()).filter((p) => BigInt(p.max_entry_fee_usdc ?? "0") >= entryFeeUnits);
+
+    if (preferredAgentIds.length > 0) {
+      const ownedAgents = await db("user_agents")
+        .whereIn("id", preferredAgentIds)
+        .where("user_id", Number(tournament.creator_id))
+        .select("id");
+      const ownedSet = new Set((ownedAgents || []).map((a) => Number(a.id)));
+      const permByAgentId = new Map();
+      for (const p of perms || []) {
+        const aid = Number(p.user_agent_id);
+        if (!permByAgentId.has(aid)) permByAgentId.set(aid, p);
+      }
+      const preferredOrdered = [];
+      const preferredUsers = new Set();
+      for (const aid of preferredAgentIds) {
+        if (!ownedSet.has(aid)) continue;
+        const p = permByAgentId.get(aid);
+        if (!p) continue;
+        if (BigInt(p.max_entry_fee_usdc ?? "0") < entryFeeUnits) continue;
+        const uid = Number(p.user_id);
+        if (preferredUsers.has(uid)) continue;
+        preferredUsers.add(uid);
+        preferredOrdered.push(p);
+      }
+      const rest = candidates.filter((p) => !preferredUsers.has(Number(p.user_id)));
+      candidates = [...preferredOrdered, ...rest];
+    }
 
     let added = 0;
     const cfg = getChainConfig(chain);

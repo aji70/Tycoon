@@ -23,7 +23,7 @@ import {
 } from "../constants";
 import { usePropertyActions } from "@/hooks/usePropertyActions";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
-import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
 
 /** Convert dice total (2–12) to die1+die2 for display when we only have the total (e.g. opponent's roll from API). */
 function totalToDice(total: number): { die1: number; die2: number; total: number } {
@@ -238,7 +238,7 @@ export function useGameBoardLogic({
       });
       // Turn state visible on board — no toast
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Failed to end turn"));
+      hotToastContractError(err, "Failed to end turn");
     } finally {
       unlockAction();
       turnEndInProgress.current = false;
@@ -370,8 +370,7 @@ export function useGameBoardLogic({
         setTimeout(END_TURN, 800);
       }
     } catch (err) {
-      const message = getContractErrorMessage(err, "Purchase failed");
-      toast.error(message);
+      hotToastContractError(err, "Purchase failed");
     }
   }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id, roll, touchActivity]);
 
@@ -458,7 +457,7 @@ export function useGameBoardLogic({
               setTimeout(END_TURN, 1000);
             }
           } catch (err) {
-            toast.error(getContractErrorMessage(err, "Jail roll failed"));
+            hotToastContractError(err, "Jail roll failed");
             END_TURN();
           } finally {
             setIsRolling(false);
@@ -484,7 +483,7 @@ export function useGameBoardLogic({
           await fetchUpdatedGame();
           // Escaped jail — state visible
         } catch (err) {
-          toast.error(getContractErrorMessage(err, "Escape failed"));
+          hotToastContractError(err, "Escape failed");
         } finally {
           setIsRolling(false);
           unlockAction();
@@ -536,7 +535,7 @@ export function useGameBoardLogic({
         // Roll visible on board — no toast
       } catch (err) {
         console.error("Move failed:", err);
-        toast.error(getContractErrorMessage(err, "Move failed"));
+        hotToastContractError(err, "Move failed");
         END_TURN();
       } finally {
         setIsRolling(false);
@@ -555,7 +554,7 @@ export function useGameBoardLogic({
       await fetchUpdatedGame();
       showToast("Paid $50. You may now roll.", "success");
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Pay to leave jail failed"));
+      hotToastContractError(err, "Pay to leave jail failed");
     } finally {
       unlockAction();
     }
@@ -576,7 +575,7 @@ export function useGameBoardLogic({
         await fetchUpdatedGame();
         showToast("Used Get Out of Jail Free. You may now roll.", "success");
       } catch (err) {
-        toast.error(getContractErrorMessage(err, "Use card failed"));
+        hotToastContractError(err, "Use card failed");
       } finally {
         unlockAction();
       }
@@ -594,7 +593,7 @@ export function useGameBoardLogic({
       await fetchUpdatedGame();
       END_TURN();
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Stay in jail failed"));
+      hotToastContractError(err, "Stay in jail failed");
       unlockAction();
     }
   }, [me?.user_id, game?.id, actionLock, lockAction, unlockAction, fetchUpdatedGame, END_TURN, touchActivity]);
@@ -707,8 +706,7 @@ export function useGameBoardLogic({
       setShowExitPrompt(true);
     } catch (err: unknown) {
       console.error("Bankruptcy process failed:", err);
-      const message = getContractErrorMessage(err, "Bankruptcy failed — but you are eliminated.");
-      toast.error(message);
+      hotToastContractError(err, "Bankruptcy failed — but you are eliminated.");
       try {
         await END_TURN();
       } catch {
@@ -818,8 +816,7 @@ export function useGameBoardLogic({
           }
         }
       } catch (err: unknown) {
-        const msg = getContractErrorMessage(err, "Failed to vote");
-        toast.error(msg);
+        hotToastContractError(err, "Failed to vote");
       } finally {
         setVotingLoading((prev) => ({ ...prev, [targetUserId]: false }));
       }
@@ -881,7 +878,7 @@ export function useGameBoardLogic({
         }
       }
     } catch (err: unknown) {
-      toast.error(getContractErrorMessage(err, "Failed to vote"));
+      hotToastContractError(err, "Failed to vote");
     } finally {
       setEndByNetWorthLoading(false);
     }

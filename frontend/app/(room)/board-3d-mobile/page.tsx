@@ -16,7 +16,7 @@ import { getSquareName } from "@/components/game/board3d/squareNames";
 import { getCornersPassed } from "@/components/game/board3d/positions";
 import { getDiceValues } from "@/components/game/constants";
 import { JAIL_POSITION, MOVE_ANIMATION_MS_PER_SQUARE } from "@/components/game/constants";
-import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
@@ -665,7 +665,7 @@ function Board3DMobileContent() {
       landedPositionThisTurnRef.current = null;
       await refetchGame();
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Failed to end turn"));
+      hotToastContractError(err, "Failed to end turn");
       setTurnEndScheduled(false);
     } finally {
       turnEndInProgressRef.current = false;
@@ -716,7 +716,7 @@ function Board3DMobileContent() {
         }
       }
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Failed to vote"));
+      hotToastContractError(err, "Failed to vote");
     } finally {
       setEndByNetWorthLoading(false);
     }
@@ -784,7 +784,7 @@ function Board3DMobileContent() {
           }
         }
       } catch (err) {
-        toast.error(getContractErrorMessage(err, "Failed to vote"));
+        hotToastContractError(err, "Failed to vote");
       } finally {
         setVotingLoading((prev) => ({ ...prev, [targetUserId]: false }));
       }
@@ -1329,7 +1329,7 @@ function Board3DMobileContent() {
           await refetchGame();
           END_TURN();
         } catch (err) {
-          toast.error(getContractErrorMessage(err as Error, "Failed to process three doubles"));
+          hotToastContractError(err as Error, "Failed to process three doubles");
         } finally {
           doublesCountRef.current = 0;
           runningTotalRef.current = 0;
@@ -1469,11 +1469,11 @@ function Board3DMobileContent() {
               await refetchGame();
             }
           } catch (e) {
-            toast.error(getContractErrorMessage(e, "Failed to pass turn"));
+            hotToastContractError(e, "Failed to pass turn");
             await refetchGame();
           }
         } else {
-          toast.error(getContractErrorMessage(err, "Roll failed"));
+          hotToastContractError(err, "Roll failed");
         }
       } catch (toastErr) {
         toast.error("Roll failed");
@@ -1618,7 +1618,7 @@ function Board3DMobileContent() {
         delete next[currentPlayer.user_id];
         return next;
       });
-      toast.error(getContractErrorMessage(err, "AI move failed"));
+      hotToastContractError(err, "AI move failed");
       setTimeout(() => END_TURN(), 500);
     } finally {
       setRollingDice(null);
@@ -1767,7 +1767,7 @@ function Board3DMobileContent() {
         delete next[me.user_id];
         return next;
       });
-      toast.error(getContractErrorMessage(err, "Agent move failed"));
+      hotToastContractError(err, "Agent move failed");
       setTimeout(() => END_TURN(), 500);
     } finally {
       setRollingDice(null);
@@ -1829,7 +1829,7 @@ function Board3DMobileContent() {
       await refetchGame();
       setTimeout(() => END_TURN(), 800);
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Purchase failed"));
+      hotToastContractError(err, "Purchase failed");
     }
   }, [game?.id, me, justLandedProperty, refetchGame, END_TURN]);
 
@@ -1853,7 +1853,7 @@ function Board3DMobileContent() {
       toast.success("Paid $50. You may now roll.");
       await refetchGame();
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Pay jail fine failed"));
+      hotToastContractError(err, "Pay jail fine failed");
     }
   }, [me, game?.id, refetchGame]);
 
@@ -1870,7 +1870,7 @@ function Board3DMobileContent() {
         toast.success("Used Get Out of Jail Free. You may now roll.");
         await refetchGame();
       } catch (err) {
-        toast.error(getContractErrorMessage(err, "Use card failed"));
+        hotToastContractError(err, "Use card failed");
       }
     },
     [me, game?.id, refetchGame]
@@ -1884,7 +1884,7 @@ function Board3DMobileContent() {
       await refetchGame();
       setTimeout(() => END_TURN(), 500);
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Stay in jail failed"));
+      hotToastContractError(err, "Stay in jail failed");
     }
   }, [me, game?.id, refetchGame, END_TURN]);
 
@@ -2486,7 +2486,7 @@ function Board3DMobileContent() {
       toast.error("Game over! You have declared bankruptcy.");
       setShowBankruptcyModal(true);
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Failed to end game"));
+      hotToastContractError(err, "Failed to end game");
     }
   }, [game?.id, me, livePlayers, gameTimeUpLocal, game?.status]);
 
@@ -2521,7 +2521,7 @@ function Board3DMobileContent() {
       }
       window.location.href = "/";
     } catch (err) {
-      toast.error(getContractErrorMessage(err as Error, "Something went wrong. Try again or refresh the page."));
+      hotToastContractError(err as Error, "Something went wrong. Try again or refresh the page.");
       setClaimAndLeaveInProgress(false);
     } finally {
       setClaimAndLeaveInProgress(false);

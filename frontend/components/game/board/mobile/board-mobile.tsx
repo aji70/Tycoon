@@ -29,7 +29,7 @@ import { Sparkles } from "lucide-react";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 import { GameDurationCountdown } from "../../GameDurationCountdown";
 import { ApiResponse } from "@/types/api";
-import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
 import { BankruptcyModal } from "../../modals/bankruptcy";
 import { CardModal } from "../../modals/cards";
 import { useGameBoardLogic } from "../useGameBoardLogic";
@@ -301,10 +301,10 @@ const MobileGameLayout = ({
         { id: toastId, duration: 5000 }
       );
     } catch (err: any) {
-      toast.error(
-        getContractErrorMessage(err, "Something went wrong. Try again or refresh the page."),
-        { id: toastId, duration: 8000 }
-      );
+      hotToastContractError(err, "Something went wrong. Try again or refresh the page.", {
+        id: toastId,
+        duration: 8000,
+      });
     } finally {
       exitHook?.reset?.();
     }
@@ -390,7 +390,6 @@ const MobileGameLayout = ({
 
   const handleSellProperty = async () => {
     if (!selectedGameProperty || !me || !isMyTurn) {
-      showToast("Not your turn or invalid property", "error");
       return;
     }
 

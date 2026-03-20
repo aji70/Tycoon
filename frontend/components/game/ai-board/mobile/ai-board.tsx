@@ -44,7 +44,7 @@ function totalToDice(total: number): { die1: number; die2: number; total: number
   const die1 = Math.min(6, Math.max(1, Math.floor(t / 2)));
   return { die1, die2: t - die1, total: t };
 }
-import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import {
   useMobileAiLogic,
@@ -345,7 +345,7 @@ const endTime =
       showToast(timedOut ? "Time's up! Turn ended." : "Turn ended", timedOut ? "default" : "success");
       await fetchUpdatedGame();
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Failed to end turn"));
+      hotToastContractError(err, "Failed to end turn");
     } finally {
       unlockAction();
       turnEndInProgress.current = false;
@@ -441,7 +441,7 @@ const endTime =
       await fetchUpdatedGame();
       setTimeout(END_TURN, 800);
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Purchase failed"));
+      hotToastContractError(err, "Purchase failed");
     }
   }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, currentGame.id, fetchUpdatedGame]);
 
@@ -491,7 +491,7 @@ const endTime =
               setTimeout(END_TURN, 1000);
             }
           } catch (err) {
-            toast.error(getContractErrorMessage(err, "Jail roll failed"));
+            hotToastContractError(err, "Jail roll failed");
             END_TURN();
           } finally {
             setIsRolling(false);
@@ -535,7 +535,7 @@ const endTime =
           await fetchUpdatedGame();
           showToast(`${player.username} rolled doubles and escaped jail!`, "success");
         } catch (err) {
-          toast.error(getContractErrorMessage(err, "Escape failed"));
+          hotToastContractError(err, "Escape failed");
         } finally {
           setIsRolling(false);
           unlockAction();
@@ -603,7 +603,7 @@ const endTime =
         if (forAI) rolledForPlayerId.current = currentPlayerId;
       } catch (err) {
         console.error("Move failed:", err);
-        toast.error(getContractErrorMessage(err, "Move failed"));
+        hotToastContractError(err, "Move failed");
         END_TURN();
       } finally {
         setIsRolling(false);
@@ -669,7 +669,7 @@ const endTime =
         }
       }
     } catch (err: unknown) {
-      toast.error(getContractErrorMessage(err, "Failed to vote"));
+      hotToastContractError(err, "Failed to vote");
     } finally {
       setEndByNetWorthLoading(false);
     }
@@ -865,7 +865,7 @@ const endTime =
       showToast("Game over! You have declared bankruptcy.", "error");
       setShowBankruptcyModal(true);
     } catch (err) {
-      toast.error(getContractErrorMessage(err, "Failed to end game"));
+      hotToastContractError(err, "Failed to end game");
     }
   };
 
@@ -980,7 +980,7 @@ const endTime =
                                     toast.success("Paid $50. You may now roll.");
                                     await fetchUpdatedGame();
                                   } catch (err) {
-                                    toast.error(getContractErrorMessage(err, "Pay jail fine failed"));
+                                    hotToastContractError(err, "Pay jail fine failed");
                                   }
                                 }}
                                 className="py-2 px-4 rounded-lg text-sm font-medium bg-amber-600/80 text-white border border-amber-500"
@@ -997,7 +997,7 @@ const endTime =
                                     toast.success("Used Chance card. You may now roll.");
                                     await fetchUpdatedGame();
                                   } catch (err) {
-                                    toast.error(getContractErrorMessage(err, "Use card failed"));
+                                    hotToastContractError(err, "Use card failed");
                                   }
                                 }}
                                 className="py-2 px-4 rounded-lg text-sm font-medium bg-orange-600/80 text-white border border-orange-500"
@@ -1014,7 +1014,7 @@ const endTime =
                                     toast.success("Used CC card. You may now roll.");
                                     await fetchUpdatedGame();
                                   } catch (err) {
-                                    toast.error(getContractErrorMessage(err, "Use card failed"));
+                                    hotToastContractError(err, "Use card failed");
                                   }
                                 }}
                                 className="py-2 px-4 rounded-lg text-sm font-medium bg-blue-600/80 text-white border border-blue-500"
@@ -1030,7 +1030,7 @@ const endTime =
                                   await fetchUpdatedGame();
                                   END_TURN();
                                 } catch (err) {
-                                  toast.error(getContractErrorMessage(err, "Stay in jail failed"));
+                                  hotToastContractError(err, "Stay in jail failed");
                                 }
                               }}
                               className="py-2 px-4 rounded-lg text-sm font-medium bg-gray-600 text-white border border-gray-500"
@@ -1049,7 +1049,7 @@ const endTime =
                                   toast.success("Paid $50. You may now roll.");
                                   await fetchUpdatedGame();
                                 } catch (err) {
-                                  toast.error(getContractErrorMessage(err, "Pay jail fine failed"));
+                                  hotToastContractError(err, "Pay jail fine failed");
                                 }
                               }}
                               className="py-2 px-4 rounded-lg text-sm font-medium bg-amber-600/80 text-white border border-amber-500"
@@ -1065,7 +1065,7 @@ const endTime =
                                   toast.success("Used Chance card. You may now roll.");
                                   await fetchUpdatedGame();
                                 } catch (err) {
-                                  toast.error(getContractErrorMessage(err, "Use card failed"));
+                                  hotToastContractError(err, "Use card failed");
                                 }
                               }}
                               className="py-2 px-4 rounded-lg text-sm font-medium bg-orange-600/80 text-white border border-orange-500"
@@ -1081,7 +1081,7 @@ const endTime =
                                   toast.success("Used CC card. You may now roll.");
                                   await fetchUpdatedGame();
                                 } catch (err) {
-                                  toast.error(getContractErrorMessage(err, "Use card failed"));
+                                  hotToastContractError(err, "Use card failed");
                                 }
                               }}
                               className="py-2 px-4 rounded-lg text-sm font-medium bg-blue-600/80 text-white border border-blue-500"

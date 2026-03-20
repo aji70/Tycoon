@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
@@ -11,6 +11,9 @@ import { appChain } from "@/config";
 import type { PrizeSource, CreateTournamentResponse } from "@/types/tournament";
 import { ChevronLeft, Loader2, Swords, Wallet, CheckCircle2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
+import { ApiResponse } from "@/types/api";
+
+type MyAgentRow = { id: number; name: string };
 
 const USDC_DECIMALS = 6;
 const MAX_PLAYERS_ALLOWED = 512;
@@ -30,7 +33,12 @@ function chainIdToBackendChain(chainId: number): string {
 const PRIZE_SOURCES: { value: PrizeSource; label: string; description: string }[] = [
   { value: "NO_POOL", label: "No prize pool", description: "Free to enter, no prizes" },
   { value: "ENTRY_FEE_POOL", label: "Entry fee pool", description: "Players pay entry; pool goes to winners" },
-  { value: "CREATOR_FUNDED", label: "Creator funded", description: "You add the prize pool (after creation)" },
+  {
+    value: "CREATOR_FUNDED",
+    label: "Creator funded",
+    description:
+      "You deposit USDC into the escrow as the prize pool. Set the planned amount below; after creating, fund on the tournament page (wallet). Payouts use the DB amount for splits — keep it in sync with what you deposit.",
+  },
 ];
 
 const PLAYER_PRESETS = [8, 16, 32, 64, 128];
@@ -55,8 +63,12 @@ export default function CreateTournamentPage() {
   const [maxPlayers, setMaxPlayers] = useState(32);
   const [minPlayers, setMinPlayers] = useState(2);
   const [entryFeeUsd, setEntryFeeUsd] = useState("");
+  const [prizePoolUsd, setPrizePoolUsd] = useState("");
   const [autoFillBots, setAutoFillBots] = useState(false);
   const [autoFillCount, setAutoFillCount] = useState(0);
+  const [myAgents, setMyAgents] = useState<MyAgentRow[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(false);
+  const [selectedAgentIds, setSelectedAgentIds] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
@@ -66,6 +78,38 @@ export default function CreateTournamentPage() {
   const canCreate = isSignedIn || hasWallet || isPrivyAuthed;
   const showAuthGate = !authLoading && !canCreate;
   const canUseWallet = hasWallet && !!loginByWallet;
+  const canLoadAgents = isSignedIn || isPrivyAuthed;
+
+  useEffect(() => {
+    if (!autoFillBots) setSelectedAgentIds([]);
+  }, [autoFillBots]);
+
+  useEffect(() => {
+    if (!autoFillBots || !canLoadAgents) return;
+    let cancelled = false;
+    (async () => {
+      setAgentsLoading(true);
+      try {
+        const res = await apiClient.get<ApiResponse<MyAgentRow[]>>("/agents");
+        const list = res.data?.data;
+        if (!cancelled) setMyAgents(Array.isArray(list) ? list : []);
+      } catch {
+        if (!cancelled) setMyAgents([]);
+      } finally {
+        if (!cancelled) setAgentsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [autoFillBots, canLoadAgents]);
+
+  const toggleAgentPick = (agentId: number) => {
+    setSelectedAgentIds((prev) =>
+      prev.includes(agentId) ? prev.filter((x) => x !== agentId) : [...prev, agentId]
+    );
+  };
+
   const sanitizedMaxPreview = Math.min(MAX_PLAYERS_ALLOWED, Math.max(MIN_PLAYERS_ALLOWED, maxPlayers));
   const sanitizedMinPreview = Math.max(MIN_PLAYERS_ALLOWED, Math.min(sanitizedMaxPreview, minPlayers));
   const isMaxPowerOfTwo = isPowerOfTwo(sanitizedMaxPreview);
@@ -131,13 +175,22 @@ export default function CreateTournamentPage() {
         }
         body.entry_fee_wei = Math.round(usd * 10 ** USDC_DECIMALS);
       }
+      if (prizeSource === "CREATOR_FUNDED") {
+        const poolUsd = parseFloat(prizePoolUsd);
+        if (prizePoolUsd.trim() !== "" && !Number.isNaN(poolUsd) && poolUsd > 0) {
+          body.prize_pool_wei = String(Math.round(poolUsd * 10 ** USDC_DECIMALS));
+        }
+      }
       const created = await createTournament(body) as CreateTournamentResponse | null;
       const slug = created?.code ?? created?.id;
       if (slug != null) {
         if (autoFillBots && created?.id) {
           try {
             const desired = autoFillCount > 0 ? autoFillCount : Math.max(0, (body.min_players ?? 2) - 1);
-            await apiClient.post(`/tournaments/${created.id}/auto-fill-agents`, { desired_count: desired });
+            await apiClient.post(`/tournaments/${created.id}/auto-fill-agents`, {
+              desired_count: desired,
+              ...(selectedAgentIds.length > 0 ? { user_agent_ids: selectedAgentIds } : {}),
+            });
             await apiClient.post(`/tournaments/${created.id}/close-registration`, { first_round_start_at: new Date().toISOString() });
             await apiClient.post(`/tournaments/${created.id}/start-round/0`, {});
           } catch (fillErr) {
@@ -357,6 +410,27 @@ export default function CreateTournamentPage() {
                   />
                 </div>
               )}
+              {prizeSource === "CREATOR_FUNDED" && (
+                <div>
+                  <label htmlFor="prize_pool" className="block text-sm font-medium text-white/90 mb-1">
+                    Planned prize pool (USDC, optional)
+                  </label>
+                  <input
+                    id="prize_pool"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={prizePoolUsd}
+                    onChange={(e) => setPrizePoolUsd(e.target.value)}
+                    placeholder="e.g. 100 — used for payout math; fund the same on-chain after create"
+                    className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
+                  />
+                  <p className="text-xs text-white/50 mt-1.5">
+                    Default winner split: 50% / 30% / 15% / 5% for 1st–4th. When the tournament completes, USDC is sent to
+                    winners&apos; smart wallets (per backend payout job).
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-[#011112]/70 p-5 space-y-4">
@@ -429,22 +503,60 @@ export default function CreateTournamentPage() {
                 />
               </label>
               {autoFillBots && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-white/60 mb-1.5">Bot count (optional)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={512}
-                      value={autoFillCount}
-                      onChange={(e) => setAutoFillCount(Number(e.target.value) || 0)}
-                      className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
-                      placeholder="0 = auto"
-                    />
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-white/60 mb-1.5">Bot count (optional)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={512}
+                        value={autoFillCount}
+                        onChange={(e) => setAutoFillCount(Number(e.target.value) || 0)}
+                        className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
+                        placeholder="0 = auto"
+                      />
+                    </div>
+                    <p className="text-xs text-white/50 leading-relaxed">
+                      Fills with agents that have tournament auto-join enabled and a max entry fee that covers this event.
+                      Pick your agents below (optional); they are tried first in order, then any other eligible agents.
+                    </p>
                   </div>
-                  <p className="text-xs text-white/50 leading-relaxed">
-                    Bots are users who enabled agent tournament auto-join with a max fee that covers this tournament.
-                  </p>
+                  {canLoadAgents && (
+                    <div className="rounded-xl border border-[#0E282A] bg-[#011112]/60 p-3">
+                      <p className="text-xs font-medium text-cyan-300/90 mb-2">Your agents (optional)</p>
+                      {agentsLoading ? (
+                        <p className="text-xs text-white/50">Loading agents…</p>
+                      ) : myAgents.length === 0 ? (
+                        <p className="text-xs text-white/50">
+                          No agents yet. Create one under Manage agents, enable tournament permission in Profile (PIN), then
+                          try again.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2 max-h-40 overflow-y-auto">
+                          {myAgents.map((a) => (
+                            <li key={a.id}>
+                              <label className="flex items-center gap-2 text-sm text-white/85 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedAgentIds.includes(a.id)}
+                                  onChange={() => toggleAgentPick(a.id)}
+                                  className="text-cyan-500 focus:ring-cyan-500 rounded"
+                                />
+                                <span>{a.name}</span>
+                                <span className="text-white/40 text-xs">#{a.id}</span>
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                  {!canLoadAgents && (
+                    <p className="text-xs text-amber-400/90">
+                      Sign in (guest or header) to choose specific agents for quick start.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

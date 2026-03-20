@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
-import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import {
   isAIPlayer,
@@ -108,7 +108,6 @@ export function useAiPlayerLogic({
   const startTrade = useCallback(
     (targetPlayer: Player) => {
       if (!isNext) {
-        toast.error("Not your turn!");
         return;
       }
       if (!targetPlayer || targetPlayer.user_id == null) {
@@ -558,7 +557,7 @@ export function useAiPlayerLogic({
         }
       } catch (err: any) {
         console.error("Claim failed:", err);
-        toast.error(getContractErrorMessage(err, "Failed to claim property"), { id: toastId });
+        hotToastContractError(err, "Failed to claim property", { id: toastId });
       }
     },
     [game.id, getGamePlayerId]
