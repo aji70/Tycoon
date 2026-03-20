@@ -17,8 +17,11 @@ import {
 
 const router = express.Router();
 
-// ERC-8004 Identity Registry on Celo (mainnet); Alfajores may use a different address
-const ERC8004_IDENTITY_MAINNET = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
+// ERC-8004 Identity Registry on Celo (mainnet + alfajores)
+const ERC8004_IDENTITY_BY_CHAIN = {
+  42220: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+  44787: "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+};
 
 /**
  * GET /api/agents/:id/erc8004-registration
@@ -46,13 +49,17 @@ router.get("/:id/erc8004-registration", async (req, res) => {
             ? String(ownerUser.address).trim()
             : null;
     const chainId = agent.chain_id === 44787 ? 44787 : 42220;
-    const agentRegistry = `eip155:${chainId}:${ERC8004_IDENTITY_MAINNET.toLowerCase()}`;
+    const identityRegistryAddress = ERC8004_IDENTITY_BY_CHAIN[chainId] || ERC8004_IDENTITY_BY_CHAIN[42220];
+    const agentRegistry = `eip155:${chainId}:${identityRegistryAddress.toLowerCase()}`;
     const callbackUrl = UserAgent.getCallbackUrl(agent);
+    const endpoint = callbackUrl || "https://tycoon.game";
     const registration = {
       type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
       name: agent.name || "Tycoon Agent",
       description: agent.name ? `Tycoon agent: ${agent.name}` : "AI agent for Tycoon (Monopoly-style game).",
       image: "",
+      // Keep both keys for compatibility with clients following older/newer docs.
+      endpoints: [{ type: "a2a", url: endpoint }],
       services: callbackUrl
         ? [{ name: "web", endpoint: callbackUrl }]
         : [{ name: "web", endpoint: "https://tycoon.game" }],

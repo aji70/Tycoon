@@ -1,4 +1,8 @@
+import crypto from "crypto";
 import logger from "../config/logger.js";
+import db from "../config/database.js";
+import { initializePayment, isFlutterwaveConfigured, verifyWebhookSignature, verifyTransactionById, verifyTransactionByReference } from "../services/flutterwave.js";
+import { deliverBundleToUser, deliverCollectibleToUser } from "../services/tycoonContract.js";
 
 /**
  * GET /api/shop/bundles
@@ -37,7 +41,7 @@ export async function listBundles(_req, res) {
       success: true,
       data: {
         bundles,
-        ngn_available: process.env.PAYSTACK_SECRET_KEY ? true : false,
+        ngn_available: isFlutterwaveConfigured(),
       }
     });
   } catch (err) {
@@ -95,8 +99,7 @@ export async function paystackWebhook(_req, res) {
  */
 export async function flutterwaveStatus(_req, res) {
   try {
-    // TODO: Check Flutterwave integration status
-    res.json({ success: true, status: "unconfigured" });
+    res.json({ success: true, status: isFlutterwaveConfigured() ? "configured" : "unconfigured" });
   } catch (err) {
     logger.error({ err: err?.message }, "flutterwaveStatus error");
     res.status(500).json({ success: false, message: "Failed to get status" });
@@ -123,8 +126,63 @@ export async function flutterwaveInitializeTest(_req, res) {
  */
 export async function flutterwaveInitialize(_req, res) {
   try {
-    // TODO: Initialize Flutterwave payment
-    res.status(501).json({ success: false, message: "Flutterwave integration not yet configured" });
+    if (!isFlutterwaveConfigured()) {
+      return res.status(503).json({ success: false, message: "NGN payments not configured" });
+    }
+    const userId = _req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, message: "Authentication required" });
+    const bundleId = Number(_req.body?.bundle_id);
+    if (!Number.isInteger(bundleId) || bundleId < 1) {
+      return res.status(400).json({ success: false, message: "Valid bundle_id is required" });
+    }
+    const bundle = await db("perk_bundles").where({ id: bundleId }).first();
+    if (!bundle) return res.status(404).json({ success: false, message: "Bundle not found" });
+    const amountNaira = Number(bundle.price_ngn);
+    if (!Number.isFinite(amountNaira) || amountNaira < 200) {
+      return res.status(400).json({ success: false, message: "Bundle NGN price is invalid" });
+    }
+
+    const user = await db("users").where({ id: userId }).first();
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    const smartWallet = String(user.smart_wallet_address || "").trim();
+    if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
+      return res.status(400).json({ success: false, message: "No smart wallet. Create one in Profile first." });
+    }
+    const email = user.email || (user.username ? `${user.username}@tycoon.placeholder` : null);
+    if (!email) return res.status(400).json({ success: false, message: "Email required for payment" });
+
+    let redirectUrl = String(_req.body?.callback_url || "").trim();
+    if (!redirectUrl.startsWith("http")) {
+      const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "");
+      redirectUrl = base ? `${base}/game-shop` : "";
+    }
+    if (!redirectUrl.startsWith("http")) {
+      return res.status(400).json({ success: false, message: "callback_url or FRONTEND_URL required" });
+    }
+
+    const txRef = `tycoon_bundle_${userId}_${bundleId}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const { link, tx_ref } = await initializePayment({
+      amountNaira,
+      email,
+      txRef,
+      redirectUrl,
+      meta: { user_id: String(userId), bundle_id: String(bundleId), product: "perk_bundle", wallet: smartWallet },
+      customerName: user.username || "Tycoon User",
+      customizations: {
+        title: "Tycoon - Perk Bundle",
+        description: "Pay in Naira and receive your bundle in your Tycoon smart wallet.",
+      },
+    });
+    const ref = tx_ref || txRef;
+    await db("flutterwave_payments").insert({
+      tx_ref: ref,
+      user_id: userId,
+      bundle_id: bundleId,
+      amount_kobo: Math.round(amountNaira * 100),
+      amount_ngn: amountNaira,
+      status: "pending",
+    });
+    return res.json({ success: true, link, reference: ref, tx_ref: ref });
   } catch (err) {
     logger.error({ err: err?.message }, "flutterwaveInitialize error");
     res.status(500).json({ success: false, message: "Failed to initialize payment" });
@@ -137,8 +195,59 @@ export async function flutterwaveInitialize(_req, res) {
  */
 export async function flutterwaveInitializePerk(_req, res) {
   try {
-    // TODO: Initialize Flutterwave payment for perk purchase
-    res.status(501).json({ success: false, message: "Flutterwave perk integration not yet configured" });
+    if (!isFlutterwaveConfigured()) {
+      return res.status(503).json({ success: false, message: "NGN payments not configured" });
+    }
+    const userId = _req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, message: "Authentication required" });
+
+    const tokenId = String(_req.body?.token_id || "").trim();
+    const amountNairaRaw = Number(_req.body?.amount_ngn);
+    const amountNaira = Number.isFinite(amountNairaRaw) ? Math.max(200, Math.round(amountNairaRaw)) : NaN;
+    if (!tokenId) return res.status(400).json({ success: false, message: "token_id is required" });
+    if (!Number.isFinite(amountNaira)) return res.status(400).json({ success: false, message: "Valid amount_ngn is required" });
+
+    const user = await db("users").where({ id: userId }).first();
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    const smartWallet = String(user.smart_wallet_address || "").trim();
+    if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
+      return res.status(400).json({ success: false, message: "No smart wallet. Create one in Profile first." });
+    }
+    const email = user.email || (user.username ? `${user.username}@tycoon.placeholder` : null);
+    if (!email) return res.status(400).json({ success: false, message: "Email required for payment" });
+
+    let redirectUrl = String(_req.body?.callback_url || "").trim();
+    if (!redirectUrl.startsWith("http")) {
+      const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "");
+      redirectUrl = base ? `${base}/game-shop` : "";
+    }
+    if (!redirectUrl.startsWith("http")) {
+      return res.status(400).json({ success: false, message: "callback_url or FRONTEND_URL required" });
+    }
+
+    const txRef = `tycoon_perk_${userId}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const { link, tx_ref } = await initializePayment({
+      amountNaira,
+      email,
+      txRef,
+      redirectUrl,
+      meta: { user_id: String(userId), token_id: tokenId, product: "perk_item", wallet: smartWallet },
+      customerName: user.username || "Tycoon User",
+      customizations: {
+        title: "Tycoon - Perk Purchase",
+        description: "Pay in Naira and receive your perk in your Tycoon smart wallet.",
+      },
+    });
+    const ref = tx_ref || txRef;
+    await db("flutterwave_perk_payments").insert({
+      tx_ref: ref,
+      user_id: userId,
+      token_id: tokenId,
+      amount_kobo: Math.round(amountNaira * 100),
+      amount_ngn: amountNaira,
+      status: "pending",
+    });
+    return res.json({ success: true, link, reference: ref, tx_ref: ref });
   } catch (err) {
     logger.error({ err: err?.message }, "flutterwaveInitializePerk error");
     res.status(500).json({ success: false, message: "Failed to initialize perk payment" });
@@ -151,8 +260,45 @@ export async function flutterwaveInitializePerk(_req, res) {
  */
 export async function flutterwaveVerify(_req, res) {
   try {
-    // TODO: Verify Flutterwave payment
-    res.status(501).json({ success: false, message: "Flutterwave verification not yet configured" });
+    const reference = String(_req.query?.reference || "").trim();
+    if (!reference) return res.status(400).json({ success: false, message: "reference query required" });
+
+    let source = "bundle";
+    let row = await db("flutterwave_payments").where({ tx_ref: reference }).first();
+    if (!row) {
+      source = "perk";
+      row = await db("flutterwave_perk_payments").where({ tx_ref: reference }).first();
+    }
+    if (!row) return res.json({ success: true, found: false, reference, fulfilled: false, status: null });
+
+    // Lazy verification fallback in case webhook hasn't arrived yet.
+    if (row.status !== "completed") {
+      try {
+        const remote = await verifyTransactionByReference(reference);
+        if (remote && String(remote.status).toLowerCase() === "successful" && String(remote.currency).toUpperCase() === "NGN") {
+          await fulfillFlutterwavePayment(reference, source, "verify");
+          row = source === "bundle"
+            ? await db("flutterwave_payments").where({ tx_ref: reference }).first()
+            : await db("flutterwave_perk_payments").where({ tx_ref: reference }).first();
+        } else if (remote && String(remote.status).toLowerCase() !== "successful") {
+          await (source === "bundle" ? db("flutterwave_payments") : db("flutterwave_perk_payments"))
+            .where({ tx_ref: reference, status: "pending" })
+            .update({ status: "failed", updated_at: db.fn.now() });
+          row.status = "failed";
+        }
+      } catch (err) {
+        logger.warn({ err: err?.message, reference }, "flutterwaveVerify remote verification failed");
+      }
+    }
+
+    return res.json({
+      success: true,
+      found: true,
+      reference,
+      status: row.status,
+      fulfilled: row.status === "completed",
+      source,
+    });
   } catch (err) {
     logger.error({ err: err?.message }, "flutterwaveVerify error");
     res.status(500).json({ success: false, message: "Failed to verify payment" });
@@ -165,11 +311,79 @@ export async function flutterwaveVerify(_req, res) {
  */
 export async function flutterwaveWebhook(_req, res) {
   try {
-    // TODO: Handle Flutterwave webhook
-    logger.info("Flutterwave webhook received");
+    const headerSig = _req.headers["verif-hash"] || _req.headers["Verif-Hash"];
+    const hasExpectedSig = Boolean(process.env.FLW_SECRET_HASH);
+    if (hasExpectedSig && !verifyWebhookSignature(String(headerSig || ""))) {
+      return res.status(401).json({ success: false, message: "Invalid webhook signature" });
+    }
+
+    const event = String(_req.body?.event || "").toLowerCase();
+    const data = _req.body?.data || {};
+    const txRef = String(data?.tx_ref || "").trim();
+    const txId = Number(data?.id);
+    const status = String(data?.status || "").toLowerCase();
+    const currency = String(data?.currency || "").toUpperCase();
+    if (!txRef) return res.json({ success: true, ignored: true, reason: "no-tx-ref" });
+
+    // Double-check transaction with Flutterwave API when tx id exists.
+    let verified = null;
+    if (Number.isFinite(txId) && txId > 0) {
+      try { verified = await verifyTransactionById(txId); } catch (_) {}
+    }
+    const effectiveStatus = String(verified?.status || status).toLowerCase();
+    const effectiveCurrency = String(verified?.currency || currency).toUpperCase();
+    if (effectiveCurrency && effectiveCurrency !== "NGN") {
+      return res.json({ success: true, ignored: true, reason: "non-ngn" });
+    }
+
+    let source = "bundle";
+    let row = await db("flutterwave_payments").where({ tx_ref: txRef }).first();
+    if (!row) {
+      source = "perk";
+      row = await db("flutterwave_perk_payments").where({ tx_ref: txRef }).first();
+    }
+    if (!row) return res.json({ success: true, ignored: true, reason: "unknown-reference" });
+
+    if (event === "charge.completed" && effectiveStatus === "successful") {
+      await fulfillFlutterwavePayment(txRef, source, "webhook");
+      return res.json({ success: true, fulfilled: true, reference: txRef, source });
+    }
+
+    if (effectiveStatus && effectiveStatus !== "successful") {
+      await (source === "bundle" ? db("flutterwave_payments") : db("flutterwave_perk_payments"))
+        .where({ tx_ref: txRef, status: "pending" })
+        .update({ status: "failed", updated_at: db.fn.now() });
+    }
+
     res.json({ success: true });
   } catch (err) {
     logger.error({ err: err?.message }, "flutterwaveWebhook error");
     res.status(500).json({ success: false, message: "Webhook processing failed" });
   }
+}
+
+async function fulfillFlutterwavePayment(txRef, source, trigger) {
+  const table = source === "perk" ? "flutterwave_perk_payments" : "flutterwave_payments";
+  const row = await db(table).where({ tx_ref: txRef }).first();
+  if (!row) return false;
+  if (row.status === "completed" && row.fulfilled_at) return true;
+
+  const user = await db("users").where({ id: row.user_id }).first();
+  const smartWallet = String(user?.smart_wallet_address || "").trim();
+  if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
+    await db(table).where({ tx_ref: txRef, status: "pending" }).update({ status: "failed", updated_at: db.fn.now() });
+    throw new Error("User has no smart wallet for fulfillment");
+  }
+
+  if (source === "perk") {
+    await deliverCollectibleToUser(smartWallet, row.token_id, "CELO");
+  } else {
+    await deliverBundleToUser(smartWallet, row.bundle_id, "CELO");
+  }
+
+  await db(table)
+    .where({ tx_ref: txRef })
+    .update({ status: "completed", fulfilled_at: db.fn.now(), updated_at: db.fn.now() });
+  logger.info({ txRef, source, userId: row.user_id, smartWallet, trigger }, "Flutterwave payment fulfilled to smart wallet");
+  return true;
 }

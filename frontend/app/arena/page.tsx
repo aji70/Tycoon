@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
 import ArenaMobile from "@/components/arena/arena-mobile";
@@ -128,6 +129,9 @@ export default function ArenaPage() {
   const [openTournaments, setOpenTournaments] = useState<ArenaTournamentRow[]>([]);
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
   const [tournamentsError, setTournamentsError] = useState<string | null>(null);
+  const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
+  const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
+  const { isCelo } = useVerifyErc8004AgentId();
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -322,6 +326,31 @@ export default function ArenaPage() {
     }
   };
 
+  const handleRegisterOnCelo = async (agent: Agent) => {
+    if (!isCelo) {
+      alert("Switch to Celo to register this agent on ERC-8004.");
+      return;
+    }
+    if (agent.erc8004_agent_id) {
+      alert("This agent is already linked to an ERC-8004 ID.");
+      return;
+    }
+    setRegisteringErc8004Id(agent.id);
+    try {
+      const newAgentId = await registerOnCelo(agent.id);
+      if (newAgentId == null) throw new Error("Registration succeeded but could not read on-chain agent ID");
+      await apiClient.patch(`/agents/${agent.id}`, { erc8004_agent_id: String(newAgentId) });
+      await fetchMyAgents();
+      if (activeTab === "discover") await fetchPublicAgents(page);
+      if (activeTab === "leaderboard") await fetchLeaderboard();
+      alert(`Registered on Celo. Agent ID: ${newAgentId}`);
+    } catch (err) {
+      alert(`Registration failed: ${(err as Error)?.message || "Unknown error"}`);
+    } finally {
+      setRegisteringErc8004Id(null);
+    }
+  };
+
   if (isMobile) {
     return <ArenaMobile />;
   }
@@ -333,6 +362,11 @@ export default function ArenaPage() {
       <header className={styles.header}>
         <h1>⚔️ Agent Arena</h1>
         <p>XP, quick challenges, and bracket tournaments (optional USDC pool via escrow)</p>
+        <p style={{ marginTop: 8 }}>
+          <Link href="/agents" style={{ color: "#7ee8ff", textDecoration: "underline" }}>
+            Manage / register agents in My Agents →
+          </Link>
+        </p>
       </header>
 
       <div className={styles.tabs}>
@@ -479,6 +513,10 @@ export default function ArenaPage() {
                     {agent.win_rate_pct != null ? `${agent.win_rate_pct}%` : agent.win_rate ?? "N/A"}
                   </span>
                 </div>
+                <div className={styles.statRow}>
+                  <span className={styles.label}>ERC-8004:</span>
+                  <span className={styles.value}>{agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "Not linked"}</span>
+                </div>
               </div>
 
               <div className={styles.agentFooter}>
@@ -611,6 +649,11 @@ export default function ArenaPage() {
 
       {activeTab === "my-agents" && (
         <div className={styles.myAgents}>
+          <div style={{ marginBottom: 12 }}>
+            <Link href="/agents" style={{ color: "#7ee8ff", textDecoration: "underline" }}>
+              Open full Agent Manager (/agents)
+            </Link>
+          </div>
           {authLoading ? (
             <p>Loading session…</p>
           ) : isAuthed ? (
@@ -658,12 +701,23 @@ export default function ArenaPage() {
                     </div>
 
                     <div className={styles.agentFooter}>
-                      <button
-                        className={agent.is_public ? styles.btnSecondary : styles.btnPrimary}
-                        onClick={() => toggleAgentPublic(agent.id, agent.is_public || false)}
-                      >
-                        {agent.is_public ? "Hide from Arena" : "Make Public"}
-                      </button>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button
+                          className={agent.is_public ? styles.btnSecondary : styles.btnPrimary}
+                          onClick={() => toggleAgentPublic(agent.id, agent.is_public || false)}
+                        >
+                          {agent.is_public ? "Hide from Arena" : "Make Public"}
+                        </button>
+                        {!agent.erc8004_agent_id && (
+                          <button
+                            className={styles.btnSecondary}
+                            onClick={() => handleRegisterOnCelo(agent)}
+                            disabled={isRegisteringErc8004 && registeringErc8004Id === agent.id}
+                          >
+                            {isRegisteringErc8004 && registeringErc8004Id === agent.id ? "Registering..." : "Register on Celo"}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

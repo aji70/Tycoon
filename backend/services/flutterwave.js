@@ -170,6 +170,28 @@ export async function verifyTransactionById(transactionId) {
 }
 
 /**
+ * Verify a transaction by tx_ref.
+ * @param {string} txRef
+ * @returns {Promise<{ status: string, amount: number, currency: string, tx_ref: string } | null>}
+ */
+export async function verifyTransactionByReference(txRef) {
+  if (!isFlutterwaveConfigured() || !txRef) return null;
+  const ref = encodeURIComponent(String(txRef));
+  const res = await fetch(`${FLW_BASE}/transactions/verify_by_reference?tx_ref=${ref}`, {
+    headers: { Authorization: `Bearer ${FLW_SECRET}` },
+  });
+  const data = await res.json();
+  if (data.status !== "success" || !data.data) return null;
+  const d = data.data;
+  return {
+    status: d.status,
+    amount: d.amount,
+    currency: d.currency,
+    tx_ref: d.tx_ref,
+  };
+}
+
+/**
  * Create a transfer recipient (NGN bank account). Required before initiating a transfer.
  * @param {string} accountNumber - Nigerian bank account number
  * @param {string} bankCode - Flutterwave bank code (e.g. "044" for Access Bank)
