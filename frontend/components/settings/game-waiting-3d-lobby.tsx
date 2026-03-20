@@ -34,7 +34,7 @@ export default function GameWaiting3DLobby(): React.ReactElement {
     handleJoinGame,
     handleLeaveGame,
     handleGoHome,
-    guestCannotJoinStaked,
+    guestUser,
     getPlayerSymbolData,
     symbols,
     stakePerPlayer,
@@ -207,9 +207,9 @@ export default function GameWaiting3DLobby(): React.ReactElement {
                 </option>
               ))}
             </select>
-            {guestCannotJoinStaked && (
-              <p className="text-amber-400 text-sm">
-                Connect a wallet to join this staked game.
+            {guestUser && stakePerPlayer > BigInt(0) && (
+              <p className="text-cyan-300/90 text-sm">
+                Stake is paid from your smart wallet; you&apos;ll enter your withdrawal PIN when you join.
               </p>
             )}
             <button
@@ -220,8 +220,7 @@ export default function GameWaiting3DLobby(): React.ReactElement {
                 actionLoading ||
                 isJoining ||
                 approvePending ||
-                approveConfirming ||
-                guestCannotJoinStaked
+                approveConfirming
               }
               className="w-full py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition"
             >
@@ -248,12 +247,9 @@ export default function GameWaiting3DLobby(): React.ReactElement {
           </p>
         )}
 
-        {(error || guestCannotJoinStaked || joinError || contractGameError) && (
+        {(error || joinError || contractGameError) && (
           <p className="text-red-400 text-sm text-center mb-4 rounded-lg bg-red-900/20 px-3 py-2">
             {error ??
-              (guestCannotJoinStaked
-                ? "Connect a wallet to join this staked game."
-                : null) ??
               joinError?.message ??
               contractGameError?.message ??
               "Something went wrong"}

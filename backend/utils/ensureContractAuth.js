@@ -78,8 +78,15 @@ function privyPlaceholderAddress(privyDid) {
 export async function ensureUserHasContractPassword(db, userId, chain = "CELO", addressOverride = null) {
   const user = await db("users")
     .where({ id: userId })
-    .select("address", "username", "password_hash", "privy_did")
+    .select("address", "username", "password_hash", "privy_did", "smart_wallet_address")
     .first();
+
+  /** Registry.getWallet expects the profile owner EOA — not the smart wallet contract address. */
+  function shouldSyncSmartWalletFromRegistry(eff) {
+    const sw = user?.smart_wallet_address && String(user.smart_wallet_address).trim().toLowerCase();
+    if (!sw) return true;
+    return String(eff).trim().toLowerCase() !== sw;
+  }
 
   let effectiveAddress = null;
   const ov = addressOverride != null ? String(addressOverride).trim() : "";
@@ -103,10 +110,12 @@ export async function ensureUserHasContractPassword(db, userId, chain = "CELO", 
       if (!isRegistered) {
         usernameForGames = buildContractUsername(userId, user?.username);
         await registerPlayerFor(effectiveAddress, usernameForGames, user.password_hash, normalizedChain);
-        const smartWalletAddress = await getSmartWalletAddress(effectiveAddress, normalizedChain);
-        await db("users")
-          .where({ id: userId })
-          .update({ smart_wallet_address: smartWalletAddress || null });
+        if (shouldSyncSmartWalletFromRegistry(effectiveAddress)) {
+          const smartWalletAddress = await getSmartWalletAddress(effectiveAddress, normalizedChain);
+          await db("users")
+            .where({ id: userId })
+            .update({ smart_wallet_address: smartWalletAddress || null });
+        }
         logger.info(
           { userId, address: effectiveAddress, chain: normalizedChain, contractUsername: usernameForGames },
           "Synced existing backend password to contract for user"
@@ -130,10 +139,12 @@ export async function ensureUserHasContractPassword(db, userId, chain = "CELO", 
       usernameForGames = buildContractUsername(userId, user?.username);
       await registerPlayerFor(effectiveAddress, usernameForGames, passwordHash, normalizedChain);
     }
-    const smartWalletAddress = await getSmartWalletAddress(effectiveAddress, normalizedChain);
-    await db("users")
-      .where({ id: userId })
-      .update({ password_hash: passwordHash, smart_wallet_address: smartWalletAddress || null });
+    const updateRow = { password_hash: passwordHash };
+    if (shouldSyncSmartWalletFromRegistry(effectiveAddress)) {
+      const smartWalletAddress = await getSmartWalletAddress(effectiveAddress, normalizedChain);
+      updateRow.smart_wallet_address = smartWalletAddress || null;
+    }
+    await db("users").where({ id: userId }).update(updateRow);
     logger.info(
       { userId, address: effectiveAddress, chain: normalizedChain, contractUsername: usernameForGames },
       "Registered user on contract with backend password for future game-end"
