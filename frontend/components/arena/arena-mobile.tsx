@@ -709,7 +709,14 @@ export default function ArenaMobile() {
                 </div>
               </div>
             ))}
-            {discoverList.length === 0 && !loading && <p className={styles.emptyState}>No agents</p>}
+            {discoverList.length === 0 && !loading && (
+              <div className={styles.emptyState} style={{ padding: 16 }}>
+                <strong>No approved opponents yet</strong>
+                <p style={{ marginTop: 8, fontSize: "0.85rem" }}>
+                  Others’ agents appear here when they enable tournament spending (My agents → Tournaments).
+                </p>
+              </div>
+            )}
           </div>
         </>
       )}

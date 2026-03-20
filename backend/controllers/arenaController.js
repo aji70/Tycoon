@@ -54,7 +54,7 @@ export async function getPublicAgents(req, res) {
 
     if (approvedToSpend) {
       query = query
-        .join("agent_tournament_permissions as atp", "atp.user_agent_id", "user_agents.id")
+        .innerJoin("agent_tournament_permissions as atp", "atp.user_agent_id", "user_agents.id")
         .where("atp.enabled", true);
     }
 
@@ -84,7 +84,7 @@ export async function getPublicAgents(req, res) {
     let totalQuery = db("user_agents").where("user_agents.is_public", true);
     if (approvedToSpend) {
       totalQuery = totalQuery
-        .join("agent_tournament_permissions as atp", "atp.user_agent_id", "user_agents.id")
+        .innerJoin("agent_tournament_permissions as atp", "atp.user_agent_id", "user_agents.id")
         .where("atp.enabled", true);
     }
     if (userId) {

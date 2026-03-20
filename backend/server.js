@@ -420,6 +420,12 @@ async function start() {
   } catch (err) {
     logger.warn({ err: err.message }, "Agent registry rehydrate skipped");
   }
+  // Auto-register internal agent slots (TYCOON_INTERNAL_AGENT_SLOTS=2,3,4,5,6,7,8)
+  try {
+    await agentRegistry.autoRegisterInternalAgentSlots();
+  } catch (err) {
+    logger.warn({ err: err.message }, "Internal agent auto-register skipped");
+  }
 
   // Server-autonomous agent games (Agent vs Agent / Agent vs AI)
   try {
