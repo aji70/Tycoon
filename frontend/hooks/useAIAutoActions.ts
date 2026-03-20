@@ -6,6 +6,13 @@ import { apiClient } from "@/lib/api";
 import { Game, Player, Property, GameProperty } from "@/types/game";
 import { ApiResponse } from "@/types/api";
 import { getAiSlotFromPlayer } from "@/utils/gameUtils";
+import { pickMonopolyDevelopmentTarget } from "@/lib/pickMonopolyDevelopmentTarget";
+import { MONOPOLY_STATS } from "@/utils/constants/monopoly";
+
+/** Color street groups only (excludes railroad / utility). */
+const STREET_COLOR_GROUPS = Object.entries(MONOPOLY_STATS.colorGroups).filter(
+  ([color]) => !["railroad", "utility"].includes(color)
+);
 
 interface UseAIAutoActionsProps {
   game: Game;
@@ -16,17 +23,6 @@ interface UseAIAutoActionsProps {
   isAITurn: boolean;
   onRollDice: () => void; // We'll pass this from AiBoard
 }
-
-const COLOR_GROUPS = {
-  brown: [1, 3],
-  lightblue: [6, 8, 9],
-  pink: [11, 13, 14],
-  orange: [16, 18, 19],
-  red: [21, 23, 24],
-  yellow: [26, 27, 29],
-  green: [31, 32, 34],
-  darkblue: [37, 39],
-};
 
 export const useAIAutoActions = ({
   game,
@@ -117,59 +113,29 @@ export const useAIAutoActions = ({
   const aiBuildHouses = useCallback(async () => {
     if (!currentPlayer || currentPlayer.balance < 600) return;
 
-    const aiOwnedIds = getOwnedProperties(currentPlayer).map((gp) => gp.property_id);
-
-    // Find complete color groups
-    const completeGroups = Object.entries(COLOR_GROUPS).filter(([_, ids]) =>
-      ids.every((id) => aiOwnedIds.includes(id))
-    );
-
-    if (completeGroups.length === 0) return;
-
-    // Only consider properties that are part of a complete color group
-    const completeGroupIds = new Set(completeGroups.flatMap(([_, ids]) => ids));
-
-    // Prioritize cheaper house costs + even building
-    const buildCandidates = game_properties
-      .filter(
-        (gp) =>
-          aiOwnedIds.includes(gp.property_id) &&
-          completeGroupIds.has(gp.property_id) &&
-          !gp.mortgaged &&
-          (gp.development ?? 0) < 5
-      )
-      .map((gp) => {
-        const prop = properties.find((p) => p.id === gp.property_id);
-        return { gp, prop, currentDev: gp.development ?? 0 };
-      })
-      .filter((item) => item.prop?.cost_of_house);
-
-    if (buildCandidates.length === 0) return;
-
-    // Find the lowest current development level in complete groups
-    const minDevInMonopoly = Math.min(
-      ...buildCandidates.map((c) => c.currentDev)
-    );
-
-    const target = buildCandidates
-      .filter((c) => c.currentDev === minDevInMonopoly)
-      .sort((a, b) => (a.prop?.cost_of_house || 0) - (b.prop?.cost_of_house || 0))[0];
-
-    if (!target.prop || currentPlayer.balance < target.prop.cost_of_house) return;
+    const propertyId = pickMonopolyDevelopmentTarget({
+      game,
+      properties,
+      game_properties,
+      player: currentPlayer,
+    });
+    if (propertyId == null) return;
+    const prop = properties.find((p) => p.id === propertyId);
+    if (!prop || currentPlayer.balance < prop.cost_of_house) return;
 
     try {
       await apiClient.post("/game-properties/development", {
         game_id: game.id,
         user_id: currentPlayer.user_id,
-        property_id: target.gp.property_id,
+        property_id: propertyId,
       });
-      toast(`AI built a house on ${target.prop.name}!`);
+      toast(`AI built a house on ${prop.name}!`);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       console.error("AI build failed", msg || err);
       if (msg) toast.error(`AI build failed: ${msg}`);
     }
-  }, [game.id, game_properties, properties, currentPlayer]);
+  }, [game, game.id, game_properties, properties, currentPlayer]);
 
   // Ask agent (internal or external) for building decision; fallback to rule-based aiBuildHouses
   const aiBuildWithAgent = useCallback(async () => {
@@ -202,14 +168,21 @@ export const useAIAutoActions = ({
         agentRes.data.data?.action?.toLowerCase() === "build" &&
         agentRes.data.data.propertyId
       ) {
-        const prop = properties.find((p) => p.id === agentRes.data!.data!.propertyId);
-        if (prop) {
+        const resolved = pickMonopolyDevelopmentTarget({
+          game,
+          properties,
+          game_properties,
+          player: currentPlayer,
+          preferredPropertyId: agentRes.data.data.propertyId,
+        });
+        if (resolved != null) {
+          const prop = properties.find((p) => p.id === resolved);
           await apiClient.post("/game-properties/development", {
             game_id: game.id,
             user_id: currentPlayer.user_id,
-            property_id: agentRes.data.data.propertyId,
+            property_id: resolved,
           });
-          toast(`AI built on ${prop.name}!`);
+          toast(`AI built on ${prop?.name ?? "property"}!`);
         }
         return;
       }
@@ -226,7 +199,7 @@ export const useAIAutoActions = ({
       /* fallback to built-in */
     }
     await aiBuildHouses();
-  }, [game.id, game.players, game_properties, properties, currentPlayer, aiBuildHouses]);
+  }, [game, game.id, game.players, game_properties, properties, currentPlayer, aiBuildHouses]);
 
   // 3. Unmortgage valuable properties when rich
   const aiUnmortgage = useCallback(async () => {
@@ -274,7 +247,7 @@ export const useAIAutoActions = ({
     let missingPropertyId: number | null = null;
     let groupColor = "";
 
-    for (const [color, ids] of Object.entries(COLOR_GROUPS)) {
+    for (const [color, ids] of STREET_COLOR_GROUPS) {
       const missing = ids.filter((id) => !aiOwnedIds.includes(id));
       if (missing.length === 1 && humanOwnedIds.includes(missing[0])) {
         missingPropertyId = missing[0];
@@ -341,7 +314,7 @@ export const useAIAutoActions = ({
         prop: properties.find((p) => p.id === gp.property_id),
       }));
       const aiOwnedIds = ownedProps.map((gp) => gp.property_id);
-      const hasMonopoly = Object.values(COLOR_GROUPS).some((ids) =>
+      const hasMonopoly = STREET_COLOR_GROUPS.some(([, ids]) =>
         ids.every((id) => aiOwnedIds.includes(id))
       );
       const mortgaged = game_properties.some(
@@ -356,7 +329,7 @@ export const useAIAutoActions = ({
         me?.user_id != null
           ? getOwnedProperties(me).map((gp) => gp.property_id)
           : [];
-      const canSendTrade = Object.values(COLOR_GROUPS).some((ids) => {
+      const canSendTrade = STREET_COLOR_GROUPS.some(([, ids]) => {
         const missing = ids.filter((id) => !aiOwnedIdsSet.has(id));
         return (
           missing.length === 1 && humanOwnedIds.includes(missing[0]!)
@@ -423,7 +396,7 @@ export const useAIAutoActions = ({
 
     // Step 3: Build houses if has monopoly
     const aiOwnedIds = getOwnedProperties(currentPlayer).map((gp) => gp.property_id);
-    const hasMonopoly = Object.values(COLOR_GROUPS).some((ids) =>
+    const hasMonopoly = STREET_COLOR_GROUPS.some(([, ids]) =>
       ids.every((id) => aiOwnedIds.includes(id))
     );
 

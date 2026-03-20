@@ -38,16 +38,61 @@ function tradeDecision(context) {
   };
 }
 
+/** Street color sets only — must match backend agentGameRunner / frontend MONOPOLY_STATS. */
+const COLOR_GROUP_IDS = [
+  [1, 3],
+  [6, 8, 9],
+  [11, 13, 14],
+  [16, 18, 19],
+  [21, 23, 24],
+  [26, 27, 29],
+  [31, 32, 34],
+  [37, 39],
+];
+
+function propertyIdOf(p) {
+  return Number(p.property_id ?? p.propertyId ?? p.id ?? 0) || 0;
+}
+
+/**
+ * Monopoly-style even building: only consider complete monopolies; within each color group,
+ * only the least-developed lots; then prefer the globally lowest tier, then cheapest house cost.
+ */
 function buildingDecision(context) {
   const { myBalance = 0, myProperties = [] } = context;
   if (myBalance < 300) return { action: "wait", reasoning: "Low cash.", confidence: 0.9 };
-  const withHouses = myProperties.filter((p) => (p.development ?? 0) > 0);
-  const buildable = myProperties.find((p) => (p.development ?? 0) < 5 && (p.development ?? 0) >= 0);
-  if (!buildable) return { action: "wait", reasoning: "Nothing to build.", confidence: 0.9 };
+
+  const byPid = new Map();
+  for (const p of myProperties) {
+    const id = propertyIdOf(p);
+    if (id) byPid.set(id, p);
+  }
+
+  const candidates = [];
+  for (const ids of COLOR_GROUP_IDS) {
+    if (!ids.every((id) => byPid.has(id))) continue;
+    const rows = ids.map((id) => byPid.get(id));
+    if (rows.some((r) => r.mortgaged || Number(r.development ?? 0) >= 5)) continue;
+    const minD = Math.min(...rows.map((r) => Number(r.development ?? 0)));
+    for (const r of rows) {
+      if (Number(r.development ?? 0) !== minD) continue;
+      const cost = Number(r.cost_of_house ?? 0);
+      if (cost <= 0) continue;
+      candidates.push({ pid: propertyIdOf(r), cost, dev: minD });
+    }
+  }
+
+  if (!candidates.length) return { action: "wait", reasoning: "Nothing to build.", confidence: 0.9 };
+
+  const minGlobal = Math.min(...candidates.map((c) => c.dev));
+  const tier = candidates.filter((c) => c.dev === minGlobal).sort((a, b) => a.cost - b.cost);
+  const pick = tier.find((c) => myBalance >= c.cost);
+  if (!pick) return { action: "wait", reasoning: "Cannot afford build.", confidence: 0.9 };
+
   return {
     action: "build",
-    propertyId: buildable.id ?? buildable.property_id,
-    reasoning: "Building on monopoly.",
+    propertyId: pick.pid,
+    reasoning: "Even build: complete set, lowest tier, cheapest house.",
     confidence: 0.7,
   };
 }
