@@ -174,7 +174,7 @@ export default function GameSettings({ redirectToWaitingRoom = "/game-waiting" }
           return;
         }
         toast.update(toastId, { render: "Creating game (guest)..." });
-        const res = await apiClient.post<any>("/games/create-as-guest", {
+        const res = await apiClient.post<any>("/games/create-multiplayer-as-guest", {
           code: gameCode,
           mode: gameType,
           symbol: settings.symbol,
@@ -182,7 +182,6 @@ export default function GameSettings({ redirectToWaitingRoom = "/game-waiting" }
           stake: isFreeGame ? 0 : finalStake,
           pin: pin || undefined,
           starting_cash: settings.startingCash,
-          is_ai: false,
           is_minipay: isMiniPay,
           chain: chainName,
           duration: settings.duration,
