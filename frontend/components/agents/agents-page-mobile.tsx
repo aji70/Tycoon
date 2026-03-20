@@ -16,6 +16,7 @@ import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
+import { getInjectedEoaAddress } from "@/lib/utils/erc8004InjectedEoa";
 import { useAgentSettings, TradeBehavior, BuildStyle, BuyStyle } from "@/hooks/useAgentSettings";
 
 function chainIdToBackendChain(chainId: number): string {
@@ -238,17 +239,24 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
     fetchAgents();
   }, [fetchAgents]);
 
-  // On form load: check if the connected wallet has an ERC-8004 agent on Celo; fill if yes, else show Create CTA
+  // On form load: AppKit address or injected EOA (registration uses injected EOA).
   React.useEffect(() => {
-    if (!showForm || !address || !isCelo || !getAgentIdOwnedByAddress) {
+    if (!showForm || !isCelo || !getAgentIdOwnedByAddress) {
       if (!showForm) setErc8004LoadState(null);
       return;
     }
     if (formErc8004Id.trim()) return;
     let cancelled = false;
     setErc8004LoadState("loading");
-    getAgentIdOwnedByAddress(address)
-      .then(async (id) => {
+    (async () => {
+      const injected = await getInjectedEoaAddress().catch(() => null);
+      const probe = address ?? injected ?? null;
+      if (!probe) {
+        if (!cancelled) setErc8004LoadState("has_none");
+        return;
+      }
+      try {
+        const id = await getAgentIdOwnedByAddress(probe);
         if (cancelled) return;
         if (id != null) {
           setFormErc8004Id(String(id));
@@ -256,10 +264,9 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
           setErc8004LoadState("has_one");
           return;
         }
-        // Registry may not support enumeration. Fallback: use agent's known ERC-8004 IDs and verify ownership.
         const withId = agents.find((a) => a.erc8004_agent_id && String(a.erc8004_agent_id).trim());
         if (withId?.erc8004_agent_id) {
-          const result = await verifyAgentId(String(withId.erc8004_agent_id), address);
+          const result = await verifyAgentId(String(withId.erc8004_agent_id), probe);
           if (!cancelled && result.valid && result.isOwner) {
             setFormErc8004Id(String(withId.erc8004_agent_id));
             setErc8004VerifyResult({ valid: true, isOwner: true });
@@ -268,10 +275,10 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
           }
         }
         if (!cancelled) setErc8004LoadState("has_none");
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setErc8004LoadState(null);
-      });
+      }
+    })();
     return () => { cancelled = true; };
   }, [showForm, address, isCelo, getAgentIdOwnedByAddress, verifyAgentId, agents, formErc8004Id]);
 
@@ -815,7 +822,7 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
                         onClick={() => handleRegisterOnCelo(a)}
                         disabled={isRegisteringErc8004 && registeringErc8004Id === a.id}
                         className="flex items-center gap-1 px-2 py-1 rounded border border-purple-500/40 text-purple-400 text-xs"
-                        title="Register on Celo (you pay gas)"
+                        title="Register on Celo via browser wallet (EOA). You pay gas."
                       >
                         {isRegisteringErc8004 && registeringErc8004Id === a.id ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
@@ -1143,7 +1150,7 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
                       type="button"
                       onClick={handleCreateOnCeloFromForm}
                       disabled={isRegisteringErc8004 || !editingId || !isCelo}
-                      title={!editingId ? "Save first" : !isCelo ? "Switch to Celo" : "Create ERC-8004 ID (you pay gas)"}
+                      title={!editingId ? "Save first" : !isCelo ? "Switch to Celo" : "Create ERC-8004 ID with your browser wallet (EOA); you pay gas"}
                       className="shrink-0 px-3 py-2.5 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/20 text-emerald-300 font-orbitron font-semibold text-xs flex items-center gap-1"
                     >
                       {isRegisteringErc8004 && registeringErc8004Id === editingId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
@@ -1160,7 +1167,9 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
                         setVerifyingErc8004(true);
                         setErc8004VerifyResult(null);
                         try {
-                          const result = await verifyAgentId(formErc8004Id, address ?? undefined);
+                          const injected = await getInjectedEoaAddress().catch(() => null);
+                          const ownerProbe = address ?? injected ?? undefined;
+                          const result = await verifyAgentId(formErc8004Id, ownerProbe);
                           setErc8004VerifyResult(result);
                           if (result.valid) {
                             if (result.isOwner) toast.success("Verified — you own this agent");

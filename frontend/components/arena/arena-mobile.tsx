@@ -741,7 +741,7 @@ export default function ArenaMobile() {
                           >
                             {isRegisteringErc8004 && registeringErc8004Id === agent.id
                               ? "Registering…"
-                              : "Register on Celo"}
+                              : "Register on Celo (browser wallet)"}
                           </button>
                         )}
                       </div>
