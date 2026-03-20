@@ -8,7 +8,6 @@ import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { resolveChainForBackend } from "@/lib/utils/chain";
 import { generateGameCode } from "@/lib/utils/games";
-import { GamePieces } from "@/lib/constants/games";
 import { apiClient } from "@/lib/api";
 import { useMediaQuery } from "@/components/useMediaQuery";
 import {
@@ -144,24 +143,6 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
         const dbGameId = data?.data?.id ?? data?.id;
         if (!dbGameId) throw new Error("Backend did not return game ID");
 
-        toast.update(toastId, { render: "Adding AI opponents..." });
-        let availablePieces = GamePieces.filter((p) => p.id !== settings.symbol);
-        for (let i = 0; i < settings.aiCount; i++) {
-          if (availablePieces.length === 0) availablePieces = [...GamePieces];
-          const randomIndex = Math.floor(Math.random() * availablePieces.length);
-          const aiSymbol = availablePieces[randomIndex].id;
-          availablePieces.splice(randomIndex, 1);
-          try {
-            await apiClient.post("/game-players/join", {
-              address: AI_ADDRESSES[i],
-              symbol: aiSymbol,
-              code: gameCode,
-            });
-          } catch (_) {}
-        }
-        try {
-          await apiClient.put(`/games/${dbGameId}`, { status: "RUNNING" });
-        } catch (_) {}
         toast.update(toastId, {
           render: "Battle begins! Good luck, Tycoon!",
           type: "success",

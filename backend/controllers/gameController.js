@@ -2593,6 +2593,17 @@ export const createAsGuest = async (req, res) => {
       onChainGameId = result?.gameId;
     }
 
+    if (!onChainGameId && code) {
+      try {
+        const gameCodeForLookup = (code || "").trim();
+        const contractGame = await callContractRead("getGameByCode", [gameCodeForLookup], chainForCreate);
+        const id = contractGame?.id ?? contractGame?.[0];
+        if (id != null) onChainGameId = String(id);
+      } catch (lookupErr) {
+        logger.warn({ err: lookupErr?.message, code }, "getGameByCode fallback failed after guest createGame/AIGame");
+      }
+    }
+
     if (!onChainGameId) {
       return res.status(500).json({ success: false, message: "Contract did not return game ID" });
     }
@@ -2657,6 +2668,21 @@ export const createAsGuest = async (req, res) => {
     logger.error({ err: err?.message }, "createAsGuest failed");
     return res.status(500).json({ success: false, message: err?.message || "Failed to create game" });
   }
+};
+
+/**
+ * POST /games/create-multiplayer-as-guest
+ * Same as POST /games/create-as-guest with is_ai: false. Matches create-ai-as-guest as a dedicated human-lobby endpoint.
+ */
+export const createMultiplayerAsGuest = async (req, res) => {
+  if (req.body?.is_ai) {
+    return res.status(400).json({
+      success: false,
+      message: "Use POST /games/create-ai-as-guest for AI games.",
+    });
+  }
+  req.body = { ...req.body, is_ai: false };
+  return createAsGuest(req, res);
 };
 
 /**
@@ -2978,10 +3004,27 @@ export const createAIAsGuest = async (req, res) => {
     const game_settings = await GameSetting.findByGameId(game.id);
     await recordEvent("game_created", { entityType: "game", entityId: game.id, payload: { is_ai: true } });
 
+    const io = req.app.get("io");
+    await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
+    await recordEvent("game_started", { entityType: "game", entityId: game.id, payload: {} });
+    await invalidateGameById(game.id);
+    const updatedGame = await Game.findByCode(game.code);
+    if (updatedGame?.next_player_id) {
+      await GamePlayer.setTurnStart(game.id, updatedGame.next_player_id);
+    }
+    const playersWithTurnStart = await GamePlayer.findByGameId(game.id);
+    if (io) {
+      emitGameUpdate(io, game.code);
+      io.to(game.code).emit("game-created", {
+        game: { ...updatedGame, settings: game_settings, players: playersWithTurnStart },
+      });
+      io.to(game.code).emit("game-ready", { game: updatedGame, players: playersWithTurnStart });
+    }
+
     return res.status(201).json({
       success: true,
       message: "successful",
-      data: { ...game, settings: game_settings, players: game_players },
+      data: { ...updatedGame, settings: game_settings, players: playersWithTurnStart },
     });
   } catch (err) {
     const msg = err?.message || String(err);
