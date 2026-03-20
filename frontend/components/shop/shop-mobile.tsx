@@ -939,15 +939,14 @@ export default function GameShopMobile() {
                   transition={{ delay: index * 0.03 }}
                   className="group flex flex-col rounded-xl overflow-hidden border backdrop-blur-sm transition-all border-[#003B3E]/70 bg-[#0E1415]/70 active:scale-[0.98]"
                 >
-                  <div className="relative aspect-[4/3] w-full flex-shrink-0">
+                  <div className="relative h-44 w-full flex-shrink-0 bg-black/60">
                     <Image
                       src={item.image || '/game/shop/placeholder.jpg'}
                       alt={item.name}
                       fill
                       sizes="50vw"
-                      className="object-cover transition-transform duration-500 group-active:scale-105"
+                      className="object-contain p-2 transition-transform duration-500 group-active:scale-105"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
                     <div className="absolute top-2 right-2 flex items-center gap-1.5">
                       {TIERED_PERKS.has(item.perk) && (
                         <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/30 text-[9px] font-semibold text-amber-300 uppercase">
@@ -958,12 +957,10 @@ export default function GameShopMobile() {
                         {item.stock} left
                       </span>
                     </div>
-                    <div className="absolute bottom-2 left-2 right-2">
-                      <p className="font-bold text-base leading-tight text-white drop-shadow-lg">{item.name}</p>
-                    </div>
                   </div>
 
                   <div className="p-3 flex flex-col flex-1 min-h-0">
+                    <p className="font-bold text-base leading-tight text-white mb-1">{item.name}</p>
                     <p className="text-[11px] text-slate-500 mb-2 line-clamp-2 flex-shrink-0">{item.desc}</p>
 
                     <div className="flex justify-between items-end mb-3 mt-auto">
