@@ -117,6 +117,8 @@ function GuestProfileView({
       ? (guestUser.smart_wallet_address as Address)
       : null;
   const guestOnChainAddress = linkedWalletAddress ?? smartWalletAddress ?? null;
+  // For game lookups: wallet-first users are registered under smart wallet, so use it when present
+  const guestGameLookupAddress = smartWalletAddress ?? linkedWalletAddress ?? null;
   // Key local profile storage by whichever address represents this profile.
   // For Privy-only users, fall back to their guest `address` so avatar updates persist.
   const profileKeyAddress = linkedWalletAddress ?? smartWalletAddress ?? guestUser.address;
@@ -150,9 +152,9 @@ function GuestProfileView({
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'addressToUsername',
-    args: guestOnChainAddress ? [guestOnChainAddress] : undefined,
+    args: guestGameLookupAddress ? [guestGameLookupAddress] : undefined,
     chainId: CELO_CHAIN_ID,
-    query: { enabled: !!guestOnChainAddress && !!tycoonAddress },
+    query: { enabled: !!guestGameLookupAddress && !!tycoonAddress },
   });
 
   const { data: playerData } = useReadContract({
@@ -897,10 +899,11 @@ export default function Profile() {
   const tycBalanceSmart = useBalance({ address: smartWallet, token: tycTokenAddress, query: { enabled: !!smartWallet && !!tycTokenAddress } });
   const usdcBalanceSmart = useBalance({ address: smartWallet, token: usdcTokenAddress, query: { enabled: !!smartWallet && !!usdcTokenAddress } });
 
-  // Tycoon username/profile is keyed by the profile owner EOA (not the smart wallet).
+  // Tycoon username/profile: profile owner for display; for game lookups use smart wallet when present (wallet-first users are registered under smart wallet).
   const tycoonProfileOwnerAddress =
     (isValidWallet(smartWalletOwner) ? smartWalletOwner : null) ??
     walletAddress;
+  const gameLookupAddress = smartWallet ?? tycoonProfileOwnerAddress;
 
   // Local avatar/displayName/bio should be keyed by the profile owner (linked EOA),
   // not by whichever wallet is currently connected (smart wallet).
@@ -921,8 +924,8 @@ export default function Profile() {
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'addressToUsername',
-    args: tycoonProfileOwnerAddress ? [tycoonProfileOwnerAddress] : undefined,
-    query: { enabled: !!tycoonProfileOwnerAddress && !!tycoonAddress },
+    args: gameLookupAddress ? [gameLookupAddress] : undefined,
+    query: { enabled: !!gameLookupAddress && !!tycoonAddress },
   });
 
   const {

@@ -16,6 +16,8 @@ import {
   recreateWalletForUserByBackend as recreateSmartWalletByBackend,
   createWalletForUser,
   getSmartWalletAddress,
+  getProfileOwnerForWallet,
+  linkEOAToProfile,
   callContractRead,
   isContractConfigured,
   isWalletFirstConfigured,
@@ -1663,6 +1665,25 @@ export async function linkWallet(req, res) {
       }
     } catch (err) {
       logger.warn({ err: err?.message, userId: req.user.id }, "linkWallet: sync smart_wallet_address failed");
+    }
+
+    // Wallet-first: update on-chain profile owner to the linked EOA so connected wallet = Tycoon player address
+    const existingSmartWallet = updated?.smart_wallet_address && String(updated.smart_wallet_address).trim();
+    if (
+      existingSmartWallet &&
+      isWalletFirstConfigured(normalizedChain)
+    ) {
+      try {
+        const currentOwner = await getProfileOwnerForWallet(existingSmartWallet, normalizedChain);
+        const smartLower = String(existingSmartWallet).toLowerCase();
+        const ownerLower = currentOwner ? String(currentOwner).toLowerCase() : "";
+        if (ownerLower === smartLower) {
+          await linkEOAToProfile(existingSmartWallet, addr, normalizedChain);
+          logger.info({ userId: req.user.id, smartWallet: existingSmartWallet, newOwner: addr }, "linkWallet: linkEOAToProfile done");
+        }
+      } catch (linkErr) {
+        logger.warn({ err: linkErr?.message, userId: req.user.id }, "linkWallet: linkEOAToProfile failed (profile may not be wallet-first or EOA already has profile)");
+      }
     }
     const { password_hash: _, ...safe } = updated;
     return res.status(200).json({

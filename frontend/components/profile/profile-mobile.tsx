@@ -124,6 +124,7 @@ function GuestProfileViewMobile({
       : null;
 
   const guestOnChainAddress = linkedWalletAddress ?? smartWalletAddress ?? null;
+  const guestGameLookupAddress = smartWalletAddress ?? linkedWalletAddress ?? null;
   const profileKeyAddress = linkedWalletAddress ?? smartWalletAddress ?? guestUser.address;
   const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfileForAddress(profileKeyAddress);
 
@@ -240,8 +241,8 @@ function GuestProfileViewMobile({
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'addressToUsername',
-    args: guestOnChainAddress ? [guestOnChainAddress] : undefined,
-    query: { enabled: !!guestOnChainAddress && !!tycoonAddress },
+    args: guestGameLookupAddress ? [guestGameLookupAddress] : undefined,
+    query: { enabled: !!guestGameLookupAddress && !!tycoonAddress },
   });
 
   const { data: playerData } = useReadContract({
@@ -874,6 +875,7 @@ export default function ProfilePageMobile() {
   const tycoonProfileOwnerAddress =
     (isValidWallet(smartWalletOwner) ? smartWalletOwner : null) ??
     walletAddress;
+  const gameLookupAddress = smartWallet ?? tycoonProfileOwnerAddress;
 
   // Local avatar/displayName/bio should be keyed by the profile owner (linked EOA),
   // not by whichever wallet is currently connected (smart wallet).
@@ -900,8 +902,8 @@ export default function ProfilePageMobile() {
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'addressToUsername',
-    args: tycoonProfileOwnerAddress ? [tycoonProfileOwnerAddress] : undefined,
-    query: { enabled: !!tycoonProfileOwnerAddress && !!tycoonAddress },
+    args: gameLookupAddress ? [gameLookupAddress] : undefined,
+    query: { enabled: !!gameLookupAddress && !!tycoonAddress },
   });
 
   const {

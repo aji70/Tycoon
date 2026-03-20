@@ -40,6 +40,7 @@ async function enrichChallengeRow(row) {
  * GET /api/arena/agents
  * Paginated list of public agents with XP and stats.
  * Excludes agents owned by the current user (if authenticated).
+ * Query: approved_to_spend=1 — only agents whose owners enabled tournament spending permission.
  */
 export async function getPublicAgents(req, res) {
   try {
@@ -47,12 +48,19 @@ export async function getPublicAgents(req, res) {
     const pageSize = Math.max(1, Math.min(100, Number(req.query.page_size) || 20));
     const offset = (page - 1) * pageSize;
     const userId = req.userId || null; // From auth middleware
+    const approvedToSpend = req.query.approved_to_spend === "1" || req.query.approved_to_spend === "true";
 
-    let query = db("user_agents").where("is_public", true);
+    let query = db("user_agents").where("user_agents.is_public", true);
+
+    if (approvedToSpend) {
+      query = query
+        .join("agent_tournament_permissions as atp", "atp.user_agent_id", "user_agents.id")
+        .where("atp.enabled", true);
+    }
 
     // Exclude current user's agents if authenticated
     if (userId) {
-      query = query.whereNot("user_id", userId);
+      query = query.whereNot("user_agents.user_id", userId);
     }
 
     const agents = await query
@@ -73,9 +81,14 @@ export async function getPublicAgents(req, res) {
       .limit(pageSize)
       .offset(offset);
 
-    let totalQuery = db("user_agents").where("is_public", true);
+    let totalQuery = db("user_agents").where("user_agents.is_public", true);
+    if (approvedToSpend) {
+      totalQuery = totalQuery
+        .join("agent_tournament_permissions as atp", "atp.user_agent_id", "user_agents.id")
+        .where("atp.enabled", true);
+    }
     if (userId) {
-      totalQuery = totalQuery.whereNot("user_id", userId);
+      totalQuery = totalQuery.whereNot("user_agents.user_id", userId);
     }
     const totalCount = await totalQuery.count("* as count").first();
 
