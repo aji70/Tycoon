@@ -1052,15 +1052,14 @@ export default function GameShop() {
                   className="group flex flex-col rounded-2xl overflow-hidden border backdrop-blur-sm transition-all duration-300 border-[#003B3E]/80 bg-[#0E1415]/70 hover:border-[#00F0FF]/40 hover:shadow-[0_0_40px_rgba(0,240,255,0.08),0_20px_40px_rgba(0,0,0,0.3)]"
                   whileHover={{ y: -4 }}
                 >
-                  <div className="relative h-56 min-h-[14rem] overflow-hidden flex-shrink-0">
+                  <div className="relative h-56 min-h-[14rem] overflow-hidden flex-shrink-0 bg-black/60">
                     <Image
                       src={item.image || '/game/shop/placeholder.jpg'}
                       alt={item.name}
                       fill
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                      className="object-cover transition-transform duration-700 group-hover:scale-110"
+                      className="object-contain p-3 transition-transform duration-700 group-hover:scale-110"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                     <div className="absolute top-3 right-3 flex items-center gap-2">
                       {TIERED_PERKS.has(item.perk) && (
                         <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/30 text-[10px] font-semibold text-amber-300 uppercase tracking-wider">
@@ -1071,15 +1070,15 @@ export default function GameShop() {
                         {item.stock} left
                       </span>
                     </div>
-                    <div className="absolute bottom-4 left-4 right-4 flex items-end gap-3">
-                      <div className="rounded-xl bg-black/30 backdrop-blur-sm p-2 border border-white/10">
-                        {item.icon}
-                      </div>
-                      <span className="font-bold text-lg text-white drop-shadow-lg">{item.name}</span>
-                    </div>
                   </div>
 
                   <div className="p-5 flex flex-col flex-1 min-h-0">
+                    <div className="flex items-start gap-3 mb-2">
+                      <div className="rounded-xl bg-black/30 backdrop-blur-sm p-2 border border-white/10">
+                        {item.icon}
+                      </div>
+                      <span className="font-bold text-lg text-white">{item.name}</span>
+                    </div>
                     <p className="text-slate-400 text-sm leading-relaxed mb-4 line-clamp-2 flex-shrink-0">{item.desc}</p>
 
                     <div className="flex justify-between items-end gap-4 mb-4 mt-auto flex-wrap">
