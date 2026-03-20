@@ -41,7 +41,7 @@ import {
   useTycoonSetRewardSystem,
   useTycoonCreateWalletForExistingUser,
 } from "@/context/ContractProvider";
-import { apiClient } from "@/lib/api";
+import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import {
   CollectiblePerk,
@@ -173,6 +173,8 @@ export function useRewardsAdmin() {
     current: 0,
     total: 0,
   });
+  /** Backend /api/shop-admin bulk actions (owner or minter key on server). */
+  const [backendShopBulk, setBackendShopBulk] = useState<null | "perks" | "bundles">(null);
 
   const NAIRA_VAULT_ABI = [
     { inputs: [], name: "balanceCelo", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
@@ -683,6 +685,102 @@ export function useRewardsAdmin() {
     }
   };
 
+  const backendChainFromChainId = (id: number): string => {
+    switch (id) {
+      case 42220:
+      case 44787:
+        return "CELO";
+      case 137:
+      case 80001:
+        return "POLYGON";
+      case 8453:
+      case 84531:
+        return "BASE";
+      default:
+        return "CELO";
+    }
+  };
+
+  const shopAdminRequestHeaders = (): Record<string, string> => {
+    const secret = process.env.NEXT_PUBLIC_SHOP_ADMIN_SECRET;
+    return secret ? { "x-shop-admin-secret": secret } : {};
+  };
+
+  const handleBackendStockAllPerks = async () => {
+    setBackendShopBulk("perks");
+    try {
+      const chain = backendChainFromChainId(chainId);
+      const wrapped = await apiClient.post<{
+        success?: boolean;
+        data?: { stocked: number; skippedAlreadyPresent: number };
+        message?: string;
+        error?: string;
+      }>(
+        "shop-admin/stock-all-perks",
+        { chain, amount: 50 },
+        {
+          timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS,
+          headers: shopAdminRequestHeaders(),
+        }
+      );
+      const body = wrapped.data as {
+        success?: boolean;
+        data?: { stocked: number; skippedAlreadyPresent: number };
+        message?: string;
+        error?: string;
+      };
+      if (!body?.success) {
+        throw new Error(body?.error || body?.message || "Backend stock all perks failed");
+      }
+      setStatus({
+        type: "success",
+        message:
+          body.message ||
+          `Backend stocked ${body.data?.stocked ?? 0} perk row(s) (${body.data?.skippedAlreadyPresent ?? 0} already in shop).`,
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Backend stock all perks failed";
+      setStatus({ type: "error", message: msg });
+    } finally {
+      setBackendShopBulk(null);
+    }
+  };
+
+  const handleBackendStockAllBundles = async () => {
+    setBackendShopBulk("bundles");
+    try {
+      const chain = backendChainFromChainId(chainId);
+      const wrapped = await apiClient.post<{
+        success?: boolean;
+        data?: { stocked: number; errors?: { name: string; error: string }[] };
+        message?: string;
+        error?: string;
+      }>("shop-admin/stock-all-bundles", { chain }, {
+        timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS,
+        headers: shopAdminRequestHeaders(),
+      });
+      const body = wrapped.data as {
+        success?: boolean;
+        data?: { stocked: number; errors?: { name: string; error: string }[] };
+        message?: string;
+        error?: string;
+      };
+      if (!body?.success) {
+        const errList = body?.data?.errors?.map((x) => `${x.name}: ${x.error}`).join("; ");
+        throw new Error(errList || body?.error || body?.message || "Backend stock all bundles failed");
+      }
+      setStatus({
+        type: "success",
+        message: body.message || `Backend registered ${body.data?.stocked ?? 0} bundle(s).`,
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Backend stock all bundles failed";
+      setStatus({ type: "error", message: msg });
+    } finally {
+      setBackendShopBulk(null);
+    }
+  };
+
   const handleRestock = async () => {
     if (!restockTokenId || !restockAmount) return;
     await restockHook.restock(
@@ -807,7 +905,8 @@ export function useRewardsAdmin() {
     vaultCreditCelo.isPending ||
     vaultCreditCeloReceipt.isLoading ||
     vaultCreditUsdc.isPending ||
-    vaultCreditUsdcReceipt.isLoading;
+    vaultCreditUsdcReceipt.isLoading ||
+    backendShopBulk != null;
 
   const currentTxHash =
     setMinterHook.txHash ||
@@ -920,6 +1019,7 @@ export function useRewardsAdmin() {
       vaultWithdrawUsdcTo,
       setVaultWithdrawUsdcTo,
       stockAllProgress,
+      backendShopBulk,
     },
     contract: {
       tycBalance: tycBalance.data,
@@ -934,6 +1034,8 @@ export function useRewardsAdmin() {
       handleMintCollectible,
       handleStockShop,
       handleStockAllPerks,
+      handleBackendStockAllPerks,
+      handleBackendStockAllBundles,
       handleStockBundle,
       handleRestock,
       handleUpdatePrices,
