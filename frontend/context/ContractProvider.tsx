@@ -10,6 +10,7 @@ import {
   useChainId,
   usePublicClient,
 } from 'wagmi';
+import { celo } from 'wagmi/chains';
 import { Address, decodeEventLog, getAddress, zeroAddress } from 'viem';
 import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
@@ -172,9 +173,16 @@ const UserRegistryABI = [
   { inputs: [{ name: 'profileOwner', type: 'address' }], name: 'recreateWalletForUserByBackend', outputs: [{ name: 'newWallet', type: 'address' }], stateMutability: 'nonpayable', type: 'function' },
 ] as const;
 
+/** Celo-only: when disconnected, wagmi chain id may be unset — still resolve registry/reward reads on Celo. */
+export function useReadChainIdOrCelo(): number {
+  const raw = useChainId();
+  if (raw && REWARD_CONTRACT_ADDRESSES[raw as keyof typeof REWARD_CONTRACT_ADDRESSES]) return raw;
+  return celo.id;
+}
+
 /** Smart wallet address for a registered user (from TycoonUserRegistry). Only set after registry is deployed and user has registered. */
 export function useUserRegistryWallet(ownerAddress?: Address) {
-  const chainId = useChainId();
+  const chainId = useReadChainIdOrCelo();
   const registryAddress = USER_REGISTRY_ADDRESSES[chainId];
   const result = useReadContract({
     address: registryAddress,
@@ -193,7 +201,7 @@ export function useUserRegistryWallet(ownerAddress?: Address) {
 
 /** True if the address has a smart wallet in TycoonUserRegistry (profile exists and wallet != 0). */
 export function useHasSmartWallet(ownerAddress?: Address) {
-  const chainId = useChainId();
+  const chainId = useReadChainIdOrCelo();
   const registryAddress = USER_REGISTRY_ADDRESSES[chainId];
   const result = useReadContract({
     address: registryAddress,
@@ -212,7 +220,7 @@ export function useHasSmartWallet(ownerAddress?: Address) {
 
 /** On-chain profile owner for a smart wallet (TycoonUserRegistry.ownerByWallet). */
 export function useProfileOwner(smartWalletAddress?: Address) {
-  const chainId = useChainId();
+  const chainId = useReadChainIdOrCelo();
   const registryAddress = USER_REGISTRY_ADDRESSES[chainId];
   const result = useReadContract({
     address: registryAddress,
@@ -1148,7 +1156,7 @@ export function useTotalGames() {
 
 /** Read TYC and USDC token addresses from the reward contract (single source of truth). */
 export function useRewardTokenAddresses(): { tycAddress: Address | undefined; usdcAddress: Address | undefined; isLoading: boolean } {
-  const chainId = useChainId();
+  const chainId = useReadChainIdOrCelo();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
 
   const { data: tycAddress, isLoading: tycLoading } = useReadContract({

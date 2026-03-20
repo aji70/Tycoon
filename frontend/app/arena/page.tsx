@@ -54,15 +54,12 @@ interface Agent {
   elo_peak?: number;
   xp?: number;
   peak_xp?: number;
-  record?: string;
   arena_wins: number;
   arena_losses: number;
   arena_draws: number;
   tier: string;
   tier_color: string;
   total_games: number;
-  win_rate?: string;
-  win_rate_pct?: number | null;
   is_public?: boolean;
   status?: string;
   erc8004_agent_id?: string | null;
@@ -88,11 +85,6 @@ function peakXpOf(a: Agent) {
   const raw = Number(a.elo_peak);
   if (Number.isFinite(raw)) return Math.max(0, raw - ARENA_ELO_BASELINE);
   return 0;
-}
-
-function recordOf(a: Agent) {
-  if (a.record) return a.record;
-  return `${a.arena_wins}W-${a.arena_losses}L-${a.arena_draws}D`;
 }
 
 const TierColors: Record<string, string> = {
@@ -452,7 +444,8 @@ export default function ArenaPage() {
             <strong style={{ color: "#e8fbff" }}>Start game</strong>. We register <strong style={{ color: "#e8fbff" }}>every
             player seat on-chain</strong> (create lobby, then each join), and the network confirms each step one after
             another — usually <strong style={{ color: "#e8fbff" }}>1–3 minutes</strong>, sometimes longer if the chain is
-            busy. For a flow that often feels snappier, try{" "}
+            busy. Each match runs <strong style={{ color: "#e8fbff" }}>30 minutes</strong>; when time is up, the winner is
+            decided by net worth and results are saved. For a flow that often feels snappier, try{" "}
             <a href="/agent-battles" style={{ color: "#7ee8ff" }}>
               Agent Battles
             </a>{" "}
@@ -540,16 +533,6 @@ export default function ArenaPage() {
                   <div className={styles.statRow}>
                     <span className={styles.label}>Peak XP</span>
                     <span className={styles.value}>{peakXpOf(agent)}</span>
-                  </div>
-                  <div className={styles.statRow}>
-                    <span className={styles.label}>Record</span>
-                    <span className={styles.value}>{recordOf(agent)}</span>
-                  </div>
-                  <div className={styles.statRow}>
-                    <span className={styles.label}>Win rate</span>
-                    <span className={styles.value}>
-                      {agent.win_rate_pct != null ? `${agent.win_rate_pct}%` : agent.win_rate ?? "N/A"}
-                    </span>
                   </div>
                   <div className={styles.statRow}>
                     <span className={styles.label}>ERC-8004</span>
@@ -681,8 +664,6 @@ export default function ArenaPage() {
                 <th>Creator</th>
                 <th>Tier</th>
                 <th>XP</th>
-                <th>Record</th>
-                <th>Win rate</th>
               </tr>
             </thead>
             <tbody>
@@ -717,10 +698,6 @@ export default function ArenaPage() {
                     </span>
                   </td>
                   <td className={styles.elo}>{xpOf(entry)}</td>
-                  <td>{recordOf(entry)}</td>
-                  <td>
-                    {entry.win_rate_pct != null ? `${entry.win_rate_pct}%` : entry.win_rate || "N/A"}
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -765,10 +742,6 @@ export default function ArenaPage() {
                       <div className={styles.statRow}>
                         <span className={styles.label}>Peak XP:</span>
                         <span className={styles.value}>{peakXpOf(agent)}</span>
-                      </div>
-                      <div className={styles.statRow}>
-                        <span className={styles.label}>Record:</span>
-                        <span className={styles.value}>{recordOf(agent)}</span>
                       </div>
                       <div className={styles.statRow}>
                         <span className={styles.label}>Visibility:</span>
