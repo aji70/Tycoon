@@ -31,6 +31,7 @@ import {
 import RewardABI from '@/context/abi/rewardabi.json';
 import Erc20Abi from '@/context/abi/ERC20abi.json';
 import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
+import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from '@/lib/constants/ngnPayments';
 
 import {
   useRewardBuyCollectible,
@@ -123,7 +124,7 @@ const perkMetadata = [
 
 // Calculate NGN price with discount for purchases over 1000 NGN
 const calculateNgnPrice = (ngnBasePrice: number): number => {
-  const minNgnPurchase = 200;
+  const minNgnPurchase = MIN_FLUTTERWAVE_CHECKOUT_NGN;
   if (ngnBasePrice < minNgnPurchase) return minNgnPurchase;
   if (ngnBasePrice > 1000) return Math.round(ngnBasePrice * 0.8); // 20% discount
   return ngnBasePrice;
@@ -197,7 +198,7 @@ export default function GameShop() {
     total: 0,
   });
 
-  const USDC_TO_NGN_RATE = 1600; // approximate; min charge 200 NGN
+  const USDC_TO_NGN_RATE = 1600; // approximate; min charge matches MIN_FLUTTERWAVE_CHECKOUT_NGN
 
   const payerAddress = payWith === 'smart_wallet' && smartWalletAddress ? smartWalletAddress : address ?? undefined;
 
@@ -566,7 +567,7 @@ export default function GameShop() {
     const tokenIdStr = item.tokenId.toString();
     setNgnLoadingTokenId(tokenIdStr);
     try {
-      const amountNgn = Math.max(200, Math.ceil(Number(item.usdcPrice) * USDC_TO_NGN_RATE));
+      const amountNgn = Math.max(MIN_FLUTTERWAVE_CHECKOUT_NGN, Math.ceil(Number(item.usdcPrice) * USDC_TO_NGN_RATE));
       const base = typeof window !== 'undefined' ? window.location.origin : '';
       const callbackUrl = `${base}/game-shop`;
       const res = await apiClient.post<{ success?: boolean; link?: string; reference?: string; message?: string }>(

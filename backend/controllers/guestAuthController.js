@@ -35,6 +35,7 @@ import {
 import { buildContractUsername } from "../utils/ensureContractAuth.js";
 import { getChainConfig } from "../config/chains.js";
 import logger from "../config/logger.js";
+import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "../constants/ngnPayments.js";
 import { transferToBankAccount, isFlutterwaveConfigured, initializePayment } from "../services/flutterwave.js";
 import { celoToNgn, ngnToCelo } from "../services/rates.js";
 
@@ -1044,10 +1045,10 @@ export async function celoPurchaseInitialize(req, res) {
       });
     }
     const amountNgn = req.body?.amount_ngn != null ? Number(req.body.amount_ngn) : NaN;
-    if (!Number.isFinite(amountNgn) || amountNgn < 200) {
+    if (!Number.isFinite(amountNgn) || amountNgn < MIN_FLUTTERWAVE_CHECKOUT_NGN) {
       return res.status(400).json({
         success: false,
-        message: "amount_ngn is required and must be at least 200 Naira.",
+        message: `amount_ngn is required and must be at least ${MIN_FLUTTERWAVE_CHECKOUT_NGN} Naira.`,
       });
     }
     let amountCelo;
