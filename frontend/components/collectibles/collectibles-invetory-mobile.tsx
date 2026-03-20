@@ -35,7 +35,7 @@ import {
 import EmptyState from "@/components/ui/EmptyState";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import RewardABI from "@/context/abi/rewardabi.json";
-import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
+import { REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 import { Game, GameProperty } from "@/types/game";
 import { useRewardBurnCollectible } from "@/context/ContractProvider";
 import { apiClient } from "@/lib/api";
@@ -103,14 +103,13 @@ export default function CollectibleInventoryBar({
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
 
-  const tycToken = TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS] as Address | undefined;
   const usdcToken = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
 
   const [showMiniShop, setShowMiniShop] = useState(false);
   const miniShopSheetRef = useRef<HTMLDivElement>(null);
   const buyPerksTriggerRef = useRef<HTMLButtonElement>(null);
   useFocusTrap(miniShopSheetRef, showMiniShop, buyPerksTriggerRef);
-  const [useUsdc, setUseUsdc] = useState(true);
+  const useUsdc = true;
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
   const [approvingId, setApprovingId] = useState<bigint | null>(null);
 
@@ -124,8 +123,8 @@ export default function CollectibleInventoryBar({
   const [selectedPositionIndex, setSelectedPositionIndex] = useState<number | null>(null);
   const [selectedRollTotal, setSelectedRollTotal] = useState<number | null>(null);
 
-  const selectedToken = useUsdc ? usdcToken : tycToken;
-  const selectedDecimals = useUsdc ? 6 : 18;
+  const selectedToken = usdcToken;
+  const selectedDecimals = 6;
 
   const { writeContract: writeBuy, data: buyHash, isPending: buyingPending } = useWriteContract();
   const { writeContract: writeApprove, data: approveHash, isPending: approving } = useWriteContract();
@@ -133,7 +132,6 @@ export default function CollectibleInventoryBar({
   const { isLoading: confirmingBuy } = useWaitForTransactionReceipt({ hash: buyHash });
   const { isLoading: confirmingApprove, isSuccess: approveSuccess } = useWaitForTransactionReceipt({ hash: approveHash });
 
-  const { data: tycBal } = useBalance({ address, token: tycToken });
   const { data: usdcBal } = useBalance({ address, token: usdcToken });
 
   const { data: allowance } = useReadContract({
@@ -398,7 +396,7 @@ export default function CollectibleInventoryBar({
 
     if (currentAllowance < priceBig) {
       setApprovingId(item.tokenId);
-      toast.loading(`Approving ${useUsdc ? "USDC" : "TYC"}...`, { id: "approve" });
+      toast.loading("Approving USDC...", { id: "approve" });
       writeApprove({
         address: selectedToken!,
         abi: erc20Abi,
@@ -748,10 +746,6 @@ export default function CollectibleInventoryBar({
                 <div className="flex justify-around gap-4 text-base">
                   <div className="flex items-center gap-2 bg-gray-800/50 px-4 py-2 rounded-full">
                     <Wallet className="w-5 h-5 text-cyan-400" />
-                    <span className="text-white">TYC: {tycBal ? Number(tycBal.formatted).toFixed(2) : "0.00"}</span>
-                  </div>
-                  <div className="flex items-center gap-2 bg-gray-800/50 px-4 py-2 rounded-full">
-                    <Wallet className="w-5 h-5 text-cyan-400" />
                     <span className="text-white">USDC: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
                   </div>
                 </div>
@@ -804,9 +798,7 @@ export default function CollectibleInventoryBar({
                         </div>
 
                         <div className="p-5">
-                          <p className="text-2xl font-bold text-cyan-300 mb-4">
-                            {useUsdc ? `$${Number(item.usdcPrice).toFixed(2)}` : `${Number(item.tycPrice).toFixed(1)} TYC`}
-                          </p>
+                          <p className="text-2xl font-bold text-cyan-300 mb-4">${Number(item.usdcPrice).toFixed(2)}</p>
 
                           <button
                             onClick={() => handleBuy(item)}

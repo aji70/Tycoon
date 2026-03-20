@@ -1144,6 +1144,8 @@ export default function AgentsPageMobile() {
               </button>
             )}
             <p className="text-gray-500 text-xs mt-4">
+              <a href="/arena" className="text-cyan-400">Arena</a> — challenge public agents using agents you create here.
+              {" · "}
               <a href="/play-ai" className="text-cyan-400">Play vs AI</a> — use your agents when creating a game (coming soon).
             </p>
           </>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena-mobile.module.css";
 
@@ -124,6 +125,9 @@ export default function ArenaMobile() {
   const [openTournaments, setOpenTournaments] = useState<ArenaTournamentRow[]>([]);
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
   const [tournamentsError, setTournamentsError] = useState<string | null>(null);
+  const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
+  const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
+  const { isCelo } = useVerifyErc8004AgentId();
 
   useEffect(() => {
     if (isAuthed) {
@@ -306,6 +310,31 @@ export default function ArenaMobile() {
     }
   };
 
+  const handleRegisterOnCelo = async (agent: Agent) => {
+    if (!isCelo) {
+      alert("Switch to Celo to register this agent on ERC-8004.");
+      return;
+    }
+    if (agent.erc8004_agent_id) {
+      alert("This agent is already linked to an ERC-8004 ID.");
+      return;
+    }
+    setRegisteringErc8004Id(agent.id);
+    try {
+      const newAgentId = await registerOnCelo(agent.id);
+      if (newAgentId == null) throw new Error("Registration succeeded but could not read on-chain agent ID");
+      await apiClient.patch(`/agents/${agent.id}`, { erc8004_agent_id: String(newAgentId) });
+      await fetchMyAgents();
+      if (activeTab === "discover") await fetchPublicAgents(page);
+      if (activeTab === "leaderboard") await fetchLeaderboard();
+      alert(`Registered on Celo. Agent ID: ${newAgentId}`);
+    } catch (err) {
+      alert(`Registration failed: ${(err as Error)?.message || "Unknown error"}`);
+    } finally {
+      setRegisteringErc8004Id(null);
+    }
+  };
+
   const discoverList = agents.filter((a) => !myAgents.some((m) => m.id === a.id));
   const selectedChallenger = myAgents.find((a) => a.id === challengerAgentId) ?? null;
 
@@ -314,6 +343,11 @@ export default function ArenaMobile() {
       <header className={styles.header}>
         <h1>⚔️ Arena</h1>
         <p>XP & instant games</p>
+        <p style={{ marginTop: 8 }}>
+          <Link href="/agents" style={{ color: "#7ee8ff", textDecoration: "underline" }}>
+            Open My Agents →
+          </Link>
+        </p>
       </header>
 
       <div className={styles.tabs}>
@@ -470,6 +504,9 @@ export default function ArenaMobile() {
               <p className={styles.creator}>
                 Win rate: {agent.win_rate_pct != null ? `${agent.win_rate_pct}%` : agent.win_rate ?? "N/A"}
               </p>
+              <p className={styles.creator}>
+                ERC-8004: {agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "Not linked"}
+              </p>
 
               {isAuthed && myAgents.length > 0 && (
                 <button
@@ -575,6 +612,11 @@ export default function ArenaMobile() {
 
       {activeTab === "my-agents" && (
         <div className={styles.myAgentsList}>
+          <div style={{ marginBottom: 12 }}>
+            <Link href="/agents" style={{ color: "#7ee8ff", textDecoration: "underline" }}>
+              Manage agents in /agents
+            </Link>
+          </div>
           <div className={styles.sectionHead}>
             <h2>My Arena Agents</h2>
             <span>{myAgents.length}</span>
@@ -625,6 +667,16 @@ export default function ArenaMobile() {
                   >
                     {agent.is_public ? "Hide from Arena" : "Make Public"}
                   </button>
+                  {!agent.erc8004_agent_id && (
+                    <button
+                      className={styles.btnSecondary}
+                      onClick={() => handleRegisterOnCelo(agent)}
+                      style={{ width: "100%", marginTop: 8 }}
+                      disabled={isRegisteringErc8004 && registeringErc8004Id === agent.id}
+                    >
+                      {isRegisteringErc8004 && registeringErc8004Id === agent.id ? "Registering..." : "Register on Celo"}
+                    </button>
+                  )}
                 </div>
               ))
             ) : (

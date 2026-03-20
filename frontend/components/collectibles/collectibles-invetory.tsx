@@ -14,7 +14,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 import RewardABI from "@/context/abi/rewardabi.json";
-import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
+import { REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 import { Game, GameProperty } from "@/types/game";
 import { useRewardBurnCollectible } from "@/context/ContractProvider";
 import { apiClient } from "@/lib/api";
@@ -82,11 +82,10 @@ export default function CollectibleInventoryBar({
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
 
-  const tycToken = TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS] as Address | undefined;
   const usdcToken = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
 
   const [showMiniShop, setShowMiniShop] = useState(false);
-  const [useUsdc, setUseUsdc] = useState(true);
+  const useUsdc = true;
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
   const miniShopModalRef = useRef<HTMLDivElement>(null);
   const buyPerksTriggerRef = useRef<HTMLButtonElement>(null);
@@ -103,8 +102,8 @@ export default function CollectibleInventoryBar({
   const [selectedPositionIndex, setSelectedPositionIndex] = useState<number | null>(null);
   const [selectedRollTotal, setSelectedRollTotal] = useState<number | null>(null);
 
-  const selectedToken = useUsdc ? usdcToken : tycToken;
-  const selectedDecimals = useUsdc ? 6 : 18;
+  const selectedToken = usdcToken;
+  const selectedDecimals = 6;
 
   const { writeContract: writeBuy, data: buyHash, isPending: buyingPending } = useWriteContract();
   const { writeContract: writeApprove, data: approveHash, isPending: approving } = useWriteContract();
@@ -112,7 +111,6 @@ export default function CollectibleInventoryBar({
   const { isLoading: confirmingBuy } = useWaitForTransactionReceipt({ hash: buyHash });
   const { isLoading: confirmingApprove, isSuccess: approveSuccess } = useWaitForTransactionReceipt({ hash: approveHash });
 
-  const { data: tycBal } = useBalance({ address, token: tycToken });
   const { data: usdcBal } = useBalance({ address, token: usdcToken });
 
   const { data: allowance } = useReadContract({
@@ -346,7 +344,7 @@ export default function CollectibleInventoryBar({
 
     if (currentAllowance < priceBig) {
       setApprovingId(item.tokenId);
-      toast.loading(`Approving ${useUsdc ? "USDC" : "TYC"}...`, { id: "approve" });
+      toast.loading("Approving USDC...", { id: "approve" });
       writeApprove({
         address: selectedToken!,
         abi: erc20Abi,
@@ -671,19 +669,9 @@ export default function CollectibleInventoryBar({
                 <div className="flex gap-6 text-sm">
                   <div className="flex items-center gap-2">
                     <Wallet className="w-5 h-5 text-[#00F0FF]" />
-                    <span>TYC: {tycBal ? Number(tycBal.formatted).toFixed(2) : "0.00"}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Wallet className="w-5 h-5 text-[#00F0FF]" />
                     <span>USDC: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
                   </div>
                 </div>
-                {/* <button
-                  onClick={() => setUseUsdc(!useUsdc)}
-                  className="px-4 py-2 bg-cyan-900/50 rounded-lg border border-cyan-500 text-sm font-medium"
-                >
-                  Pay with {useUsdc ? "USDC" : "TYC"}
-                </button> */}
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6 px-6 pb-8 overflow-y-auto max-h-full">
@@ -720,9 +708,7 @@ export default function CollectibleInventoryBar({
                       </div>
                       <div className="p-4">
                         <p className="text-xs text-gray-400 mb-2">Stock: {item.stock}</p>
-                        <p className="text-lg text-cyan-300 mb-4 font-medium">
-                          {useUsdc ? `$${item.usdcPrice}` : `${item.tycPrice} TYC`}
-                        </p>
+                        <p className="text-lg text-cyan-300 mb-4 font-medium">${item.usdcPrice}</p>
                         <button
                           onClick={() => handleBuy(item)}
                           disabled={item.stock === 0 || buyingId === item.tokenId || approvingId === item.tokenId}

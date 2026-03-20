@@ -15,7 +15,7 @@ import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
 import Erc20Abi from './abi/ERC20abi.json';
 import UserWalletABI from './abi/tycoon-user-wallet-abi.json';
-import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, AI_AGENT_REGISTRY_ADDRESSES, USER_REGISTRY_ADDRESSES, ERC8004_REPUTATION_REGISTRY_ADDRESSES, ERC8004_IDENTITY_REGISTRY_ADDRESS } from '@/constants/contracts';
+import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, AI_AGENT_REGISTRY_ADDRESSES, USER_REGISTRY_ADDRESSES, ERC8004_REPUTATION_REGISTRY_ADDRESSES, ERC8004_IDENTITY_REGISTRY_ADDRESSES } from '@/constants/contracts';
 import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
 import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
@@ -687,6 +687,7 @@ export function useGiveERC8004Feedback() {
  */
 export function useRegisterAgentERC8004() {
   const { address } = useAccount();
+  const chainId = useChainId();
   const { writeContractAsync, isPending, error: writeError, reset } = useWriteContract();
   const publicClient = usePublicClient();
 
@@ -695,9 +696,10 @@ export function useRegisterAgentERC8004() {
       const base = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
       if (!base) return null;
       const agentURI = `${base}/agents/${agentDbId}/erc8004-registration`;
-      if (!ERC8004_IDENTITY_REGISTRY_ADDRESS) return null;
+      const identityRegistryAddress = ERC8004_IDENTITY_REGISTRY_ADDRESSES[chainId];
+      if (!identityRegistryAddress) return null;
       const hash = await writeContractAsync({
-        address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
+        address: identityRegistryAddress,
         abi: ERC8004IdentityABI as never,
         functionName: 'register',
         args: [agentURI],
@@ -722,7 +724,7 @@ export function useRegisterAgentERC8004() {
       if (address) {
         try {
           const registeredLogs = await publicClient.getLogs({
-            address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
+            address: identityRegistryAddress,
             event: {
               type: 'event',
               name: 'Registered',
@@ -749,7 +751,7 @@ export function useRegisterAgentERC8004() {
       if (address) {
         try {
           const balance = await publicClient.readContract({
-            address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
+            address: identityRegistryAddress,
             abi: ERC8004IdentityABI as never,
             functionName: "balanceOf",
             args: [address as Address],
@@ -757,7 +759,7 @@ export function useRegisterAgentERC8004() {
           const bal = Number(balance ?? 0);
           if (bal > 0) {
             const tokenId = await publicClient.readContract({
-              address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
+              address: identityRegistryAddress,
               abi: ERC8004IdentityABI as never,
               functionName: "tokenOfOwnerByIndex",
               args: [address as Address, BigInt(bal - 1)],
@@ -770,7 +772,7 @@ export function useRegisterAgentERC8004() {
       }
       return null;
     },
-    [writeContractAsync, publicClient, address]
+    [writeContractAsync, publicClient, address, chainId]
   );
 
   return { register, isPending, error: writeError, reset };
@@ -802,10 +804,11 @@ export function useVerifyErc8004AgentId() {
       const id = Number(trimmed);
       if (!Number.isInteger(id) || id < 1) return { valid: false, error: 'Invalid ID (must be a positive integer)' };
       if (!isCelo) return { valid: false, error: 'Switch to Celo to verify' };
-      if (!publicClient || !ERC8004_IDENTITY_REGISTRY_ADDRESS) return { valid: false, error: 'Cannot verify' };
+      const identityRegistryAddress = ERC8004_IDENTITY_REGISTRY_ADDRESSES[chainId];
+      if (!publicClient || !identityRegistryAddress) return { valid: false, error: 'Cannot verify' };
       try {
         const owner = await publicClient.readContract({
-          address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
+          address: identityRegistryAddress,
           abi: ERC8004IdentityABI as never,
           functionName: 'ownerOf',
           args: [BigInt(id)],
@@ -821,23 +824,24 @@ export function useVerifyErc8004AgentId() {
         return { valid: false, error: 'Agent not found or invalid ID' };
       }
     },
-    [publicClient, isCelo]
+    [publicClient, isCelo, chainId]
   );
 
   /** Get the first ERC-8004 agent ID owned by the given address (if registry supports enumeration). */
   const getAgentIdOwnedByAddress = useCallback(
     async (ownerAddress: string): Promise<number | null> => {
-      if (!ownerAddress || !isCelo || !publicClient || !ERC8004_IDENTITY_REGISTRY_ADDRESS) return null;
+      const identityRegistryAddress = ERC8004_IDENTITY_REGISTRY_ADDRESSES[chainId];
+      if (!ownerAddress || !isCelo || !publicClient || !identityRegistryAddress) return null;
       try {
         const balance = await publicClient.readContract({
-          address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
+          address: identityRegistryAddress,
           abi: ERC8004IdentityABI as never,
           functionName: 'balanceOf',
           args: [ownerAddress as Address],
         });
         if (balance == null || Number(balance) < 1) return null;
         const tokenId = await publicClient.readContract({
-          address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
+          address: identityRegistryAddress,
           abi: ERC8004IdentityABI as never,
           functionName: 'tokenOfOwnerByIndex',
           args: [ownerAddress as Address, BigInt(0)],
@@ -847,7 +851,7 @@ export function useVerifyErc8004AgentId() {
         return null;
       }
     },
-    [publicClient, isCelo]
+    [publicClient, isCelo, chainId]
   );
 
   return { verifyAgentId, isCelo, getAgentIdOwnedByAddress };

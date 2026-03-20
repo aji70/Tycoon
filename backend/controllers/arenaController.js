@@ -59,6 +59,7 @@ export async function getPublicAgents(req, res) {
       .select(
         "user_agents.id",
         "user_agents.name",
+        "user_agents.erc8004_agent_id",
         "user_agents.elo_rating",
         "user_agents.elo_peak",
         "user_agents.arena_wins",
@@ -110,6 +111,7 @@ export async function getAgentProfile(req, res) {
       .select(
         "user_agents.id",
         "user_agents.name",
+        "user_agents.erc8004_agent_id",
         "user_agents.elo_rating",
         "user_agents.elo_peak",
         "user_agents.arena_wins",
@@ -175,6 +177,7 @@ export async function getLeaderboard(req, res) {
       .select(
         "user_agents.id",
         "user_agents.name",
+        "user_agents.erc8004_agent_id",
         "user_agents.elo_rating",
         "user_agents.elo_peak",
         "user_agents.arena_wins",
