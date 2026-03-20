@@ -24,6 +24,8 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
     address public backendMinter;
     /// @notice Game contract (Tycoon proxy) can mint for register/game-end rewards. Set via setGameMinter.
     address public gameMinter;
+    /// @notice Addresses allowed to redeem vouchers on behalf of any owner (server-side, no user wallet connection required).
+    mapping(address => bool) public voucherRedeemers;
     uint256 private _nextVoucherId = VOUCHER_BASE;
     uint256 private _nextCollectibleId = COLLECTIBLE_BASE;
 
@@ -52,6 +54,7 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
 
     event BackendMinterUpdated(address indexed newMinter);
     event GameMinterUpdated(address indexed previous, address indexed newGameMinter);
+    event VoucherRedeemerUpdated(address indexed account, bool allowed);
     event BaseURIUpdated(string newBaseURI);
     event CashPerkActivated(uint256 indexed tokenId, address indexed burner, uint256 cashAmount);
     event CollectibleBought(uint256 indexed tokenId, address indexed buyer, uint256 price, bool usedUsdc);
@@ -93,6 +96,13 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
         address previous = gameMinter;
         gameMinter = newGameMinter;
         emit GameMinterUpdated(previous, newGameMinter);
+    }
+
+    /// @notice Allow/revoke a backend signer that can call redeemVoucherFor without wallet-owner approval.
+    function setVoucherRedeemer(address account, bool allowed) external onlyOwner {
+        require(account != address(0), "Zero account");
+        voucherRedeemers[account] = allowed;
+        emit VoucherRedeemerUpdated(account, allowed);
     }
 
     function setBaseURI(string calldata newBaseURI) external onlyOwner {
@@ -208,7 +218,13 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
         uint256 val = voucherRedeemValue[tokenId];
         require(val > 0, "Unknown voucher");
         require(voucherOwner != address(0), "Zero owner");
-        if (msg.sender != voucherOwner && msg.sender != backendMinter && msg.sender != gameMinter && msg.sender != owner()) {
+        if (
+            msg.sender != voucherOwner &&
+            msg.sender != backendMinter &&
+            msg.sender != gameMinter &&
+            msg.sender != owner() &&
+            !voucherRedeemers[msg.sender]
+        ) {
             // Caller must be the on-chain owner of the wallet (e.g. EOA owner of TycoonUserWallet), its operator, backendMinter, or approved for all by the voucher owner (ERC1155).
             bool isAuthorizedWalletManager = false;
             if (voucherOwner.code.length > 0) {

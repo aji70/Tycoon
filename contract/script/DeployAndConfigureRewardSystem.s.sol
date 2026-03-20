@@ -31,6 +31,11 @@ contract DeployAndConfigureRewardSystemScript is Script {
         newRewardSystem.setGameMinter(proxy);
         console.log("setGameMinter to PROXY (%s) done", proxy);
 
+        // Backend controller also acts as voucher redeemer so server can redeem
+        // smart-wallet-owned vouchers without user wallet connection.
+        newRewardSystem.setVoucherRedeemer(gameController, true);
+        console.log("setVoucherRedeemer to GAME_CONTROLLER (%s) done", gameController);
+
         // 3. Point proxy to the new Reward System
         TycoonUpgradeable(payable(proxy)).setRewardSystem(address(newRewardSystem));
         console.log("Updated proxy with setRewardSystem done");

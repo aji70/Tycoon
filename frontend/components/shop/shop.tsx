@@ -449,7 +449,24 @@ export default function GameShop() {
       return;
     }
     try {
-      if (payWith === 'smart_wallet' && smartWalletAddress) {
+      if (payWith === 'smart_wallet' && smartWalletAddress && !isConnected) {
+        const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to buy with smart wallet')?.trim() : '';
+        if (!pin) {
+          toast.error('PIN is required');
+          return;
+        }
+        const price = BigInt(Math.round(priceNum * 1e6));
+        const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-collectible', {
+          tokenId: item.tokenId.toString(),
+          useUsdc: true,
+          maxPrice: price.toString(),
+          pin,
+        });
+        if (!res?.success && !res?.data?.success) {
+          throw new Error(res?.data?.message || 'Purchase failed');
+        }
+        toast.success('Purchase successful! 🎉');
+      } else if (payWith === 'smart_wallet' && smartWalletAddress) {
         await smartWalletApprove(usdcTokenAddress, contractAddress, price);
         await buyFrom(smartWalletAddress, item.tokenId, true);
       } else {
@@ -551,7 +568,23 @@ export default function GameShop() {
 
     setBundleBuyingName(def.name);
     try {
-      if (payWith === 'smart_wallet') {
+      if (payWith === 'smart_wallet' && !isConnected) {
+        const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to buy bundle with smart wallet')?.trim() : '';
+        if (!pin) {
+          toast.error('PIN is required');
+          return;
+        }
+        const usdcPrice = BigInt(Math.round(Number(bundleEntry.price_usdc) * 1e6));
+        const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-bundle', {
+          bundleId: String(bundleEntry.id),
+          useUsdc: true,
+          maxPrice: usdcPrice.toString(),
+          pin,
+        });
+        if (!res?.success && !res?.data?.success) {
+          throw new Error(res?.data?.message || 'Bundle purchase failed');
+        }
+      } else if (payWith === 'smart_wallet') {
         if (!smartWalletAddress) {
           toast.error('Smart wallet not available');
           return;
@@ -578,7 +611,12 @@ export default function GameShop() {
 
     try {
       if (smartWalletAddress && !isConnected) {
-        await redeemFor(smartWalletAddress, tokenId);
+        const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/redeem-voucher', {
+          tokenId: tokenId.toString(),
+        });
+        if (!res?.success && !res?.data?.success) {
+          throw new Error(res?.data?.message || 'Redemption failed');
+        }
       } else {
         await redeem(tokenId);
       }
