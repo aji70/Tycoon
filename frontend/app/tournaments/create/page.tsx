@@ -9,7 +9,7 @@ import { useTournament } from "@/context/TournamentContext";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { appChain } from "@/config";
 import type { PrizeSource, CreateTournamentResponse } from "@/types/tournament";
-import { ChevronLeft, Loader2, Swords, Wallet, User, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, Loader2, Swords, Wallet, CheckCircle2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 
 const USDC_DECIMALS = 6;
@@ -32,6 +32,8 @@ const PRIZE_SOURCES: { value: PrizeSource; label: string; description: string }[
   { value: "ENTRY_FEE_POOL", label: "Entry fee pool", description: "Players pay entry; pool goes to winners" },
   { value: "CREATOR_FUNDED", label: "Creator funded", description: "You add the prize pool (after creation)" },
 ];
+
+const PLAYER_PRESETS = [8, 16, 32, 64, 128];
 
 export default function CreateTournamentPage() {
   const router = useRouter();
@@ -64,6 +66,9 @@ export default function CreateTournamentPage() {
   const canCreate = isSignedIn || hasWallet || isPrivyAuthed;
   const showAuthGate = !authLoading && !canCreate;
   const canUseWallet = hasWallet && !!loginByWallet;
+  const sanitizedMaxPreview = Math.min(MAX_PLAYERS_ALLOWED, Math.max(MIN_PLAYERS_ALLOWED, maxPlayers));
+  const sanitizedMinPreview = Math.max(MIN_PLAYERS_ALLOWED, Math.min(sanitizedMaxPreview, minPlayers));
+  const isMaxPowerOfTwo = isPowerOfTwo(sanitizedMaxPreview);
 
   const handleSignInWithWallet = async () => {
     if (!address || !loginByWallet) return;
@@ -286,7 +291,8 @@ export default function CreateTournamentPage() {
               {isPrivyAuthed ? "Signed in" : isSignedIn ? `Signed in as ${guestUser?.username ?? "user"}` : "Connected with wallet"}
             </p>
 
-            <div>
+            <div className="rounded-2xl border border-white/10 bg-[#011112]/80 p-5 space-y-4">
+              <div>
               <label htmlFor="name" className="block text-sm font-medium text-white/90 mb-1.5">
                 Tournament name *
               </label>
@@ -299,11 +305,15 @@ export default function CreateTournamentPage() {
                 className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
                 maxLength={200}
               />
+              </div>
+
+              <div className="flex items-center justify-between text-sm">
+                <p className="text-white/50">Chain: <span className="text-cyan-300 font-semibold">{chain}</span></p>
+                <p className="text-white/50">Format: <span className="text-cyan-300 font-semibold">Single elimination</span></p>
+              </div>
             </div>
 
-            <p className="text-sm text-white/50">Chain: {chain}</p>
-
-            <div>
+            <div className="rounded-2xl border border-white/10 bg-[#011112]/70 p-5 space-y-4">
               <label className="block text-sm font-medium text-white/90 mb-2">Prize source</label>
               <div className="space-y-3">
                 {PRIZE_SOURCES.map(({ value, label, description }) => (
@@ -330,9 +340,44 @@ export default function CreateTournamentPage() {
                   </label>
                 ))}
               </div>
+              {prizeSource === "ENTRY_FEE_POOL" && (
+                <div>
+                  <label htmlFor="entry_fee" className="block text-sm font-medium text-white/90 mb-1">
+                    Entry fee (USDC)
+                  </label>
+                  <input
+                    id="entry_fee"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={entryFeeUsd}
+                    onChange={(e) => setEntryFeeUsd(e.target.value)}
+                    placeholder="e.g. 1 for $1"
+                    className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
+                  />
+                </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="rounded-2xl border border-white/10 bg-[#011112]/70 p-5 space-y-4">
+              <p className="text-sm font-semibold text-white/90">Bracket size</p>
+              <div className="flex flex-wrap gap-2">
+                {PLAYER_PRESETS.map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setMaxPlayers(v)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                      maxPlayers === v
+                        ? "bg-cyan-500/20 border-cyan-400/60 text-cyan-200"
+                        : "bg-white/5 border-white/10 text-white/70 hover:border-cyan-500/40"
+                    }`}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="max_players" className="block text-sm font-medium text-white/90 mb-1">
                   Max players
@@ -363,25 +408,14 @@ export default function CreateTournamentPage() {
                 />
               </div>
             </div>
-
-            {prizeSource === "ENTRY_FEE_POOL" && (
-              <div>
-                <label htmlFor="entry_fee" className="block text-sm font-medium text-white/90 mb-1">
-                  Entry fee (USDC)
-                </label>
-                <input
-                  id="entry_fee"
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={entryFeeUsd}
-                  onChange={(e) => setEntryFeeUsd(e.target.value)}
-                  placeholder="0 for free, e.g. 1 for $1"
-                  className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
-                />
-                <p className="text-xs text-white/50 mt-1">Amount in USDC (e.g. 1 = $1)</p>
+              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 text-xs">
+                <p className="text-cyan-200 font-semibold">Live setup preview</p>
+                <p className="text-white/70 mt-1">
+                  Bracket: {sanitizedMaxPreview} players {isMaxPowerOfTwo ? "ready" : "(must be power of two)"} ·
+                  start when at least {sanitizedMinPreview} players join.
+                </p>
               </div>
-            )}
+            </div>
 
             <div className="rounded-2xl border border-white/10 bg-[#011112]/70 p-5 space-y-4">
               <p className="text-sm font-semibold text-white/90">Quick start (bots)</p>
