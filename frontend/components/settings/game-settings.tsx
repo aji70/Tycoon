@@ -37,6 +37,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
 import { Address, parseUnits } from "viem";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { resolveChainForBackend } from "@/lib/utils/chain";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 
 interface GameCreateResponse {
@@ -68,7 +69,7 @@ export default function GameSettings({ redirectToWaitingRoom = "/game-waiting" }
   const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
 
   const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);
-  const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${wagmiChainId}` || "unknown";
+  const chainName = resolveChainForBackend(wagmiChainId, caipNetwork?.name);
 
   const [isFreeGame, setIsFreeGame] = useState(false);
 
