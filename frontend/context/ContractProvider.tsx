@@ -686,6 +686,7 @@ export function useGiveERC8004Feedback() {
  * User owns the NFT and pays gas. Builds agentURI from backend registration file, calls register(agentURI), parses new agentId and returns it so caller can PATCH the agent.
  */
 export function useRegisterAgentERC8004() {
+  const { address } = useAccount();
   const { writeContractAsync, isPending, error: writeError, reset } = useWriteContract();
   const publicClient = usePublicClient();
 
@@ -717,9 +718,32 @@ export function useRegisterAgentERC8004() {
           // skip
         }
       }
+      // Fallback: if the event decode fails, derive latest owned token for caller.
+      if (address) {
+        try {
+          const balance = await publicClient.readContract({
+            address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
+            abi: ERC8004IdentityABI as never,
+            functionName: "balanceOf",
+            args: [address as Address],
+          });
+          const bal = Number(balance ?? 0);
+          if (bal > 0) {
+            const tokenId = await publicClient.readContract({
+              address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
+              abi: ERC8004IdentityABI as never,
+              functionName: "tokenOfOwnerByIndex",
+              args: [address as Address, BigInt(bal - 1)],
+            });
+            if (tokenId != null) return Number(tokenId);
+          }
+        } catch {
+          // ignore; caller will show existing fallback message
+        }
+      }
       return null;
     },
-    [writeContractAsync, publicClient]
+    [writeContractAsync, publicClient, address]
   );
 
   return { register, isPending, error: writeError, reset };
