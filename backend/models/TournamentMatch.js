@@ -1,15 +1,28 @@
 import db from "../config/database.js";
 
+/**
+ * Knex + mysql2 treat JS arrays in insert bindings as multiple VALUES (e.g. [a,b] → two columns).
+ * JSON columns must be a single binding — stringify arrays for `participant_entry_ids`.
+ */
+function normalizeMatchInsertRow(row) {
+  if (!row || typeof row !== "object") return row;
+  const out = { ...row };
+  if (Array.isArray(out.participant_entry_ids)) {
+    out.participant_entry_ids = JSON.stringify(out.participant_entry_ids);
+  }
+  return out;
+}
+
 const TournamentMatch = {
   async create(data) {
-    const [id] = await db("tournament_matches").insert(data);
+    const [id] = await db("tournament_matches").insert(normalizeMatchInsertRow(data));
     return this.findById(id);
   },
 
   /** Insert many matches in one query. Use for bracket generation. */
   async bulkCreate(rows) {
     if (!rows || rows.length === 0) return;
-    await db("tournament_matches").insert(rows);
+    await db("tournament_matches").insert(rows.map(normalizeMatchInsertRow));
   },
 
   async findById(id) {

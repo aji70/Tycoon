@@ -14,7 +14,9 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://base-monopoly-production.up.railway.app/api";
+/** Public API base (includes `/api`). Used by axios and ERC-8004 agent URI. */
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "https://base-monopoly-production.up.railway.app/api";
 
 class ApiClient {
   private axiosInstance: AxiosInstance;
