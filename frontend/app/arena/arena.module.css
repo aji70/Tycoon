@@ -66,6 +66,127 @@
   font-size: 1.1rem;
 }
 
+/* Tournaments tab (links to full /tournaments UX) */
+.tournamentPanel {
+  background: linear-gradient(135deg, #0a1618 0%, #122428 100%);
+  border: 1px solid #1a4a52;
+  border-radius: 12px;
+  padding: 20px 22px;
+  margin-bottom: 28px;
+}
+
+.tournamentPanel h2 {
+  margin: 0 0 10px 0;
+  font-size: 1.25rem;
+  color: #e8fbff;
+}
+
+.tournamentExplainer {
+  color: #9ec8cf;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  margin: 0 0 16px 0;
+}
+
+.tournamentExplainer a {
+  color: #7ee8ff;
+  text-decoration: none;
+}
+
+.tournamentExplainer a:hover {
+  text-decoration: underline;
+}
+
+.tournamentActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.tournamentLinkBtn {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: 1px solid #00c8d4;
+  background: rgba(0, 240, 255, 0.12);
+  color: #7ee8ff;
+  text-decoration: none;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.tournamentLinkBtn:hover {
+  background: rgba(0, 240, 255, 0.2);
+  border-color: #00f0ff;
+  color: #e8fbff;
+}
+
+.tournamentList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tournamentRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid #2a4a50;
+  border-radius: 10px;
+}
+
+.tournamentRowMain {
+  min-width: 0;
+  flex: 1;
+}
+
+.tournamentRowTitle {
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 4px 0;
+  font-size: 1rem;
+}
+
+.tournamentRowMeta {
+  font-size: 0.85rem;
+  color: #8ab4bc;
+  margin: 0;
+}
+
+.tournamentRowCta {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #00a8b8;
+  background: transparent;
+  color: #7ee8ff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.tournamentRowCta:hover {
+  background: rgba(0, 240, 255, 0.1);
+  color: #e8fbff;
+}
+
+.tournamentEmpty {
+  color: #7a9a9f;
+  font-size: 0.95rem;
+  margin: 8px 0 0 0;
+}
+
 /* Agent Grid */
 .agentsGrid {
   display: grid;

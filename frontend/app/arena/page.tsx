@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
@@ -9,6 +10,30 @@ import styles from "./arena.module.css";
 import ArenaMobile from "@/components/arena/arena-mobile";
 
 const MAX_CHALLENGE_TARGETS = 7;
+
+interface ArenaTournamentRow {
+  id: number;
+  code?: string | null;
+  name: string;
+  status: string;
+  chain: string;
+  entry_fee_wei: string | number;
+  prize_source?: string;
+  participant_count?: number;
+  max_players?: number;
+}
+
+function formatTournamentEntryFee(wei: string | number): string {
+  const n = Number(wei);
+  if (!Number.isFinite(n) || n === 0) return "Free";
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(2)} USDC entry`;
+  return `${n} (fee)`;
+}
+
+function tournamentHref(t: ArenaTournamentRow): string {
+  const c = t.code != null && String(t.code).trim() !== "" ? String(t.code).trim() : "";
+  return `/tournaments/${c || t.id}`;
+}
 
 interface Agent {
   id: number;
@@ -74,7 +99,7 @@ export default function ArenaPage() {
   const authLoading = guestCtx?.isLoading ?? false;
   /** Backend JWT session (guest, wallet login, or after Privy → privy-signin). Not the same as usePrivy().authenticated. */
   const isAuthed = Boolean(guestUser);
-  const [activeTab, setActiveTab] = useState<"discover" | "leaderboard" | "my-agents">("discover");
+  const [activeTab, setActiveTab] = useState<"discover" | "leaderboard" | "tournaments" | "my-agents">("discover");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myAgents, setMyAgents] = useState<Agent[]>([]);
@@ -85,6 +110,9 @@ export default function ArenaPage() {
   const [selectedOpponents, setSelectedOpponents] = useState<number[]>([]);
   const [challengerAgentId, setChallengerAgentId] = useState<number | null>(null);
   const [arenaStarting, setArenaStarting] = useState(false);
+  const [openTournaments, setOpenTournaments] = useState<ArenaTournamentRow[]>([]);
+  const [tournamentsLoading, setTournamentsLoading] = useState(false);
+  const [tournamentsError, setTournamentsError] = useState<string | null>(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -98,6 +126,39 @@ export default function ArenaPage() {
       fetchMyAgents();
     }
   }, [isAuthed]);
+
+  useEffect(() => {
+    if (activeTab !== "tournaments") return;
+    let cancelled = false;
+    (async () => {
+      setTournamentsLoading(true);
+      setTournamentsError(null);
+      try {
+        const res = await apiClient.get<ArenaTournamentRow[] | { data?: ArenaTournamentRow[] }>("/tournaments", {
+          status: "REGISTRATION_OPEN",
+          limit: 20,
+          offset: 0,
+        });
+        const body = res?.data as unknown;
+        const list: ArenaTournamentRow[] = Array.isArray(body)
+          ? body
+          : body != null && typeof body === "object" && "data" in body && Array.isArray((body as { data: ArenaTournamentRow[] }).data)
+            ? (body as { data: ArenaTournamentRow[] }).data
+            : [];
+        if (!cancelled) setOpenTournaments(list);
+      } catch (e) {
+        if (!cancelled) {
+          setTournamentsError((e as Error)?.message || "Failed to load tournaments");
+          setOpenTournaments([]);
+        }
+      } finally {
+        if (!cancelled) setTournamentsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
 
   useEffect(() => {
     if (myAgents.length > 0 && challengerAgentId == null) {
@@ -256,7 +317,7 @@ export default function ArenaPage() {
     <div className={styles.container}>
       <header className={styles.header}>
         <h1>⚔️ Agent Arena</h1>
-        <p>XP, records, and instant on-chain arena games</p>
+        <p>XP, quick challenges, and bracket tournaments (optional USDC pool via escrow)</p>
       </header>
 
       <div className={styles.tabs}>
@@ -274,6 +335,12 @@ export default function ArenaPage() {
           onClick={() => setActiveTab("leaderboard")}
         >
           🏆 Leaderboard
+        </button>
+        <button
+          className={`${styles.tab} ${activeTab === "tournaments" ? styles.active : ""}`}
+          onClick={() => setActiveTab("tournaments")}
+        >
+          🎯 Tournaments
         </button>
         <button
           className={`${styles.tab} ${activeTab === "my-agents" ? styles.active : ""}`}
@@ -419,6 +486,68 @@ export default function ArenaPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {activeTab === "tournaments" && (
+        <section className={styles.tournamentPanel} aria-label="Agent tournaments">
+          <h2>Bracket tournaments &amp; prize pool</h2>
+          <p className={styles.tournamentExplainer}>
+            Tournaments use the <strong style={{ color: "#e8fbff" }}>TycoonTournamentEscrow</strong> contract: each
+            event is opened on-chain with the same id as in our database. You can run{" "}
+            <strong style={{ color: "#e8fbff" }}>free</strong> events,{" "}
+            <strong style={{ color: "#e8fbff" }}>entry-fee</strong> pools, or a{" "}
+            <strong style={{ color: "#e8fbff" }}>creator-funded</strong> prize. Registration records{" "}
+            <strong style={{ color: "#e8fbff" }}>players</strong> on-chain; you then attach{" "}
+            <strong style={{ color: "#e8fbff" }}>which agent</strong> plays for your entry (auto-join API or tournament
+            page). Matches spawn real Tycoon games; winners advance in the bracket until finals and{" "}
+            <strong style={{ color: "#e8fbff" }}>USDC payout</strong> from escrow. Full architecture:{" "}
+            <span style={{ color: "#7ee8ff" }}>docs/ARENA_AGENT_TOURNAMENTS.md</span> in the repo.
+          </p>
+          <div className={styles.tournamentActions}>
+            <Link href="/tournaments" className={styles.tournamentLinkBtn}>
+              All tournaments
+            </Link>
+            <Link href="/tournaments/create" className={styles.tournamentLinkBtn}>
+              Create tournament
+            </Link>
+          </div>
+          <p className={styles.challengeHint} style={{ marginBottom: 12 }}>
+            <strong style={{ color: "#e8fbff" }}>Agents:</strong> allow tournament spend in Profile (PIN) for your agent,
+            then <code style={{ color: "#9ec8cf" }}>POST /api/agents/:id/auto-join-tournament</code> or use the tournament
+            detail page after we wire a one-click bind. Optional: set{" "}
+            <code style={{ color: "#9ec8cf" }}>ENABLE_AGENT_TOURNAMENT_RUNNER=true</code> on the server for passive
+            auto-register within your caps.
+          </p>
+          {tournamentsLoading ? (
+            <p className={styles.tournamentEmpty}>Loading open tournaments…</p>
+          ) : tournamentsError ? (
+            <p className={styles.error} style={{ marginTop: 0 }}>
+              {tournamentsError}
+            </p>
+          ) : openTournaments.length === 0 ? (
+            <p className={styles.tournamentEmpty}>No tournaments in registration right now. Create one or check back later.</p>
+          ) : (
+            <ul className={styles.tournamentList}>
+              {openTournaments.map((t) => (
+                <li key={t.id} className={styles.tournamentRow}>
+                  <div className={styles.tournamentRowMain}>
+                    <p className={styles.tournamentRowTitle}>{t.name}</p>
+                    <p className={styles.tournamentRowMeta}>
+                      {t.chain} · {formatTournamentEntryFee(t.entry_fee_wei)}
+                      {t.prize_source ? ` · ${String(t.prize_source).replace(/_/g, " ").toLowerCase()}` : ""}
+                      {typeof t.participant_count === "number" && typeof t.max_players === "number"
+                        ? ` · ${t.participant_count}/${t.max_players} players`
+                        : ""}
+                    </p>
+                  </div>
+                  <Link href={tournamentHref(t)} className={styles.tournamentRowCta}>
+                    Open →
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
 
       {activeTab === "leaderboard" && (
