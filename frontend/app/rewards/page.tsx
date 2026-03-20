@@ -131,6 +131,7 @@ export default function RewardAdminPanel() {
     vaultWithdrawUsdcTo,
     setVaultWithdrawUsdcTo,
     stockAllProgress,
+    backendShopBulk,
   } = state;
 
   const [adminTournaments, setAdminTournaments] = useState<{ id: number; name: string; code?: string; status: string; participant_count?: number; max_players: number }[]>([]);
@@ -455,18 +456,35 @@ export default function RewardAdminPanel() {
               Click any item to stock 50 units with pre-set prices, or stock all at once below.
             </p>
 
-            <div className="flex justify-center mb-8">
+            <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-4 mb-8">
               <button
                 type="button"
                 onClick={() => handlers.handleStockAllPerks()}
-                disabled={anyPending || stockAllProgress.active}
-                className="px-6 py-3 rounded-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                disabled={anyPending || stockAllProgress.active || backendShopBulk != null}
+                className="px-6 py-3 rounded-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center"
               >
                 {stockAllProgress.active
                   ? `Stocking ${stockAllProgress.current}/${stockAllProgress.total}…`
-                  : 'Stock 50 of Each Perk'}
+                  : 'Stock 50 of Each Perk (wallet)'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handlers.handleBackendStockAllPerks()}
+                disabled={anyPending || stockAllProgress.active || backendShopBulk != null}
+                className="px-6 py-3 rounded-xl font-bold bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-500 hover:to-slate-600 text-white shadow-lg border border-cyan-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center"
+                title="Uses backend TYCOON_OWNER_PRIVATE_KEY (or REWARD_STOCK_MINTER_PRIVATE_KEY / game controller key). Same missing-perks-only logic as the wallet button."
+              >
+                {backendShopBulk === 'perks'
+                  ? 'Backend stocking perks…'
+                  : 'Stock 50 of Each Perk (backend)'}
               </button>
             </div>
+            <p className="text-center text-xs text-gray-500 mb-6 max-w-xl mx-auto">
+              Backend buttons call <code className="text-gray-400">POST /api/shop-admin/…</code>. If you set{' '}
+              <code className="text-gray-400">SHOP_ADMIN_SECRET</code> on the server, add the same value to frontend{' '}
+              <code className="text-gray-400">NEXT_PUBLIC_SHOP_ADMIN_SECRET</code> so requests send{' '}
+              <code className="text-gray-400">x-shop-admin-secret</code>.
+            </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {INITIAL_COLLECTIBLES.map((item) => (
@@ -516,9 +534,22 @@ export default function RewardAdminPanel() {
               <h4 className="text-lg font-bold mb-2 flex items-center gap-2">
                 <Package className="w-5 h-5 text-amber-400" /> Stock Bundles
               </h4>
-              <p className="text-gray-400 text-sm mb-6">
+              <p className="text-gray-400 text-sm mb-4">
                 Register bundles so users can buy them in one go. Stock the perks above first, then add each bundle here.
               </p>
+              <div className="flex justify-center mb-6">
+                <button
+                  type="button"
+                  onClick={() => handlers.handleBackendStockAllBundles()}
+                  disabled={anyPending || pendingStockBundle || backendShopBulk != null}
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold bg-gradient-to-r from-amber-700 to-amber-600 hover:from-amber-600 hover:to-amber-500 text-white border border-amber-400/30 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Creates one on-chain bundle per preset via backend signer. Perks must already be in the shop."
+                >
+                  {backendShopBulk === 'bundles'
+                    ? 'Backend registering bundles…'
+                    : 'Stock all bundles (backend)'}
+                </button>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 {(bundleDefsForStock ?? []).map((bundle) => (
                   <div

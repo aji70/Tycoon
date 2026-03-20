@@ -4,6 +4,39 @@ These endpoints allow you to stock perks and bundles in the shop using the backe
 
 **Base URL:** `http://localhost:3001/api/shop-admin`
 
+## Optional auth
+
+If `SHOP_ADMIN_SECRET` is set in the backend `.env`, every request must include header:
+
+`x-shop-admin-secret: <same value>`
+
+The `/rewards` admin panel can send this by setting `NEXT_PUBLIC_SHOP_ADMIN_SECRET` to the same string (internal tooling only).
+
+## Signer & reward address
+
+- **Signer:** `TYCOON_OWNER_PRIVATE_KEY` → else `REWARD_STOCK_MINTER_PRIVATE_KEY` → else per-chain `BACKEND_GAME_CONTROLLER_*`. The wallet must be **owner**, **backendMinter**, or **gameMinter** on `TycoonRewardSystem`.
+- **Reward contract:** `REWARD_CONTRACT_ADDRESS` / `TYCOON_REWARD_SYSTEM`, or read from Tycoon `rewardSystem()` when the proxy is configured for that chain.
+
+## Bulk one-click (Rewards UI)
+
+### Stock all initial perks (missing only)
+
+**POST** `/stock-all-perks`
+
+Body: `{ "chain": "CELO", "amount": 50 }` (both optional; defaults `CELO`, `50`).
+
+Stocks each row in `backend/config/shopStockConstants.js` (`INITIAL_COLLECTIBLES`) that is **not** already present in shop inventory (same behavior as the wallet “stock all” flow).
+
+### Stock all preset bundles
+
+**POST** `/stock-all-bundles`
+
+Body: `{ "chain": "CELO" }`.
+
+Registers every bundle in `BUNDLE_DEFS_FOR_STOCK` (must match shop). Perks must exist in the shop first.
+
+Returns **207** if some bundles failed (see `errors` array in JSON).
+
 ## CollectiblePerk Enum Values
 
 ```
