@@ -23,6 +23,7 @@ import {
   exitGameByBackend,
   removePlayerFromGame,
   isContractConfigured,
+  ensureUsdcAllowanceFromSmartWalletForTycoon,
 } from "../services/tycoonContract.js";
 import {
   getGameByCodeStarknet,
@@ -36,6 +37,8 @@ import { getActiveByGameId } from "./auctionController.js";
 import UserAgent from "../models/UserAgent.js";
 import agentRegistry from "../services/agentRegistry.js";
 import crypto from "crypto";
+import bcrypt from "bcrypt";
+import { parseUnits } from "ethers";
 
 function isValidEthAddress(maybeAddress) {
   return typeof maybeAddress === "string" && /^0x[a-fA-F0-9]{40}$/.test(maybeAddress.trim());
@@ -2415,6 +2418,64 @@ function canUseGuestFlow(user) {
 }
 
 /**
+ * Staked guest games: stake USDC lives on the TycoonUserWallet. Register that address on Tycoon (if needed),
+ * verify withdrawal PIN, then approve USDC to the game contract via executeCallWithAuth.
+ */
+async function assertGuestSmartWalletStakeReady({ reqUserId, chain, pin, stakeAmount }) {
+  const pinStr = pin != null ? String(pin).trim() : "";
+  if (!pinStr) {
+    const err = new Error("PIN_REQUIRED");
+    err.code = "PIN_REQUIRED";
+    throw err;
+  }
+  const user = await User.findById(reqUserId);
+  if (!user?.withdrawal_pin_hash) {
+    const err = new Error("Set a withdrawal PIN in Profile to stake from your smart wallet.");
+    err.code = "NO_PIN";
+    throw err;
+  }
+  const ok = await bcrypt.compare(pinStr, user.withdrawal_pin_hash);
+  if (!ok) {
+    const err = new Error("Invalid PIN.");
+    err.code = "BAD_PIN";
+    throw err;
+  }
+  const smart = user.smart_wallet_address && String(user.smart_wallet_address).trim();
+  if (!isValidEthAddress(smart)) {
+    const err = new Error("Create a smart wallet in Profile first (staked games use your smart wallet balance).");
+    err.code = "NO_SMART_WALLET";
+    throw err;
+  }
+  const contractUser = await ensureUserHasContractPassword(db, user.id, chain, smart);
+  if (!contractUser?.password_hash) {
+    const err = new Error("Could not set up on-chain play for your smart wallet. Try again or contact support.");
+    err.code = "NO_CONTRACT_USER";
+    throw err;
+  }
+  if (stakeAmount > 0n) {
+    await ensureUsdcAllowanceFromSmartWalletForTycoon(smart, stakeAmount, chain);
+  }
+  return contractUser;
+}
+
+function respondGuestStakeSetupError(err, res) {
+  const code = err?.code;
+  if (code === "PIN_REQUIRED") {
+    return res.status(400).json({
+      success: false,
+      message: "Enter your withdrawal PIN to use your smart wallet for stakes (same PIN as shop withdrawals).",
+    });
+  }
+  if (code === "BAD_PIN") {
+    return res.status(401).json({ success: false, message: err.message });
+  }
+  if (code === "NO_PIN" || code === "NO_SMART_WALLET" || code === "NO_CONTRACT_USER") {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+  return null;
+}
+
+/**
  * POST /games/create-as-guest
  * Body: same as POST /games but without address (use req.user from auth).
  * Requires Authorization: Bearer <token> and guest/Privy user; backend ensures contract password.
@@ -2441,28 +2502,64 @@ export const createAsGuest = async (req, res) => {
     } = req.body;
 
     const stakeNum = Number(stake) || 0;
+    const isAI = !!is_ai;
+
+    let stakeAmount = 0n;
     if (stakeNum > 0) {
-      return res.status(403).json({
-        success: false,
-        message: "Guests cannot create staked games. Please connect a wallet to create a staked game.",
-      });
+      if (isAI) {
+        return res.status(400).json({
+          success: false,
+          message: "Guest AI games cannot be staked.",
+        });
+      }
+      try {
+        stakeAmount = parseUnits(String(stakeNum), 6);
+      } catch {
+        return res.status(400).json({ success: false, message: "Invalid stake amount" });
+      }
     }
 
     const startingCash = settings?.starting_cash ?? 1500;
-    const stakeAmount = 0n; // Guests: free games only
     const gameType = mode === "PRIVATE" ? "PRIVATE" : "PUBLIC";
     const chainForCreate = User.normalizeChain(chain || "CELO");
 
-    // Use linked EOA, or smart wallet (wallet-first Privy), or placeholder.
-    const addrForChain = getOnchainAddressForGuestFlow(user);
-    const contractUser = await ensureUserHasContractPassword(db, user.id, chainForCreate, addrForChain);
-    if (!contractUser?.password_hash) {
-      return res.status(403).json({
-        success: false,
-        message: "Guest authentication required. Link a wallet or use a guest account that can create games.",
-      });
+    let contractUser;
+    if (stakeAmount > 0n) {
+      try {
+        contractUser = await assertGuestSmartWalletStakeReady({
+          reqUserId: user.id,
+          chain: chainForCreate,
+          pin: req.body?.pin,
+          stakeAmount,
+        });
+      } catch (err) {
+        const handled = respondGuestStakeSetupError(err, res);
+        if (handled) return handled;
+        throw err;
+      }
+      try {
+        const minStake = await callContractRead("minStake", [], chainForCreate);
+        const minB = BigInt(minStake ?? 0);
+        if (minB > 0n && stakeAmount < minB) {
+          return res.status(400).json({
+            success: false,
+            message: `Stake must be at least ${(Number(minB) / 1e6).toFixed(6)} USDC on this network.`,
+          });
+        }
+      } catch (minErr) {
+        logger.warn({ err: minErr?.message }, "createAsGuest: minStake read failed, continuing");
+      }
+    } else {
+      // Free games: linked EOA, smart wallet (wallet-first Privy), or placeholder.
+      const addrForChain = getOnchainAddressForGuestFlow(user);
+      contractUser = await ensureUserHasContractPassword(db, user.id, chainForCreate, addrForChain);
+      if (!contractUser?.password_hash) {
+        return res.status(403).json({
+          success: false,
+          message: "Guest authentication required. Link a wallet or use a guest account that can create games.",
+        });
+      }
     }
-    const isAI = !!is_ai;
     const numberOfAI = isAI ? Math.max(1, (number_of_players ?? 2) - 1) : 0;
 
     // AI games must be created with createAIGameByBackend so on-chain game.ai is true (required for endAIGame).
@@ -2598,14 +2695,6 @@ export const joinAsGuest = async (req, res) => {
     }
 
     const chainForJoin = User.normalizeChain(game.chain || "CELO");
-    const addrForJoin = getOnchainAddressForGuestFlow(user);
-    const contractUser = await ensureUserHasContractPassword(db, user.id, chainForJoin, addrForJoin);
-    if (!contractUser?.password_hash) {
-      return res.status(403).json({
-        success: false,
-        message: "Guest authentication required. Link a wallet or use a guest account that can join games.",
-      });
-    }
 
     // Tournament lobby: game not created on-chain yet — avoid RPC call and return clear message
     if (!game.contract_game_id) {
@@ -2642,11 +2731,30 @@ export const joinAsGuest = async (req, res) => {
     }
 
     const stakePerPlayer = BigInt(contractGame?.stakePerPlayer ?? contractGame?.[9] ?? 0);
+
+    let contractUser;
     if (stakePerPlayer > 0n) {
-      return res.status(403).json({
-        success: false,
-        message: "Guests cannot join staked games. Connect a wallet to join this game.",
-      });
+      try {
+        contractUser = await assertGuestSmartWalletStakeReady({
+          reqUserId: user.id,
+          chain: chainForJoin,
+          pin: req.body?.pin,
+          stakeAmount: stakePerPlayer,
+        });
+      } catch (err) {
+        const handled = respondGuestStakeSetupError(err, res);
+        if (handled) return handled;
+        throw err;
+      }
+    } else {
+      const addrForJoin = getOnchainAddressForGuestFlow(user);
+      contractUser = await ensureUserHasContractPassword(db, user.id, chainForJoin, addrForJoin);
+      if (!contractUser?.password_hash) {
+        return res.status(403).json({
+          success: false,
+          message: "Guest authentication required. Link a wallet or use a guest account that can join games.",
+        });
+      }
     }
 
     // Sync with contract: reject if game is already full on-chain (e.g. wallet user joined first)

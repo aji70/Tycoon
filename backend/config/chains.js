@@ -57,6 +57,7 @@ export function getChainConfig(chain) {
     const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_POLYGON ?? process.env.TOURNAMENT_ESCROW_POLYGON;
     const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_POLYGON;
     const gameFaucetAddress = process.env.TYCOON_GAME_FAUCET_ADDRESS_POLYGON ?? process.env.TYCOON_GAME_FAUCET_POLYGON;
+    const usdcAddress = process.env.POLYGON_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
     return {
       rpcUrl,
       contractAddress,
@@ -65,6 +66,7 @@ export function getChainConfig(chain) {
       tournamentEscrowAddress: tournamentEscrowAddress || undefined,
       userRegistryAddress: userRegistryAddress || undefined,
       gameFaucetAddress: gameFaucetAddress || undefined,
+      usdcAddress: usdcAddress || undefined,
       isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
     };
   }
@@ -77,6 +79,7 @@ export function getChainConfig(chain) {
     const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_BASE ?? process.env.TOURNAMENT_ESCROW_BASE;
     const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_BASE;
     const gameFaucetAddress = process.env.TYCOON_GAME_FAUCET_ADDRESS_BASE ?? process.env.TYCOON_GAME_FAUCET_BASE;
+    const usdcAddress = process.env.BASE_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
     return {
       rpcUrl,
       contractAddress,
@@ -85,6 +88,7 @@ export function getChainConfig(chain) {
       tournamentEscrowAddress: tournamentEscrowAddress || undefined,
       userRegistryAddress: userRegistryAddress || undefined,
       gameFaucetAddress: gameFaucetAddress || undefined,
+      usdcAddress: usdcAddress || undefined,
       isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
     };
   }

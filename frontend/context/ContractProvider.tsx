@@ -10,7 +10,7 @@ import {
   useChainId,
   usePublicClient,
 } from 'wagmi';
-import { Address, decodeEventLog, getAddress } from 'viem';
+import { Address, decodeEventLog, getAddress, zeroAddress } from 'viem';
 import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
 import Erc20Abi from './abi/ERC20abi.json';
@@ -681,6 +681,76 @@ export function useGiveERC8004Feedback() {
   return { giveFeedback, isPending, error: writeError, reset };
 }
 
+/** ERC-721 mint: Transfer(from=0, to=minter, tokenId) — Celo ERC-8004 quick start uses this for agentId ([docs](https://docs.celo.org/build-on-celo/build-with-ai/8004)). */
+const ERC8004_TRANSFER_EVENT = {
+  type: 'event' as const,
+  name: 'Transfer',
+  inputs: [
+    { indexed: true, name: 'from', type: 'address' },
+    { indexed: true, name: 'to', type: 'address' },
+    { indexed: true, name: 'tokenId', type: 'uint256' },
+  ],
+};
+
+const ERC8004_REGISTERED_EVENT = {
+  type: 'event' as const,
+  name: 'Registered',
+  inputs: [
+    { indexed: true, name: 'agentId', type: 'uint256' },
+    { indexed: false, name: 'agentURI', type: 'string' },
+    { indexed: true, name: 'owner', type: 'address' },
+  ],
+};
+
+function parseAgentIdFromRegisterReceipt(
+  receipt: { logs: readonly { address: Address; data: `0x${string}`; topics: readonly `0x${string}`[] }[] },
+  registryAddress: Address,
+  ownerAddress: Address | undefined
+): number | null {
+  const reg = getAddress(registryAddress);
+  const owner = ownerAddress ? getAddress(ownerAddress) : null;
+  /** ERC-721 mints in this tx from the registry (register() emits one mint). */
+  const mintTokenIds: number[] = [];
+
+  for (const log of receipt.logs) {
+    if (getAddress(log.address) !== reg) continue;
+    try {
+      const decoded = decodeEventLog({
+        abi: ERC8004IdentityABI as never,
+        data: log.data,
+        topics: log.topics,
+        strict: false,
+      });
+      if (decoded.eventName === 'Transfer') {
+        const args = decoded.args as { from?: Address; to?: Address; tokenId?: bigint };
+        if (
+          args.from &&
+          args.to &&
+          args.tokenId != null &&
+          getAddress(args.from) === getAddress(zeroAddress)
+        ) {
+          const id = Number(args.tokenId);
+          if (owner && getAddress(args.to) === owner) {
+            return id;
+          }
+          mintTokenIds.push(id);
+        }
+      }
+      if (decoded.eventName === 'Registered' && decoded.args && 'agentId' in decoded.args) {
+        return Number((decoded.args as { agentId: bigint }).agentId);
+      }
+    } catch {
+      // not this event shape
+    }
+  }
+
+  if (mintTokenIds.length === 1) {
+    return mintTokenIds[0];
+  }
+
+  return null;
+}
+
 /**
  * Register a Tycoon agent on Celo ERC-8004 Identity Registry.
  * User owns the NFT and pays gas. Builds agentURI from backend registration file, calls register(agentURI), parses new agentId and returns it so caller can PATCH the agent.
@@ -706,34 +776,41 @@ export function useRegisterAgentERC8004() {
       });
       if (!publicClient || !hash) return null;
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      for (const log of receipt.logs) {
-        try {
-          const decoded = decodeEventLog({
-            abi: ERC8004IdentityABI as never,
-            data: log.data,
-            topics: log.topics,
-          });
-          if (decoded.eventName === 'Registered' && decoded.args && 'agentId' in decoded.args) {
-            return Number((decoded.args as { agentId: bigint }).agentId);
-          }
-        } catch {
-          // skip
+
+      let agentId = parseAgentIdFromRegisterReceipt(receipt, identityRegistryAddress, address);
+      if (agentId != null) return agentId;
+
+      // Fallback: query logs in the block (some RPCs omit full log decoding in receipt)
+      try {
+        const allMintsInBlock = await publicClient.getLogs({
+          address: identityRegistryAddress,
+          event: ERC8004_TRANSFER_EVENT,
+          args: { from: zeroAddress },
+          fromBlock: receipt.blockNumber,
+          toBlock: receipt.blockNumber,
+        });
+        const mintsThisTx = allMintsInBlock.filter((l) => l.transactionHash === hash);
+        if (mintsThisTx.length === 1 && mintsThisTx[0].args?.tokenId != null) {
+          return Number(mintsThisTx[0].args.tokenId);
         }
+        if (address && mintsThisTx.length > 0) {
+          const owner = getAddress(address as Address);
+          const toOwner = mintsThisTx.find(
+            (l) => l.args?.to != null && getAddress(l.args.to as Address) === owner
+          );
+          if (toOwner?.args?.tokenId != null) {
+            return Number(toOwner.args.tokenId);
+          }
+        }
+      } catch {
+        // continue
       }
-      // Fallback 1: read Registered logs directly for this tx block + owner.
+
       if (address) {
         try {
           const registeredLogs = await publicClient.getLogs({
             address: identityRegistryAddress,
-            event: {
-              type: 'event',
-              name: 'Registered',
-              inputs: [
-                { indexed: true, name: 'agentId', type: 'uint256' },
-                { indexed: false, name: 'agentURI', type: 'string' },
-                { indexed: true, name: 'owner', type: 'address' },
-              ],
-            },
+            event: ERC8004_REGISTERED_EVENT,
             args: { owner: getAddress(address as Address) },
             fromBlock: receipt.blockNumber,
             toBlock: receipt.blockNumber,
@@ -743,17 +820,17 @@ export function useRegisterAgentERC8004() {
             return Number(exactTxLog.args.agentId);
           }
         } catch {
-          // ignore and continue to final fallback
+          // continue
         }
       }
 
-      // Fallback 2: if event decode/log query fails, derive latest owned token for caller.
+      // Last resort: ERC721Enumerable (not on all deployments — often reverts)
       if (address) {
         try {
           const balance = await publicClient.readContract({
             address: identityRegistryAddress,
             abi: ERC8004IdentityABI as never,
-            functionName: "balanceOf",
+            functionName: 'balanceOf',
             args: [address as Address],
           });
           const bal = Number(balance ?? 0);
@@ -761,13 +838,13 @@ export function useRegisterAgentERC8004() {
             const tokenId = await publicClient.readContract({
               address: identityRegistryAddress,
               abi: ERC8004IdentityABI as never,
-              functionName: "tokenOfOwnerByIndex",
+              functionName: 'tokenOfOwnerByIndex',
               args: [address as Address, BigInt(bal - 1)],
             });
             if (tokenId != null) return Number(tokenId);
           }
         } catch {
-          // ignore; caller will show existing fallback message
+          // enumerable not supported
         }
       }
       return null;
