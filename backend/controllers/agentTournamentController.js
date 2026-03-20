@@ -122,6 +122,7 @@ export async function upsertTournamentPermission(req, res) {
  * POST /api/agents/:agentId/auto-join-tournament
  * Body: { tournament_id }
  * Joins a tournament using smart wallet funds (if required) subject to permission caps.
+ * Free tournaments (entry fee 0): no agent tournament permission required.
  */
 export async function autoJoinTournament(req, res) {
   try {
@@ -134,28 +135,29 @@ export async function autoJoinTournament(req, res) {
     const agent = await UserAgent.findByIdAndUser(agentId, userId);
     if (!agent) return res.status(404).json({ success: false, message: "Agent not found" });
 
-    const perm = await db("agent_tournament_permissions").where({ user_id: userId, user_agent_id: agentId }).first();
-    if (!perm?.enabled) return res.status(403).json({ success: false, message: "Agent tournament permission not enabled" });
-
     const tournament = await Tournament.findById(tournamentId);
     if (!tournament) return res.status(404).json({ success: false, message: "Tournament not found" });
     if (tournament.status !== "REGISTRATION_OPEN") return res.status(400).json({ success: false, message: "Tournament registration is closed" });
 
     const chain = User.normalizeChain(tournament.chain);
-    if (perm.chain && User.normalizeChain(perm.chain) !== chain) {
-      return res.status(400).json({ success: false, message: `Permission is restricted to ${perm.chain}` });
-    }
-
     const entryFeeUnits = BigInt(tournament.entry_fee_wei ?? 0);
-    const maxUnits = BigInt(perm.max_entry_fee_usdc ?? "0");
-    if (entryFeeUnits > maxUnits) {
-      return res.status(403).json({ success: false, message: "Tournament entry fee exceeds your agent cap" });
-    }
-    if (perm.daily_cap_usdc) {
-      const cap = BigInt(perm.daily_cap_usdc);
-      const spent = await spentTodayUsdc(userId, agentId, chain);
-      if (spent + entryFeeUnits > cap) {
-        return res.status(403).json({ success: false, message: "Daily spend cap reached for this agent" });
+
+    if (entryFeeUnits > 0n) {
+      const perm = await db("agent_tournament_permissions").where({ user_id: userId, user_agent_id: agentId }).first();
+      if (!perm?.enabled) return res.status(403).json({ success: false, message: "Agent tournament permission not enabled" });
+      if (perm.chain && User.normalizeChain(perm.chain) !== chain) {
+        return res.status(400).json({ success: false, message: `Permission is restricted to ${perm.chain}` });
+      }
+      const maxUnits = BigInt(perm.max_entry_fee_usdc ?? "0");
+      if (entryFeeUnits > maxUnits) {
+        return res.status(403).json({ success: false, message: "Tournament entry fee exceeds your agent cap" });
+      }
+      if (perm.daily_cap_usdc) {
+        const cap = BigInt(perm.daily_cap_usdc);
+        const spent = await spentTodayUsdc(userId, agentId, chain);
+        if (spent + entryFeeUnits > cap) {
+          return res.status(403).json({ success: false, message: "Daily spend cap reached for this agent" });
+        }
       }
     }
 

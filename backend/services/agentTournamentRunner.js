@@ -6,8 +6,8 @@
  * - Auto-request match start during the match start window for agent-bound entries.
  *
  * Safety:
- * - Requires explicit user permission in agent_tournament_permissions (enabled=true).
- * - Enforces max_entry_fee_usdc and optional chain restriction.
+ * - Paid tournaments: requires agent_tournament_permissions (enabled=true), caps, optional chain.
+ * - Free tournaments (entry fee 0): any user with agent + smart wallet — no spending permission.
  * - Uses audit log (agent_tournament_spend_log) for paid registrations.
  */
 import db from "../config/database.js";
@@ -20,6 +20,7 @@ import * as tournamentService from "./tournamentService.js";
 import { getChainConfig } from "../config/chains.js";
 import crypto from "crypto";
 import { signWithdrawalAuthUsdc, withdrawFromSmartWalletUsdc } from "./tycoonContract.js";
+import { listAgentSmartWalletCandidates } from "./agentTournamentFreeAgents.js";
 
 const ENABLED = process.env.ENABLE_AGENT_TOURNAMENT_RUNNER === "true";
 const POLL_MS = Math.max(2000, Number(process.env.AGENT_TOURNAMENT_RUNNER_POLL_MS) || 10000);
@@ -116,23 +117,41 @@ async function tryAutoRegisterOne(perm, tournament) {
 }
 
 async function autoRegisterLoop() {
-  const perms = await db("agent_tournament_permissions")
-    .where({ enabled: 1 })
-    .select("user_id", "user_agent_id", "max_entry_fee_usdc", "daily_cap_usdc", "chain");
-  if (!perms?.length) return;
-
-  // Fetch open tournaments (cap at 50 per poll).
   const tournaments = await Tournament.findAll({ status: "REGISTRATION_OPEN", limit: 50, offset: 0 });
   if (!tournaments?.length) return;
 
-  for (const perm of perms) {
-    for (const t of tournaments) {
+  const paidTournaments = tournaments.filter((t) => BigInt(t.entry_fee_wei ?? 0) > 0n);
+  const freeTournaments = tournaments.filter((t) => BigInt(t.entry_fee_wei ?? 0) === 0n);
+
+  const perms = await db("agent_tournament_permissions")
+    .where({ enabled: 1 })
+    .select("user_id", "user_agent_id", "max_entry_fee_usdc", "daily_cap_usdc", "chain");
+
+  for (const perm of perms || []) {
+    for (const t of paidTournaments) {
       const chain = User.normalizeChain(t.chain);
       if (perm.chain && User.normalizeChain(perm.chain) !== chain) continue;
-      // Capacity check
       const count = await TournamentEntry.countByTournament(t.id);
       if (count >= Number(t.max_players)) continue;
       await withLock(`reg_${perm.user_id}_${perm.user_agent_id}_${t.id}`, () => tryAutoRegisterOne(perm, t));
+    }
+  }
+
+  if (!freeTournaments.length) return;
+
+  const freeCandidates = await listAgentSmartWalletCandidates();
+  for (const cand of freeCandidates) {
+    const fakePerm = {
+      user_id: cand.user_id,
+      user_agent_id: cand.user_agent_id,
+      max_entry_fee_usdc: cand.max_entry_fee_usdc ?? "0",
+      daily_cap_usdc: null,
+      chain: null,
+    };
+    for (const t of freeTournaments) {
+      const count = await TournamentEntry.countByTournament(t.id);
+      if (count >= Number(t.max_players)) continue;
+      await withLock(`reg_${cand.user_id}_${cand.user_agent_id}_${t.id}`, () => tryAutoRegisterOne(fakePerm, t));
     }
   }
 }
