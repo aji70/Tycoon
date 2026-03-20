@@ -9,6 +9,14 @@ export type TournamentStatus =
   | "COMPLETED"
   | "CANCELLED";
 
+/** Bracket format (backend). */
+export type TournamentFormat =
+  | "SINGLE_ELIMINATION"
+  | "ROUND_ROBIN"
+  | "SWISS"
+  | "BATTLE_ROYALE"
+  | "GROUP_ELIMINATION";
+
 /** Entry status. */
 export type EntryStatus = "REGISTERED" | "CONFIRMED" | "DISQUALIFIED";
 
@@ -28,6 +36,7 @@ export interface Tournament {
   /** Creator wallet address (for recognizing creator when using wallet without guest login). */
   creator_address?: string | null;
   name: string;
+  format?: TournamentFormat;
   status: TournamentStatus;
   prize_source: PrizeSource;
   max_players: number;
@@ -80,10 +89,14 @@ export interface TournamentMatch {
   slot_b_type: SlotType;
   slot_b_entry_id: number | null;
   slot_b_prev_match_id: number | null;
+  /** Multiplayer tables (2–4); when set, slots A/B are the first two seats. */
+  participant_entry_ids?: number[] | null;
   game_id: number | null;
   contract_game_id: string | null;
   winner_entry_id: number | null;
   status: MatchStatus;
+  spectator_token?: string | null;
+  spectator_url?: string | null;
   slot_a_username?: string | null;
   slot_b_username?: string | null;
   winner_username?: string | null;
@@ -106,12 +119,15 @@ export interface BracketRound {
     match_index: number;
     slot_a_entry_id: number | null;
     slot_b_entry_id: number | null;
+    participant_entry_ids?: number[] | null;
     slot_a_type: SlotType;
     slot_b_type: SlotType;
     winner_entry_id: number | null;
     game_id: number | null;
     contract_game_id: string | null;
     status: MatchStatus;
+    spectator_token?: string | null;
+    spectator_url?: string | null;
     slot_a_username: string | null;
     slot_b_username: string | null;
     winner_username: string | null;
@@ -151,6 +167,7 @@ export interface CreateTournamentResponse extends Tournament {
 export interface CreateTournamentBody {
   name: string;
   chain: string;
+  format?: TournamentFormat;
   prize_source?: PrizeSource;
   max_players?: number;
   min_players?: number;

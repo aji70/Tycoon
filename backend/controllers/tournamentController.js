@@ -16,6 +16,38 @@ import { signWithdrawalAuthUsdc, withdrawFromSmartWalletUsdc } from "../services
 import { ACTIVITY_XP, awardActivityXpByAgentId } from "../services/eloService.js";
 import { listAgentSmartWalletCandidates } from "../services/agentTournamentFreeAgents.js";
 
+/**
+ * GET /api/tournaments/spectate/:token — resolve tournament match spectator link to board URL.
+ */
+export async function getSpectate(req, res) {
+  try {
+    const token = String(req.params.token || "").trim();
+    if (!token) return res.status(400).json({ success: false, message: "Token required" });
+    const match = await db("tournament_matches").where({ spectator_token: token }).first();
+    if (!match) return res.status(404).json({ success: false, message: "Spectator link not found" });
+    if (!match.game_id) {
+      return res.json({
+        success: true,
+        match_status: match.status,
+        game_code: null,
+        redirect_url: null,
+        message: "Match has not started yet",
+      });
+    }
+    const game = await db("games").where({ id: match.game_id }).first();
+    const code = game?.code ? String(game.code) : "";
+    return res.json({
+      success: true,
+      match_status: match.status,
+      game_code: code,
+      redirect_url: code ? `/board-3d-multi?gameCode=${encodeURIComponent(code)}&spectate=1` : null,
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "tournament getSpectate failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed" });
+  }
+}
+
 export async function list(req, res) {
   try {
     const { status, chain, prize_source, limit = 50, offset = 0 } = req.query;
@@ -301,21 +333,36 @@ export async function getBracket(req, res) {
         scheduled_start_at: r.scheduled_start_at ?? null,
         matches: matches
           .filter((m) => m.round_index === r.round_index)
-          .map((m) => ({
-            id: m.id,
-            match_index: m.match_index,
-            slot_a_entry_id: m.slot_a_entry_id,
-            slot_b_entry_id: m.slot_b_entry_id,
-            slot_a_type: m.slot_a_type,
-            slot_b_type: m.slot_b_type,
-            winner_entry_id: m.winner_entry_id,
-            game_id: m.game_id,
-            contract_game_id: m.contract_game_id,
-            status: m.status,
-            slot_a_username: m.slot_a_entry_id ? entryMap[m.slot_a_entry_id]?.username : null,
-            slot_b_username: m.slot_b_entry_id ? entryMap[m.slot_b_entry_id]?.username : null,
-            winner_username: m.winner_entry_id ? entryMap[m.winner_entry_id]?.username : null,
-          })),
+          .map((m) => {
+            let participant_entry_ids = null;
+            try {
+              const raw = m.participant_entry_ids;
+              if (raw != null) {
+                participant_entry_ids = typeof raw === "string" ? JSON.parse(raw) : raw;
+              }
+            } catch {
+              participant_entry_ids = null;
+            }
+            const spec = m.spectator_token ? `/spectate/${m.spectator_token}` : null;
+            return {
+              id: m.id,
+              match_index: m.match_index,
+              slot_a_entry_id: m.slot_a_entry_id,
+              slot_b_entry_id: m.slot_b_entry_id,
+              participant_entry_ids,
+              slot_a_type: m.slot_a_type,
+              slot_b_type: m.slot_b_type,
+              winner_entry_id: m.winner_entry_id,
+              game_id: m.game_id,
+              contract_game_id: m.contract_game_id,
+              status: m.status,
+              spectator_token: m.spectator_token ?? null,
+              spectator_url: spec,
+              slot_a_username: m.slot_a_entry_id ? entryMap[m.slot_a_entry_id]?.username : null,
+              slot_b_username: m.slot_b_entry_id ? entryMap[m.slot_b_entry_id]?.username : null,
+              winner_username: m.winner_entry_id ? entryMap[m.winner_entry_id]?.username : null,
+            };
+          }),
       })),
     };
     return res.json(bracket);

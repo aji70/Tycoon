@@ -17,6 +17,7 @@ import { createTournamentOnChain, registerForTournamentFor, isEscrowConfigured }
 import logger from "../config/logger.js";
 import agentRegistry from "./agentRegistry.js";
 import * as bracketEngine from "./tournamentBracketEngine.js";
+import { parseParticipantEntryIds, newSpectatorToken } from "./tournamentGroupHelpers.js";
 import { ACTIVITY_XP, awardActivityXpByAgentId } from "./eloService.js";
 
 const TOURNAMENT_SYMBOLS = ["hat", "car", "dog", "thimble", "wheelbarrow", "battleship", "boot", "iron"];
@@ -25,14 +26,29 @@ const GAME_READY_WINDOW_SECONDS = 30;
 const ACTIVE_MATCH_STATUSES = ["IN_PROGRESS", "AWAITING_PLAYERS"];
 const ACTIVE_GAME_STATUSES = ["PENDING", "RUNNING", "IN_PROGRESS"];
 
+function getMatchEntryIds(match) {
+  const parsed = parseParticipantEntryIds(match);
+  if (parsed.length >= 2) return parsed;
+  const ids = [];
+  if (match.slot_a_entry_id) ids.push(Number(match.slot_a_entry_id));
+  if (match.slot_b_entry_id) ids.push(Number(match.slot_b_entry_id));
+  return [...new Set(ids)];
+}
+
+function tournamentBoardRedirectUrl(code) {
+  const c = code ? String(code).trim() : "";
+  return `/board-3d-multi?gameCode=${encodeURIComponent(c)}`;
+}
+
 /** Tournament game code pattern (e.g. T7-R0-M0). Used to detect tournament games for "all ready" flow. */
 function isTournamentGameCode(code) {
   return code && /^T\d+-R\d+-M\d+$/i.test(String(code).trim());
 }
 
-async function assertNoCrossTournamentConflict(tournamentId, entryA, entryB) {
-  const userIds = [entryA?.user_id, entryB?.user_id]
-    .map((v) => Number(v))
+async function assertNoCrossTournamentConflict(tournamentId, entryList) {
+  const entries = Array.isArray(entryList) ? entryList.filter(Boolean) : [entryList].filter(Boolean);
+  const userIds = entries
+    .map((e) => Number(e?.user_id))
     .filter((v) => Number.isInteger(v) && v > 0);
   if (userIds.length === 0) return;
 
@@ -57,9 +73,7 @@ async function assertNoCrossTournamentConflict(tournamentId, entryA, entryB) {
     );
   }
 
-  const entryIds = [entryA?.id, entryB?.id]
-    .map((v) => Number(v))
-    .filter((v) => Number.isInteger(v) && v > 0);
+  const entryIds = entries.map((e) => Number(e?.id)).filter((v) => Number.isInteger(v) && v > 0);
   if (entryIds.length === 0) return;
 
   const entryAgentRows = await db("tournament_entry_agents")
@@ -118,11 +132,15 @@ export async function createTournament(data) {
   const min = Math.max(2, Math.min(max, Number(min_players) || 2));
 
   const normalizedChain = User.normalizeChain(chain);
+  const allowedFormats = ["SINGLE_ELIMINATION", "ROUND_ROBIN", "SWISS", "BATTLE_ROYALE", "GROUP_ELIMINATION"];
+  const fmt = data.format && allowedFormats.includes(String(data.format).toUpperCase()) ? String(data.format).toUpperCase() : "SINGLE_ELIMINATION";
+
   const payload = {
     creator_id,
     name: String(name).trim(),
     status: "REGISTRATION_OPEN",
     prize_source: prize_source || "NO_POOL",
+    format: fmt,
     max_players: max,
     min_players: min,
     entry_fee_wei: prize_source === "ENTRY_FEE_POOL" ? Number(entry_fee_wei) || 0 : 0,
@@ -288,9 +306,9 @@ export async function generateBracket(tournamentId, options = {}) {
 }
 
 /**
- * Create on-chain game + DB game for one match.
- * - If both players have password_hash: backend creates game on contract and joins both.
- * - Otherwise: create lobby game (DB only). Players go to lobby and create/join via wallet.
+ * Create on-chain game + DB game for one match (2+ players).
+ * - 2 players: existing 1v1 flow.
+ * - 3–4 players: one shared game with number_of_players = N.
  */
 async function createMatchGame(tournamentId, matchId) {
   const match = await TournamentMatch.findById(matchId);
@@ -299,11 +317,24 @@ async function createMatchGame(tournamentId, matchId) {
   if (match.game_id) return match;
 
   const tournament = await Tournament.findById(tournamentId);
+  const entryIds = getMatchEntryIds(match);
+  const entries = await Promise.all(entryIds.map((id) => TournamentEntry.findById(id)));
+  const cleaned = entries.filter(Boolean);
+  if (cleaned.length < 2 || cleaned.length !== entryIds.length) return null;
+  await assertNoCrossTournamentConflict(tournamentId, cleaned);
+  if (cleaned.length === 2) {
+    return createTwoPlayerMatchGame(tournament, match, cleaned[0], cleaned[1], tournamentId, matchId);
+  }
+  return createMultiplayerMatchGame(tournament, match, cleaned, tournamentId, matchId);
+}
+
+/**
+ * Create on-chain game + DB game for a 1v1 match.
+ * - If both players have password_hash: backend creates game on contract and joins both.
+ * - Otherwise: create lobby game (DB only). Players go to lobby and create/join via wallet.
+ */
+async function createTwoPlayerMatchGame(tournament, match, entryA, entryB, tournamentId, matchId) {
   const chain = User.normalizeChain(tournament.chain);
-  const entryA = match.slot_a_entry_id ? await TournamentEntry.findById(match.slot_a_entry_id) : null;
-  const entryB = match.slot_b_entry_id ? await TournamentEntry.findById(match.slot_b_entry_id) : null;
-  if (!entryA || !entryB) return null;
-  await assertNoCrossTournamentConflict(tournamentId, entryA, entryB);
 
   const userA = await User.findById(entryA.user_id);
   const userB = await User.findById(entryB.user_id);
@@ -469,6 +500,7 @@ async function createMatchGame(tournamentId, matchId) {
     game_id: game.id,
     contract_game_id: String(contractGameId),
     status: "IN_PROGRESS",
+    spectator_token: match.spectator_token || newSpectatorToken(),
   });
 
   return { match, game };
@@ -539,6 +571,7 @@ async function createTournamentGameOnChainLobby(tournament, match, userA, userB,
     game_id: game.id,
     contract_game_id: String(contractGameId),
     status: "AWAITING_PLAYERS",
+    spectator_token: match.spectator_token || newSpectatorToken(),
   });
   logger.info(
     { tournamentId, matchId, code, message: "Tournament game created on-chain; second player joins via game-waiting" },
@@ -612,6 +645,7 @@ async function createTournamentGameOnChainLobbyCreatorB(tournament, match, userA
     game_id: game.id,
     contract_game_id: String(contractGameId),
     status: "AWAITING_PLAYERS",
+    spectator_token: match.spectator_token || newSpectatorToken(),
   });
   logger.info(
     { tournamentId, matchId, code, message: "Tournament game created on-chain (creator B); slot A joins via game-waiting" },
@@ -651,11 +685,363 @@ async function createLobbyGame(tournament, match, userA, userB, tournamentId, ma
   await TournamentMatch.update(matchId, {
     game_id: game.id,
     status: "AWAITING_PLAYERS",
+    spectator_token: match.spectator_token || newSpectatorToken(),
   });
   logger.info(
     { tournamentId, matchId, code, message: "Lobby game created; players join via game-waiting" },
     "Tournament lobby game"
   );
+  return { match: await TournamentMatch.findById(matchId), game };
+}
+
+function pickUniqueTournamentSymbols(orderedEntries, prefByEntryId) {
+  const used = new Set();
+  const out = [];
+  for (let i = 0; i < orderedEntries.length; i++) {
+    const eid = orderedEntries[i].id;
+    const pref = prefByEntryId[eid];
+    const prefOk = pref && TOURNAMENT_SYMBOLS.includes(String(pref).toLowerCase()) ? String(pref).toLowerCase() : null;
+    if (prefOk && !used.has(prefOk)) {
+      used.add(prefOk);
+      out.push(prefOk);
+      continue;
+    }
+    const sym = TOURNAMENT_SYMBOLS.find((s) => !used.has(s)) || TOURNAMENT_SYMBOLS[i % TOURNAMENT_SYMBOLS.length];
+    used.add(sym);
+    out.push(sym);
+  }
+  return out;
+}
+
+async function bindTournamentEntryAgentsToGame(gameId, orderedEntries) {
+  try {
+    const ids = orderedEntries.map((e) => e.id);
+    const entryAgentRows = await db("tournament_entry_agents")
+      .whereIn("tournament_entry_id", ids)
+      .select("tournament_entry_id", "user_agent_id", "agent_name");
+    const byEntryId = new Map(entryAgentRows.map((r) => [Number(r.tournament_entry_id), r]));
+    let slot = 1;
+    for (const entry of orderedEntries) {
+      const row = byEntryId.get(Number(entry.id));
+      if (row?.user_agent_id) {
+        await agentRegistry.registerAgent({
+          gameId,
+          slot,
+          agentId: String(row.user_agent_id),
+          user_agent_id: Number(row.user_agent_id),
+          chainId: 42220,
+          name: row.agent_name || "Agent",
+        });
+        awardActivityXpByAgentId(Number(row.user_agent_id), ACTIVITY_XP.GAME_CREATED, "game_created").catch(() => {});
+      }
+      slot += 1;
+    }
+  } catch (err) {
+    logger.warn({ err: err?.message, gameId }, "tournament entry agent binding failed (multi)");
+  }
+}
+
+/**
+ * 3–4 player tournament table: shared contract game when all accounts allow backend join; else lobby.
+ */
+async function createMultiplayerMatchGame(tournament, match, orderedEntries, tournamentId, matchId) {
+  const N = orderedEntries.length;
+  if (N < 3 || N > 4) {
+    logger.warn({ tournamentId, matchId, N }, "createMultiplayerMatchGame: only 3–4 supported on one table");
+    return null;
+  }
+  const chain = User.normalizeChain(tournament.chain);
+  const users = await Promise.all(orderedEntries.map((e) => User.findById(e.user_id)));
+  if (users.some((u) => !u)) return null;
+
+  const code = `T${tournamentId}-R${match.round_index}-M${match.match_index}`.toUpperCase();
+  const startRequests = await db("tournament_match_start_requests").where({ match_id: matchId }).select("entry_id", "preferred_symbol");
+  const prefByEntry = Object.fromEntries((startRequests || []).map((r) => [r.entry_id, r.preferred_symbol]));
+  const symbols = pickUniqueTournamentSymbols(orderedEntries, prefByEntry);
+
+  const canBackendJoin = users.every((u) => u?.password_hash) && isContractConfigured(chain);
+
+  if (canBackendJoin && startRequests.length === 0) {
+    const creatorId = users[0]?.id ?? orderedEntries[0]?.id;
+    const game = await Game.create({
+      code,
+      mode: "PRIVATE",
+      creator_id: creatorId,
+      next_player_id: creatorId,
+      number_of_players: N,
+      status: "PENDING",
+      is_minipay: false,
+      is_ai: false,
+      chain: tournament.chain,
+      contract_game_id: null,
+    });
+    await Chat.create({ game_id: game.id, status: "open" });
+    await GameSetting.create({
+      game_id: game.id,
+      auction: true,
+      rent_in_prison: false,
+      mortgage: true,
+      even_build: true,
+      randomize_play_order: true,
+      starting_cash: DEFAULT_STARTING_CASH,
+    });
+    const specTok = match.spectator_token || newSpectatorToken();
+    await TournamentMatch.update(matchId, {
+      game_id: game.id,
+      status: "AWAITING_PLAYERS",
+      spectator_token: specTok,
+    });
+    logger.info({ tournamentId, matchId, code, N }, "Tournament multi lobby (DB); players join via game-waiting");
+    return { match: await TournamentMatch.findById(matchId), game };
+  }
+
+  if (!isContractConfigured(chain)) {
+    const creatorId = users[0]?.id ?? orderedEntries[0]?.id;
+    const game = await Game.create({
+      code,
+      mode: "PRIVATE",
+      creator_id: creatorId,
+      next_player_id: creatorId,
+      number_of_players: N,
+      status: "PENDING",
+      is_minipay: false,
+      is_ai: false,
+      chain: tournament.chain,
+      contract_game_id: null,
+    });
+    await Chat.create({ game_id: game.id, status: "open" });
+    await GameSetting.create({
+      game_id: game.id,
+      auction: true,
+      rent_in_prison: false,
+      mortgage: true,
+      even_build: true,
+      randomize_play_order: true,
+      starting_cash: DEFAULT_STARTING_CASH,
+    });
+    const specTok = match.spectator_token || newSpectatorToken();
+    await TournamentMatch.update(matchId, {
+      game_id: game.id,
+      status: "AWAITING_PLAYERS",
+      spectator_token: specTok,
+    });
+    return { match: await TournamentMatch.findById(matchId), game };
+  }
+
+  if (!canBackendJoin) {
+    const firstPwd = users.findIndex((u) => u?.password_hash);
+    if (firstPwd >= 0) {
+      const u0 = users[firstPwd];
+      let result;
+      try {
+        result = await createGameByBackend(
+          u0.address,
+          u0.password_hash || "",
+          u0.username,
+          "PRIVATE",
+          symbols[firstPwd],
+          N,
+          code,
+          DEFAULT_STARTING_CASH,
+          0n,
+          chain
+        );
+      } catch (err) {
+        logger.error({ err: err?.message, tournamentId, matchId }, "Tournament createGameByBackend (multi partial) failed");
+        throw err;
+      }
+      const contractGameId = result?.gameId;
+      if (!contractGameId) throw new Error("Contract did not return game ID");
+      const game = await Game.create({
+        code,
+        mode: "PRIVATE",
+        creator_id: u0.id,
+        next_player_id: u0.id,
+        number_of_players: N,
+        status: "PENDING",
+        is_minipay: false,
+        is_ai: false,
+        chain: tournament.chain,
+        contract_game_id: String(contractGameId),
+      });
+      await Chat.create({ game_id: game.id, status: "open" });
+      await GameSetting.create({
+        game_id: game.id,
+        auction: true,
+        rent_in_prison: false,
+        mortgage: true,
+        even_build: true,
+        randomize_play_order: true,
+        starting_cash: DEFAULT_STARTING_CASH,
+      });
+      await GamePlayer.create({
+        game_id: game.id,
+        user_id: u0.id,
+        address: u0.address,
+        balance: DEFAULT_STARTING_CASH,
+        position: 0,
+        turn_order: 1,
+        symbol: symbols[firstPwd],
+        chance_jail_card: false,
+        community_chest_jail_card: false,
+      });
+      for (let i = 0; i < N; i++) {
+        if (i === firstPwd) continue;
+        const u = users[i];
+        if (!u?.password_hash) continue;
+        try {
+          await joinGameByBackend(
+            u.address,
+            u.password_hash,
+            contractGameId,
+            u.username,
+            symbols[i],
+            code,
+            chain
+          );
+          await GamePlayer.create({
+            game_id: game.id,
+            user_id: u.id,
+            address: u.address,
+            balance: DEFAULT_STARTING_CASH,
+            position: 0,
+            turn_order: i + 1,
+            symbol: symbols[i],
+            chance_jail_card: false,
+            community_chest_jail_card: false,
+          });
+        } catch (err) {
+          logger.warn({ err: err?.message, tournamentId, matchId, userId: u.id }, "Tournament multi join skipped");
+        }
+      }
+      await bindTournamentEntryAgentsToGame(game.id, orderedEntries);
+      const specTok = match.spectator_token || newSpectatorToken();
+      await TournamentMatch.update(matchId, {
+        game_id: game.id,
+        contract_game_id: String(contractGameId),
+        status: "AWAITING_PLAYERS",
+        spectator_token: specTok,
+      });
+      return { match: await TournamentMatch.findById(matchId), game };
+    }
+    const creatorId = users[0]?.id ?? orderedEntries[0]?.id;
+    const game = await Game.create({
+      code,
+      mode: "PRIVATE",
+      creator_id: creatorId,
+      next_player_id: creatorId,
+      number_of_players: N,
+      status: "PENDING",
+      is_minipay: false,
+      is_ai: false,
+      chain: tournament.chain,
+      contract_game_id: null,
+    });
+    await Chat.create({ game_id: game.id, status: "open" });
+    await GameSetting.create({
+      game_id: game.id,
+      auction: true,
+      rent_in_prison: false,
+      mortgage: true,
+      even_build: true,
+      randomize_play_order: true,
+      starting_cash: DEFAULT_STARTING_CASH,
+    });
+    const specTok = match.spectator_token || newSpectatorToken();
+    await TournamentMatch.update(matchId, {
+      game_id: game.id,
+      status: "AWAITING_PLAYERS",
+      spectator_token: specTok,
+    });
+    return { match: await TournamentMatch.findById(matchId), game };
+  }
+
+  let result;
+  try {
+    result = await createGameByBackend(
+      users[0].address,
+      users[0].password_hash,
+      users[0].username,
+      "PRIVATE",
+      symbols[0],
+      N,
+      code,
+      DEFAULT_STARTING_CASH,
+      0n,
+      chain
+    );
+  } catch (err) {
+    logger.error({ err: err?.message, tournamentId, matchId }, "Tournament createGameByBackend (multi) failed");
+    throw err;
+  }
+  const contractGameId = result?.gameId;
+  if (!contractGameId) throw new Error("Contract did not return game ID");
+
+  for (let i = 1; i < N; i++) {
+    try {
+      await joinGameByBackend(
+        users[i].address,
+        users[i].password_hash,
+        contractGameId,
+        users[i].username,
+        symbols[i],
+        code,
+        chain
+      );
+    } catch (err) {
+      logger.error({ err: err?.message, tournamentId, matchId }, "Tournament joinGameByBackend (multi) failed");
+      throw err;
+    }
+  }
+
+  const now = new Date();
+  const game = await Game.create({
+    code,
+    mode: "PRIVATE",
+    creator_id: users[0].id,
+    next_player_id: users[0].id,
+    number_of_players: N,
+    status: "PENDING",
+    is_minipay: false,
+    is_ai: false,
+    chain: tournament.chain,
+    contract_game_id: String(contractGameId),
+    ready_window_opens_at: now,
+  });
+
+  await Chat.create({ game_id: game.id, status: "open" });
+  await GameSetting.create({
+    game_id: game.id,
+    auction: true,
+    rent_in_prison: false,
+    mortgage: true,
+    even_build: true,
+    randomize_play_order: true,
+    starting_cash: DEFAULT_STARTING_CASH,
+  });
+  for (let i = 0; i < N; i++) {
+    await GamePlayer.create({
+      game_id: game.id,
+      user_id: users[i].id,
+      address: users[i].address,
+      balance: DEFAULT_STARTING_CASH,
+      position: 0,
+      turn_order: i + 1,
+      symbol: symbols[i],
+      chance_jail_card: false,
+      community_chest_jail_card: false,
+    });
+  }
+
+  await bindTournamentEntryAgentsToGame(game.id, orderedEntries);
+  const specTok = match.spectator_token || newSpectatorToken();
+  await TournamentMatch.update(matchId, {
+    game_id: game.id,
+    contract_game_id: String(contractGameId),
+    status: "IN_PROGRESS",
+    spectator_token: specTok,
+  });
+
   return { match: await TournamentMatch.findById(matchId), game };
 }
 
@@ -679,7 +1065,8 @@ export async function startRound(tournamentId, roundIndex) {
       continue;
     }
 
-    if (match.slot_a_entry_id && match.slot_b_entry_id) {
+    const startIds = getMatchEntryIds(match);
+    if (startIds.length >= 2) {
       try {
         await createMatchGame(tournamentId, match.id);
       } catch (err) {
@@ -694,6 +1081,59 @@ export async function startRound(tournamentId, roundIndex) {
   if (tournament.status === "BRACKET_LOCKED") await Tournament.update(tournamentId, { status: "IN_PROGRESS" });
 
   return { started: matches.length };
+}
+
+async function maybeCompleteGroupEliminationTournament(tournamentId, winnerEntry) {
+  const t = await Tournament.findById(tournamentId);
+  if (!t) return;
+  await Tournament.update(tournamentId, { status: "COMPLETED" });
+  try {
+    const winnerAgentRow = await db("tournament_entry_agents")
+      .where({ tournament_entry_id: winnerEntry.id })
+      .select("user_agent_id")
+      .first();
+    const winnerAgentId = Number(winnerAgentRow?.user_agent_id || 0);
+    if (winnerAgentId) {
+      awardActivityXpByAgentId(winnerAgentId, ACTIVITY_XP.TOURNAMENT_CHAMPION, "tournament_champion").catch(() => {});
+    }
+  } catch (err) {
+    logger.warn({ err: err?.message, tournamentId }, "Tournament champion XP award failed");
+  }
+  if (t.prize_source !== "NO_POOL" && (Number(t.prize_pool_wei) > 0 || Number(t.entry_fee_wei) > 0)) {
+    try {
+      const { executePayouts } = await import("./tournamentPayoutService.js");
+      await executePayouts(tournamentId);
+    } catch (err) {
+      logger.error({ err: err?.message, tournamentId }, "Tournament executePayouts failed");
+    }
+  }
+}
+
+async function handleGroupEliminationAfterMatchResolved(match, winnerEntry) {
+  const roundMatches = await TournamentMatch.findByTournamentAndRound(match.tournament_id, match.round_index);
+  const allDone = roundMatches.every((m) => m.status === "COMPLETED" || m.status === "BYE");
+  if (!allDone) {
+    return { tournamentCompleted: false };
+  }
+
+  const roundRow = await TournamentRound.findByTournamentAndIndex(match.tournament_id, match.round_index);
+  if (roundRow) await TournamentRound.update(roundRow.id, { status: "COMPLETED", completed_at: db.fn.now() });
+
+  const winners = roundMatches.map((m) => m.winner_entry_id).filter(Boolean);
+  if (winners.length === 1) {
+    await maybeCompleteGroupEliminationTournament(match.tournament_id, winnerEntry);
+    return { tournamentCompleted: true };
+  }
+
+  const winnerEntries = await Promise.all(winners.map((id) => TournamentEntry.findById(id)));
+  const nextRoundIndex = match.round_index + 1;
+  await bracketEngine.createGroupEliminationRound(
+    match.tournament_id,
+    nextRoundIndex,
+    winnerEntries.filter(Boolean),
+    { scheduled_start_at: null }
+  );
+  return { tournamentCompleted: false };
 }
 
 /**
@@ -714,20 +1154,21 @@ export async function onGameFinished(gameId) {
     return null;
   }
 
+  const entryIdsXp = getMatchEntryIds(match);
+
   await TournamentMatch.update(match.id, { winner_entry_id: winnerEntry.id, status: "COMPLETED" });
 
   try {
     const entryAgentRows = await db("tournament_entry_agents")
-      .whereIn("tournament_entry_id", [match.slot_a_entry_id, match.slot_b_entry_id].filter(Boolean))
+      .whereIn("tournament_entry_id", entryIdsXp.length ? entryIdsXp : [match.slot_a_entry_id, match.slot_b_entry_id].filter(Boolean))
       .select("tournament_entry_id", "user_agent_id");
     const byEntry = new Map(entryAgentRows.map((r) => [Number(r.tournament_entry_id), Number(r.user_agent_id)]));
-    const slotAAgentId = byEntry.get(Number(match.slot_a_entry_id));
-    const slotBAgentId = byEntry.get(Number(match.slot_b_entry_id));
-    if (slotAAgentId) {
-      awardActivityXpByAgentId(slotAAgentId, ACTIVITY_XP.TOURNAMENT_MATCH_PLAYED, "tournament_match_played").catch(() => {});
-    }
-    if (slotBAgentId) {
-      awardActivityXpByAgentId(slotBAgentId, ACTIVITY_XP.TOURNAMENT_MATCH_PLAYED, "tournament_match_played").catch(() => {});
+    const xpEntryIds = entryIdsXp.length ? entryIdsXp : [match.slot_a_entry_id, match.slot_b_entry_id].filter(Boolean);
+    for (const eid of xpEntryIds) {
+      const aid = byEntry.get(Number(eid));
+      if (aid && Number(eid) !== Number(winnerEntry.id)) {
+        awardActivityXpByAgentId(aid, ACTIVITY_XP.TOURNAMENT_MATCH_PLAYED, "tournament_match_played").catch(() => {});
+      }
     }
     const winnerAgentId = byEntry.get(Number(winnerEntry.id));
     if (winnerAgentId) {
@@ -738,6 +1179,13 @@ export async function onGameFinished(gameId) {
   }
 
   const tournament = await Tournament.findById(match.tournament_id);
+  const format = tournament?.format || "SINGLE_ELIMINATION";
+
+  if (format === "GROUP_ELIMINATION") {
+    const grp = await handleGroupEliminationAfterMatchResolved(match, winnerEntry);
+    return { matchId: match.id, winnerEntryId: winnerEntry.id, tournamentCompleted: !!grp?.tournamentCompleted };
+  }
+
   const nextRoundMatches = await TournamentMatch.findByTournamentAndRound(match.tournament_id, match.round_index + 1);
   for (const next of nextRoundMatches || []) {
     let updated = false;
@@ -818,7 +1266,11 @@ export async function getLeaderboard(tournamentId, phase = "live") {
     if (m.winner_entry_id) entryIdToWins[m.winner_entry_id] = (entryIdToWins[m.winner_entry_id] || 0) + 1;
   }
   for (const e of entries) {
-    const lost = matches.find((m) => (m.slot_a_entry_id === e.id || m.slot_b_entry_id === e.id) && m.winner_entry_id !== e.id && m.status === "COMPLETED");
+    const lost = matches.find((m) => {
+      const inMatch =
+        parseParticipantEntryIds(m).includes(e.id) || m.slot_a_entry_id === e.id || m.slot_b_entry_id === e.id;
+      return inMatch && m.winner_entry_id !== e.id && m.status === "COMPLETED";
+    });
     entryIdToRoundEliminated[e.id] = lost != null ? lost.round_index : null;
   }
 
@@ -884,16 +1336,6 @@ export async function getLeaderboard(tournamentId, phase = "live") {
 }
 
 /**
- * Get entry IDs that are players in this match (slot_a, slot_b). For 1v1 only.
- */
-function getMatchEntryIds(match) {
-  const ids = [];
-  if (match.slot_a_entry_id) ids.push(match.slot_a_entry_id);
-  if (match.slot_b_entry_id) ids.push(match.slot_b_entry_id);
-  return ids;
-}
-
-/**
  * Resolve forfeit when 5-min window has closed: 1 request = that entry wins; 0 = both forfeit (no winner).
  */
 async function resolveForfeitForMatch(matchId) {
@@ -919,11 +1361,18 @@ async function resolveForfeitForMatch(matchId) {
     const winnerEntryId = uniqueEntryIds[0];
     await TournamentMatch.update(matchId, { winner_entry_id: winnerEntryId, status: "COMPLETED" });
     logger.info({ matchId, winnerEntryId }, "Tournament match forfeit: one player on time");
-    const match = await TournamentMatch.findById(matchId);
-    const nextRoundMatches = await TournamentMatch.findByTournamentAndRound(match.tournament_id, match.round_index + 1);
-    for (const next of nextRoundMatches || []) {
-      if (next.slot_a_prev_match_id === matchId) await TournamentMatch.update(next.id, { slot_a_entry_id: winnerEntryId });
-      if (next.slot_b_prev_match_id === matchId) await TournamentMatch.update(next.id, { slot_b_entry_id: winnerEntryId });
+    const matchAfter = await TournamentMatch.findById(matchId);
+    const t = await Tournament.findById(matchAfter.tournament_id);
+    const fmt = t?.format || "SINGLE_ELIMINATION";
+    const winnerEntry = await TournamentEntry.findById(winnerEntryId);
+    if (fmt === "GROUP_ELIMINATION" && winnerEntry) {
+      await handleGroupEliminationAfterMatchResolved(matchAfter, winnerEntry);
+    } else {
+      const nextRoundMatches = await TournamentMatch.findByTournamentAndRound(matchAfter.tournament_id, matchAfter.round_index + 1);
+      for (const next of nextRoundMatches || []) {
+        if (next.slot_a_prev_match_id === matchId) await TournamentMatch.update(next.id, { slot_a_entry_id: winnerEntryId });
+        if (next.slot_b_prev_match_id === matchId) await TournamentMatch.update(next.id, { slot_b_entry_id: winnerEntryId });
+      }
     }
     return { forfeit_win: true, winner_entry_id: winnerEntryId };
   }
@@ -946,12 +1395,17 @@ export async function requestMatchStart(tournamentId, matchId, userId, preferred
   if (match.status === "BYE" || match.status === "COMPLETED") throw new Error("Match not available");
   if (match.game_id) {
     const game = await Game.findById(match.game_id);
-    return { game_id: match.game_id, code: game?.code, redirect_url: `/game-waiting?gameCode=${game?.code || ""}` };
+    const code = game?.code;
+    return {
+      game_id: match.game_id,
+      code,
+      redirect_url: tournamentBoardRedirectUrl(code),
+    };
   }
 
   const entryIds = getMatchEntryIds(match);
   const entry = await TournamentEntry.findByTournamentAndUser(tournamentId, userId);
-  if (!entry || !entryIds.includes(entry.id)) throw new Error("You are not in this match");
+  if (!entry || !entryIds.map(Number).includes(Number(entry.id))) throw new Error("You are not in this match");
 
   const round = await TournamentRound.findByTournamentAndIndex(tournamentId, match.round_index);
   if (!round) throw new Error("Round not found");
@@ -998,23 +1452,22 @@ export async function requestMatchStart(tournamentId, matchId, userId, preferred
     : requests;
   const uniqueInWindow = [...new Set(inWindow.map((r) => r.entry_id))];
 
-  if (uniqueInWindow.length === 1) return { waiting: true };
-
-  if (uniqueInWindow.length >= 2) {
-    try {
-      await createMatchGame(tournamentId, matchId);
-      const updated = await TournamentMatch.findById(matchId);
-      const game = updated?.game_id ? await Game.findById(updated.game_id) : null;
-      return {
-        game_id: updated.game_id,
-        code: game?.code,
-        redirect_url: `/game-waiting?gameCode=${game?.code || ""}`,
-      };
-    } catch (err) {
-      logger.error({ err: err?.message, matchId }, "requestMatchStart createMatchGame failed");
-      throw err;
-    }
+  const requiredAck = entryIds.length >= 2 ? entryIds.length : 2;
+  if (uniqueInWindow.length < requiredAck) {
+    return { waiting: true };
   }
 
-  return { waiting: true };
+  try {
+    await createMatchGame(tournamentId, matchId);
+    const updated = await TournamentMatch.findById(matchId);
+    const game = updated?.game_id ? await Game.findById(updated.game_id) : null;
+    return {
+      game_id: updated.game_id,
+      code: game?.code,
+      redirect_url: tournamentBoardRedirectUrl(game?.code),
+    };
+  } catch (err) {
+    logger.error({ err: err?.message, matchId }, "requestMatchStart createMatchGame failed");
+    throw err;
+  }
 }

@@ -79,12 +79,15 @@ function buildBracketFromTournament(t: TournamentDetail | null): Bracket | null 
           match_index: m.match_index,
           slot_a_entry_id: m.slot_a_entry_id,
           slot_b_entry_id: m.slot_b_entry_id,
+          participant_entry_ids: m.participant_entry_ids ?? null,
           slot_a_type: m.slot_a_type,
           slot_b_type: m.slot_b_type,
           winner_entry_id: m.winner_entry_id,
           game_id: m.game_id,
           contract_game_id: m.contract_game_id ?? null,
           status: m.status,
+          spectator_token: m.spectator_token ?? null,
+          spectator_url: m.spectator_url ?? null,
           slot_a_username: m.slot_a_entry_id ? (entryMap.get(m.slot_a_entry_id)?.username ?? null) : null,
           slot_b_username: m.slot_b_entry_id ? (entryMap.get(m.slot_b_entry_id)?.username ?? null) : null,
           winner_username: m.winner_entry_id ? (entryMap.get(m.winner_entry_id)?.username ?? null) : null,
@@ -131,13 +134,21 @@ export default function TournamentDetailPage() {
   const START_WINDOW_MINUTES = 5;
 
   const isInMatch = useCallback(
-    (m: { slot_a_entry_id: number | null; slot_b_entry_id: number | null }) => {
+    (m: {
+      slot_a_entry_id: number | null;
+      slot_b_entry_id: number | null;
+      participant_entry_ids?: number[] | null;
+    }) => {
       if (!tournament?.entries) return false;
       const uid = guestUser?.id;
       const addr = (walletAddress ?? guestUser?.address)?.toLowerCase();
+      const seatIds =
+        m.participant_entry_ids && m.participant_entry_ids.length >= 2
+          ? m.participant_entry_ids
+          : [m.slot_a_entry_id, m.slot_b_entry_id].filter((x): x is number => x != null);
       return tournament.entries.some(
         (e) =>
-          (e.id === m.slot_a_entry_id || e.id === m.slot_b_entry_id) &&
+          seatIds.includes(e.id) &&
           ((uid != null && e.user_id === uid) || (addr != null && e.address?.toLowerCase() === addr))
       );
     },
@@ -395,6 +406,11 @@ export default function TournamentDetailPage() {
             </span>
             <span>{formatEntryFee(tournament.entry_fee_wei)}</span>
             <span>{tournament.chain}</span>
+            {tournament.format && (
+              <span className="text-white/55">
+                {String(tournament.format).replace(/_/g, " ")}
+              </span>
+            )}
           </div>
 
           {actionError && (
@@ -583,12 +599,26 @@ export default function TournamentDetailPage() {
                             m.status !== "BYE" &&
                             isInMatch(m);
                           const hasGameForBoard = !!m.game_id;
+                          const participantIds =
+                            m.participant_entry_ids && m.participant_entry_ids.length >= 2
+                              ? m.participant_entry_ids
+                              : [m.slot_a_entry_id, m.slot_b_entry_id].filter(
+                                  (x): x is number => x != null
+                                );
+                          const tableNames = participantIds.map((pid) => {
+                            const un =
+                              m.slot_a_entry_id === pid
+                                ? m.slot_a_username
+                                : m.slot_b_entry_id === pid
+                                  ? m.slot_b_username
+                                  : tournament.entries?.find((e) => e.id === pid)?.username;
+                            return un ?? `#${pid}`;
+                          });
                           const needsGameCreated =
                             !m.game_id &&
                             m.status !== "BYE" &&
-                            m.slot_a_entry_id &&
-                            m.slot_b_entry_id &&
-                            !m.winner_entry_id;
+                            !m.winner_entry_id &&
+                            (participantIds.length >= 2 || (!!m.slot_a_entry_id && !!m.slot_b_entry_id));
                           const canCreateGame = needsGameCreated && isCreator;
                           // Use numeric tournament.id so game code matches backend (e.g. T24-R0-M0), not URL slug (e.g. 9OJXTLE4)
                           const gameCodeForMatch = `T${tournament?.id ?? id}-R${r.round_index}-M${m.match_index}`.toUpperCase();
@@ -597,30 +627,50 @@ export default function TournamentDetailPage() {
                               key={m.id}
                               className="py-2 px-3 rounded-lg bg-black/20 text-sm space-y-2"
                             >
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="truncate">
-                                  {m.slot_a_username ?? (m.slot_a_type === "BYE" ? "BYE" : "—")}
-                                </span>
-                                <span className="text-white/50">vs</span>
-                                <span className="truncate">
-                                  {m.slot_b_username ?? (m.slot_b_type === "BYE" ? "BYE" : "—")}
-                                </span>
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <p className="text-white/90 text-sm min-w-0 break-words">
+                                  {tableNames.join(" · ")}
+                                </p>
                                 {m.winner_username && (
-                                  <span className="text-cyan-400 text-xs">
+                                  <span className="text-cyan-400 text-xs shrink-0">
                                     Winner: {m.winner_username}
                                   </span>
                                 )}
                               </div>
+                              {m.spectator_url && (
+                                <p className="text-xs text-white/45 break-all">
+                                  Watch link:{" "}
+                                  <Link href={m.spectator_url} className="text-cyan-400/90 hover:underline">
+                                    {m.spectator_url}
+                                  </Link>
+                                </p>
+                              )}
                               {(hasGameForBoard || showStartNow || canCreateGame || needsGameCreated) && (
-                                <div className="flex justify-end">
+                                <div className="flex flex-wrap justify-end gap-2">
                                   {hasGameForBoard ? (
-                                    <Link
-                                      href={`/game-waiting?gameCode=${encodeURIComponent(gameCodeForMatch)}`}
-                                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500/25 border border-cyan-500/60 text-cyan-300 font-medium hover:bg-cyan-500/35 transition-colors"
-                                    >
-                                      <Play className="w-4 h-4" />
-                                      Go to lobby
-                                    </Link>
+                                    <>
+                                      <Link
+                                        href={`/board-3d-multi?gameCode=${encodeURIComponent(gameCodeForMatch)}`}
+                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500/25 border border-cyan-500/60 text-cyan-300 font-medium hover:bg-cyan-500/35 transition-colors"
+                                      >
+                                        <Play className="w-4 h-4" />
+                                        Play (board)
+                                      </Link>
+                                      <Link
+                                        href={`/game-waiting?gameCode=${encodeURIComponent(gameCodeForMatch)}`}
+                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-white/15 text-white/85 font-medium hover:bg-white/10 transition-colors"
+                                      >
+                                        Lobby
+                                      </Link>
+                                      {m.spectator_url ? (
+                                        <Link
+                                          href={m.spectator_url}
+                                          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-500/15 border border-violet-500/40 text-violet-200 font-medium hover:bg-violet-500/25 transition-colors"
+                                        >
+                                          Spectate
+                                        </Link>
+                                      ) : null}
+                                    </>
                                   ) : showStartNow ? (
                                     <button
                                       type="button"
