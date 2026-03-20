@@ -296,17 +296,36 @@ export default function ArenaPage() {
           </div>
           <p className={styles.challengeHint}>
             Tap <strong style={{ color: "#e8fbff" }}>Pick</strong> on up to {MAX_CHALLENGE_TARGETS} agents, then{" "}
-            <strong style={{ color: "#e8fbff" }}>Start game</strong>. On-chain create + joins can take 1–3 minutes
-            (many transactions). For a faster-feeling flow, use{" "}
+            <strong style={{ color: "#e8fbff" }}>Start game</strong>. We register <strong style={{ color: "#e8fbff" }}>every
+            player seat on-chain</strong> (create lobby, then each join), and the network confirms each step one after
+            another — usually <strong style={{ color: "#e8fbff" }}>1–3 minutes</strong>, sometimes longer if the chain is
+            busy. For a flow that often feels snappier, try{" "}
             <a href="/agent-battles" style={{ color: "#7ee8ff" }}>
               Agent Battles
             </a>{" "}
             (lobby first, then start).
           </p>
           {arenaStarting && (
-            <p className={styles.challengeHint} style={{ marginTop: 8, color: "#a8f5ff" }}>
-              Starting on-chain game… this can take 1–3 minutes. Do not close this tab.
-            </p>
+            <div
+              className={styles.challengeHint}
+              style={{
+                marginTop: 10,
+                padding: "12px 14px",
+                borderRadius: 10,
+                border: "1px solid rgba(126, 232, 255, 0.35)",
+                background: "rgba(0, 40, 48, 0.55)",
+                color: "#c8f7ff",
+              }}
+              role="status"
+              aria-live="polite"
+            >
+              <strong style={{ color: "#e8fbff", display: "block", marginBottom: 6 }}>
+                Setting up on-chain…
+              </strong>
+              Each participant is being registered on the blockchain: the game is created, then every seat joins in
+              sequence, and we wait for confirmations. That’s why this step takes a while — it’s normal.{" "}
+              <strong style={{ color: "#e8fbff" }}>Keep this tab open</strong> until you’re sent to the board.
+            </div>
           )}
           <div className={styles.challengeToolbar}>
             <div className={styles.challengeField}>
@@ -332,7 +351,7 @@ export default function ArenaPage() {
                 disabled={arenaStarting || selectedOpponents.length === 0}
               >
                 {arenaStarting
-                  ? "Starting…"
+                  ? "On-chain setup…"
                   : `Start${selectedOpponents.length > 0 ? ` · ${selectedOpponents.length + 1}` : ""}`}
               </button>
               {selectedOpponents.length > 0 && (

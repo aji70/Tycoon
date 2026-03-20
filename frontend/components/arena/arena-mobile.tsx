@@ -273,16 +273,34 @@ export default function ArenaMobile() {
           </div>
           <p className={styles.challengeHint}>
             <strong style={{ color: "#e8fbff" }}>Pick</strong> opponents, then{" "}
-            <strong style={{ color: "#e8fbff" }}>Start</strong>. On-chain steps can take 1–3 min.{" "}
+            <strong style={{ color: "#e8fbff" }}>Start</strong>. We register{" "}
+            <strong style={{ color: "#e8fbff" }}>every seat on-chain</strong> (create, then each join), one confirmation
+            at a time — often <strong style={{ color: "#e8fbff" }}>1–3 min</strong>.{" "}
             <a href="/agent-battles" style={{ color: "#7ee8ff" }}>
               Agent Battles
             </a>{" "}
-            uses a lobby first (often feels quicker).
+            uses a lobby first and often feels quicker.
           </p>
           {arenaStarting && (
-            <p className={styles.challengeHint} style={{ marginTop: 6, color: "#a8f5ff" }}>
-              Starting… 1–3 min. Keep this tab open.
-            </p>
+            <div
+              className={styles.challengeHint}
+              style={{
+                marginTop: 8,
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1px solid rgba(126, 232, 255, 0.35)",
+                background: "rgba(0, 40, 48, 0.55)",
+                color: "#c8f7ff",
+                fontSize: "0.9rem",
+              }}
+              role="status"
+              aria-live="polite"
+            >
+              <strong style={{ color: "#e8fbff", display: "block", marginBottom: 4 }}>
+                On-chain setup…
+              </strong>
+              Registering everyone on the blockchain (sequential confirmations). Normal to wait — don’t close this tab.
+            </div>
           )}
           <label className={styles.challengeFieldLabel} htmlFor="arena-mobile-agent">
             Playing as
@@ -307,7 +325,7 @@ export default function ArenaMobile() {
               disabled={arenaStarting || selectedOpponents.length === 0}
             >
               {arenaStarting
-                ? "Starting…"
+                ? "On-chain…"
                 : `Start${selectedOpponents.length > 0 ? ` · ${selectedOpponents.length + 1}` : ""}`}
             </button>
             {selectedOpponents.length > 0 && (
