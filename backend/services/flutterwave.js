@@ -98,18 +98,21 @@ export async function initializePayment({
     customizationsOverride && typeof customizationsOverride === "object" && Object.keys(customizationsOverride).length > 0
       ? { ...defaultCustomizations, ...customizationsOverride }
       : defaultCustomizations;
-  // Match Flutterwave doc: tx_ref, amount (number), currency, redirect_url, customer (email, name, phonenumber)
-  // payment_options: comma-separated, no spaces. amount as number for v3 compatibility.
+  // Standard POST /v3/payments: tx_ref, amount, currency, redirect_url, customer (email required).
+  // NGN checkout often rejects generic errors ("required parameters missing") if customer.name/fullname
+  // or phone is absent or mis-keyed; we send both name + fullname and phonenumber (Flutterwave's usual key).
+  // Amount: send as string — matches official examples and avoids strict numeric validation edge cases.
   const amountRounded = Math.round(amount);
   const payload = {
     tx_ref: String(txRef),
-    amount: amountRounded,
+    amount: String(amountRounded),
     currency: "NGN",
     redirect_url: String(redirectUrl),
     payment_options: "card,ussd,account",
     customer: {
       email: customerEmail,
       name: customerNameStr,
+      fullname: customerNameStr,
       phonenumber: customerPhone,
       country: "NG",
     },
@@ -160,7 +163,15 @@ export async function initializePayment({
     const parts = Array.isArray(validation)
       ? validation.map((v) => v.field_name || v.field || v.message || String(v))
       : [];
-    const detail = parts.length ? `${msg}: ${parts.join(", ")}` : msg;
+    const dataHint =
+      data.data && typeof data.data === "object" && !Array.isArray(data.data)
+        ? JSON.stringify(
+            Object.fromEntries(
+              Object.entries(data.data).filter(([k]) => !["link", "checkout_options"].includes(k))
+            )
+          ).slice(0, 500)
+        : "";
+    const detail = parts.length ? `${msg}: ${parts.join(", ")}` : dataHint ? `${msg} (${dataHint})` : msg;
     logger.warn({ flwStatus: res.status, flwResponse: data }, "Flutterwave payments API error");
     throw new Error(detail);
   }
