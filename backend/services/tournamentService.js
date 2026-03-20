@@ -22,10 +22,77 @@ import { ACTIVITY_XP, awardActivityXpByAgentId } from "./eloService.js";
 const TOURNAMENT_SYMBOLS = ["hat", "car", "dog", "thimble", "wheelbarrow", "battleship", "boot", "iron"];
 const DEFAULT_STARTING_CASH = 1500;
 const GAME_READY_WINDOW_SECONDS = 30;
+const ACTIVE_MATCH_STATUSES = ["IN_PROGRESS", "AWAITING_PLAYERS"];
+const ACTIVE_GAME_STATUSES = ["PENDING", "RUNNING", "IN_PROGRESS"];
 
 /** Tournament game code pattern (e.g. T7-R0-M0). Used to detect tournament games for "all ready" flow. */
 function isTournamentGameCode(code) {
   return code && /^T\d+-R\d+-M\d+$/i.test(String(code).trim());
+}
+
+async function assertNoCrossTournamentConflict(tournamentId, entryA, entryB) {
+  const userIds = [entryA?.user_id, entryB?.user_id]
+    .map((v) => Number(v))
+    .filter((v) => Number.isInteger(v) && v > 0);
+  if (userIds.length === 0) return;
+
+  const activeUserConflict = await db("tournament_matches as tm")
+    .join("games as g", "g.id", "tm.game_id")
+    .join("tournament_entries as te", function joinEntries() {
+      this.on("te.id", "=", "tm.slot_a_entry_id").orOn("te.id", "=", "tm.slot_b_entry_id");
+    })
+    .whereIn("tm.status", ACTIVE_MATCH_STATUSES)
+    .whereIn("g.status", ACTIVE_GAME_STATUSES)
+    .whereIn("te.user_id", userIds)
+    .whereNot("tm.tournament_id", Number(tournamentId))
+    .select("tm.tournament_id", "te.user_id")
+    .first();
+
+  if (activeUserConflict) {
+    const blockingTournament = await Tournament.findById(activeUserConflict.tournament_id);
+    const blockingSlug = blockingTournament?.code || blockingTournament?.id || activeUserConflict.tournament_id;
+    const blockingName = blockingTournament?.name || `Tournament ${activeUserConflict.tournament_id}`;
+    throw new Error(
+      `A player is already active in ${blockingName}. Finish that board first: /tournaments/${blockingSlug}`
+    );
+  }
+
+  const entryIds = [entryA?.id, entryB?.id]
+    .map((v) => Number(v))
+    .filter((v) => Number.isInteger(v) && v > 0);
+  if (entryIds.length === 0) return;
+
+  const entryAgentRows = await db("tournament_entry_agents")
+    .whereIn("tournament_entry_id", entryIds)
+    .whereNotNull("user_agent_id")
+    .select("user_agent_id");
+  const agentIds = [...new Set((entryAgentRows || []).map((r) => Number(r.user_agent_id)).filter((v) => v > 0))];
+  if (agentIds.length === 0) return;
+
+  const activeAgentConflict = await db("tournament_matches as tm")
+    .join("games as g", "g.id", "tm.game_id")
+    .join("tournament_entry_agents as tea", function joinAgents() {
+      this.on("tea.tournament_entry_id", "=", "tm.slot_a_entry_id").orOn(
+        "tea.tournament_entry_id",
+        "=",
+        "tm.slot_b_entry_id"
+      );
+    })
+    .whereIn("tm.status", ACTIVE_MATCH_STATUSES)
+    .whereIn("g.status", ACTIVE_GAME_STATUSES)
+    .whereIn("tea.user_agent_id", agentIds)
+    .whereNot("tm.tournament_id", Number(tournamentId))
+    .select("tm.tournament_id", "tea.user_agent_id")
+    .first();
+
+  if (activeAgentConflict) {
+    const blockingTournament = await Tournament.findById(activeAgentConflict.tournament_id);
+    const blockingSlug = blockingTournament?.code || blockingTournament?.id || activeAgentConflict.tournament_id;
+    const blockingName = blockingTournament?.name || `Tournament ${activeAgentConflict.tournament_id}`;
+    throw new Error(
+      `An agent is already active in ${blockingName}. Finish that board first: /tournaments/${blockingSlug}`
+    );
+  }
 }
 
 /**
@@ -236,6 +303,7 @@ async function createMatchGame(tournamentId, matchId) {
   const entryA = match.slot_a_entry_id ? await TournamentEntry.findById(match.slot_a_entry_id) : null;
   const entryB = match.slot_b_entry_id ? await TournamentEntry.findById(match.slot_b_entry_id) : null;
   if (!entryA || !entryB) return null;
+  await assertNoCrossTournamentConflict(tournamentId, entryA, entryB);
 
   const userA = await User.findById(entryA.user_id);
   const userB = await User.findById(entryB.user_id);

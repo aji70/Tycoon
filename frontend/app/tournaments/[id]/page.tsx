@@ -44,6 +44,12 @@ function statusColor(status: string): string {
   }
 }
 
+function extractTournamentPathFromMessage(message: string | null): string | null {
+  if (!message) return null;
+  const match = message.match(/(\/tournaments\/[A-Za-z0-9_-]+)/);
+  return match?.[1] ?? null;
+}
+
 /** Build bracket from tournament detail (rounds + matches + entries) so players see bracket even if bracket API fails or is slow. */
 function buildBracketFromTournament(t: TournamentDetail | null): Bracket | null {
   if (!t?.rounds?.length || !t?.matches) return null;
@@ -344,6 +350,7 @@ export default function TournamentDetailPage() {
     displayBracket?.rounds?.find(
       (r) => r.status === "PENDING" && r.matches?.some((m) => m.status === "PENDING" || m.status === "AWAITING_PLAYERS")
     );
+  const conflictPath = extractTournamentPathFromMessage(actionError);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-white">
@@ -379,7 +386,12 @@ export default function TournamentDetailPage() {
           {actionError && (
             <p className="mt-3 text-red-400 text-sm flex items-center gap-2">
               <AlertCircle className="w-4 h-4" />
-              {actionError}
+              <span>{actionError.replace(/\s*:\s*\/tournaments\/[A-Za-z0-9_-]+/, "")}</span>
+              {conflictPath && (
+                <Link href={conflictPath} className="text-cyan-300 underline hover:text-cyan-200">
+                  Open blocking tournament
+                </Link>
+              )}
             </p>
           )}
           {actionSuccess && (
