@@ -54,6 +54,7 @@ interface Agent {
   win_rate_pct?: number | null;
   is_public?: boolean;
   status?: string;
+  erc8004_agent_id?: string | null;
 }
 
 interface LeaderboardEntry extends Agent {
@@ -635,6 +636,10 @@ export default function ArenaPage() {
                         <span className={styles.value}>
                           {agent.is_public ? "🌐 Public" : "🔒 Private"}
                         </span>
+                      </div>
+                      <div className={styles.statRow}>
+                        <span className={styles.label}>ERC-8004:</span>
+                        <span className={styles.value}>{agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "Not linked"}</span>
                       </div>
                     </div>
 
