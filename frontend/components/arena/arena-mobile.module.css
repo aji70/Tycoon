@@ -1,48 +1,102 @@
-.container {
-  width: 100%;
-  max-width: 100%;
-  padding: 16px 12px;
+.pageShell {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 100% 50% at 50% -10%, rgba(0, 200, 220, 0.12), transparent 50%),
+    linear-gradient(180deg, #05080d 0%, #0a1018 45%, #0c141f 100%);
   overflow-x: hidden;
 }
 
-.header {
+.container {
+  width: 100%;
+  max-width: 100%;
+  padding: 16px 14px 28px;
+}
+
+.hero {
   text-align: center;
-  margin-bottom: 24px;
-  border-bottom: 2px solid #333;
-  padding-bottom: 16px;
+  margin-bottom: 18px;
+  padding: 20px 16px 18px;
+  border-radius: 18px;
+  background: linear-gradient(155deg, rgba(14, 32, 42, 0.5) 0%, rgba(8, 18, 26, 0.42) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.12);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 }
 
-.header h1 {
-  font-size: 2rem;
-  margin: 0;
-  color: #fff;
+.heroInner {
+  position: relative;
 }
 
-.header p {
-  font-size: 0.9rem;
-  color: #aaa;
-  margin: 8px 0 0 0;
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b8f7ff;
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.26);
+  margin-bottom: 10px;
 }
 
-/* Tabs - Icon only on mobile */
-.tabs {
+.heroTitle {
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin: 0 0 8px;
+  background: linear-gradient(120deg, #f0fdff 0%, #9ef0ff 45%, #00d8ea 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.heroSubtitle {
+  font-size: 0.88rem;
+  color: #8aa8b0;
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+
+.heroLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #e8fbff;
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.32);
+  text-decoration: none;
+}
+
+/* Pill tabs */
+.tabBar {
   display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-  border-bottom: 1px solid #1d3e45;
-  justify-content: space-around;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .tab {
-  padding: 10px 6px 9px;
+  flex: 1;
+  min-width: 0;
+  padding: 10px 4px;
   background: transparent;
   border: none;
-  color: #aaa;
+  border-radius: 10px;
+  color: #7a939c;
   cursor: pointer;
-  border-bottom: 3px solid transparent;
-  transition: all 0.3s ease;
-  flex: 1;
-  text-align: center;
+  transition: color 0.2s, background 0.2s, box-shadow 0.2s;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -50,25 +104,33 @@
 }
 
 .tabIcon {
-  font-size: 1.2rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.9;
 }
 
 .tabLabel {
-  font-size: 0.68rem;
-  letter-spacing: 0.02em;
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1;
 }
 
 .tab:hover {
-  color: #fff;
+  color: #e8fbff;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .tab.active {
-  color: #fff;
-  border-bottom-color: #00F0FF;
+  color: #031014;
+  background: linear-gradient(135deg, #6effe8 0%, #00e8f8 55%, #00b8d4 100%);
+  box-shadow: 0 3px 16px rgba(0, 240, 255, 0.22);
+}
+
+.tab.active .tabIcon {
+  opacity: 1;
 }
 
 .error {
@@ -82,10 +144,30 @@
 }
 
 .loading {
-  text-align: center;
-  padding: 32px 16px;
-  color: #aaa;
-  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 36px 16px;
+  color: #9ee8f0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.loading::before {
+  content: "";
+  width: 22px;
+  height: 22px;
+  border: 3px solid rgba(0, 240, 255, 0.15);
+  border-top-color: #00f0ff;
+  border-radius: 50%;
+  animation: arenaSpinMobile 0.75s linear infinite;
+}
+
+@keyframes arenaSpinMobile {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .sectionHead {
@@ -114,16 +196,19 @@
 }
 
 .tournamentPanel {
-  background: linear-gradient(135deg, #0a1618 0%, #122428 100%);
-  border: 1px solid #1a4a52;
-  border-radius: 12px;
-  padding: 14px;
+  background: linear-gradient(145deg, rgba(12, 28, 36, 0.75) 0%, rgba(8, 20, 28, 0.85) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.14);
+  border-radius: 16px;
+  padding: 16px;
   margin-bottom: 20px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
 }
 
 .tournamentPanel h2 {
-  margin: 0 0 8px 0;
-  font-size: 1.05rem;
+  margin: 0 0 10px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   color: #e8fbff;
 }
 
@@ -216,11 +301,12 @@
 }
 
 .agentCard {
-  background: linear-gradient(135deg, #121a1e 0%, #1e2a30 100%);
-  border: 1px solid #2f4e56;
-  border-radius: 12px;
+  background: linear-gradient(155deg, rgba(22, 32, 40, 0.92) 0%, rgba(14, 22, 30, 0.96) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.12);
+  border-radius: 14px;
   padding: 14px;
-  transition: all 0.3s ease;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.22);
 }
 
 .agentCard:active {
@@ -271,13 +357,17 @@
 }
 
 .tierbadge {
-  padding: 6px 10px;
-  border-radius: 4px;
-  font-weight: bold;
-  font-size: 0.75rem;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   white-space: nowrap;
-  color: #000;
+  color: #0a0e12;
   flex-shrink: 0;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 .tierBadge {

@@ -9,6 +9,16 @@ import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/Cont
 import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
 import ArenaMobile from "@/components/arena/arena-mobile";
+import {
+  Swords,
+  Search,
+  Trophy,
+  Target,
+  UserRound,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+} from "lucide-react";
 
 const MAX_CHALLENGE_TARGETS = 7;
 
@@ -356,51 +366,78 @@ export default function ArenaPage() {
   }
 
   const discoverList = agents.filter((agent) => !myAgents.some((m) => m.id === agent.id));
+  const hasNextDiscoverPage = agents.length >= 20;
+  const showDiscoverPagination = activeTab === "discover" && (page > 1 || hasNextDiscoverPage);
 
   return (
-    <div className={styles.container}>
-      <header className={styles.header}>
-        <h1>⚔️ Agent Arena</h1>
-        <p>XP, quick challenges, and bracket tournaments (optional USDC pool via escrow)</p>
-        <p style={{ marginTop: 8 }}>
-          <Link href="/agents" style={{ color: "#7ee8ff", textDecoration: "underline" }}>
-            Manage / register agents in My Agents →
-          </Link>
-        </p>
-      </header>
+    <div className={styles.pageShell}>
+      <div className={styles.container}>
+        <header className={styles.hero}>
+          <div className={styles.heroInner}>
+            <span className={styles.heroBadge}>
+              <Swords className="w-3.5 h-3.5" aria-hidden />
+              PvP agents
+            </span>
+            <h1 className={styles.heroTitle}>Agent Arena</h1>
+            <p className={styles.heroSubtitle}>
+              Challenge public agents on-chain, climb the leaderboard, and join bracket tournaments with optional USDC
+              pools.
+            </p>
+            <Link href="/agents" className={styles.heroLink}>
+              <ExternalLink className="w-4 h-4" aria-hidden />
+              Manage &amp; register agents
+            </Link>
+          </div>
+        </header>
 
-      <div className={styles.tabs}>
-        <button
-          className={`${styles.tab} ${activeTab === "discover" ? styles.active : ""}`}
-          onClick={() => {
-            setActiveTab("discover");
-            setPage(1);
-          }}
-        >
-          🔍 Discover
-        </button>
-        <button
-          className={`${styles.tab} ${activeTab === "leaderboard" ? styles.active : ""}`}
-          onClick={() => setActiveTab("leaderboard")}
-        >
-          🏆 Leaderboard
-        </button>
-        <button
-          className={`${styles.tab} ${activeTab === "tournaments" ? styles.active : ""}`}
-          onClick={() => setActiveTab("tournaments")}
-        >
-          🎯 Tournaments
-        </button>
-        <button
-          className={`${styles.tab} ${activeTab === "my-agents" ? styles.active : ""}`}
-          onClick={() => setActiveTab("my-agents")}
-        >
-          👤 My Agents
-        </button>
-      </div>
+        <nav className={styles.tabBar} aria-label="Arena sections">
+          <button
+            type="button"
+            className={`${styles.tab} ${activeTab === "discover" ? styles.active : ""}`}
+            onClick={() => {
+              setActiveTab("discover");
+              setPage(1);
+            }}
+          >
+            <span className={styles.tabIcon}>
+              <Search className="w-4 h-4" aria-hidden />
+            </span>
+            Discover
+          </button>
+          <button
+            type="button"
+            className={`${styles.tab} ${activeTab === "leaderboard" ? styles.active : ""}`}
+            onClick={() => setActiveTab("leaderboard")}
+          >
+            <span className={styles.tabIcon}>
+              <Trophy className="w-4 h-4" aria-hidden />
+            </span>
+            Leaderboard
+          </button>
+          <button
+            type="button"
+            className={`${styles.tab} ${activeTab === "tournaments" ? styles.active : ""}`}
+            onClick={() => setActiveTab("tournaments")}
+          >
+            <span className={styles.tabIcon}>
+              <Target className="w-4 h-4" aria-hidden />
+            </span>
+            Tournaments
+          </button>
+          <button
+            type="button"
+            className={`${styles.tab} ${activeTab === "my-agents" ? styles.active : ""}`}
+            onClick={() => setActiveTab("my-agents")}
+          >
+            <span className={styles.tabIcon}>
+              <UserRound className="w-4 h-4" aria-hidden />
+            </span>
+            My agents
+          </button>
+        </nav>
 
       {error && <div className={styles.error}>{error}</div>}
-      {loading && <div className={styles.loading}>Loading...</div>}
+      {loading && <div className={styles.loading}>Loading</div>}
 
       {activeTab === "discover" && isAuthed && myAgents.length > 0 && (
         <section className={styles.challengePanel} aria-label="Challenge setup">
@@ -481,64 +518,95 @@ export default function ArenaPage() {
       )}
 
       {activeTab === "discover" && (
-        <div className={styles.agentsGrid}>
-          {discoverList.map((agent) => (
-            <div key={agent.id} className={styles.agentCard}>
-              <div className={styles.agentHeader}>
-                <h3>{agent.name}</h3>
-                <div
-                  className={styles.tierbadge}
-                  style={{ backgroundColor: TierColors[agent.tier_color] }}
-                >
-                  {tierLabelOf(agent)}
-                </div>
-              </div>
-
-              <div className={styles.agentStats}>
-                <div className={styles.statRow}>
-                  <span className={styles.label}>XP:</span>
-                  <span className={styles.value}>{xpOf(agent)}</span>
-                </div>
-                <div className={styles.statRow}>
-                  <span className={styles.label}>Peak XP:</span>
-                  <span className={styles.value}>{peakXpOf(agent)}</span>
-                </div>
-                <div className={styles.statRow}>
-                  <span className={styles.label}>Record:</span>
-                  <span className={styles.value}>{recordOf(agent)}</span>
-                </div>
-                <div className={styles.statRow}>
-                  <span className={styles.label}>Win rate:</span>
-                  <span className={styles.value}>
-                    {agent.win_rate_pct != null ? `${agent.win_rate_pct}%` : agent.win_rate ?? "N/A"}
-                  </span>
-                </div>
-                <div className={styles.statRow}>
-                  <span className={styles.label}>ERC-8004:</span>
-                  <span className={styles.value}>{agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "Not linked"}</span>
-                </div>
-              </div>
-
-              <div className={styles.agentFooter}>
-                <span className={styles.creatorName}>by {agent.username}</span>
-                {isAuthed && myAgents.length > 0 && (
-                  <div className={styles.pickRow}>
-                    <button
-                      type="button"
-                      className={`${styles.pickBtn} ${
-                        selectedOpponents.includes(agent.id) ? styles.pickBtnOn : styles.pickBtnOff
-                      }`}
-                      onClick={() => toggleOpponentSelect(agent.id)}
-                      aria-pressed={selectedOpponents.includes(agent.id)}
-                    >
-                      {selectedOpponents.includes(agent.id) ? "✓ Picked" : "+ Pick"}
-                    </button>
+        <>
+          <div className={styles.agentsGrid}>
+            {discoverList.map((agent) => (
+              <div key={agent.id} className={styles.agentCard}>
+                <div className={styles.agentHeader}>
+                  <h3>{agent.name}</h3>
+                  <div
+                    className={styles.tierbadge}
+                    style={{ backgroundColor: TierColors[agent.tier_color] }}
+                  >
+                    {tierLabelOf(agent)}
                   </div>
-                )}
+                </div>
+
+                <div className={styles.agentStats}>
+                  <div className={styles.statRow}>
+                    <span className={styles.label}>XP</span>
+                    <span className={styles.value}>{xpOf(agent)}</span>
+                  </div>
+                  <div className={styles.statRow}>
+                    <span className={styles.label}>Peak XP</span>
+                    <span className={styles.value}>{peakXpOf(agent)}</span>
+                  </div>
+                  <div className={styles.statRow}>
+                    <span className={styles.label}>Record</span>
+                    <span className={styles.value}>{recordOf(agent)}</span>
+                  </div>
+                  <div className={styles.statRow}>
+                    <span className={styles.label}>Win rate</span>
+                    <span className={styles.value}>
+                      {agent.win_rate_pct != null ? `${agent.win_rate_pct}%` : agent.win_rate ?? "N/A"}
+                    </span>
+                  </div>
+                  <div className={styles.statRow}>
+                    <span className={styles.label}>ERC-8004</span>
+                    <span className={styles.value}>{agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "—"}</span>
+                  </div>
+                </div>
+
+                <div className={styles.agentFooter}>
+                  <span className={styles.creatorName}>by {agent.username}</span>
+                  {isAuthed && myAgents.length > 0 && (
+                    <div className={styles.pickRow}>
+                      <button
+                        type="button"
+                        className={`${styles.pickBtn} ${
+                          selectedOpponents.includes(agent.id) ? styles.pickBtnOn : styles.pickBtnOff
+                        }`}
+                        onClick={() => toggleOpponentSelect(agent.id)}
+                        aria-pressed={selectedOpponents.includes(agent.id)}
+                      >
+                        {selectedOpponents.includes(agent.id) ? "✓ Picked" : "+ Pick"}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
+            ))}
+          </div>
+          {!loading && discoverList.length === 0 && (
+            <div className={styles.emptyDiscover}>
+              <strong>No public agents on this page</strong>
+              Try another page, make your agent public in My agents, or check back later.
             </div>
-          ))}
-        </div>
+          )}
+          {showDiscoverPagination && (
+            <div className={styles.paginationBar}>
+              <button
+                type="button"
+                className={styles.pageBtn}
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                <ChevronLeft className="w-4 h-4" aria-hidden />
+                Previous
+              </button>
+              <span className={styles.pageIndicator}>Page {page}</span>
+              <button
+                type="button"
+                className={styles.pageBtn}
+                disabled={!hasNextDiscoverPage}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+                <ChevronRight className="w-4 h-4" aria-hidden />
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {activeTab === "tournaments" && (
@@ -619,18 +687,31 @@ export default function ArenaPage() {
             </thead>
             <tbody>
               {leaderboard.map((entry) => (
-                <tr key={entry.id}>
-                  <td className={styles.rank}>{entry.rank}</td>
+                <tr
+                  key={entry.id}
+                  className={
+                    entry.rank === 1
+                      ? styles.rowTop1
+                      : entry.rank === 2
+                        ? styles.rowTop2
+                        : entry.rank === 3
+                          ? styles.rowTop3
+                          : undefined
+                  }
+                >
+                  <td
+                    className={`${styles.rank} ${
+                      entry.rank === 1 ? styles.rank1 : entry.rank === 2 ? styles.rank2 : entry.rank === 3 ? styles.rank3 : ""
+                    }`}
+                  >
+                    {entry.rank}
+                  </td>
                   <td className={styles.agentName}>{entry.name}</td>
                   <td>{entry.username}</td>
                   <td>
                     <span
-                      style={{
-                        backgroundColor: TierColors[entry.tier_color],
-                        padding: "4px 8px",
-                        borderRadius: "4px",
-                        color: "#000",
-                      }}
+                      className={styles.lbTierBadge}
+                      style={{ backgroundColor: TierColors[entry.tier_color] }}
                     >
                       {tierLabelOf(entry)}
                     </span>
@@ -649,9 +730,10 @@ export default function ArenaPage() {
 
       {activeTab === "my-agents" && (
         <div className={styles.myAgents}>
-          <div style={{ marginBottom: 12 }}>
-            <Link href="/agents" style={{ color: "#7ee8ff", textDecoration: "underline" }}>
-              Open full Agent Manager (/agents)
+          <div className={styles.myAgentsToolbar}>
+            <Link href="/agents" className={styles.heroLink}>
+              <ExternalLink className="w-4 h-4" aria-hidden />
+              Open full agent manager
             </Link>
           </div>
           {authLoading ? (
@@ -730,6 +812,7 @@ export default function ArenaPage() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -53,6 +53,7 @@ import {
 } from '@/context/ContractProvider';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { apiClient } from '@/lib/api';
+import { useAppKit } from '@reown/appkit/react';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -131,6 +132,7 @@ const perkMetadata = [
 export default function GameShopMobile() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { open: openWallet } = useAppKit();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const auth = useGuestAuthOptional();
@@ -271,6 +273,8 @@ export default function GameShopMobile() {
   const usdcBalance = usdcBalanceData ? Number(usdcBalanceData.formatted).toFixed(2) : '0.00';
 
   const payFromSmartWalletUnsupported = payWith === 'smart_wallet' && !smartWalletAddress;
+
+  const hasPaymentMethod = Boolean((isConnected && address) || smartWalletAddress);
 
   // Shop Items: Collectibles owned by contract (in shop stock)
   const { data: contractOwnedCount } = useReadContract({
@@ -830,6 +834,25 @@ export default function GameShopMobile() {
           <p className="text-center text-amber-200/90 text-xs">No smart wallet to pay from. Use Connected wallet or create/link one in Profile.</p>
         )}
 
+        {!hasPaymentMethod && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-xl border border-[#00F0FF]/25 bg-[#00F0FF]/5 px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <p className="text-sm text-slate-300">
+              Connect a wallet (or continue as a guest with a smart wallet) to buy perks and bundles with USDC.
+            </p>
+            <button
+              type="button"
+              onClick={() => openWallet()}
+              className="shrink-0 min-h-[44px] px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#00F0FF]/25 to-[#0FF0FC]/20 border border-[#00F0FF]/50 text-[#00F0FF] font-semibold text-sm"
+            >
+              Connect wallet
+            </button>
+          </motion.div>
+        )}
+
         {/* Tabs: Perks | Bundles — one visible at a time */}
         <div className="flex gap-2 mb-6">
           <button
@@ -894,18 +917,31 @@ export default function GameShopMobile() {
                       )}
                     </p>
                     <button
-                      onClick={() => handleBuyBundleWithUsdc(b.name)}
-                      disabled={bundleBuyingName != null || payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)}
+                      onClick={() =>
+                        hasPaymentMethod ? handleBuyBundleWithUsdc(b.name) : openWallet()
+                      }
+                      disabled={
+                        bundleBuyingName != null ||
+                        (hasPaymentMethod && payFromSmartWalletUnsupported) ||
+                        !BUNDLE_DEFS.some((d) => d.name === b.name) ||
+                        (hasPaymentMethod &&
+                          !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef))
+                      }
                       className={`w-full mt-3 py-2.5 rounded-lg text-sm font-medium border ${
                         bundleBuyingName === b.name
                           ? 'bg-slate-700/80 text-slate-400 border-slate-600/50'
-                          : payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)
-                          ? 'bg-slate-800/80 text-slate-500 border-slate-700/80'
-                          : 'bg-[#00F0FF]/10 text-[#00F0FF] border-[#00F0FF]/40'
+                          : (hasPaymentMethod && payFromSmartWalletUnsupported) ||
+                              !BUNDLE_DEFS.some((d) => d.name === b.name) ||
+                              (hasPaymentMethod &&
+                                !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef))
+                            ? 'bg-slate-800/80 text-slate-500 border-slate-700/80'
+                            : 'bg-[#00F0FF]/10 text-[#00F0FF] border-[#00F0FF]/40'
                       }`}
                     >
                       {bundleBuyingName === b.name ? (
                         <><Loader2 size={14} className="inline animate-spin mr-2" /> Buying...</>
+                      ) : !hasPaymentMethod ? (
+                        <><Wallet size={14} className="inline mr-2" /> Connect to buy</>
                       ) : (
                         <><CreditCard size={14} className="inline mr-2" /> Buy with USDC</>
                       )}
@@ -945,19 +981,7 @@ export default function GameShopMobile() {
         </div>
 
         {/* Shop Items */}
-        {!isConnected ? (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-16 px-6 rounded-2xl border border-[#003B3E]/60 bg-[#0E1415]/40"
-          >
-            <Wallet size={48} className="mx-auto mb-4 text-[#00F0FF]/50" />
-            <h3 className="text-lg font-bold mb-2">Connect your wallet</h3>
-            <p className="text-slate-400 text-sm">
-              Connect your wallet to purchase game perks with USDC
-            </p>
-          </motion.div>
-        ) : shopItems.length === 0 ? (
+        {shopItems.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1015,11 +1039,22 @@ export default function GameShopMobile() {
 
                     <>
                       <button
-                        onClick={() => handleBuy(item)}
-                        disabled={item.stock === 0 || buyingPending || buyingConfirming || buyFromPending || buyFromConfirming || smartWalletApprovePending || Number(usdcBalance) < Number(item.usdcPrice) || payFromSmartWalletUnsupported}
+                        onClick={() => (hasPaymentMethod ? handleBuy(item) : openWallet())}
+                        disabled={
+                          item.stock === 0 ||
+                          buyingPending ||
+                          buyingConfirming ||
+                          buyFromPending ||
+                          buyFromConfirming ||
+                          smartWalletApprovePending ||
+                          (hasPaymentMethod && payFromSmartWalletUnsupported) ||
+                          (hasPaymentMethod && Number(usdcBalance) < Number(item.usdcPrice))
+                        }
                         className={`w-full py-3 rounded-xl font-semibold text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]
                           ${item.stock === 0
                             ? 'bg-slate-800/80 text-slate-500'
+                            : !hasPaymentMethod
+                            ? 'bg-gradient-to-r from-[#00F0FF]/30 to-[#0DD6E0]/25 text-[#00F0FF] border border-[#00F0FF]/40'
                             : Number(usdcBalance) < Number(item.usdcPrice)
                             ? 'bg-slate-700/80 text-slate-400'
                             : (buyingPending || buyingConfirming || buyFromPending || buyFromConfirming || smartWalletApprovePending)
@@ -1030,6 +1065,8 @@ export default function GameShopMobile() {
                           <Loader2 className="inline animate-spin mr-2" size={16} />
                         ) : item.stock === 0 ? (
                           'Sold Out'
+                        ) : !hasPaymentMethod ? (
+                          'Connect to buy'
                         ) : Number(usdcBalance) < Number(item.usdcPrice) ? (
                           'Insufficient USDC'
                         ) : payFromSmartWalletUnsupported ? (
