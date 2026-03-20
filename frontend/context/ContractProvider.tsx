@@ -10,7 +10,7 @@ import {
   useChainId,
   usePublicClient,
 } from 'wagmi';
-import { Address, decodeEventLog } from 'viem';
+import { Address, decodeEventLog, getAddress } from 'viem';
 import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
 import Erc20Abi from './abi/ERC20abi.json';
@@ -718,7 +718,34 @@ export function useRegisterAgentERC8004() {
           // skip
         }
       }
-      // Fallback: if the event decode fails, derive latest owned token for caller.
+      // Fallback 1: read Registered logs directly for this tx block + owner.
+      if (address) {
+        try {
+          const registeredLogs = await publicClient.getLogs({
+            address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
+            event: {
+              type: 'event',
+              name: 'Registered',
+              inputs: [
+                { indexed: true, name: 'agentId', type: 'uint256' },
+                { indexed: false, name: 'agentURI', type: 'string' },
+                { indexed: true, name: 'owner', type: 'address' },
+              ],
+            },
+            args: { owner: getAddress(address as Address) },
+            fromBlock: receipt.blockNumber,
+            toBlock: receipt.blockNumber,
+          });
+          const exactTxLog = registeredLogs.find((l) => l.transactionHash === hash);
+          if (exactTxLog?.args?.agentId != null) {
+            return Number(exactTxLog.args.agentId);
+          }
+        } catch {
+          // ignore and continue to final fallback
+        }
+      }
+
+      // Fallback 2: if event decode/log query fails, derive latest owned token for caller.
       if (address) {
         try {
           const balance = await publicClient.readContract({
