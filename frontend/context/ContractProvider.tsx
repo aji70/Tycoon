@@ -11,7 +11,8 @@ import {
   usePublicClient,
 } from 'wagmi';
 import { celo } from 'wagmi/chains';
-import { Address, decodeEventLog, getAddress, hexToBigInt, parseEventLogs, zeroAddress } from 'viem';
+import { Address, createPublicClient, decodeEventLog, getAddress, hexToBigInt, http, parseEventLogs, zeroAddress } from 'viem';
+import { celo as celoChain, celoAlfajores } from 'viem/chains';
 import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
 import Erc20Abi from './abi/ERC20abi.json';
@@ -20,7 +21,7 @@ import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRES
 import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
 import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
-import { registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
+import { getCeloRpcUrlForChainId, registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
 
 // Fixed stake amount (adjust if needed)
 const STAKE_AMOUNT = 1; // 1 wei for testing? Or change to actual value like 0.01 ether = 10000000000000000n
@@ -859,27 +860,37 @@ function parseAgentIdFromRegisterReceipt(
  */
 export function useRegisterAgentERC8004() {
   const chainId = useChainId();
-  const publicClient = usePublicClient();
   const [isPending, setIsPending] = useState(false);
 
   const register = useCallback(
     async (agentDbId: number): Promise<number | null> => {
       const base = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
-      if (!base) return null;
+      if (!base) {
+        throw new Error('NEXT_PUBLIC_API_URL is not set; cannot build agent registration URI.');
+      }
       const agentURI = `${base}/agents/${agentDbId}/erc8004-registration`;
-      const identityRegistryAddress = ERC8004_IDENTITY_REGISTRY_ADDRESSES[chainId];
-      if (!identityRegistryAddress || !publicClient) return null;
+      /** Celo mainnet vs Alfajores — do not use arbitrary wagmi chainId (e.g. Base) for registry lookup. */
+      const registryChainId = chainId === 44787 ? 44787 : 42220;
+      const identityRegistryAddress = ERC8004_IDENTITY_REGISTRY_ADDRESSES[registryChainId];
+      if (!identityRegistryAddress) {
+        throw new Error('ERC-8004 identity registry address is not configured for this network.');
+      }
+
+      const receiptClient = createPublicClient({
+        chain: registryChainId === 44787 ? celoAlfajores : celoChain,
+        transport: http(getCeloRpcUrlForChainId(registryChainId)),
+      });
 
       setIsPending(true);
       try {
         const { account: eoaAddress, hash } = await registerErc8004AgentViaInjectedEoa({
-          chainId,
+          chainId: registryChainId,
           contractAddress: identityRegistryAddress,
           abi: ERC8004IdentityABI as never,
           agentURI,
         });
-        const receipt = await publicClient.waitForTransactionReceipt({ hash });
-        const receiptFromRpc = await publicClient.getTransactionReceipt({ hash }).catch(() => null);
+        const receipt = await receiptClient.waitForTransactionReceipt({ hash });
+        const receiptFromRpc = await receiptClient.getTransactionReceipt({ hash }).catch(() => null);
         const logsSource =
           receiptFromRpc && receiptFromRpc.logs.length > receipt.logs.length ? receiptFromRpc : receipt;
 
@@ -888,7 +899,7 @@ export function useRegisterAgentERC8004() {
 
         // Fallback: query logs in the block (some RPCs omit full log decoding in receipt)
         try {
-        const allMintsInBlock = await publicClient.getLogs({
+        const allMintsInBlock = await receiptClient.getLogs({
           address: identityRegistryAddress,
           event: ERC8004_TRANSFER_EVENT,
           args: { from: zeroAddress },
@@ -917,7 +928,7 @@ export function useRegisterAgentERC8004() {
         }
 
         try {
-          const registeredInBlock = await publicClient.getLogs({
+          const registeredInBlock = await receiptClient.getLogs({
           address: identityRegistryAddress,
           event: ERC8004_REGISTERED_EVENT,
           fromBlock: receipt.blockNumber,
@@ -938,7 +949,7 @@ export function useRegisterAgentERC8004() {
       }
 
       try {
-        const registeredLogs = await publicClient.getLogs({
+        const registeredLogs = await receiptClient.getLogs({
           address: identityRegistryAddress,
           event: ERC8004_REGISTERED_EVENT,
           args: { owner: getAddress(eoaAddress) },
@@ -955,7 +966,7 @@ export function useRegisterAgentERC8004() {
 
       // Last resort: ERC721Enumerable (not on all deployments — often reverts)
       try {
-        const balance = await publicClient.readContract({
+        const balance = await receiptClient.readContract({
           address: identityRegistryAddress,
           abi: ERC8004IdentityABI as never,
           functionName: 'balanceOf',
@@ -963,7 +974,7 @@ export function useRegisterAgentERC8004() {
         });
         const bal = Number(balance ?? 0);
         if (bal > 0) {
-          const tokenId = await publicClient.readContract({
+          const tokenId = await receiptClient.readContract({
             address: identityRegistryAddress,
             abi: ERC8004IdentityABI as never,
             functionName: 'tokenOfOwnerByIndex',
@@ -974,12 +985,14 @@ export function useRegisterAgentERC8004() {
       } catch {
         // enumerable not supported
       }
-        return null;
+        throw new Error(
+          'Transaction confirmed but the app could not read the new ERC-8004 agent ID from the receipt. Check the tx in a block explorer or enter the ID manually.'
+        );
       } finally {
         setIsPending(false);
       }
     },
-    [publicClient, chainId]
+    [chainId]
   );
 
   const reset = useCallback(() => {}, []);

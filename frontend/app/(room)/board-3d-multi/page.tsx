@@ -223,6 +223,7 @@ function Board3DPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const gameCode = searchParams.get("gameCode")?.trim().toUpperCase() || null;
+  const isSpectate = searchParams.get("spectate") === "1";
   const queryClient = useQueryClient();
 
   const { address } = useAccount();
@@ -2235,7 +2236,14 @@ function Board3DPageContent() {
   }
 
   return (
-    <div className="w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4">
+    <div
+      className={`w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4 ${isSpectate && !me ? "pt-14" : ""}`}
+    >
+      {isSpectate && !me && (
+        <div className="fixed top-0 left-0 right-0 z-[100] px-4 py-2.5 bg-violet-950/95 border-b border-violet-500/45 text-violet-100 text-sm text-center">
+          Spectator mode — you are not seated at this table (view only).
+        </div>
+      )}
       {/* Wrapper for fullscreen: sidebar + board + all modals so modals show in fullscreen mode */}
       <div
         ref={fullscreenRef}

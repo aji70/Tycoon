@@ -8,7 +8,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useTournament } from "@/context/TournamentContext";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { appChain } from "@/config";
-import type { PrizeSource, CreateTournamentResponse } from "@/types/tournament";
+import type { PrizeSource, CreateTournamentResponse, TournamentFormat } from "@/types/tournament";
 import { ChevronLeft, Loader2, Swords, Wallet, CheckCircle2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
@@ -64,6 +64,7 @@ export default function CreateTournamentPage() {
   const [minPlayers, setMinPlayers] = useState(2);
   const [entryFeeUsd, setEntryFeeUsd] = useState("");
   const [prizePoolUsd, setPrizePoolUsd] = useState("");
+  const [bracketFormat, setBracketFormat] = useState<TournamentFormat>("SINGLE_ELIMINATION");
   const [autoFillBots, setAutoFillBots] = useState(false);
   const [autoFillCount, setAutoFillCount] = useState(0);
   const [myAgents, setMyAgents] = useState<MyAgentRow[]>([]);
@@ -149,7 +150,7 @@ export default function CreateTournamentPage() {
     try {
       const sanitizedMaxPlayers = Math.min(MAX_PLAYERS_ALLOWED, Math.max(MIN_PLAYERS_ALLOWED, maxPlayers));
       const sanitizedMinPlayers = Math.max(MIN_PLAYERS_ALLOWED, Math.min(sanitizedMaxPlayers, minPlayers));
-      if (!isPowerOfTwo(sanitizedMaxPlayers)) {
+      if (bracketFormat !== "GROUP_ELIMINATION" && !isPowerOfTwo(sanitizedMaxPlayers)) {
         setError("Max players must be a power of two (2, 4, 8, 16, 32, ... 512).");
         setStep("idle");
         return;
@@ -158,6 +159,7 @@ export default function CreateTournamentPage() {
       const body: Parameters<typeof createTournament>[0] & { address?: string; wallet_chain?: string } = {
         name: name.trim(),
         chain,
+        format: bracketFormat,
         prize_source: prizeSource,
         max_players: sanitizedMaxPlayers,
         min_players: sanitizedMinPlayers,
@@ -360,9 +362,21 @@ export default function CreateTournamentPage() {
               />
               </div>
 
-              <div className="flex items-center justify-between text-sm">
-                <p className="text-white/50">Chain: <span className="text-cyan-300 font-semibold">{chain}</span></p>
-                <p className="text-white/50">Format: <span className="text-cyan-300 font-semibold">Single elimination</span></p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm">
+                <p className="text-white/50">
+                  Chain: <span className="text-cyan-300 font-semibold">{chain}</span>
+                </p>
+                <label className="flex flex-col gap-1">
+                  <span className="text-white/50 text-xs">Bracket format</span>
+                  <select
+                    value={bracketFormat}
+                    onChange={(e) => setBracketFormat(e.target.value as TournamentFormat)}
+                    className="px-3 py-2 rounded-lg bg-[#011112] border border-[#0E282A] text-cyan-300 text-sm max-w-full"
+                  >
+                    <option value="SINGLE_ELIMINATION">Single elimination (1v1)</option>
+                    <option value="GROUP_ELIMINATION">Group tables (2–4 per match, regroup each round)</option>
+                  </select>
+                </label>
               </div>
             </div>
 
@@ -485,8 +499,17 @@ export default function CreateTournamentPage() {
               <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 text-xs">
                 <p className="text-cyan-200 font-semibold">Live setup preview</p>
                 <p className="text-white/70 mt-1">
-                  Bracket: {sanitizedMaxPreview} players {isMaxPowerOfTwo ? "ready" : "(must be power of two)"} ·
-                  start when at least {sanitizedMinPreview} players join.
+                  {bracketFormat === "GROUP_ELIMINATION" ? (
+                    <>
+                      Group elimination: tables of 2–4, rebalanced each round · max {sanitizedMaxPreview} players · start
+                      when at least {sanitizedMinPreview} join.
+                    </>
+                  ) : (
+                    <>
+                      Bracket: {sanitizedMaxPreview} players {isMaxPowerOfTwo ? "ready" : "(must be power of two)"} ·
+                      start when at least {sanitizedMinPreview} players join.
+                    </>
+                  )}
                 </p>
               </div>
             </div>

@@ -11,8 +11,14 @@ function asProvider(raw: unknown): EthereumProvider | null {
   return raw as EthereumProvider;
 }
 
+/** EIP-6963 announce payload (browser extension wallets). */
+type Eip6963AnnounceDetail = {
+  info: { uuid: string; name: string; icon: string; rdns: string };
+  provider: unknown;
+};
+
 /**
- * Prefer MetaMask when multiple wallets stack `window.ethereum.providers`.
+ * Synchronous fallback when EIP-6963 is not used (older MetaMask).
  */
 export function getInjectedEthereumProvider(): EthereumProvider | null {
   if (typeof window === "undefined") return null;
@@ -28,13 +34,58 @@ export function getInjectedEthereumProvider(): EthereumProvider | null {
   return asProvider(raw);
 }
 
+/**
+ * Discover injected wallets (MetaMask, Rabby, etc.). AppKit/WC often leaves `window.ethereum` empty
+ * or points at a non-extension shim — EIP-6963 still finds the real extension.
+ */
+export async function getInjectedEthereumProviderAsync(): Promise<EthereumProvider | null> {
+  if (typeof window === "undefined") return null;
+
+  const from6963 = await discoverEip6963Providers();
+  if (from6963.length > 0) {
+    const metamask = from6963.find(
+      (d) =>
+        d.info.rdns === "io.metamask" ||
+        d.info.rdns === "io.metamask.flask" ||
+        /metamask/i.test(d.info.name)
+    );
+    const chosen = asProvider(metamask?.provider ?? from6963[0].provider);
+    if (chosen) return chosen;
+  }
+
+  return getInjectedEthereumProvider();
+}
+
+function discoverEip6963Providers(): Promise<Eip6963AnnounceDetail[]> {
+  return new Promise((resolve) => {
+    const announced: Eip6963AnnounceDetail[] = [];
+    const onAnnounce = (e: Event) => {
+      const ev = e as CustomEvent<Eip6963AnnounceDetail>;
+      const d = ev.detail;
+      if (d?.provider && d.info?.rdns) announced.push(d);
+    };
+    window.addEventListener("eip6963:announceProvider", onAnnounce as EventListener);
+    window.dispatchEvent(new Event("eip6963:requestProvider"));
+    window.setTimeout(() => {
+      window.removeEventListener("eip6963:announceProvider", onAnnounce as EventListener);
+      resolve(announced);
+    }, 450);
+  });
+}
+
 export function celoChainFromId(chainId: number): Chain {
   return chainId === 44787 ? celoAlfajores : celo;
 }
 
+function celoRpcUrl(chainId: number): string {
+  if (chainId === 44787) {
+    return process.env.NEXT_PUBLIC_ALFAJORES_RPC_URL || "https://alfajores-forno.celo-testnet.org";
+  }
+  return process.env.NEXT_PUBLIC_CELO_RPC_URL || "https://forno.celo.org";
+}
+
 /**
- * Calls IdentityRegistry.register(agentURI) from the injected browser wallet (EOA).
- * Bypasses wagmi / WalletConnect so the NFT is always minted to the extension account.
+ * Calls IdentityRegistry.register(agentURI) from a browser extension EOA (injected), not WalletConnect.
  */
 export async function registerErc8004AgentViaInjectedEoa(params: {
   chainId: number;
@@ -42,10 +93,10 @@ export async function registerErc8004AgentViaInjectedEoa(params: {
   abi: Abi;
   agentURI: string;
 }): Promise<{ hash: `0x${string}`; account: Address }> {
-  const provider = getInjectedEthereumProvider();
+  const provider = await getInjectedEthereumProviderAsync();
   if (!provider) {
     throw new Error(
-      "No browser extension wallet found. Install MetaMask (or another injected EVM wallet), then try again. ERC-8004 registration must be signed by an EOA."
+      "No browser extension wallet found. Unlock MetaMask (or another injected EVM wallet) and allow this site. If you only use WalletConnect mobile, open this page in the MetaMask in-app browser or use a desktop browser with the MetaMask extension."
     );
   }
 
@@ -82,7 +133,7 @@ export async function registerErc8004AgentViaInjectedEoa(params: {
 
 /** First account from the injected wallet (no prompt if already authorized). */
 export async function getInjectedEoaAddress(): Promise<Address | null> {
-  const provider = getInjectedEthereumProvider();
+  const provider = await getInjectedEthereumProviderAsync();
   if (!provider) return null;
   try {
     const accounts = (await provider.request({ method: "eth_requestAccounts" })) as string[];
@@ -91,4 +142,9 @@ export async function getInjectedEoaAddress(): Promise<Address | null> {
   } catch {
     return null;
   }
+}
+
+/** Public HTTP RPC for Celo (receipts) — does not depend on wagmi’s active chain. */
+export function getCeloRpcUrlForChainId(chainId: number): string {
+  return celoRpcUrl(chainId);
 }

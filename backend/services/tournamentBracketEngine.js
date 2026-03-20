@@ -13,6 +13,7 @@ import TournamentRound from "../models/TournamentRound.js";
 import TournamentMatch from "../models/TournamentMatch.js";
 import Tournament from "../models/Tournament.js";
 import logger from "../config/logger.js";
+import { splitIntoBalancedGroups } from "./tournamentGroupHelpers.js";
 
 /**
  * Generate round-robin bracket.
@@ -336,6 +337,109 @@ async function getAdvancers(tournamentId, roundIndex) {
 /**
  * Dispatch bracket generation based on tournament format.
  */
+/**
+ * Multi-table elimination: 2–4 players per match, rounds generated until one champion.
+ * Only round 0 is created here; later rounds are inserted when the previous round completes.
+ */
+export async function generateGroupEliminationBracket(tournamentId, entries, options = {}) {
+  const n = entries.length;
+  if (n < 2) throw new Error("Need at least 2 entries");
+  const groups = splitIntoBalancedGroups(
+    entries.map((e) => e.id),
+    2,
+    4
+  );
+
+  await Tournament.update(tournamentId, { status: "BRACKET_LOCKED" });
+
+  const scheduledStartAt = options.first_round_start_at
+    ? new Date(options.first_round_start_at)
+    : null;
+
+  await TournamentRound.create({
+    tournament_id: tournamentId,
+    round_index: 0,
+    status: "PENDING",
+    scheduled_start_at: scheduledStartAt,
+  });
+
+  const matchRows = [];
+  let matchIndex = 0;
+  for (const groupIds of groups) {
+    const [a, b] = groupIds;
+    matchRows.push({
+      tournament_id: tournamentId,
+      round_index: 0,
+      match_index: matchIndex++,
+      slot_a_type: "ENTRY",
+      slot_a_entry_id: a,
+      slot_b_type: "ENTRY",
+      slot_b_entry_id: b ?? null,
+      participant_entry_ids: groupIds,
+      status: "PENDING",
+    });
+  }
+  await TournamentMatch.bulkCreate(matchRows);
+
+  logger.info(
+    { tournamentId, format: "GROUP_ELIMINATION", entries: n, matches: matchRows.length },
+    "Generated group elimination round 0"
+  );
+
+  return {
+    entries: n,
+    matches: matchRows.length,
+    format: "GROUP_ELIMINATION",
+    round_count: "dynamic",
+  };
+}
+
+/**
+ * Create a subsequent group round (after all matches in the previous round finished).
+ * @param {number} tournamentId
+ * @param {number} roundIndex
+ * @param {{ id: number }[]} entryRows - winner entries (full objects or { id })
+ * @param {{ scheduled_start_at?: Date | string | null }} options
+ */
+export async function createGroupEliminationRound(tournamentId, roundIndex, entryRows, options = {}) {
+  const ids = entryRows.map((e) => e.id);
+  const groups = splitIntoBalancedGroups(ids, 2, 4);
+
+  const scheduledStartAt = options.scheduled_start_at != null ? new Date(options.scheduled_start_at) : null;
+
+  await TournamentRound.create({
+    tournament_id: tournamentId,
+    round_index: roundIndex,
+    status: "PENDING",
+    scheduled_start_at: scheduledStartAt,
+  });
+
+  const matchRows = [];
+  let matchIndex = 0;
+  for (const groupIds of groups) {
+    const [a, b] = groupIds;
+    matchRows.push({
+      tournament_id: tournamentId,
+      round_index: roundIndex,
+      match_index: matchIndex++,
+      slot_a_type: "ENTRY",
+      slot_a_entry_id: a,
+      slot_b_type: "ENTRY",
+      slot_b_entry_id: b ?? null,
+      participant_entry_ids: groupIds,
+      status: "PENDING",
+    });
+  }
+  await TournamentMatch.bulkCreate(matchRows);
+
+  logger.info(
+    { tournamentId, format: "GROUP_ELIMINATION", roundIndex, matches: matchRows.length },
+    "Created group elimination round"
+  );
+
+  return { roundIndex, matches: matchRows.length };
+}
+
 export async function generateBracketByFormat(tournamentId, format, entries, options = {}) {
   switch (format.toUpperCase()) {
     case "SINGLE_ELIMINATION":
@@ -347,6 +451,8 @@ export async function generateBracketByFormat(tournamentId, format, entries, opt
     case "SWISS":
       // Swiss: generate first round
       return generateSwissRound(tournamentId, 0, entries, null);
+    case "GROUP_ELIMINATION":
+      return generateGroupEliminationBracket(tournamentId, entries, options);
     default:
       throw new Error(`Unknown tournament format: ${format}`);
   }

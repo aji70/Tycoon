@@ -161,9 +161,10 @@ async function autoStartMatchesLoop() {
   // We just attempt for agent-bound entries, and the service will return waiting/redirect or throw if not in window.
   const rows = await db("tournament_entry_agents as tea")
     .join("tournament_entries as te", "tea.tournament_entry_id", "te.id")
-    .join("tournament_matches as tm", function () {
-      this.on("tm.slot_a_entry_id", "=", "te.id").orOn("tm.slot_b_entry_id", "=", "te.id");
-    })
+    .join("tournament_matches as tm", "tm.tournament_id", "te.tournament_id")
+    .whereRaw(
+      "(tm.slot_a_entry_id = te.id OR tm.slot_b_entry_id = te.id OR JSON_CONTAINS(COALESCE(tm.participant_entry_ids, JSON_ARRAY()), CAST(te.id AS JSON), '$'))"
+    )
     .select(
       "tea.user_agent_id",
       "te.user_id",

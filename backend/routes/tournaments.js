@@ -5,6 +5,7 @@ import { resolveTournament } from "../middleware/resolveTournament.js";
 
 const router = express.Router();
 
+router.get("/spectate/:token", tournamentController.getSpectate);
 router.get("/", tournamentController.list);
 router.get("/:id", resolveTournament, tournamentController.getById);
 router.get("/:id/bracket", resolveTournament, tournamentController.getBracket);
