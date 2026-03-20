@@ -275,10 +275,19 @@ export default function CreateTournamentPage() {
         }
         if (autoFillBots && created?.id) {
           try {
-            const desired = autoFillCount > 0 ? autoFillCount : Math.max(0, (body.min_players ?? 2) - 1);
+            const minP = body.min_players ?? 2;
+            const inviteIds =
+              visibility === "BOT_SELECTION" && selectedDiscoverIds.length > 0 ? selectedDiscoverIds : [];
+            const preferredIds =
+              inviteIds.length > 0 ? inviteIds : selectedAgentIds.length > 0 ? selectedAgentIds : [];
+            const desired = Math.max(
+              autoFillCount > 0 ? autoFillCount : minP,
+              minP,
+              preferredIds.length
+            );
             await apiClient.post(`/tournaments/${created.id}/auto-fill-agents`, {
               desired_count: desired,
-              ...(selectedAgentIds.length > 0 ? { user_agent_ids: selectedAgentIds } : {}),
+              ...(preferredIds.length > 0 ? { user_agent_ids: preferredIds } : {}),
             });
             await apiClient.post(`/tournaments/${created.id}/close-registration`, { first_round_start_at: new Date().toISOString() });
             await apiClient.post(`/tournaments/${created.id}/start-round/0`, {});

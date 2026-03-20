@@ -186,9 +186,32 @@ export async function autoFillAgents(req, res) {
     const desired = Math.max(0, Math.min(Number(tournament.max_players || 32), Number(req.body?.desired_count ?? 32)));
 
     const rawPreferred = req.body?.user_agent_ids;
-    const preferredAgentIds = Array.isArray(rawPreferred)
+    let preferredAgentIds = Array.isArray(rawPreferred)
       ? [...new Set(rawPreferred.map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0))]
       : [];
+
+    const vis = String(tournament.visibility || "OPEN").toUpperCase();
+    /** @returns {Set<number>} */
+    const allowedAgentIdSet = () => {
+      let allowed = tournament.allowed_agent_ids;
+      if (allowed == null) return new Set();
+      if (typeof allowed === "string") {
+        try {
+          allowed = JSON.parse(allowed);
+        } catch {
+          return new Set();
+        }
+      }
+      if (!Array.isArray(allowed)) return new Set();
+      return new Set(allowed.map(Number).filter((n) => Number.isInteger(n) && n > 0));
+    };
+
+    // Invited-bot tournaments: if the client did not pass user_agent_ids, prefer everyone on the allowlist.
+    if (preferredAgentIds.length === 0 && vis === "BOT_SELECTION") {
+      const set = allowedAgentIdSet();
+      if (set.size > 0) preferredAgentIds = [...set];
+    }
+
     if (preferredAgentIds.length > 0 && Number(req.user?.id) !== Number(tournament.creator_id)) {
       return res.status(403).json({
         success: false,
@@ -224,11 +247,19 @@ export async function autoFillAgents(req, res) {
     }
 
     if (preferredAgentIds.length > 0) {
-      const ownedAgents = await db("user_agents")
-        .whereIn("id", preferredAgentIds)
-        .where("user_id", Number(tournament.creator_id))
-        .select("id");
-      const ownedSet = new Set((ownedAgents || []).map((a) => Number(a.id)));
+      const allowSet = vis === "BOT_SELECTION" ? allowedAgentIdSet() : null;
+      const agentRows = await db("user_agents").whereIn("id", preferredAgentIds).select("id", "user_id");
+      const ownerByAgentId = new Map((agentRows || []).map((r) => [Number(r.id), Number(r.user_id)]));
+      const creatorId = Number(tournament.creator_id);
+
+      const isPreferredAgentAllowed = (agentId) => {
+        if (!ownerByAgentId.has(agentId)) return false;
+        if (vis === "BOT_SELECTION") {
+          return allowSet.has(agentId);
+        }
+        return ownerByAgentId.get(agentId) === creatorId;
+      };
+
       const preferredOrdered = [];
       const preferredUsers = new Set();
 
@@ -239,35 +270,27 @@ export async function autoFillAgents(req, res) {
           if (!permByAgentId.has(aid)) permByAgentId.set(aid, p);
         }
         for (const aid of preferredAgentIds) {
-          if (!ownedSet.has(aid)) continue;
+          if (!isPreferredAgentAllowed(aid)) continue;
+          const ownerId = ownerByAgentId.get(aid);
           const p = permByAgentId.get(aid);
-          if (!p) continue;
+          if (!p || Number(p.user_id) !== ownerId) continue;
           if (BigInt(p.max_entry_fee_usdc ?? "0") < entryFeeUnits) continue;
-          const uid = Number(p.user_id);
-          if (preferredUsers.has(uid)) continue;
-          preferredUsers.add(uid);
+          if (preferredUsers.has(ownerId)) continue;
+          preferredUsers.add(ownerId);
           preferredOrdered.push(p);
         }
       } else {
-        const creatorId = Number(tournament.creator_id);
-        const creatorUser = await User.findById(creatorId);
-        const sw = String(creatorUser?.smart_wallet_address ?? "").trim();
-        const swOk =
-          sw &&
-          sw.toLowerCase() !== "0x0000000000000000000000000000000000000000";
-        if (swOk) {
-          for (const aid of preferredAgentIds) {
-            if (!ownedSet.has(aid)) continue;
-            if (preferredUsers.has(creatorId)) break;
-            preferredUsers.add(creatorId);
-            preferredOrdered.push({
-              user_id: creatorId,
-              user_agent_id: aid,
-              daily_cap_usdc: null,
-              max_entry_fee_usdc: "0",
-            });
-            break;
-          }
+        for (const aid of preferredAgentIds) {
+          if (!isPreferredAgentAllowed(aid)) continue;
+          const ownerId = ownerByAgentId.get(aid);
+          if (preferredUsers.has(ownerId)) continue;
+          preferredUsers.add(ownerId);
+          preferredOrdered.push({
+            user_id: ownerId,
+            user_agent_id: aid,
+            daily_cap_usdc: null,
+            max_entry_fee_usdc: "0",
+          });
         }
       }
       const rest = candidates.filter((p) => !preferredUsers.has(Number(p.user_id)));
