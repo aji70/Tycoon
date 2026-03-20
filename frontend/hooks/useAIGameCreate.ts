@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId } from "wagmi";
 import { useAppKitNetwork } from "@reown/appkit/react";
 import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { resolveChainForBackend } from "@/lib/utils/chain";
 import { generateGameCode } from "@/lib/utils/games";
 import { GamePieces } from "@/lib/constants/games";
 import { apiClient } from "@/lib/api";
@@ -80,6 +81,7 @@ export interface UseAIGameCreateOptions {
 export function useAIGameCreate(options?: UseAIGameCreateOptions) {
   const router = useRouter();
   const { address } = useAccount();
+  const wagmiChainId = useChainId();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const redirectTo3D = options?.redirectTo3D ?? false;
   const { caipNetwork } = useAppKitNetwork();
@@ -94,8 +96,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
     useRegisteredAIAgents();
 
   const isMiniPay = !!caipNetwork?.id && MINIPAY_CHAIN_IDS.includes(Number(caipNetwork.id));
-  const chainName =
-    caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${caipNetwork?.id ?? "unknown"}`;
+  const chainName = resolveChainForBackend(wagmiChainId, caipNetwork?.name);
 
   const [settings, setSettings] = useState<AIGameSettings>(DEFAULT_SETTINGS);
 
@@ -202,7 +203,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
       // Try backend "register on-chain" (no wallet signature; backend signs as game controller)
       try {
         toast.update(toastId, { render: "Registering you on-chain (one moment)…", isLoading: true });
-        const chainParam = chainName?.toUpperCase?.() || "CELO";
+        const chainParam = chainName;
         const res = await apiClient.post<{ success?: boolean; alreadyRegistered?: boolean; message?: string }>(
           "/auth/register-on-chain",
           { chain: chainParam }
