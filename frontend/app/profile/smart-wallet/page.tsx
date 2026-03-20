@@ -11,6 +11,7 @@ import { parseEther, formatUnits, type Address } from "viem";
 import { toast } from "react-toastify";
 import { Copy, Wallet, Coins, Loader2, Send, ArrowRightLeft, Banknote } from "lucide-react";
 import { apiClient } from "@/lib/api";
+import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "@/lib/constants/ngnPayments";
 
 const UserWalletABI = [
   { inputs: [], name: "balanceNative", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
@@ -319,8 +320,8 @@ export default function ManageSmartWalletPage() {
     e.preventDefault();
     const ngn = buyCeloNairaAmount.trim();
     const num = ngn ? Number(ngn) : NaN;
-    if (!Number.isFinite(num) || num < 200) {
-      setBuyCeloNairaError("Enter at least 200 Naira.");
+    if (!Number.isFinite(num) || num < MIN_FLUTTERWAVE_CHECKOUT_NGN) {
+      setBuyCeloNairaError(`Enter at least ${MIN_FLUTTERWAVE_CHECKOUT_NGN} Naira.`);
       return;
     }
     setBuyCeloNairaError(null);
@@ -723,7 +724,9 @@ export default function ManageSmartWalletPage() {
           <div className="space-y-4">
             <div>
               <p className="text-sm text-white/80 mb-1">Buy CELO with Naira</p>
-              <p className="text-xs text-white/50 mb-2">Pay in Naira; we send CELO to this smart wallet after payment. Minimum 200 NGN (e.g. 230, 500, 5000).</p>
+              <p className="text-xs text-white/50 mb-2">
+                Pay in Naira; we send CELO to this smart wallet after payment. Minimum {MIN_FLUTTERWAVE_CHECKOUT_NGN} NGN (e.g. 230, 500, 5000).
+              </p>
               {vaultCeloWei !== null && vaultCeloWei === 0n && (
                 <p className="text-amber-400 text-sm mb-2">Vault has no CELO liquidity right now. Top up the vault to enable purchases.</p>
               )}
@@ -733,7 +736,7 @@ export default function ManageSmartWalletPage() {
               <form onSubmit={handleBuyCeloWithNaira} className="flex flex-wrap gap-2 items-end">
                 <input
                   type="number"
-                  min={200}
+                  min={MIN_FLUTTERWAVE_CHECKOUT_NGN}
                   step={1}
                   placeholder="e.g. 5000"
                   value={buyCeloNairaAmount}

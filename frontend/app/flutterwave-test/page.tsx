@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "@/lib/constants/ngnPayments";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://base-monopoly-production.up.railway.app/api";
 
@@ -19,7 +20,7 @@ export default function FlutterwaveTestPage() {
       const res = await fetch(`${API_BASE}/shop/flutterwave/initialize-test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: 200, callback_url: callbackUrl }),
+        body: JSON.stringify({ amount: MIN_FLUTTERWAVE_CHECKOUT_NGN, callback_url: callbackUrl }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -41,13 +42,13 @@ export default function FlutterwaveTestPage() {
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-6">
       <h1 className="text-2xl font-bold mb-2">Flutterwave test</h1>
-      <p className="text-gray-400 mb-6">No login. Just test payment (N200).</p>
+      <p className="text-gray-400 mb-6">No login. Just test payment (N{MIN_FLUTTERWAVE_CHECKOUT_NGN}).</p>
       <button
         onClick={handleTestPayment}
         disabled={loading}
         className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-lg font-medium"
       >
-        {loading ? "Starting…" : "Pay N200 (test)"}
+        {loading ? "Starting…" : `Pay N${MIN_FLUTTERWAVE_CHECKOUT_NGN} (test)`}
       </button>
       {error && (
         <p className="mt-4 text-red-400 text-sm max-w-md text-center">

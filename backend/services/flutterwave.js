@@ -5,6 +5,7 @@
  * - Verify transaction by id (optional, for webhook double-check)
  */
 import logger from "../config/logger.js";
+import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "../constants/ngnPayments.js";
 
 const FLW_SECRET = process.env.FLW_SECRET_KEY || "";
 const FLW_BASE = "https://api.flutterwave.com/v3";
@@ -81,11 +82,11 @@ export async function initializePayment({
     throw new Error("redirect_url is required and must be a valid URL");
   }
   const amount = Number(amountNaira);
-  if (!Number.isFinite(amount) || amount < 200) {
-    throw new Error("amount must be at least 200 Naira");
+  if (!Number.isFinite(amount) || amount < MIN_FLUTTERWAVE_CHECKOUT_NGN) {
+    throw new Error(`amount must be at least ${MIN_FLUTTERWAVE_CHECKOUT_NGN} Naira`);
   }
   // Whole naira, never below Flutterwave minimum (guard float edge cases e.g. 199.9999)
-  const amountRounded = Math.max(200, Math.round(amount));
+  const amountRounded = Math.max(MIN_FLUTTERWAVE_CHECKOUT_NGN, Math.round(amount));
   // Some guest usernames generate placeholder emails that Flutterwave rejects.
   // Fall back to a known-good sender email when the provided value is malformed.
   const customerEmail = isLikelyEmail(email) ? String(email).trim() : FLW_DEFAULT_EMAIL;

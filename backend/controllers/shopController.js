@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import logger from "../config/logger.js";
 import db from "../config/database.js";
+import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "../constants/ngnPayments.js";
 import { initializePayment, isFlutterwaveConfigured, verifyWebhookSignature, verifyTransactionById, verifyTransactionByReference } from "../services/flutterwave.js";
 import { deliverBundleToUser, deliverCollectibleToUser } from "../services/tycoonContract.js";
 
@@ -40,11 +41,11 @@ function clientSafeErrorMessage(err, fallback) {
  */
 /**
  * Calculate NGN price with discount for purchases over 1000 NGN
- * Minimum purchase: 200 NGN
+ * Minimum purchase: Flutterwave checkout floor
  * Discount: 20% off for amounts > 1000 NGN
  */
 const calculateNgnPrice = (baseNgnPrice) => {
-  const minNgnPurchase = 200;
+  const minNgnPurchase = MIN_FLUTTERWAVE_CHECKOUT_NGN;
   if (baseNgnPrice < minNgnPurchase) return minNgnPurchase;
   if (baseNgnPrice > 1000) return Math.round(baseNgnPrice * 0.8);
   return baseNgnPrice;
@@ -167,8 +168,11 @@ export async function flutterwaveInitialize(_req, res) {
     const bundle = await db("perk_bundles").where({ id: bundleId }).first();
     if (!bundle) return res.status(404).json({ success: false, message: "Bundle not found" });
     const amountNaira = Math.round(Number(bundle.price_ngn));
-    if (!Number.isFinite(amountNaira) || amountNaira < 200) {
-      return res.status(400).json({ success: false, message: "Bundle NGN price is invalid (must be at least ₦200)" });
+    if (!Number.isFinite(amountNaira) || amountNaira < MIN_FLUTTERWAVE_CHECKOUT_NGN) {
+      return res.status(400).json({
+        success: false,
+        message: `Bundle NGN price is invalid (must be at least ₦${MIN_FLUTTERWAVE_CHECKOUT_NGN})`,
+      });
     }
 
     const user = await db("users").where({ id: userId }).first();
@@ -235,7 +239,9 @@ export async function flutterwaveInitializePerk(_req, res) {
 
     const tokenId = String(_req.body?.token_id ?? _req.body?.tokenId ?? "").trim();
     const amountNairaRaw = Number(_req.body?.amount_ngn);
-    const amountNaira = Number.isFinite(amountNairaRaw) ? Math.max(200, Math.round(amountNairaRaw)) : NaN;
+    const amountNaira = Number.isFinite(amountNairaRaw)
+      ? Math.max(MIN_FLUTTERWAVE_CHECKOUT_NGN, Math.round(amountNairaRaw))
+      : NaN;
     if (!tokenId) return res.status(400).json({ success: false, message: "token_id is required" });
     if (!Number.isFinite(amountNaira)) return res.status(400).json({ success: false, message: "Valid amount_ngn is required" });
 
