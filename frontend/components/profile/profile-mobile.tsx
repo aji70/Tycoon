@@ -92,11 +92,12 @@ const isValidWallet = (a: unknown): a is Address => {
   return s.toLowerCase() !== zeroAddress.toLowerCase();
 };
 
-/** Guest/Privy profile when wallet is not connected: username, Account & login, game count; full on-chain stats when user has linked wallet. */
+/** Guest/Privy profile when wallet is not connected, or when a connected extension wallet is not the Tycoon-registered address (see notice). */
 function GuestProfileViewMobile({
   guestUser,
   onRecreateClick,
   recreatePending,
+  connectedWalletMismatchNotice,
 }: {
   guestUser: {
     address: string;
@@ -109,6 +110,7 @@ function GuestProfileViewMobile({
   };
   onRecreateClick?: () => void | Promise<void>;
   recreatePending?: boolean;
+  connectedWalletMismatchNotice?: string | null;
 }) {
   const username = guestUser.username;
   // When wallet is not connected: use Wallet linked (Account & login) for on-chain stats when available.
@@ -393,6 +395,11 @@ function GuestProfileViewMobile({
         </Link>
       </header>
       <main className="py-6 space-y-5">
+        {connectedWalletMismatchNotice ? (
+          <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-100/90">
+            {connectedWalletMismatchNotice}
+          </div>
+        ) : null}
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
         <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
           <div className="relative group mb-4 flex items-center justify-center">
@@ -1119,6 +1126,14 @@ export default function ProfilePageMobile() {
     }
   }, [refetchGuest, refetchRegistryWallet]);
 
+  const guestHasPerkHolderAddresses =
+    !!guestUser &&
+    ((guestUser.smart_wallet_address && isValidWallet(guestUser.smart_wallet_address)) ||
+      (guestUser.linked_wallet_address && isValidWallet(guestUser.linked_wallet_address)));
+
+  const showGuestProfileForConnectedWalletMismatch =
+    Boolean(guestUser) && isConnected && !loading && (!!error || !userData) && guestHasPerkHolderAddresses;
+
   if (!isConnected || loading || error || !userData) {
     if (guestUser && !isConnected) {
       return (
@@ -1126,6 +1141,16 @@ export default function ProfilePageMobile() {
           guestUser={guestUser}
           onRecreateClick={handleRecreateViaApi}
           recreatePending={recreateApiPending}
+        />
+      );
+    }
+    if (showGuestProfileForConnectedWalletMismatch && guestUser) {
+      return (
+        <GuestProfileViewMobile
+          guestUser={guestUser}
+          onRecreateClick={handleRecreateViaApi}
+          recreatePending={recreateApiPending}
+          connectedWalletMismatchNotice="Your connected wallet is not your Tycoon player address. Shop perks go to your smart wallet — open My Perks below (from your logged-in account). Disconnect or link the correct wallet in Account for the full connected profile."
         />
       );
     }
