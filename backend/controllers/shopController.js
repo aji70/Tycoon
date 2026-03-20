@@ -5,6 +5,27 @@ import { initializePayment, isFlutterwaveConfigured, verifyWebhookSignature, ver
 import { deliverBundleToUser, deliverCollectibleToUser } from "../services/tycoonContract.js";
 
 /**
+ * Flutterwave validates redirect_url against your dashboard whitelist.
+ * Prefer https FRONTEND_URL when set so checkout works even if the browser origin differs.
+ */
+function resolveShopFlutterwaveRedirect(callbackFromBody) {
+  const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "").trim();
+  if (base.startsWith("https://")) {
+    return `${base}/game-shop`;
+  }
+  const fromClient = String(callbackFromBody || "").trim();
+  if (fromClient.startsWith("http")) return fromClient;
+  if (base.startsWith("http://")) return `${base}/game-shop`;
+  return "";
+}
+
+function clientSafeErrorMessage(err, fallback) {
+  const m = err && typeof err.message === "string" ? err.message.trim() : "";
+  if (!m) return fallback;
+  return m.length > 600 ? `${m.slice(0, 600)}…` : m;
+}
+
+/**
  * GET /api/shop/bundles
  * List available shop bundles/packs
  * Returns pre-configured bundles with prices
@@ -151,13 +172,12 @@ export async function flutterwaveInitialize(_req, res) {
     const email = user.email || (user.username ? `${user.username}@tycoon.placeholder` : null);
     if (!email) return res.status(400).json({ success: false, message: "Email required for payment" });
 
-    let redirectUrl = String(_req.body?.callback_url || "").trim();
+    const redirectUrl = resolveShopFlutterwaveRedirect(_req.body?.callback_url);
     if (!redirectUrl.startsWith("http")) {
-      const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "");
-      redirectUrl = base ? `${base}/game-shop` : "";
-    }
-    if (!redirectUrl.startsWith("http")) {
-      return res.status(400).json({ success: false, message: "callback_url or FRONTEND_URL required" });
+      return res.status(400).json({
+        success: false,
+        message: "Set FRONTEND_URL to your public https app URL (Flutterwave redirect whitelist) or pass a valid callback_url.",
+      });
     }
 
     const txRef = `tycoon_bundle_${userId}_${bundleId}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
@@ -184,8 +204,11 @@ export async function flutterwaveInitialize(_req, res) {
     });
     return res.json({ success: true, link, reference: ref, tx_ref: ref });
   } catch (err) {
-    logger.error({ err: err?.message }, "flutterwaveInitialize error");
-    res.status(500).json({ success: false, message: "Failed to initialize payment" });
+    logger.error({ err: err?.message, stack: err?.stack }, "flutterwaveInitialize error");
+    res.status(502).json({
+      success: false,
+      message: clientSafeErrorMessage(err, "Failed to initialize payment"),
+    });
   }
 }
 
@@ -216,13 +239,12 @@ export async function flutterwaveInitializePerk(_req, res) {
     const email = user.email || (user.username ? `${user.username}@tycoon.placeholder` : null);
     if (!email) return res.status(400).json({ success: false, message: "Email required for payment" });
 
-    let redirectUrl = String(_req.body?.callback_url || "").trim();
+    const redirectUrl = resolveShopFlutterwaveRedirect(_req.body?.callback_url);
     if (!redirectUrl.startsWith("http")) {
-      const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "");
-      redirectUrl = base ? `${base}/game-shop` : "";
-    }
-    if (!redirectUrl.startsWith("http")) {
-      return res.status(400).json({ success: false, message: "callback_url or FRONTEND_URL required" });
+      return res.status(400).json({
+        success: false,
+        message: "Set FRONTEND_URL to your public https app URL (Flutterwave redirect whitelist) or pass a valid callback_url.",
+      });
     }
 
     const txRef = `tycoon_perk_${userId}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
@@ -249,8 +271,11 @@ export async function flutterwaveInitializePerk(_req, res) {
     });
     return res.json({ success: true, link, reference: ref, tx_ref: ref });
   } catch (err) {
-    logger.error({ err: err?.message }, "flutterwaveInitializePerk error");
-    res.status(500).json({ success: false, message: "Failed to initialize perk payment" });
+    logger.error({ err: err?.message, stack: err?.stack }, "flutterwaveInitializePerk error");
+    res.status(502).json({
+      success: false,
+      message: clientSafeErrorMessage(err, "Failed to initialize perk payment"),
+    });
   }
 }
 
