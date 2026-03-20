@@ -78,7 +78,7 @@ function privyPlaceholderAddress(privyDid) {
 export async function ensureUserHasContractPassword(db, userId, chain = "CELO", addressOverride = null) {
   const user = await db("users")
     .where({ id: userId })
-    .select("address", "username", "password_hash", "privy_did", "smart_wallet_address")
+    .select("address", "linked_wallet_address", "username", "password_hash", "privy_did", "smart_wallet_address")
     .first();
 
   /** Registry.getWallet expects the profile owner EOA — not the smart wallet contract address. */
@@ -91,6 +91,8 @@ export async function ensureUserHasContractPassword(db, userId, chain = "CELO", 
   let effectiveAddress = null;
   const ov = addressOverride != null ? String(addressOverride).trim() : "";
   if (isValidEthAddress(ov)) effectiveAddress = ov;
+  else if (isValidEthAddress(user?.linked_wallet_address)) effectiveAddress = String(user.linked_wallet_address).trim();
+  else if (isValidEthAddress(user?.smart_wallet_address)) effectiveAddress = String(user.smart_wallet_address).trim();
   else if (isValidEthAddress(user?.address)) effectiveAddress = String(user.address).trim();
   else if (user?.privy_did) effectiveAddress = privyPlaceholderAddress(user.privy_did);
 

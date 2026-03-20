@@ -2,6 +2,41 @@
  * Shared utility to normalize contract/transaction error messages for toast display.
  * Matches the pattern used in the settings page for consistent UX.
  */
+
+/** Benign race when agents / polling act out of sync with turn state — do not toast. */
+const BENIGN_TURN_SUBSTRINGS = [
+  "not your turn",
+  "not the current player",
+  "already rolled",
+  "must roll",
+  "you already rolled",
+  "it's not your turn",
+  "it is not your turn",
+  "cannot end another player",
+];
+
+function collectErrorText(error: unknown): string {
+  const e = error as {
+    message?: string;
+    shortMessage?: string;
+    response?: { data?: { message?: string; error?: string } };
+  };
+  const parts: string[] = [];
+  if (e?.message) parts.push(e.message);
+  if (e?.shortMessage) parts.push(e.shortMessage);
+  const d = e?.response?.data;
+  if (d && typeof d === "object") {
+    if (typeof d.message === "string") parts.push(d.message);
+    if (typeof d.error === "string") parts.push(d.error);
+  }
+  return parts.join(" ").toLowerCase();
+}
+
+export function isBenignTurnOrderError(error: unknown): boolean {
+  const hay = collectErrorText(error);
+  return BENIGN_TURN_SUBSTRINGS.some((s) => hay.includes(s));
+}
+
 export function getContractErrorMessage(
   error: unknown,
   defaultMessage = "Transaction failed. Check your connection and try again, or refresh the page."
@@ -84,16 +119,11 @@ export function getContractErrorMessage(
     return "Connection problem. Check your network and try again.";
   }
 
-  // Turn / roll errors (not your turn, already rolled, etc.)
+  // Turn / roll races: fail quietly in UI (agents + fast polling); see toastContractError / isBenignTurnOrderError
   const backendMsgRaw = e?.response?.data?.message ?? e?.response?.data?.error;
   const backendStr = typeof backendMsgRaw === "string" ? backendMsgRaw.toLowerCase() : "";
-  if (
-    backendStr.includes("not your turn") ||
-    backendStr.includes("not the current player") ||
-    backendStr.includes("already rolled") ||
-    backendStr.includes("must roll")
-  ) {
-    return "It's not your turn to roll, or the turn state changed. Refresh the game if the board looks wrong.";
+  if (isBenignTurnOrderError(error)) {
+    return "";
   }
 
   if (backendStr.includes("timeout") || backendStr.includes("timed out")) {
@@ -111,13 +141,16 @@ export function getContractErrorMessage(
   // Prefer backend message so we don't show generic "API request failed" when we have context
   const backendMsg = e?.response?.data?.message ?? e?.response?.data?.error;
   if (backendMsg && typeof backendMsg === "string") {
-    return backendMsg.slice(0, 140);
+    const slice = backendMsg.slice(0, 140);
+    if (isBenignTurnOrderError({ message: slice })) return "";
+    return slice;
   }
 
   // Use explicit message if available (truncate long messages)
   const msg = e?.shortMessage ?? e?.message ?? "";
   if (msg && typeof msg === "string") {
     const trimmed = msg.slice(0, 140);
+    if (isBenignTurnOrderError({ message: trimmed })) return "";
     // Don't surface generic API messages; use the caller's default (e.g. "Failed to vote")
     if (
       trimmed === "API request failed" ||
