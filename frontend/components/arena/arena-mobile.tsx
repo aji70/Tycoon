@@ -9,7 +9,7 @@ import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/Cont
 import { ApiResponse } from "@/types/api";
 import styles from "./arena-mobile.module.css";
 import AgentsPageMobile from "@/components/agents/agents-page-mobile";
-import { Swords, Search, Trophy, Target, UserRound } from "lucide-react";
+import { Swords, Search, Trophy, Target, UserRound, Zap } from "lucide-react";
 
 const MAX_CHALLENGE_TARGETS = 7;
 
@@ -90,13 +90,27 @@ function tierLabelOf(a: Agent): string {
   return TierLabels[key] || a.tier || "Tier";
 }
 
+function formatUsdcDisplay(stored: string | null | undefined): string {
+  if (stored == null || String(stored).trim() === "") return "—";
+  try {
+    const n = BigInt(String(stored));
+    if (n === 0n) return "$0";
+    const whole = n / 1_000_000n;
+    const frac = n % 1_000_000n;
+    const fracStr = frac === 0n ? "" : "." + frac.toString().padStart(6, "0").replace(/0+$/, "");
+    return `$${whole}${fracStr}`;
+  } catch {
+    return "—";
+  }
+}
+
 export default function ArenaMobile() {
   const router = useRouter();
   const guestCtx = useGuestAuthOptional();
   const guestUser = guestCtx?.guestUser ?? null;
   const authLoading = guestCtx?.isLoading ?? false;
   const isAuthed = Boolean(guestUser);
-  const [activeTab, setActiveTab] = useState<"discover" | "leaderboard" | "tournaments" | "my-agents">("discover");
+  const [activeTab, setActiveTab] = useState<"discover" | "challenges" | "leaderboard" | "tournaments" | "my-agents">("discover");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myAgents, setMyAgents] = useState<Agent[]>([]);
@@ -110,6 +124,8 @@ export default function ArenaMobile() {
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
   const [tournamentsError, setTournamentsError] = useState<string | null>(null);
   const [myAgentsSubTab, setMyAgentsSubTab] = useState<"overview" | "manage">("overview");
+  const [tournamentPerms, setTournamentPerms] = useState<Record<number, { enabled: boolean; max_entry_fee_usdc: string; daily_cap_usdc: string | null; chain: string | null }>>({});
+  const [challengesLoading, setChallengesLoading] = useState(false);
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
   const { isCelo } = useVerifyErc8004AgentId();
@@ -123,15 +139,19 @@ export default function ArenaMobile() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const q = new URLSearchParams(window.location.search);
-    if (q.get("tab") === "my-agents") {
+    const tab = q.get("tab");
+    if (tab === "my-agents") {
       setActiveTab("my-agents");
       setMyAgentsSubTab(q.get("sub") === "manage" ? "manage" : "overview");
+      router.replace("/arena", { scroll: false });
+    } else if (tab === "challenges") {
+      setActiveTab("challenges");
       router.replace("/arena", { scroll: false });
     }
   }, [router]);
 
   useEffect(() => {
-    if (activeTab === "discover" && isAuthed) {
+    if ((activeTab === "discover" || activeTab === "challenges") && isAuthed) {
       fetchMyAgents();
     }
   }, [activeTab, isAuthed]);
@@ -141,6 +161,15 @@ export default function ArenaMobile() {
       setChallengerAgentId(myAgents[0].id);
     }
   }, [myAgents, challengerAgentId]);
+
+  const approvedAgentIds = Object.keys(tournamentPerms).map(Number).filter((id) => tournamentPerms[id]?.enabled);
+  const approvedAgentsForChallenges = myAgents.filter((a) => approvedAgentIds.includes(a.id));
+  useEffect(() => {
+    if (activeTab === "challenges" && approvedAgentsForChallenges.length > 0) {
+      const valid = approvedAgentsForChallenges.some((a) => a.id === challengerAgentId);
+      if (!valid) setChallengerAgentId(approvedAgentsForChallenges[0].id);
+    }
+  }, [activeTab, approvedAgentsForChallenges, challengerAgentId]);
 
   useEffect(() => {
     if (activeTab !== "tournaments") return;
@@ -179,7 +208,7 @@ export default function ArenaMobile() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (activeTab === "discover") {
+    if (activeTab === "discover" || activeTab === "challenges") {
       fetchPublicAgents(page);
     }
   }, [activeTab, page]);
@@ -189,6 +218,43 @@ export default function ArenaMobile() {
       fetchLeaderboard();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== "challenges" || !isAuthed) return;
+    let cancelled = false;
+    setChallengesLoading(true);
+    (async () => {
+      try {
+        const [agentsRes, permsRes] = await Promise.all([
+          apiClient.get<ApiResponse<Agent[]>>("/agents"),
+          apiClient.get("/agents/tournament-permissions"),
+        ]);
+        if (cancelled) return;
+        if (agentsRes?.data?.success && agentsRes.data.data) setMyAgents(agentsRes.data.data);
+        const list = (permsRes as any)?.data?.data ?? (permsRes as any)?.data ?? [];
+        const arr = Array.isArray(list) ? list : [];
+        const map: Record<number, { enabled: boolean; max_entry_fee_usdc: string; daily_cap_usdc: string | null; chain: string | null }> = {};
+        for (const p of arr) {
+          if (p?.user_agent_id != null && p?.enabled) {
+            map[Number(p.user_agent_id)] = {
+              enabled: true,
+              max_entry_fee_usdc: p.max_entry_fee_usdc ?? "0",
+              daily_cap_usdc: p.daily_cap_usdc ?? null,
+              chain: p.chain ?? null,
+            };
+          }
+        }
+        setTournamentPerms(map);
+      } catch (e) {
+        console.error("Challenges fetch:", e);
+      } finally {
+        if (!cancelled) setChallengesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, isAuthed]);
 
   useEffect(() => {
     if (activeTab !== "my-agents" || myAgentsSubTab !== "overview" || !isAuthed) return;
@@ -404,6 +470,16 @@ export default function ArenaMobile() {
           </button>
           <button
             type="button"
+            className={`${styles.tab} ${activeTab === "challenges" ? styles.active : ""}`}
+            onClick={() => setActiveTab("challenges")}
+          >
+            <span className={styles.tabIcon}>
+              <Zap className="w-4 h-4" aria-hidden />
+            </span>
+            <span className={styles.tabLabel}>Challenges</span>
+          </button>
+          <button
+            type="button"
             className={`${styles.tab} ${activeTab === "leaderboard" ? styles.active : ""}`}
             onClick={() => setActiveTab("leaderboard")}
           >
@@ -437,8 +513,8 @@ export default function ArenaMobile() {
           </button>
         </nav>
 
-        {error && activeTab !== "my-agents" && <div className={styles.error}>{error}</div>}
-        {loading && activeTab !== "my-agents" && <div className={styles.loading}>Loading</div>}
+        {error && activeTab !== "my-agents" && activeTab !== "challenges" && <div className={styles.error}>{error}</div>}
+        {loading && activeTab !== "my-agents" && activeTab !== "challenges" && <div className={styles.loading}>Loading</div>}
 
       {activeTab === "discover" && isAuthed && myAgents.length > 0 && (
         <section className={styles.challengePanel} aria-label="Challenge setup">
@@ -519,6 +595,121 @@ export default function ArenaMobile() {
             )}
           </div>
         </section>
+      )}
+
+      {activeTab === "challenges" && (
+        <>
+          <section className={styles.challengePanel} aria-label="Approved agents and challenges">
+            <div className={styles.challengePanelHead}>
+              <h2 className={styles.challengePanelTitle}>Challenges</h2>
+            </div>
+            <p className={styles.challengeHint}>
+              Agents approved to spend from your smart wallet. Max entry fee + daily cap per agent.
+            </p>
+            {challengesLoading ? (
+              <p className={styles.challengeHint}>Loading…</p>
+            ) : !isAuthed ? (
+              <p className={styles.challengeHint}>Sign in.</p>
+            ) : approvedAgentsForChallenges.length === 0 ? (
+              <div className={styles.emptyState} style={{ padding: 16 }}>
+                <strong>No approved agents</strong>
+                <p style={{ marginTop: 8, fontSize: "0.85rem" }}>
+                  Enable in{" "}
+                  <button
+                    type="button"
+                    className={styles.tournamentLinkBtn}
+                    style={{ display: "inline", padding: "2px 8px", margin: 0 }}
+                    onClick={() => { setActiveTab("my-agents"); setMyAgentsSubTab("manage"); }}
+                  >
+                    Mine → Full manager
+                  </button>
+                  {" "}(Tournaments per agent).
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className={styles.agentsList} style={{ marginBottom: 12 }}>
+                  {approvedAgentsForChallenges.map((agent) => {
+                    const perm = tournamentPerms[agent.id];
+                    return (
+                      <div key={agent.id} className={`${styles.agentCard} ${styles.agentCardDiscover}`}>
+                        <div className={styles.agentDiscoverTop}>
+                          <h3>{agent.name}</h3>
+                          <div className={styles.tierbadgeCompact} style={{ backgroundColor: TierColors[agent.tier_color] }}>
+                            {tierLabelOf(agent)}
+                          </div>
+                        </div>
+                        <div className={styles.agentDiscoverMeta} style={{ flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                          <span>Max: {formatUsdcDisplay(perm?.max_entry_fee_usdc)}</span>
+                          <span>Daily: {formatUsdcDisplay(perm?.daily_cap_usdc)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <h3 className={styles.challengePanelTitle} style={{ fontSize: "0.95rem", marginTop: 8 }}>Create game</h3>
+                <label className={styles.challengeFieldLabel}>Playing as</label>
+                <select
+                  className={styles.agentSelect}
+                  value={challengerAgentId ?? ""}
+                  onChange={(e) => setChallengerAgentId(Number(e.target.value))}
+                >
+                  {approvedAgentsForChallenges.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+                <div className={styles.challengeActionRow}>
+                  <button
+                    type="button"
+                    className={styles.btnSendCompact}
+                    onClick={startArenaGame}
+                    disabled={arenaStarting || selectedOpponents.length === 0}
+                  >
+                    {arenaStarting ? "On-chain…" : `Start${selectedOpponents.length > 0 ? ` · ${selectedOpponents.length + 1}` : ""}`}
+                  </button>
+                  {selectedOpponents.length > 0 && (
+                    <button type="button" className={styles.btnClearCompact} onClick={() => setSelectedOpponents([])}>Clear</button>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
+          <div className={styles.agentsList}>
+            <div className={styles.sectionHead}>
+              <h2>Pick opponents</h2>
+              <span>{discoverList.length}</span>
+            </div>
+            {discoverList.map((agent) => (
+              <div key={agent.id} className={`${styles.agentCard} ${styles.agentCardDiscover}`}>
+                <div className={styles.agentDiscoverTop}>
+                  <h3>{agent.name}</h3>
+                  <div className={styles.tierbadgeCompact} style={{ backgroundColor: TierColors[agent.tier_color] }}>
+                    {tierLabelOf(agent)}
+                  </div>
+                </div>
+                <div className={styles.agentDiscoverMeta}>
+                  <span>XP <strong>{xpOf(agent)}</strong></span>
+                </div>
+                <div className={styles.agentDiscoverFooter}>
+                  <span className={styles.creatorNameCompact}>by {agent.username}</span>
+                  {isAuthed && approvedAgentsForChallenges.length > 0 && (
+                    <div className={styles.agentDiscoverPick}>
+                      <button
+                        type="button"
+                        className={`${styles.pickBtn} ${selectedOpponents.includes(agent.id) ? styles.pickBtnOn : styles.pickBtnOff}`}
+                        onClick={() => toggleOpponentSelect(agent.id)}
+                        aria-pressed={selectedOpponents.includes(agent.id)}
+                      >
+                        {selectedOpponents.includes(agent.id) ? "✓" : "+ Pick"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            {discoverList.length === 0 && !loading && <p className={styles.emptyState}>No agents</p>}
+          </div>
+        </>
       )}
 
       {activeTab === "discover" && (

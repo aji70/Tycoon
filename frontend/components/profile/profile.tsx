@@ -241,6 +241,20 @@ function GuestProfileView({
     [mergedCollectibleRows]
   );
 
+  const groupedCollectibles = useMemo(() => {
+    const byKey = new Map<string, { item: (typeof ownedCollectibles)[0]; count: number }>();
+    for (const item of ownedCollectibles) {
+      const key = `${item.perk}-${item.strength}-${item.heldBy.toLowerCase()}`;
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        byKey.set(key, { item, count: 1 });
+      }
+    }
+    return Array.from(byKey.values()).map(({ item, count }) => ({ ...item, count }));
+  }, [ownedCollectibles]);
+
   const { data: games = [] } = useQuery({
     queryKey: ['guest-my-games'],
     queryFn: async () => {
@@ -700,7 +714,7 @@ function GuestProfileView({
                     <p className="text-slate-400 text-sm text-center mb-3">Loading perks…</p>
                     <SkeletonPerkGrid count={6} gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" />
                   </>
-                ) : ownedCollectibles.length === 0 ? (
+                ) : groupedCollectibles.length === 0 ? (
                   <EmptyState
                     icon={<ShoppingBag className="w-14 h-14 text-purple-400/70" />}
                     title="No perks yet"
@@ -711,16 +725,23 @@ function GuestProfileView({
                   />
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {ownedCollectibles.map((item, i) => (
+                    {groupedCollectibles.map((item, i) => (
                       <motion.div
-                        key={`${item.heldBy}-${item.tokenId.toString()}`}
+                        key={`${item.heldBy}-${item.perk}-${item.strength}`}
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.02 }}
                         whileHover={{ y: -2 }}
                         className="rounded-2xl p-4 text-center border transition-all bg-black/20 border-white/10 hover:border-purple-500/30"
                       >
-                        {item.icon}
+                        <div className="relative inline-block">
+                          {item.icon}
+                          {item.count > 1 && (
+                            <span className="absolute -top-1 -right-1 min-w-[1.25rem] h-5 px-1 flex items-center justify-center rounded-full bg-purple-500/90 text-white text-xs font-bold">
+                              ×{item.count}
+                            </span>
+                          )}
+                        </div>
                         <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
                         {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-xs mt-0.5">Tier {item.strength}</p>}
                         {smartWalletAddress && item.heldBy.toLowerCase() === smartWalletAddress.toLowerCase() ? (
@@ -937,6 +958,20 @@ export default function Profile() {
     [mergedCollectibleRows]
   );
 
+  const groupedCollectibles = useMemo(() => {
+    const byKey = new Map<string, { item: (typeof ownedCollectibles)[0]; count: number }>();
+    for (const item of ownedCollectibles) {
+      const key = `${item.perk}-${item.strength}-${item.heldBy.toLowerCase()}`;
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        byKey.set(key, { item, count: 1 });
+      }
+    }
+    return Array.from(byKey.values()).map(({ item, count }) => ({ ...item, count }));
+  }, [ownedCollectibles]);
+
   React.useEffect(() => {
     // Reset when wallet changes / reconnects
     setError(null);
@@ -1141,8 +1176,9 @@ export default function Profile() {
     ((guestUser.smart_wallet_address && isValidWallet(guestUser.smart_wallet_address)) ||
       (guestUser.linked_wallet_address && isValidWallet(guestUser.linked_wallet_address)));
 
+  // Show guest view when connected wallet has no on-chain profile (e.g. first-time link) so user can still see "Link this wallet"
   const showGuestProfileForConnectedWalletMismatch =
-    Boolean(guestUser) && isConnected && !loading && (!!error || !userData) && guestHasPerkHolderAddresses;
+    Boolean(guestUser) && isConnected && !loading && (!!error || !userData);
 
   if (!isConnected || loading || error || !userData) {
     if (guestUser && !isConnected) {
@@ -1155,12 +1191,15 @@ export default function Profile() {
       );
     }
     if (showGuestProfileForConnectedWalletMismatch && guestUser) {
+      const mismatchNotice = guestHasPerkHolderAddresses
+        ? "Your connected browser wallet is not your Tycoon player address. Shop perks are sent to your smart wallet — open My Perks below (they are loaded from your logged-in account, not from the connected extension wallet). Disconnect or link the correct wallet in Account if you want the full connected profile."
+        : "Your connected wallet isn't registered on-chain yet. Link it below to use this account when you connect with that wallet (staked games, same stats).";
       return (
         <GuestProfileView
           guestUser={guestUser}
           onRecreateClick={handleRecreateViaApi}
           recreatePending={recreateApiPending}
-          connectedWalletMismatchNotice="Your connected browser wallet is not your Tycoon player address. Shop perks are sent to your smart wallet — open My Perks below (they are loaded from your logged-in account, not from the connected extension wallet). Disconnect or link the correct wallet in Account if you want the full connected profile."
+          connectedWalletMismatchNotice={mismatchNotice}
         />
       );
     }
@@ -1579,7 +1618,7 @@ export default function Profile() {
                     <p className="text-slate-400 text-sm text-center mb-3">Loading perks…</p>
                     <SkeletonPerkGrid count={6} gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" />
                   </>
-                ) : ownedCollectibles.length === 0 ? (
+                ) : groupedCollectibles.length === 0 ? (
                   <EmptyState
                     icon={<ShoppingBag className="w-14 h-14 text-purple-400/70" />}
                     title="No perks yet"
@@ -1590,8 +1629,8 @@ export default function Profile() {
                   />
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {ownedCollectibles.map((item, i) => {
-                      const rowKey = `${item.heldBy.toLowerCase()}-${item.tokenId.toString()}`;
+                    {groupedCollectibles.map((item, i) => {
+                      const rowKey = `${item.heldBy.toLowerCase()}-${item.perk}-${item.strength}`;
                       return (
                       <motion.div
                         key={rowKey}
@@ -1603,7 +1642,14 @@ export default function Profile() {
                           selectedPerkKey === rowKey ? 'border-purple-500/50 ring-2 ring-purple-500/20' : 'border-white/10 hover:border-purple-500/30'
                         }`}
                       >
-                        {item.icon}
+                        <div className="relative inline-block">
+                          {item.icon}
+                          {item.count > 1 && (
+                            <span className="absolute -top-1 -right-1 min-w-[1.25rem] h-5 px-1 flex items-center justify-center rounded-full bg-purple-500/90 text-white text-xs font-bold">
+                              ×{item.count}
+                            </span>
+                          )}
+                        </div>
                         <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
                         {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-xs mt-0.5">Tier {item.strength}</p>}
                         {smartWallet && item.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
