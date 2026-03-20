@@ -346,6 +346,20 @@ function GuestProfileViewMobile({
     [mergedCollectibleRows]
   );
 
+  const groupedCollectibles = useMemo(() => {
+    const byKey = new Map<string, { item: (typeof ownedCollectibles)[0]; count: number }>();
+    for (const item of ownedCollectibles) {
+      const key = `${item.perk}-${item.strength}-${item.heldBy.toLowerCase()}`;
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        byKey.set(key, { item, count: 1 });
+      }
+    }
+    return Array.from(byKey.values()).map(({ item, count }) => ({ ...item, count }));
+  }, [ownedCollectibles]);
+
   const walletEoa = linkedWalletAddress ?? undefined;
   const smartWallet = smartWalletAddress ?? undefined;
 
@@ -702,7 +716,7 @@ function GuestProfileViewMobile({
                     <p className="text-slate-400 text-sm text-center mb-3">Loading perks…</p>
                     <SkeletonPerkGrid count={4} gridClass="grid grid-cols-2 gap-3" />
                   </>
-                ) : ownedCollectibles.length === 0 ? (
+                ) : groupedCollectibles.length === 0 ? (
                   <EmptyState
                     icon={<ShoppingBag className="w-12 h-12 text-purple-400/70" />}
                     title="No perks yet"
@@ -713,15 +727,22 @@ function GuestProfileViewMobile({
                   />
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
-                    {ownedCollectibles.map((item) => {
-                      const rowKey = `${item.heldBy.toLowerCase()}-${item.tokenId.toString()}`;
+                    {groupedCollectibles.map((item) => {
+                      const rowKey = `${item.heldBy.toLowerCase()}-${item.perk}-${item.strength}`;
                       return (
                         <motion.div
                           key={rowKey}
                           whileTap={{ scale: 0.98 }}
                           className="rounded-xl p-4 text-center border transition-all bg-black/20 border-white/10"
                         >
-                          {item.icon}
+                          <div className="relative inline-block">
+                            {item.icon}
+                            {item.count > 1 && (
+                              <span className="absolute -top-1 -right-1 min-w-[1.125rem] h-4 px-1 flex items-center justify-center rounded-full bg-purple-500/90 text-white text-[10px] font-bold">
+                                ×{item.count}
+                              </span>
+                            )}
+                          </div>
                           <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
                           {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-[10px] mt-0.5">Tier {item.strength}</p>}
                           {smartWallet && item.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
@@ -915,6 +936,20 @@ export default function ProfilePageMobile() {
       }),
     [mergedCollectibleRows]
   );
+
+  const groupedCollectibles = useMemo(() => {
+    const byKey = new Map<string, { item: (typeof ownedCollectibles)[0]; count: number }>();
+    for (const item of ownedCollectibles) {
+      const key = `${item.perk}-${item.strength}-${item.heldBy.toLowerCase()}`;
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        byKey.set(key, { item, count: 1 });
+      }
+    }
+    return Array.from(byKey.values()).map(({ item, count }) => ({ ...item, count }));
+  }, [ownedCollectibles]);
 
   useEffect(() => {
     setError(null);
@@ -1543,7 +1578,7 @@ export default function ProfilePageMobile() {
                     <p className="text-slate-400 text-sm text-center mb-3">Loading perks…</p>
                     <SkeletonPerkGrid count={4} gridClass="grid grid-cols-2 gap-3" />
                   </>
-                ) : ownedCollectibles.length === 0 ? (
+                ) : groupedCollectibles.length === 0 ? (
                   <EmptyState
                     icon={<ShoppingBag className="w-12 h-12 text-purple-400/70" />}
                     title="No perks yet"
@@ -1554,8 +1589,8 @@ export default function ProfilePageMobile() {
                   />
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
-                    {ownedCollectibles.map((item) => {
-                      const rowKey = `${item.heldBy.toLowerCase()}-${item.tokenId.toString()}`;
+                    {groupedCollectibles.map((item) => {
+                      const rowKey = `${item.heldBy.toLowerCase()}-${item.perk}-${item.strength}`;
                       return (
                       <motion.div
                         key={rowKey}
@@ -1564,7 +1599,14 @@ export default function ProfilePageMobile() {
                           selectedPerkKey === rowKey ? 'border-purple-500/50 ring-2 ring-purple-500/20' : 'border-white/10'
                         }`}
                       >
-                        {item.icon}
+                        <div className="relative inline-block">
+                          {item.icon}
+                          {item.count > 1 && (
+                            <span className="absolute -top-1 -right-1 min-w-[1.125rem] h-4 px-1 flex items-center justify-center rounded-full bg-purple-500/90 text-white text-[10px] font-bold">
+                              ×{item.count}
+                            </span>
+                          )}
+                        </div>
                         <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
                         {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-[10px] mt-0.5">Tier {item.strength}</p>}
                         {smartWallet && item.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
