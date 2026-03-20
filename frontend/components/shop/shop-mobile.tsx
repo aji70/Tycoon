@@ -491,7 +491,7 @@ export default function GameShopMobile() {
         if (!res?.success && !res?.data?.success) {
           throw new Error(res?.data?.message || 'Purchase failed');
         }
-        toast.success('Purchase successful! 🎉');
+        toast.success('Purchase successful!');
       } else if (payWith === 'smart_wallet' && smartWalletAddress) {
         await smartWalletApprove(usdcTokenAddress, contractAddress, price);
         await buyFrom(smartWalletAddress, item.tokenId, true);
@@ -699,14 +699,14 @@ export default function GameShopMobile() {
   // Success / Error toasts
   useEffect(() => {
     if (buySuccess) {
-      toast.success('Purchase successful! 🎉');
+      toast.success('Purchase successful!');
       refetchUsdc();
       resetBuy();
     }
   }, [buySuccess, refetchUsdc, resetBuy]);
   useEffect(() => {
     if (buyFromSuccess) {
-      toast.success('Purchase successful! 🎉');
+      toast.success('Purchase successful!');
       refetchUsdc();
       resetBuyFrom();
     }
@@ -872,13 +872,14 @@ export default function GameShopMobile() {
                   animate={{ opacity: 1, y: 0 }}
                   className="rounded-xl overflow-hidden border border-amber-500/20 bg-[#0E1415]/50"
                 >
-                  {/* Bundle Image */}
-                  <div className="relative h-40 bg-black/40 overflow-hidden">
+                  {/* Bundle image — match perks: proportional contain */}
+                  <div className="relative h-44 w-full flex-shrink-0 overflow-hidden bg-black/60">
                     <Image
                       src={bundleImageMap[b.name] || "/game/shop/placeholder.jpg"}
                       alt={b.name}
                       fill
-                      className="object-cover"
+                      sizes="50vw"
+                      className="object-contain p-2"
                     />
                   </div>
 
@@ -984,21 +985,21 @@ export default function GameShopMobile() {
                       alt={item.name}
                       fill
                       sizes="50vw"
-                      className="object-contain p-2 transition-transform duration-500 group-active:scale-105"
+                      className="object-contain p-2 transition-transform duration-300 group-active:scale-[1.02]"
                     />
-                    <div className="absolute top-2 right-2 flex items-center gap-1.5">
-                      {TIERED_PERKS.has(item.perk) && (
-                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/30 text-[9px] font-semibold text-amber-300 uppercase">
-                          T{item.strength}
-                        </span>
-                      )}
-                      <span className="px-2 py-0.5 rounded-md bg-black/50 text-[10px] font-medium text-slate-300">
-                        {item.stock} left
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 px-3 pt-2 pb-0 border-t border-white/5 bg-[#0E1415]/40">
+                    {TIERED_PERKS.has(item.perk) && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/30 text-[9px] font-semibold text-amber-300 uppercase">
+                        T{item.strength}
                       </span>
-                    </div>
+                    )}
+                    <span className="px-2 py-0.5 rounded-md bg-black/40 text-[10px] font-medium text-slate-300 border border-white/10">
+                      {item.stock} left
+                    </span>
                   </div>
 
-                  <div className="p-3 flex flex-col flex-1 min-h-0">
+                  <div className="p-3 flex flex-col flex-1 min-h-0 pt-2">
                     <p className="font-bold text-base leading-tight text-white mb-1">{item.name}</p>
                     <p className="text-[11px] text-slate-500 mb-2 line-clamp-2 flex-shrink-0">{item.desc}</p>
 

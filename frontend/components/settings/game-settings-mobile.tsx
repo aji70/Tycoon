@@ -158,19 +158,52 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
 
     if (isGuest) {
       try {
+        if (!isFreeGame) {
+          const sw = guestAuth?.guestUser?.smart_wallet_address?.trim();
+          if (!sw) {
+            toast.update(toastId, {
+              render: "Create a smart wallet in Profile to host staked games without connecting a wallet.",
+              type: "error",
+              isLoading: false,
+              autoClose: 8000,
+            });
+            setIsStarting(false);
+            return;
+          }
+          if (!guestAuth?.guestUser?.withdrawal_pin_set) {
+            toast.update(toastId, {
+              render: "Set a withdrawal PIN in Profile to pay stakes from your smart wallet.",
+              type: "error",
+              isLoading: false,
+              autoClose: 8000,
+            });
+            setIsStarting(false);
+            return;
+          }
+        }
+        const pin =
+          !isFreeGame && typeof window !== "undefined"
+            ? window.prompt("Enter your withdrawal PIN to stake USDC from your smart wallet")?.trim() ?? ""
+            : "";
+        if (!isFreeGame && !pin) {
+          toast.update(toastId, { render: "PIN required for staked games.", type: "error", isLoading: false, autoClose: 5000 });
+          setIsStarting(false);
+          return;
+        }
         toast.update(toastId, { render: "Creating game (guest)..." });
         const res = await apiClient.post<any>("/games/create-as-guest", {
           code: gameCode,
           mode: gameType,
           symbol: settings.symbol,
           number_of_players: settings.maxPlayers,
-          stake: 0,
+          stake: isFreeGame ? 0 : finalStake,
+          pin: pin || undefined,
           starting_cash: settings.startingCash,
           is_ai: false,
           is_minipay: isMiniPay,
           chain: chainName,
           duration: settings.duration,
-          use_usdc: false,
+          use_usdc: !isFreeGame,
           settings: {
             auction: settings.auction,
             rent_in_prison: settings.rentInPrison,

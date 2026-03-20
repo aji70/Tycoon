@@ -51,7 +51,7 @@ export default function GameWaiting({ redirectToBoard }: GameWaitingProps = {}):
     handleLeaveGame,
     handleGoHome,
     isCreator,
-    guestCannotJoinStaked,
+    guestUser,
   } = useWaitingRoom({ redirectToBoard });
 
   // Loading / Error guards
@@ -194,16 +194,16 @@ export default function GameWaiting({ redirectToBoard }: GameWaitingProps = {}):
                   )}
                 </select>
               </div>
-              {guestCannotJoinStaked && (
-                <p className="text-amber-400 text-sm text-center bg-amber-900/30 p-3 rounded-xl border border-amber-500/40">
-                  Guests cannot join staked games. Connect a wallet to join this game.
+              {guestUser && stakePerPlayer > 0 && (
+                <p className="text-cyan-300/90 text-sm text-center bg-cyan-950/40 p-3 rounded-xl border border-cyan-500/30">
+                  Stake is paid from your smart wallet. You&apos;ll be asked for your withdrawal PIN when you join.
                 </p>
               )}
               <button
                 type="button"
                 onClick={handleJoinGame}
                 className="w-full bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!playerSymbol || actionLoading || isJoining || approvePending || approveConfirming || guestCannotJoinStaked}
+                disabled={!playerSymbol || actionLoading || isJoining || approvePending || approveConfirming}
               >
                 {actionLoading || isJoining || approvePending || approveConfirming ? "Entering..." : "Join the Battle"}
               </button>
@@ -410,7 +410,7 @@ export default function GameWaiting({ redirectToBoard }: GameWaitingProps = {}):
                 type="button"
                 onClick={handleJoinGame}
                 className="w-full bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!playerSymbol || actionLoading || isJoining || approvePending || approveConfirming || guestCannotJoinStaked}
+                disabled={!playerSymbol || actionLoading || isJoining || approvePending || approveConfirming}
               >
                 {actionLoading || isJoining || approvePending || approveConfirming ? "Entering..." : "Join the Battle"}
               </button>
@@ -446,10 +446,9 @@ export default function GameWaiting({ redirectToBoard }: GameWaitingProps = {}):
             </button>
           </div>
 
-          {(error || guestCannotJoinStaked || joinError || contractGameError) && (
+          {(error || joinError || contractGameError) && (
             <p className="text-red-400 text-xs mt-3 text-center bg-red-900/50 p-2 rounded-lg animate-pulse">
               {error ??
-                (guestCannotJoinStaked ? "Guests cannot join staked games. Connect a wallet to join this game." : null) ??
                 joinError?.message ??
                 contractGameError?.message ??
                 "System Glitch Detected"}

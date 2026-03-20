@@ -568,6 +568,19 @@ const USER_WALLET_ABI = [
     outputs: [],
     stateMutability: "nonpayable",
   },
+  {
+    type: "function",
+    name: "executeCallWithAuth",
+    inputs: [
+      { name: "target", type: "address", internalType: "address" },
+      { name: "value", type: "uint256", internalType: "uint256" },
+      { name: "data", type: "bytes", internalType: "bytes" },
+      { name: "nonce", type: "uint256", internalType: "uint256" },
+      { name: "signature", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [{ name: "", type: "bytes", internalType: "bytes" }],
+    stateMutability: "payable",
+  },
 ];
 
 /** TycoonNairaVault: processNairaWithdrawalCelo, creditCelo, creditUsdc, balanceCelo, balanceUsdc. */
@@ -1061,6 +1074,95 @@ export async function withdrawFromSmartWalletUsdc(smartWalletAddress, to, amount
     logger.info({ smartWalletAddress, to, amountWei: String(amountWei), hash: receipt?.hash }, "withdrawFromSmartWalletUsdc");
     return { hash: receipt?.hash };
   });
+}
+
+const ERC20_ALLOWANCE_APPROVE_ABI = [
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+];
+
+/**
+ * Message hash for TycoonUserWallet.executeCallWithAuth (must match Solidity).
+ * hash = keccak256(abi.encodePacked(wallet, target, value, keccak256(data), nonce))
+ */
+export async function signExecuteCallAuth(smartWalletAddress, target, valueWei, calldataHex, nonce, chain = "CELO") {
+  const dataHash = keccak256(calldataHex);
+  const hash = keccak256(
+    solidityPacked(
+      ["address", "address", "uint256", "bytes32", "uint256"],
+      [smartWalletAddress, target, BigInt(valueWei ?? 0), dataHash, nonce]
+    )
+  );
+  const authWallet = getWithdrawalAuthorityWallet(chain);
+  return authWallet.signMessage(getBytes(hash));
+}
+
+/**
+ * Operator submits executeCallWithAuth after authority signs (user verified PIN).
+ */
+export async function executeCallFromSmartWalletWithAuth(
+  smartWalletAddress,
+  target,
+  valueWei,
+  calldataHex,
+  nonce,
+  signature,
+  chain = "CELO"
+) {
+  return withTxQueue(async () => {
+    const cfg = getChainConfig(chain);
+    if (!cfg.rpcUrl || !smartWalletAddress || !target || signature == null) throw new Error("Invalid executeCall args or chain");
+    const pk = process.env.SMART_WALLET_OPERATOR_PRIVATE_KEY ?? cfg.privateKey;
+    if (!pk) throw new Error("Operator key not set");
+    const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const network = new Network(networkName, cfg.chainId);
+    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const wallet = new Wallet(key, provider);
+    const userWallet = new Contract(smartWalletAddress, USER_WALLET_ABI, wallet);
+    const tx = await userWallet.executeCallWithAuth(target, BigInt(valueWei ?? 0), calldataHex, nonce, signature);
+    const receipt = await tx.wait();
+    logger.info({ smartWalletAddress, target, hash: receipt?.hash }, "executeCallFromSmartWalletWithAuth");
+    return { hash: receipt?.hash };
+  });
+}
+
+function getUsdcAddressForBackend(chain) {
+  const cfg = getChainConfig(chain);
+  const u = cfg.usdcAddress ?? process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
+  if (u) return u;
+  const c = String(chain).toUpperCase();
+  if (c === "POLYGON") return process.env.POLYGON_USDC_ADDRESS;
+  if (c === "BASE") return process.env.BASE_USDC_ADDRESS;
+  return undefined;
+}
+
+/**
+ * Ensure USDC allowance from smart wallet to Tycoon (for stake transferFrom). Uses executeCallWithAuth + PIN-gated authority signature.
+ * Skips tx if allowance already sufficient.
+ */
+export async function ensureUsdcAllowanceFromSmartWalletForTycoon(smartWalletAddress, requiredAmount, chain = "CELO") {
+  const cfg = getChainConfig(chain);
+  const tycoon = cfg.contractAddress;
+  const usdc = getUsdcAddressForBackend(chain);
+  if (!tycoon || !usdc) throw new Error("USDC or Tycoon contract address not configured for this chain");
+  if (requiredAmount <= 0n) return { skipped: true };
+
+  const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+  const network = new Network(networkName, cfg.chainId);
+  const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+  const token = new Contract(usdc, ERC20_ALLOWANCE_APPROVE_ABI, provider);
+  const current = await token.allowance(smartWalletAddress, tycoon);
+  if (current >= requiredAmount) {
+    logger.info({ smartWalletAddress, requiredAmount: String(requiredAmount) }, "USDC allowance already sufficient for Tycoon");
+    return { skipped: true };
+  }
+
+  const approveIface = new Interface(["function approve(address spender, uint256 amount) returns (bool)"]);
+  const calldata = approveIface.encodeFunctionData("approve", [tycoon, requiredAmount]);
+  const nonce = BigInt("0x" + crypto.randomBytes(8).toString("hex"));
+  const sig = await signExecuteCallAuth(smartWalletAddress, usdc, 0n, calldata, nonce, chain);
+  return executeCallFromSmartWalletWithAuth(smartWalletAddress, usdc, 0n, calldata, nonce, sig, chain);
 }
 
 export async function processNairaWithdrawalCelo(fromWallet, amountWei, chain = "CELO") {
