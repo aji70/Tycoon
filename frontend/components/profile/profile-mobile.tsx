@@ -1131,8 +1131,9 @@ export default function ProfilePageMobile() {
     ((guestUser.smart_wallet_address && isValidWallet(guestUser.smart_wallet_address)) ||
       (guestUser.linked_wallet_address && isValidWallet(guestUser.linked_wallet_address)));
 
+  // Show guest view when connected wallet has no on-chain profile (e.g. first-time link) so user can still see "Link this wallet"
   const showGuestProfileForConnectedWalletMismatch =
-    Boolean(guestUser) && isConnected && !loading && (!!error || !userData) && guestHasPerkHolderAddresses;
+    Boolean(guestUser) && isConnected && !loading && (!!error || !userData);
 
   if (!isConnected || loading || error || !userData) {
     if (guestUser && !isConnected) {
@@ -1145,12 +1146,15 @@ export default function ProfilePageMobile() {
       );
     }
     if (showGuestProfileForConnectedWalletMismatch && guestUser) {
+      const mismatchNotice = guestHasPerkHolderAddresses
+        ? "Your connected wallet is not your Tycoon player address. Shop perks go to your smart wallet — open My Perks below (from your logged-in account). Disconnect or link the correct wallet in Account for the full connected profile."
+        : "Your connected wallet isn't registered on-chain yet. Link it below to use this account when you connect with that wallet (staked games, same stats).";
       return (
         <GuestProfileViewMobile
           guestUser={guestUser}
           onRecreateClick={handleRecreateViaApi}
           recreatePending={recreateApiPending}
-          connectedWalletMismatchNotice="Your connected wallet is not your Tycoon player address. Shop perks go to your smart wallet — open My Perks below (from your logged-in account). Disconnect or link the correct wallet in Account for the full connected profile."
+          connectedWalletMismatchNotice={mismatchNotice}
         />
       );
     }
