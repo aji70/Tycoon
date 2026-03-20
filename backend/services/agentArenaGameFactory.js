@@ -51,6 +51,9 @@ async function getOrCreateAIUser(aiIndex, chain = "CELO") {
  * @param {string} [opts.opponentName]
  * @param {string} [opts.chain]
  * @param {object} [opts.settings]
+ * @param {string} [opts.forcedCode] - If set, use this join code (e.g. tournament T{id}-R{r}-M{m}); must be unused.
+ * @param {string} [opts.gameType] - DB game_type (default AGENT_VS_AGENT).
+ * @param {string} [opts.analyticsSource] - recordEvent payload source (default arena_challenge).
  */
 export async function createTwoPlayerAgentArenaGame(opts) {
   const {
@@ -61,17 +64,28 @@ export async function createTwoPlayerAgentArenaGame(opts) {
     opponentName = "Opponent",
     chain: chainRaw = "CELO",
     settings = {},
+    forcedCode = null,
+    gameType = "AGENT_VS_AGENT",
+    analyticsSource = "arena_challenge",
   } = opts;
 
   const normalizedChain = User.normalizeChain(chainRaw);
   const startingCash = Number(settings?.starting_cash ?? 1500);
   const duration = String(Number(settings?.duration ?? 0) || 0);
+  const resolvedGameType = String(gameType || "AGENT_VS_AGENT").trim() || "AGENT_VS_AGENT";
 
-  let code = generateJoinCode6();
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const exists = await Game.findByCode(code);
-    if (!exists) break;
+  let code;
+  if (forcedCode != null && String(forcedCode).trim()) {
+    code = String(forcedCode).trim().toUpperCase();
+    const taken = await Game.findByCode(code);
+    if (taken) throw new Error(`Game code already in use: ${code}`);
+  } else {
     code = generateJoinCode6();
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const exists = await Game.findByCode(code);
+      if (!exists) break;
+      code = generateJoinCode6();
+    }
   }
 
   const game = await Game.create({
@@ -86,7 +100,7 @@ export async function createTwoPlayerAgentArenaGame(opts) {
     duration,
     chain: normalizedChain,
     contract_game_id: null,
-    game_type: "AGENT_VS_AGENT",
+    game_type: resolvedGameType,
     started_at: db.fn.now(),
   });
 
@@ -148,7 +162,7 @@ export async function createTwoPlayerAgentArenaGame(opts) {
   await recordEvent("game_created", {
     entityType: "game",
     entityId: game.id,
-    payload: { game_type: "AGENT_VS_AGENT", number_of_players: 2, source: "arena_challenge" },
+    payload: { game_type: resolvedGameType, number_of_players: 2, source: analyticsSource },
   });
 
   const fullGame = await Game.findById(game.id);

@@ -137,7 +137,8 @@ export default function TournamentDetailPage() {
   const [creatingRoundIndex, setCreatingRoundIndex] = useState<number | null>(null);
   const [fundPoolUsd, setFundPoolUsd] = useState("");
   const [registerAgentId, setRegisterAgentId] = useState<number | null>(null);
-  const [myAgentsForReg, setMyAgentsForReg] = useState<{ id: number; name: string }[]>([]);
+  /** Agents the user may register as: invite list (BOT_SELECTION) or all agents (OPEN/INVITE agents-only). */
+  const [myRegisterAgents, setMyRegisterAgents] = useState<{ id: number; name: string }[]>([]);
   const START_WINDOW_MINUTES = 5;
 
   const isInMatch = useCallback(
@@ -233,11 +234,13 @@ export default function TournamentDetailPage() {
 
   const vis = String(tournament?.visibility ?? "OPEN").toUpperCase();
   const isBotSelection = vis === "BOT_SELECTION";
+  const needsAgentChoice =
+    Boolean(tournament?.is_agent_only) || isBotSelection;
   const canRegister =
     tournament?.status === "REGISTRATION_OPEN" &&
     !isRegistered(tournament.id) &&
     (isPaidTournament ? walletAddress != null : walletAddress != null || guestUser != null) &&
-    (!isBotSelection || (registerAgentId != null && registerAgentId > 0));
+    (!needsAgentChoice || (registerAgentId != null && registerAgentId > 0));
 
   useEffect(() => {
     if (!id) return;
@@ -245,8 +248,12 @@ export default function TournamentDetailPage() {
   }, [id, inviteQuery, fetchTournament]);
 
   useEffect(() => {
-    if (!isBotSelection || !tournament?.allowed_agent_ids?.length) {
-      setMyAgentsForReg([]);
+    if (tournament?.status !== "REGISTRATION_OPEN") {
+      setMyRegisterAgents([]);
+      return;
+    }
+    if (!needsAgentChoice) {
+      setMyRegisterAgents([]);
       return;
     }
     let cancelled = false;
@@ -254,20 +261,28 @@ export default function TournamentDetailPage() {
       try {
         const res = await apiClient.get<ApiResponse<{ id: number; name: string }[]>>("/agents");
         const list = res?.data?.success && Array.isArray(res.data.data) ? res.data.data : [];
-        const allowed = new Set(tournament.allowed_agent_ids!.map(Number));
-        const filtered = list.filter((a) => allowed.has(a.id));
+        let choices = list;
+        if (isBotSelection && tournament?.allowed_agent_ids?.length) {
+          const allowed = new Set(tournament.allowed_agent_ids.map(Number));
+          choices = list.filter((a) => allowed.has(a.id));
+        }
         if (!cancelled) {
-          setMyAgentsForReg(filtered);
-          if (filtered.length === 1) setRegisterAgentId(filtered[0].id);
+          setMyRegisterAgents(choices);
+          if (choices.length === 1) setRegisterAgentId(choices[0].id);
         }
       } catch {
-        if (!cancelled) setMyAgentsForReg([]);
+        if (!cancelled) setMyRegisterAgents([]);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [isBotSelection, tournament?.allowed_agent_ids]);
+  }, [
+    needsAgentChoice,
+    isBotSelection,
+    tournament?.allowed_agent_ids,
+    tournament?.status,
+  ]);
 
   useEffect(() => {
     if (!id || !tournament || tournament.id !== Number(id)) return;
@@ -331,7 +346,7 @@ export default function TournamentDetailPage() {
         chain: tournament.chain,
         payment_tx_hash: registrationTxHash ?? undefined,
         ...(inviteQuery ? { invite_token: inviteQuery } : {}),
-        ...(isBotSelection && registerAgentId ? { user_agent_id: registerAgentId } : {}),
+        ...(needsAgentChoice && registerAgentId ? { user_agent_id: registerAgentId } : {}),
       });
       if (res.success) {
         setActionSuccess("Registered!");
@@ -479,26 +494,35 @@ export default function TournamentDetailPage() {
               </p>
             )}
 
-          {isBotSelection && tournament.status === "REGISTRATION_OPEN" && myAgentsForReg.length > 0 && (
+          {tournament.status === "REGISTRATION_OPEN" && needsAgentChoice && myRegisterAgents.length > 0 && (
             <div className="mt-4">
-              <label className="block text-xs text-white/60 mb-1.5">Register as agent (invited)</label>
+              <label className="block text-xs text-white/60 mb-1.5">
+                {isBotSelection ? "Register as agent (invited)" : "Register as agent (agents-only event)"}
+              </label>
               <select
                 className="w-full max-w-md px-3 py-2 rounded-lg bg-[#011112] border border-[#0E282A] text-cyan-200 text-sm"
                 value={registerAgentId ?? ""}
                 onChange={(e) => setRegisterAgentId(Number(e.target.value) || null)}
               >
                 <option value="">Choose your agent…</option>
-                {myAgentsForReg.map((a) => (
+                {myRegisterAgents.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name} (#{a.id})
                   </option>
                 ))}
               </select>
+              {!isBotSelection && (
+                <p className="mt-1.5 text-[11px] text-white/45">
+                  Your agent is bound to this seat for bracket games (callbacks / hosted AI / API key).
+                </p>
+              )}
             </div>
           )}
-          {isBotSelection && tournament.status === "REGISTRATION_OPEN" && myAgentsForReg.length === 0 && guestUser && (
+          {tournament.status === "REGISTRATION_OPEN" && needsAgentChoice && myRegisterAgents.length === 0 && guestUser && (
             <p className="mt-3 text-sm text-amber-400/90">
-              None of your agents are on this tournament&apos;s invite list, or you have no agents yet.
+              {isBotSelection
+                ? "None of your agents are on this tournament's invite list, or you have no agents yet."
+                : "Create an agent in My agents before registering for this agents-only tournament."}
             </p>
           )}
 
@@ -696,6 +720,8 @@ export default function TournamentDetailPage() {
                           const canCreateGame = needsGameCreated && isCreator;
                           // Use numeric tournament.id so game code matches backend (e.g. T24-R0-M0), not URL slug (e.g. 9OJXTLE4)
                           const gameCodeForMatch = `T${tournament?.id ?? id}-R${r.round_index}-M${m.match_index}`.toUpperCase();
+                          const isAutonomousAgentMatch =
+                            String(m.match_game_type || "") === "TOURNAMENT_AGENT_VS_AGENT";
                           return (
                             <div
                               key={m.id}
@@ -724,18 +750,20 @@ export default function TournamentDetailPage() {
                                   {hasGameForBoard ? (
                                     <>
                                       <Link
-                                        href={`/board-3d-multi?gameCode=${encodeURIComponent(gameCodeForMatch)}`}
+                                        href={`/board-3d-multi?gameCode=${encodeURIComponent(gameCodeForMatch)}${isAutonomousAgentMatch ? "&spectate=1" : ""}`}
                                         className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500/25 border border-cyan-500/60 text-cyan-300 font-medium hover:bg-cyan-500/35 transition-colors"
                                       >
                                         <Play className="w-4 h-4" />
-                                        Play (board)
+                                        {isAutonomousAgentMatch ? "Watch (AI board)" : "Play (board)"}
                                       </Link>
-                                      <Link
-                                        href={`/game-waiting?gameCode=${encodeURIComponent(gameCodeForMatch)}`}
-                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-white/15 text-white/85 font-medium hover:bg-white/10 transition-colors"
-                                      >
-                                        Lobby
-                                      </Link>
+                                      {!isAutonomousAgentMatch ? (
+                                        <Link
+                                          href={`/game-waiting?gameCode=${encodeURIComponent(gameCodeForMatch)}`}
+                                          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-white/15 text-white/85 font-medium hover:bg-white/10 transition-colors"
+                                        >
+                                          Lobby
+                                        </Link>
+                                      ) : null}
                                       {m.spectator_url ? (
                                         <Link
                                           href={m.spectator_url}

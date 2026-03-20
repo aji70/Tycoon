@@ -149,7 +149,7 @@ router.get("/:id", async (req, res) => {
     if (!agent) {
       return res.status(404).json({ success: false, message: "Agent not found" });
     }
-    res.json({ success: true, data: agent });
+    res.json({ success: true, data: eloService.enrichAgentForArenaUi(agent) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -167,8 +167,18 @@ router.patch("/:id", async (req, res) => {
     if (!existing) {
       return res.status(404).json({ success: false, message: "Agent not found" });
     }
-    const agent = await UserAgent.update(id, userId, req.body || {});
-    res.json({ success: true, data: agent });
+    const hadErc8004 =
+      existing.erc8004_agent_id != null && String(existing.erc8004_agent_id).trim() !== "";
+    const body = req.body || {};
+    const agent = await UserAgent.update(id, userId, body);
+    let latest = agent;
+    const hasErc8004 =
+      agent.erc8004_agent_id != null && String(agent.erc8004_agent_id).trim() !== "";
+    if (body.erc8004_agent_id !== undefined && hasErc8004 && !hadErc8004) {
+      await eloService.awardActivityXpByAgentId(id, eloService.ACTIVITY_XP.ERC8004_LINKED, "erc8004_first_link");
+      latest = await UserAgent.findByIdAndUser(id, userId);
+    }
+    res.json({ success: true, data: eloService.enrichAgentForArenaUi(latest) });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }

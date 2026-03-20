@@ -383,6 +383,12 @@ export async function getBracket(req, res) {
     const matches = await TournamentMatch.findByTournament(req.params.id);
     const entries = await TournamentEntry.findByTournament(req.params.id, { withUser: true });
     const entryMap = Object.fromEntries((entries || []).map((e) => [e.id, e]));
+    const gameIds = [...new Set((matches || []).map((m) => m.game_id).filter(Boolean))];
+    let matchGameTypeById = {};
+    if (gameIds.length) {
+      const gRows = await db("games").whereIn("id", gameIds).select("id", "game_type");
+      matchGameTypeById = Object.fromEntries((gRows || []).map((r) => [r.id, r.game_type]));
+    }
     const bracket = {
       tournament: { id: tournament.id, name: tournament.name, status: tournament.status },
       rounds: rounds.map((r) => ({
@@ -419,6 +425,7 @@ export async function getBracket(req, res) {
               slot_a_username: m.slot_a_entry_id ? entryMap[m.slot_a_entry_id]?.username : null,
               slot_b_username: m.slot_b_entry_id ? entryMap[m.slot_b_entry_id]?.username : null,
               winner_username: m.winner_entry_id ? entryMap[m.winner_entry_id]?.username : null,
+              match_game_type: m.game_id ? matchGameTypeById[m.game_id] ?? null : null,
             };
           }),
       })),

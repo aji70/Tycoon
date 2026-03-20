@@ -165,19 +165,19 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
         }
     }
 
+    /// @dev After `super._update`, balance is already final. Remove id from enumeration when this owner holds none (burn / full transfer out).
+    ///      Previous `bal == amount` check was wrong: after a burn, bal is 0 so it never removed; partial transfers could remove too early.
     function _removeFromOwned(address from, uint256 id, uint256 amount) internal {
-        if (amount == 0) return;
-        uint256 bal = balanceOf(from, id);
-        if (bal == amount) {
-            uint256 idx = _ownedIndex[from][id];
-            require(idx != 0, "Not owned");
-            uint256 lastIdx = _ownedIds[from].length;
-            uint256 lastId = _ownedIds[from][lastIdx - 1];
-            _ownedIds[from][idx - 1] = lastId;
-            _ownedIndex[from][lastId] = idx;
-            _ownedIds[from].pop();
-            delete _ownedIndex[from][id];
-        }
+        if (amount == 0 || from == address(0)) return;
+        if (balanceOf(from, id) > 0) return;
+        uint256 idx = _ownedIndex[from][id];
+        if (idx == 0) return;
+        uint256 lastIdx = _ownedIds[from].length;
+        uint256 lastId = _ownedIds[from][lastIdx - 1];
+        _ownedIds[from][idx - 1] = lastId;
+        _ownedIndex[from][lastId] = idx;
+        _ownedIds[from].pop();
+        delete _ownedIndex[from][id];
     }
 
     function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256) {

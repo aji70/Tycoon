@@ -141,6 +141,8 @@ export interface BracketRound {
     slot_a_username: string | null;
     slot_b_username: string | null;
     winner_username: string | null;
+    /** Present when bracket is loaded from GET .../bracket (joined from games). */
+    match_game_type?: string | null;
   }[];
 }
 

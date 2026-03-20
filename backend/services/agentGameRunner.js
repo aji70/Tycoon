@@ -24,6 +24,7 @@ const GAME_TYPES = new Set([
   "AGENT_VS_AI",
   "ONCHAIN_AGENT_VS_AGENT",
   "ONCHAIN_AGENT_VS_AI",
+  "TOURNAMENT_AGENT_VS_AGENT",
 ]);
 
 // Simple in-process locks: gameId -> Promise chain
