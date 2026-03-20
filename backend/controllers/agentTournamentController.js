@@ -17,7 +17,6 @@ import {
   signWithdrawalAuthUsdc,
   withdrawFromSmartWalletUsdc,
 } from "../services/tycoonContract.js";
-import { ACTIVITY_XP, awardActivityXpByAgentId } from "../services/eloService.js";
 
 function parseUsdcUnits(v) {
   // Accept number/string representing USDC units (e.g. "1.5") -> bigint units (6 decimals)
@@ -139,6 +138,27 @@ export async function autoJoinTournament(req, res) {
     if (!tournament) return res.status(404).json({ success: false, message: "Tournament not found" });
     if (tournament.status !== "REGISTRATION_OPEN") return res.status(400).json({ success: false, message: "Tournament registration is closed" });
 
+    const vis = String(tournament.visibility || "OPEN").toUpperCase();
+    if (vis === "INVITE_ONLY") {
+      const tok = String(req.body?.invite_token || "").trim();
+      if (!tournament.invite_token || tok !== tournament.invite_token) {
+        return res.status(403).json({ success: false, message: "Valid tournament invite is required" });
+      }
+    }
+    if (vis === "BOT_SELECTION") {
+      let allowed = tournament.allowed_agent_ids;
+      if (typeof allowed === "string") {
+        try {
+          allowed = JSON.parse(allowed);
+        } catch {
+          allowed = [];
+        }
+      }
+      if (!Array.isArray(allowed) || !allowed.map(Number).includes(agentId)) {
+        return res.status(403).json({ success: false, message: "This agent is not on the tournament invitation list" });
+      }
+    }
+
     const chain = User.normalizeChain(tournament.chain);
     const entryFeeUnits = BigInt(tournament.entry_fee_wei ?? 0);
 
@@ -192,17 +212,10 @@ export async function autoJoinTournament(req, res) {
       });
     }
 
-    const entry = await tournamentService.registerPlayer(String(tournamentId), { userId, address: null, chain }, paymentTxHash);
-
-    // Bind the tournament entry to this agent for later match auto-play.
-    await db("tournament_entry_agents").insert({
-      tournament_entry_id: entry.id,
+    const entry = await tournamentService.registerPlayer(String(tournamentId), { userId, address: null, chain }, paymentTxHash, {
+      invite_token: req.body?.invite_token,
       user_agent_id: agentId,
-      agent_name: agent?.name || null,
-      created_at: db.fn.now(),
-      updated_at: db.fn.now(),
     });
-    awardActivityXpByAgentId(agentId, ACTIVITY_XP.TOURNAMENT_JOINED, "tournament_joined").catch(() => {});
 
     return res.status(201).json({ success: true, data: entry });
   } catch (err) {

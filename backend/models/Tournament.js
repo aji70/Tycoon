@@ -41,7 +41,14 @@ const Tournament = {
     return this.findByCode(s.toUpperCase());
   },
 
-  async findAll({ limit = 50, offset = 0, status = null, chain = null, prize_source = null } = {}) {
+  async findAll({
+    limit = 50,
+    offset = 0,
+    status = null,
+    chain = null,
+    prize_source = null,
+    public_arena = false,
+  } = {}) {
     const query = db("tournaments")
       .select(
         "tournaments.*",
@@ -53,6 +60,7 @@ const Tournament = {
     if (status) query.where("tournaments.status", status);
     if (chain) query.where("tournaments.chain", chain);
     if (prize_source) query.where("tournaments.prize_source", prize_source);
+    if (public_arena) query.where("tournaments.visibility", "OPEN");
     const rows = await query;
     return rows.map((r) => ({
       ...r,

@@ -7,15 +7,15 @@ const router = express.Router();
 
 router.get("/spectate/:token", tournamentController.getSpectate);
 router.get("/", tournamentController.list);
-router.get("/:id", resolveTournament, tournamentController.getById);
-router.get("/:id/bracket", resolveTournament, tournamentController.getBracket);
-router.get("/:id/leaderboard", resolveTournament, tournamentController.getLeaderboard);
+router.get("/:id", optionalAuth, resolveTournament, tournamentController.getById);
+router.get("/:id/bracket", optionalAuth, resolveTournament, tournamentController.getBracket);
+router.get("/:id/leaderboard", optionalAuth, resolveTournament, tournamentController.getLeaderboard);
 
 router.post("/", optionalAuth, tournamentController.create);
-router.post("/:id/register", resolveTournament, optionalAuth, tournamentController.register);
-router.post("/:id/auto-fill-agents", resolveTournament, requireAuth, tournamentController.autoFillAgents);
-router.post("/:id/close-registration", resolveTournament, tournamentController.closeRegistration);
-router.post("/:id/start-round/:roundIndex", resolveTournament, tournamentController.startRound);
+router.post("/:id/register", optionalAuth, resolveTournament, tournamentController.register);
+router.post("/:id/auto-fill-agents", requireAuth, resolveTournament, tournamentController.autoFillAgents);
+router.post("/:id/close-registration", optionalAuth, resolveTournament, tournamentController.closeRegistration);
+router.post("/:id/start-round/:roundIndex", optionalAuth, resolveTournament, tournamentController.startRound);
 router.post("/:id/matches/:matchId/start-now", resolveTournament, requireAuth, tournamentController.requestMatchStart);
 router.get("/payouts/pending", requireAuth, tournamentController.getUserPendingPayouts);
 router.post("/:id/claim-payout/:payoutId", requireAuth, tournamentController.claimPayout);

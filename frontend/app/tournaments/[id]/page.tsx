@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAccount, useChainId } from "wagmi";
 import { useFundPrizePool } from "@/hooks/useFundPrizePool";
@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import type { Bracket, BracketRound, TournamentDetail } from "@/types/tournament";
 import { symbols as symbolOptions } from "@/lib/types/symbol";
+import { apiClient } from "@/lib/api";
+import type { ApiResponse } from "@/types/api";
 
 function formatEntryFee(wei: string | number): string {
   const n = Number(wei);
@@ -99,7 +101,10 @@ function buildBracketFromTournament(t: TournamentDetail | null): Bracket | null 
 
 export default function TournamentDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = String(params?.id ?? "");
+  const inviteQuery = searchParams.get("invite")?.trim() ?? "";
+  const inviteParams = inviteQuery ? { invite: inviteQuery } : undefined;
   const { guestUser } = useGuestAuthOptional() ?? {};
   const { address: walletAddress } = useAccount();
   const walletChainId = useChainId();
@@ -131,6 +136,8 @@ export default function TournamentDetailPage() {
   const [selectedStartSymbol, setSelectedStartSymbol] = useState<string>("hat");
   const [creatingRoundIndex, setCreatingRoundIndex] = useState<number | null>(null);
   const [fundPoolUsd, setFundPoolUsd] = useState("");
+  const [registerAgentId, setRegisterAgentId] = useState<number | null>(null);
+  const [myAgentsForReg, setMyAgentsForReg] = useState<{ id: number; name: string }[]>([]);
   const START_WINDOW_MINUTES = 5;
 
   const isInMatch = useCallback(
@@ -215,7 +222,8 @@ export default function TournamentDetailPage() {
 
   const isCreator =
     tournament &&
-    ((guestUser && tournament.creator_id === guestUser.id) ||
+    (tournament.is_creator === true ||
+      (guestUser && tournament.creator_id === guestUser.id) ||
       (walletAddress &&
         tournament.creator_address &&
         walletAddress.toLowerCase() === String(tournament.creator_address).toLowerCase()));
@@ -223,15 +231,43 @@ export default function TournamentDetailPage() {
   const isPaidTournament =
     tournament?.prize_source === "ENTRY_FEE_POOL" && entryFeeWei > 0;
 
+  const vis = String(tournament?.visibility ?? "OPEN").toUpperCase();
+  const isBotSelection = vis === "BOT_SELECTION";
   const canRegister =
     tournament?.status === "REGISTRATION_OPEN" &&
     !isRegistered(tournament.id) &&
-    (isPaidTournament ? walletAddress != null : walletAddress != null || guestUser != null);
+    (isPaidTournament ? walletAddress != null : walletAddress != null || guestUser != null) &&
+    (!isBotSelection || (registerAgentId != null && registerAgentId > 0));
 
   useEffect(() => {
     if (!id) return;
-    fetchTournament(id);
-  }, [id, fetchTournament]);
+    fetchTournament(id, inviteParams);
+  }, [id, inviteQuery, fetchTournament]);
+
+  useEffect(() => {
+    if (!isBotSelection || !tournament?.allowed_agent_ids?.length) {
+      setMyAgentsForReg([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiClient.get<ApiResponse<{ id: number; name: string }[]>>("/agents");
+        const list = res?.data?.success && Array.isArray(res.data.data) ? res.data.data : [];
+        const allowed = new Set(tournament.allowed_agent_ids!.map(Number));
+        const filtered = list.filter((a) => allowed.has(a.id));
+        if (!cancelled) {
+          setMyAgentsForReg(filtered);
+          if (filtered.length === 1) setRegisterAgentId(filtered[0].id);
+        }
+      } catch {
+        if (!cancelled) setMyAgentsForReg([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isBotSelection, tournament?.allowed_agent_ids]);
 
   useEffect(() => {
     if (!id || !tournament || tournament.id !== Number(id)) return;
@@ -240,10 +276,10 @@ export default function TournamentDetailPage() {
       tournament.status === "IN_PROGRESS" ||
       tournament.status === "COMPLETED"
     ) {
-      fetchBracket(id);
-      fetchLeaderboard(id, tournament.status === "COMPLETED" ? "final" : "live");
+      fetchBracket(id, inviteParams);
+      fetchLeaderboard(id, tournament.status === "COMPLETED" ? "final" : "live", inviteParams);
     }
-  }, [id, tournament?.id, tournament?.status, fetchBracket, fetchLeaderboard]);
+  }, [id, tournament?.id, tournament?.status, fetchBracket, fetchLeaderboard, inviteQuery]);
 
   // Poll bracket so the other player sees "Go to board" when the game is created (e.g. after both click "Start now")
   useEffect(() => {
@@ -256,11 +292,11 @@ export default function TournamentDetailPage() {
       return;
     }
     const interval = setInterval(() => {
-      fetchBracket(id);
-      fetchLeaderboard(id, "live");
+      fetchBracket(id, inviteParams);
+      fetchLeaderboard(id, "live", inviteParams);
     }, 5000);
     return () => clearInterval(interval);
-  }, [id, tournament?.id, tournament?.status, fetchBracket, fetchLeaderboard]);
+  }, [id, tournament?.id, tournament?.status, fetchBracket, fetchLeaderboard, inviteQuery]);
 
   const handleRegister = async () => {
     if (!id || !canRegister || !tournament) return;
@@ -294,10 +330,12 @@ export default function TournamentDetailPage() {
         address: (walletAddress ?? guestUser?.address) ?? undefined,
         chain: tournament.chain,
         payment_tx_hash: registrationTxHash ?? undefined,
+        ...(inviteQuery ? { invite_token: inviteQuery } : {}),
+        ...(isBotSelection && registerAgentId ? { user_agent_id: registerAgentId } : {}),
       });
       if (res.success) {
         setActionSuccess("Registered!");
-        fetchTournament(id);
+        fetchTournament(id, inviteParams);
       } else {
         setActionError(res.message ?? "Registration failed");
       }
@@ -315,8 +353,8 @@ export default function TournamentDetailPage() {
     const res = await closeRegistration(id, undefined);
     if (res.success) {
       setActionSuccess("Registration closed. Bracket generated.");
-      fetchTournament(id);
-      fetchBracket(id);
+      fetchTournament(id, inviteParams);
+      fetchBracket(id, inviteParams);
     } else {
       setActionError(res.message ?? "Failed");
     }
@@ -331,8 +369,8 @@ export default function TournamentDetailPage() {
       const res = await startRound(id, roundIndex);
       if (res.success) {
         setActionSuccess(`Round ${roundIndex + 1} started.`);
-        fetchTournament(id);
-        fetchBracket(id);
+        fetchTournament(id, inviteParams);
+        fetchBracket(id, inviteParams);
       } else {
         setActionError(res.message ?? "Failed");
       }
@@ -426,6 +464,42 @@ export default function TournamentDetailPage() {
           )}
           {actionSuccess && (
             <p className="mt-3 text-emerald-400 text-sm">{actionSuccess}</p>
+          )}
+
+          {String(tournament.visibility ?? "OPEN").toUpperCase() === "INVITE_ONLY" &&
+            isCreator &&
+            tournament.invite_token && (
+              <p className="mt-3 text-xs text-white/60 break-all">
+                Invite link (share privately):{" "}
+                <span className="text-cyan-300">
+                  {typeof window !== "undefined"
+                    ? `${window.location.origin}/tournaments/${tournament.code ?? tournament.id}?invite=${encodeURIComponent(tournament.invite_token)}`
+                    : `…?invite=${tournament.invite_token}`}
+                </span>
+              </p>
+            )}
+
+          {isBotSelection && tournament.status === "REGISTRATION_OPEN" && myAgentsForReg.length > 0 && (
+            <div className="mt-4">
+              <label className="block text-xs text-white/60 mb-1.5">Register as agent (invited)</label>
+              <select
+                className="w-full max-w-md px-3 py-2 rounded-lg bg-[#011112] border border-[#0E282A] text-cyan-200 text-sm"
+                value={registerAgentId ?? ""}
+                onChange={(e) => setRegisterAgentId(Number(e.target.value) || null)}
+              >
+                <option value="">Choose your agent…</option>
+                {myAgentsForReg.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} (#{a.id})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {isBotSelection && tournament.status === "REGISTRATION_OPEN" && myAgentsForReg.length === 0 && guestUser && (
+            <p className="mt-3 text-sm text-amber-400/90">
+              None of your agents are on this tournament&apos;s invite list, or you have no agents yet.
+            </p>
           )}
 
           {/* Actions */}

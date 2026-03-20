@@ -8,7 +8,13 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useTournament } from "@/context/TournamentContext";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { appChain } from "@/config";
-import type { PrizeSource, CreateTournamentResponse, TournamentFormat } from "@/types/tournament";
+import type {
+  PrizeSource,
+  CreateTournamentResponse,
+  TournamentFormat,
+  TournamentVisibility,
+} from "@/types/tournament";
+import { useFundPrizePool } from "@/hooks/useFundPrizePool";
 import { ChevronLeft, Loader2, Swords, Wallet, CheckCircle2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
@@ -37,11 +43,27 @@ const PRIZE_SOURCES: { value: PrizeSource; label: string; description: string }[
     value: "CREATOR_FUNDED",
     label: "Creator funded",
     description:
-      "You deposit USDC into the escrow as the prize pool. Set the planned amount below; after creating, fund on the tournament page (wallet). Payouts use the DB amount for splits — keep it in sync with what you deposit.",
+      "Set the pool amount below; after create we prompt your wallet to deposit USDC into escrow (same amount). Payouts use this amount for winner splits.",
   },
 ];
 
 const PLAYER_PRESETS = [8, 16, 32, 64, 128];
+
+const VISIBILITY_OPTIONS: { value: TournamentVisibility; label: string; description: string }[] = [
+  { value: "OPEN", label: "Open", description: "Listed on the Arena → Tournaments tab for everyone." },
+  {
+    value: "INVITE_ONLY",
+    label: "Invite only",
+    description: "Hidden from the public list. Share the invite link from the tournament page after create.",
+  },
+  {
+    value: "BOT_SELECTION",
+    label: "Invited bots only",
+    description: "Pick public agents from Discover (like challenging). Only those agent owners can register.",
+  },
+];
+
+type DiscoverAgent = { id: number; name: string; username?: string };
 
 export default function CreateTournamentPage() {
   const router = useRouter();
@@ -54,6 +76,7 @@ export default function CreateTournamentPage() {
   const authLoading = guestAuth?.isLoading ?? false;
   const loginByWallet = guestAuth?.loginByWallet;
   const { createTournament } = useTournament();
+  const { fund: fundPrizePoolOnChain, isPending: fundPoolPending } = useFundPrizePool();
 
   const [step, setStep] = useState<"idle" | "signing_in" | "creating" | "success">("idle");
   const [createdResult, setCreatedResult] = useState<CreateTournamentResponse | null>(null);
@@ -64,7 +87,13 @@ export default function CreateTournamentPage() {
   const [minPlayers, setMinPlayers] = useState(2);
   const [entryFeeUsd, setEntryFeeUsd] = useState("");
   const [prizePoolUsd, setPrizePoolUsd] = useState("");
-  const [bracketFormat, setBracketFormat] = useState<TournamentFormat>("SINGLE_ELIMINATION");
+  const [bracketFormat, setBracketFormat] = useState<TournamentFormat>("GROUP_ELIMINATION");
+  const [visibility, setVisibility] = useState<TournamentVisibility>("OPEN");
+  const [isAgentOnly, setIsAgentOnly] = useState(true);
+  const [discoverAgents, setDiscoverAgents] = useState<DiscoverAgent[]>([]);
+  const [discoverPage, setDiscoverPage] = useState(1);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [selectedDiscoverIds, setSelectedDiscoverIds] = useState<number[]>([]);
   const [autoFillBots, setAutoFillBots] = useState(false);
   const [autoFillCount, setAutoFillCount] = useState(0);
   const [myAgents, setMyAgents] = useState<MyAgentRow[]>([]);
@@ -86,14 +115,39 @@ export default function CreateTournamentPage() {
   }, [autoFillBots]);
 
   useEffect(() => {
+    if (visibility !== "BOT_SELECTION") {
+      setSelectedDiscoverIds([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setDiscoverLoading(true);
+      try {
+        const res = await apiClient.get<{ agents?: DiscoverAgent[] }>(
+          `/arena/agents?page=${discoverPage}&page_size=24`
+        );
+        const agents = res?.data?.agents;
+        if (!cancelled) setDiscoverAgents(Array.isArray(agents) ? agents : []);
+      } catch {
+        if (!cancelled) setDiscoverAgents([]);
+      } finally {
+        if (!cancelled) setDiscoverLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visibility, discoverPage]);
+
+  useEffect(() => {
     if (!autoFillBots || !canLoadAgents) return;
     let cancelled = false;
     (async () => {
       setAgentsLoading(true);
       try {
         const res = await apiClient.get<ApiResponse<MyAgentRow[]>>("/agents");
-        const list = res.data?.data;
-        if (!cancelled) setMyAgents(Array.isArray(list) ? list : []);
+        const list = res?.data?.success && Array.isArray(res.data.data) ? res.data.data : [];
+        if (!cancelled) setMyAgents(list);
       } catch {
         if (!cancelled) setMyAgents([]);
       } finally {
@@ -109,6 +163,14 @@ export default function CreateTournamentPage() {
     setSelectedAgentIds((prev) =>
       prev.includes(agentId) ? prev.filter((x) => x !== agentId) : [...prev, agentId]
     );
+  };
+
+  const toggleDiscoverPick = (agentId: number) => {
+    setSelectedDiscoverIds((prev) => {
+      if (prev.includes(agentId)) return prev.filter((x) => x !== agentId);
+      if (prev.length >= 64) return prev;
+      return [...prev, agentId];
+    });
   };
 
   const sanitizedMaxPreview = Math.min(MAX_PLAYERS_ALLOWED, Math.max(MIN_PLAYERS_ALLOWED, maxPlayers));
@@ -148,6 +210,12 @@ export default function CreateTournamentPage() {
     setWarning(null);
     setStep("creating");
     try {
+      if (visibility === "BOT_SELECTION" && selectedDiscoverIds.length < 2) {
+        setError("Pick at least two public agents from Discover for an invited-bot tournament.");
+        setStep("idle");
+        return;
+      }
+
       const sanitizedMaxPlayers = Math.min(MAX_PLAYERS_ALLOWED, Math.max(MIN_PLAYERS_ALLOWED, maxPlayers));
       const sanitizedMinPlayers = Math.max(MIN_PLAYERS_ALLOWED, Math.min(sanitizedMaxPlayers, minPlayers));
       if (bracketFormat !== "GROUP_ELIMINATION" && !isPowerOfTwo(sanitizedMaxPlayers)) {
@@ -163,6 +231,9 @@ export default function CreateTournamentPage() {
         prize_source: prizeSource,
         max_players: sanitizedMaxPlayers,
         min_players: sanitizedMinPlayers,
+        visibility,
+        is_agent_only: visibility === "BOT_SELECTION" ? true : isAgentOnly,
+        ...(visibility === "BOT_SELECTION" ? { allowed_agent_ids: selectedDiscoverIds } : {}),
       };
       if (!isSignedIn && address) {
         body.address = address;
@@ -179,13 +250,29 @@ export default function CreateTournamentPage() {
       }
       if (prizeSource === "CREATOR_FUNDED") {
         const poolUsd = parseFloat(prizePoolUsd);
-        if (prizePoolUsd.trim() !== "" && !Number.isNaN(poolUsd) && poolUsd > 0) {
-          body.prize_pool_wei = String(Math.round(poolUsd * 10 ** USDC_DECIMALS));
+        if (Number.isNaN(poolUsd) || poolUsd <= 0) {
+          setError("Creator-funded tournaments require a prize pool amount (USDC).");
+          setStep("idle");
+          return;
         }
+        body.prize_pool_wei = String(Math.round(poolUsd * 10 ** USDC_DECIMALS));
       }
       const created = await createTournament(body) as CreateTournamentResponse | null;
       const slug = created?.code ?? created?.id;
       if (slug != null) {
+        if (prizeSource === "CREATOR_FUNDED" && created?.id && address) {
+          const poolUsd = parseFloat(prizePoolUsd);
+          if (!Number.isNaN(poolUsd) && poolUsd > 0) {
+            try {
+              const wei = BigInt(Math.round(poolUsd * 10 ** USDC_DECIMALS));
+              await fundPrizePoolOnChain(created.id, wei);
+            } catch (fundErr) {
+              setWarning(
+                `Tournament created, but on-chain deposit failed: ${(fundErr as Error)?.message || "unknown"}. You can fund from the tournament page.`
+              );
+            }
+          }
+        }
         if (autoFillBots && created?.id) {
           try {
             const desired = autoFillCount > 0 ? autoFillCount : Math.max(0, (body.min_players ?? 2) - 1);
@@ -379,6 +466,99 @@ export default function CreateTournamentPage() {
                 </label>
               </div>
             </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#011112]/70 p-5 space-y-4">
+              <label className="block text-sm font-medium text-white/90 mb-2">Arena visibility</label>
+              <div className="space-y-3">
+                {VISIBILITY_OPTIONS.map(({ value: v, label, description }) => (
+                  <label
+                    key={v}
+                    className={`flex flex-col gap-0.5 p-3 rounded-xl border cursor-pointer transition ${
+                      visibility === v
+                        ? "bg-cyan-500/10 border-cyan-500/50"
+                        : "bg-[#011112]/50 border-[#0E282A] hover:border-white/20"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="visibility"
+                        value={v}
+                        checked={visibility === v}
+                        onChange={() => setVisibility(v)}
+                        className="text-cyan-500 focus:ring-cyan-500"
+                      />
+                      <span className="font-medium text-white/95">{label}</span>
+                    </div>
+                    <span className="text-xs text-white/55 pl-6">{description}</span>
+                  </label>
+                ))}
+              </div>
+              {visibility !== "BOT_SELECTION" && (
+                <label className="flex items-center gap-2 text-sm text-white/80 mt-2">
+                  <input
+                    type="checkbox"
+                    checked={isAgentOnly}
+                    onChange={(e) => setIsAgentOnly(e.target.checked)}
+                    className="text-cyan-500 focus:ring-cyan-500 rounded"
+                  />
+                  Agents only — group tables avoid 2-bot games unless the whole event has only two players
+                </label>
+              )}
+            </div>
+
+            {visibility === "BOT_SELECTION" && (
+              <div className="rounded-2xl border border-amber-500/25 bg-amber-950/10 p-5 space-y-3">
+                <p className="text-sm font-medium text-amber-200/95">Pick public agents (Discover)</p>
+                <p className="text-xs text-white/55">
+                  Same idea as Arena → Discover → Pick. At least two agents. Their owners are the only ones who can join.
+                </p>
+                {discoverLoading ? (
+                  <p className="text-xs text-white/50">Loading agents…</p>
+                ) : (
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto">
+                    {discoverAgents.map((a) => (
+                      <li key={a.id}>
+                        <button
+                          type="button"
+                          onClick={() => toggleDiscoverPick(a.id)}
+                          className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition ${
+                            selectedDiscoverIds.includes(a.id)
+                              ? "border-cyan-500/60 bg-cyan-500/15 text-cyan-100"
+                              : "border-[#0E282A] bg-[#011112]/60 text-white/85 hover:border-white/20"
+                          }`}
+                        >
+                          <span className="font-medium">{a.name}</span>
+                          <span className="block text-[10px] text-white/45">by {a.username ?? "—"}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="flex items-center justify-between text-xs text-white/50">
+                  <span>
+                    Selected: {selectedDiscoverIds.length}
+                  </span>
+                  <span className="flex gap-2">
+                    <button
+                      type="button"
+                      className="text-cyan-400 hover:text-cyan-300 disabled:opacity-40"
+                      disabled={discoverPage <= 1}
+                      onClick={() => setDiscoverPage((p) => Math.max(1, p - 1))}
+                    >
+                      Prev
+                    </button>
+                    <button
+                      type="button"
+                      className="text-cyan-400 hover:text-cyan-300"
+                      onClick={() => setDiscoverPage((p) => p + 1)}
+                    >
+                      Next
+                    </button>
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="rounded-2xl border border-white/10 bg-[#011112]/70 p-5 space-y-4">
               <label className="block text-sm font-medium text-white/90 mb-2">Prize source</label>
@@ -590,15 +770,19 @@ export default function CreateTournamentPage() {
 
             <button
               type="submit"
-              disabled={step === "creating"}
+              disabled={step === "creating" || fundPoolPending}
               className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-cyan-500/30 border border-cyan-500/60 text-cyan-200 font-semibold hover:bg-cyan-500/40 disabled:opacity-60 disabled:cursor-not-allowed transition"
             >
-              {step === "creating" ? (
+              {step === "creating" || fundPoolPending ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <Swords className="w-5 h-5" />
               )}
-              {step === "creating" ? "Creating tournament…" : "Create tournament"}
+              {step === "creating" || fundPoolPending
+                ? fundPoolPending
+                  ? "Depositing prize pool…"
+                  : "Creating tournament…"
+                : "Create tournament"}
             </button>
           </form>
         )}

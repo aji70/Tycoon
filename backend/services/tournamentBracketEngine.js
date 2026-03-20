@@ -13,7 +13,7 @@ import TournamentRound from "../models/TournamentRound.js";
 import TournamentMatch from "../models/TournamentMatch.js";
 import Tournament from "../models/Tournament.js";
 import logger from "../config/logger.js";
-import { splitIntoBalancedGroups } from "./tournamentGroupHelpers.js";
+import { splitIntoBalancedGroups, splitIntoAgentArenaGroups } from "./tournamentGroupHelpers.js";
 
 /**
  * Generate round-robin bracket.
@@ -344,11 +344,20 @@ async function getAdvancers(tournamentId, roundIndex) {
 export async function generateGroupEliminationBracket(tournamentId, entries, options = {}) {
   const n = entries.length;
   if (n < 2) throw new Error("Need at least 2 entries");
-  const groups = splitIntoBalancedGroups(
-    entries.map((e) => e.id),
-    2,
-    4
-  );
+  const isAgentOnly = Boolean(options.isAgentOnly);
+  let groups;
+  let byeEntryIds = [];
+  if (isAgentOnly) {
+    const split = splitIntoAgentArenaGroups(entries.map((e) => e.id));
+    groups = split.groups;
+    byeEntryIds = split.byes;
+  } else {
+    groups = splitIntoBalancedGroups(
+      entries.map((e) => e.id),
+      2,
+      4
+    );
+  }
 
   await Tournament.update(tournamentId, { status: "BRACKET_LOCKED" });
 
@@ -379,6 +388,20 @@ export async function generateGroupEliminationBracket(tournamentId, entries, opt
       status: "PENDING",
     });
   }
+  for (const byeId of byeEntryIds) {
+    matchRows.push({
+      tournament_id: tournamentId,
+      round_index: 0,
+      match_index: matchIndex++,
+      slot_a_type: "ENTRY",
+      slot_a_entry_id: byeId,
+      slot_b_type: "BYE",
+      slot_b_entry_id: null,
+      participant_entry_ids: [byeId],
+      status: "BYE",
+      winner_entry_id: byeId,
+    });
+  }
   await TournamentMatch.bulkCreate(matchRows);
 
   logger.info(
@@ -403,7 +426,16 @@ export async function generateGroupEliminationBracket(tournamentId, entries, opt
  */
 export async function createGroupEliminationRound(tournamentId, roundIndex, entryRows, options = {}) {
   const ids = entryRows.map((e) => e.id);
-  const groups = splitIntoBalancedGroups(ids, 2, 4);
+  const isAgentOnly = Boolean(options.isAgentOnly);
+  let groups;
+  let byeEntryIds = [];
+  if (isAgentOnly) {
+    const split = splitIntoAgentArenaGroups(ids);
+    groups = split.groups;
+    byeEntryIds = split.byes;
+  } else {
+    groups = splitIntoBalancedGroups(ids, 2, 4);
+  }
 
   const scheduledStartAt = options.scheduled_start_at != null ? new Date(options.scheduled_start_at) : null;
 
@@ -428,6 +460,20 @@ export async function createGroupEliminationRound(tournamentId, roundIndex, entr
       slot_b_entry_id: b ?? null,
       participant_entry_ids: groupIds,
       status: "PENDING",
+    });
+  }
+  for (const byeId of byeEntryIds) {
+    matchRows.push({
+      tournament_id: tournamentId,
+      round_index: roundIndex,
+      match_index: matchIndex++,
+      slot_a_type: "ENTRY",
+      slot_a_entry_id: byeId,
+      slot_b_type: "BYE",
+      slot_b_entry_id: null,
+      participant_entry_ids: [byeId],
+      status: "BYE",
+      winner_entry_id: byeId,
     });
   }
   await TournamentMatch.bulkCreate(matchRows);
