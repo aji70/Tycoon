@@ -5,10 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena-mobile.module.css";
-import { Swords, Search, Trophy, Target, UserRound, ExternalLink } from "lucide-react";
+import AgentsPageMobile from "@/components/agents/agents-page-mobile";
+import { Swords, Search, Trophy, Target, UserRound } from "lucide-react";
 
 const MAX_CHALLENGE_TARGETS = 7;
 
@@ -118,15 +118,27 @@ export default function ArenaMobile() {
   const [openTournaments, setOpenTournaments] = useState<ArenaTournamentRow[]>([]);
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
   const [tournamentsError, setTournamentsError] = useState<string | null>(null);
-  const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
-  const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
-  const { isCelo } = useVerifyErc8004AgentId();
 
   useEffect(() => {
     if (isAuthed) {
       fetchMyAgents();
     }
   }, [isAuthed]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("tab") === "my-agents") {
+      setActiveTab("my-agents");
+      router.replace("/arena", { scroll: false });
+    }
+  }, [router]);
+
+  useEffect(() => {
+    if (activeTab === "discover" && isAuthed) {
+      fetchMyAgents();
+    }
+  }, [activeTab, isAuthed]);
 
   useEffect(() => {
     if (myAgents.length > 0 && challengerAgentId == null) {
@@ -179,12 +191,6 @@ export default function ArenaMobile() {
   useEffect(() => {
     if (activeTab === "leaderboard") {
       fetchLeaderboard();
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (activeTab === "my-agents") {
-      fetchMyAgents();
     }
   }, [activeTab]);
 
@@ -242,27 +248,6 @@ export default function ArenaMobile() {
     }
   };
 
-  const toggleAgentPublic = async (agentId: number, currentValue: boolean) => {
-    try {
-      const res = await apiClient.patch<any>(`/agents/${agentId}`, {
-        is_public: !currentValue,
-      });
-      if (res?.success && res?.data?.data) {
-        const updatedAgent = res.data.data;
-        setMyAgents(
-          myAgents.map((a) =>
-            a.id === agentId ? { ...a, is_public: updatedAgent.is_public } : a
-          )
-        );
-        alert(`Agent is now ${updatedAgent.is_public ? "public" : "private"}!`);
-      } else {
-        throw new Error("Failed to update agent");
-      }
-    } catch (err) {
-      alert(`Error: ${(err as Error).message}`);
-    }
-  };
-
   const toggleOpponentSelect = (agentId: number) => {
     setSelectedOpponents((prev) => {
       if (prev.includes(agentId)) return prev.filter((id) => id !== agentId);
@@ -303,31 +288,6 @@ export default function ArenaMobile() {
     }
   };
 
-  const handleRegisterOnCelo = async (agent: Agent) => {
-    if (!isCelo) {
-      alert("Switch to Celo to register this agent on ERC-8004.");
-      return;
-    }
-    if (agent.erc8004_agent_id) {
-      alert("This agent is already linked to an ERC-8004 ID.");
-      return;
-    }
-    setRegisteringErc8004Id(agent.id);
-    try {
-      const newAgentId = await registerOnCelo(agent.id);
-      if (newAgentId == null) throw new Error("Registration succeeded but could not read on-chain agent ID");
-      await apiClient.patch(`/agents/${agent.id}`, { erc8004_agent_id: String(newAgentId) });
-      await fetchMyAgents();
-      if (activeTab === "discover") await fetchPublicAgents(page);
-      if (activeTab === "leaderboard") await fetchLeaderboard();
-      alert(`Registered on Celo. Agent ID: ${newAgentId}`);
-    } catch (err) {
-      alert(`Registration failed: ${(err as Error)?.message || "Unknown error"}`);
-    } finally {
-      setRegisteringErc8004Id(null);
-    }
-  };
-
   const discoverList = agents.filter((a) => !myAgents.some((m) => m.id === a.id));
   const selectedChallenger = myAgents.find((a) => a.id === challengerAgentId) ?? null;
 
@@ -341,11 +301,12 @@ export default function ArenaMobile() {
               Arena
             </span>
             <h1 className={styles.heroTitle}>Agent Arena</h1>
-            <p className={styles.heroSubtitle}>Challenge agents, climb ranks, join tournaments.</p>
-            <Link href="/agents" className={styles.heroLink}>
-              <ExternalLink className="w-3.5 h-3.5" aria-hidden />
-              My agents
-            </Link>
+            <p className={styles.heroSubtitle}>Challenge agents, climb ranks, join tournaments — create agents in Mine.</p>
+            {isAuthed ? (
+              <button type="button" className={styles.heroLink} onClick={() => setActiveTab("my-agents")}>
+                My agents
+              </button>
+            ) : null}
           </div>
         </header>
 
@@ -395,8 +356,8 @@ export default function ArenaMobile() {
           </button>
         </nav>
 
-        {error && <div className={styles.error}>{error}</div>}
-        {loading && <div className={styles.loading}>Loading</div>}
+        {error && activeTab !== "my-agents" && <div className={styles.error}>{error}</div>}
+        {loading && activeTab !== "my-agents" && <div className={styles.loading}>Loading</div>}
 
       {activeTab === "discover" && isAuthed && myAgents.length > 0 && (
         <section className={styles.challengePanel} aria-label="Challenge setup">
@@ -486,46 +447,48 @@ export default function ArenaMobile() {
             <span>{discoverList.length}</span>
           </div>
           {discoverList.map((agent) => (
-            <div key={agent.id} className={styles.agentCard}>
-              <div className={styles.cardTop}>
-                <div className={styles.nameSection}>
-                  <h3>{agent.name}</h3>
-                  <span className={styles.creator}>by {agent.username}</span>
+            <div key={agent.id} className={`${styles.agentCard} ${styles.agentCardDiscover}`}>
+              <div className={styles.agentDiscoverTop}>
+                <div className={styles.nameBlock}>
+                  <h3 title={agent.name}>{agent.name}</h3>
                 </div>
                 <div
-                  className={styles.tierbadge}
+                  className={styles.tierbadgeCompact}
                   style={{ backgroundColor: TierColors[agent.tier_color] }}
                 >
                   {tierLabelOf(agent)}
                 </div>
               </div>
-
-              <div className={styles.statsRow}>
-                <div className={styles.stat}>
-                  <span className={styles.label}>XP</span>
-                  <span className={styles.value}>{xpOf(agent)}</span>
-                </div>
-                <div className={styles.stat}>
-                  <span className={styles.label}>Peak</span>
-                  <span className={styles.value}>{peakXpOf(agent)}</span>
-                </div>
+              <div className={styles.agentDiscoverMeta}>
+                <span>
+                  XP <strong>{xpOf(agent)}</strong>
+                </span>
+                <span>
+                  Peak <strong>{peakXpOf(agent)}</strong>
+                </span>
+                <span>
+                  8004 <strong>{agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "—"}</strong>
+                </span>
               </div>
-              <p className={styles.creator}>
-                ERC-8004: {agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "Not linked"}
-              </p>
-
-              {isAuthed && myAgents.length > 0 && (
-                <button
-                  type="button"
-                  className={`${styles.pickBtn} ${
-                    selectedOpponents.includes(agent.id) ? styles.pickBtnOn : styles.pickBtnOff
-                  }`}
-                  onClick={() => toggleOpponentSelect(agent.id)}
-                  aria-pressed={selectedOpponents.includes(agent.id)}
-                >
-                  {selectedOpponents.includes(agent.id) ? "✓ Picked" : "+ Pick"}
-                </button>
-              )}
+              <div className={styles.agentDiscoverFooter}>
+                <span className={styles.creatorNameCompact} title={`by ${agent.username}`}>
+                  by {agent.username}
+                </span>
+                {isAuthed && myAgents.length > 0 && (
+                  <div className={styles.agentDiscoverPick}>
+                    <button
+                      type="button"
+                      className={`${styles.pickBtn} ${
+                        selectedOpponents.includes(agent.id) ? styles.pickBtnOn : styles.pickBtnOff
+                      }`}
+                      onClick={() => toggleOpponentSelect(agent.id)}
+                      aria-pressed={selectedOpponents.includes(agent.id)}
+                    >
+                      {selectedOpponents.includes(agent.id) ? "✓" : "+ Pick"}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
           {discoverList.length === 0 && !loading && (
@@ -616,76 +579,13 @@ export default function ArenaMobile() {
       )}
 
       {activeTab === "my-agents" && (
-        <div className={styles.myAgentsList}>
-          <div style={{ marginBottom: 12 }}>
-            <Link href="/agents" className={styles.heroLink}>
-              <ExternalLink className="w-3.5 h-3.5" aria-hidden />
-              Manage agents
-            </Link>
-          </div>
-          <div className={styles.sectionHead}>
-            <h2>My Arena Agents</h2>
-            <span>{myAgents.length}</span>
-          </div>
+        <div className={styles.myAgentsEmbed}>
           {authLoading ? (
             <p className={styles.emptyState}>Loading session…</p>
           ) : isAuthed ? (
-            myAgents.length > 0 ? (
-              myAgents.map((agent) => (
-                <div key={agent.id} className={styles.agentCard}>
-                  <div className={styles.cardTop}>
-                    <div className={styles.nameSection}>
-                      <h3>{agent.name}</h3>
-                      <span className={styles.status}>{agent.status || "unknown"}</span>
-                    </div>
-                    <div
-                      className={styles.tierbadge}
-                      style={{ backgroundColor: TierColors[agent.tier_color] }}
-                    >
-                      {tierLabelOf(agent)}
-                    </div>
-                  </div>
-
-                  <div className={styles.statsRow}>
-                    <div className={styles.stat}>
-                      <span className={styles.label}>XP</span>
-                      <span className={styles.value}>{xpOf(agent)}</span>
-                    </div>
-                    <div className={styles.stat}>
-                      <span className={styles.label}>Visibility</span>
-                      <span className={styles.value}>
-                        {agent.is_public ? "🌐" : "🔒"}
-                      </span>
-                    </div>
-                  </div>
-                  <p className={styles.creator} style={{ marginTop: 6 }}>
-                    ERC-8004: {agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "Not linked"}
-                  </p>
-
-                  <button
-                    className={agent.is_public ? styles.btnSecondary : styles.btnPrimary}
-                    onClick={() => toggleAgentPublic(agent.id, agent.is_public || false)}
-                    style={{ width: "100%" }}
-                  >
-                    {agent.is_public ? "Hide from Arena" : "Make Public"}
-                  </button>
-                  {!agent.erc8004_agent_id && (
-                    <button
-                      className={styles.btnSecondary}
-                      onClick={() => handleRegisterOnCelo(agent)}
-                      style={{ width: "100%", marginTop: 8 }}
-                      disabled={isRegisteringErc8004 && registeringErc8004Id === agent.id}
-                    >
-                      {isRegisteringErc8004 && registeringErc8004Id === agent.id ? "Registering..." : "Register on Celo"}
-                    </button>
-                  )}
-                </div>
-              ))
-            ) : (
-              <p className={styles.emptyState}>No agents found. Create or import an agent!</p>
-            )
+            <AgentsPageMobile embeddedInArena />
           ) : (
-            <p className={styles.emptyState}>Log in (guest or Privy). Finish Privy username if prompted.</p>
+            <p className={styles.emptyState}>Sign in to create and manage agents.</p>
           )}
         </div>
       )}
