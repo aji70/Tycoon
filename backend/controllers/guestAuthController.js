@@ -38,6 +38,19 @@ import logger from "../config/logger.js";
 import { transferToBankAccount, isFlutterwaveConfigured, initializePayment } from "../services/flutterwave.js";
 import { celoToNgn, ngnToCelo } from "../services/rates.js";
 
+/** User-facing message for smart-wallet shop contract reverts. */
+function shopTxErrorMessage(err, fallback) {
+  const msg = err?.reason || err?.shortMessage || err?.message || fallback;
+  const s = typeof msg === "string" ? msg : String(fallback);
+  if (s.includes("Not for sale")) {
+    return "This perk is not sold in USDC on the contract your smart wallet uses (sold out, TYC-only, or wrong shop address). Try Pay with Naira, or recreate your smart wallet in Profile after a contract upgrade.";
+  }
+  if (s.includes("Out of stock")) {
+    return "This perk listing is out of stock on-chain. Pick another item or ask an admin to restock.";
+  }
+  return s;
+}
+
 const PRIVY_APP_ID = process.env.PRIVY_APP_ID;
 const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET;
 // Support key in .env with literal \n (e.g. "-----BEGIN...\n...\n-----END...") or real newlines
@@ -1312,7 +1325,7 @@ export async function smartWalletBuyCollectible(req, res) {
     return res.status(200).json({ success: true, data: { hash } });
   } catch (err) {
     logger.error({ err: err?.message, userId: req.user?.id }, "smartWalletBuyCollectible failed");
-    return res.status(500).json({ success: false, message: err?.message || "Failed to buy collectible" });
+    return res.status(500).json({ success: false, message: shopTxErrorMessage(err, "Failed to buy collectible") });
   }
 }
 
@@ -1346,7 +1359,7 @@ export async function smartWalletBuyBundle(req, res) {
     return res.status(200).json({ success: true, data: { hash } });
   } catch (err) {
     logger.error({ err: err?.message, userId: req.user?.id }, "smartWalletBuyBundle failed");
-    return res.status(500).json({ success: false, message: err?.message || "Failed to buy bundle" });
+    return res.status(500).json({ success: false, message: shopTxErrorMessage(err, "Failed to buy bundle") });
   }
 }
 

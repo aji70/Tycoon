@@ -224,7 +224,7 @@ export async function flutterwaveInitializePerk(_req, res) {
     const userId = _req.user?.id;
     if (!userId) return res.status(401).json({ success: false, message: "Authentication required" });
 
-    const tokenId = String(_req.body?.token_id || "").trim();
+    const tokenId = String(_req.body?.token_id ?? _req.body?.tokenId ?? "").trim();
     const amountNairaRaw = Number(_req.body?.amount_ngn);
     const amountNaira = Number.isFinite(amountNairaRaw) ? Math.max(200, Math.round(amountNairaRaw)) : NaN;
     if (!tokenId) return res.status(400).json({ success: false, message: "token_id is required" });

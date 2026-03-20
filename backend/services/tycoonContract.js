@@ -9,7 +9,7 @@
  * guests (or other backend-triggered actions) hit the API at once.
  */
 import crypto from "crypto";
-import { JsonRpcProvider, Wallet, Contract, Network, Interface, keccak256, solidityPacked, getBytes } from "ethers";
+import { JsonRpcProvider, Wallet, Contract, Network, Interface, keccak256, solidityPacked, getBytes, ZeroAddress } from "ethers";
 import { getChainConfig, isAnyChainConfigured } from "../config/chains.js";
 import logger from "../config/logger.js";
 
@@ -567,6 +567,13 @@ const USER_WALLET_ABI = [
     ],
     outputs: [],
     stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "rewardSystem",
+    inputs: [],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view",
   },
   {
     type: "function",
@@ -1573,6 +1580,34 @@ function randomNonceBigInt() {
   return BigInt(`0x${crypto.randomBytes(8).toString("hex")}`);
 }
 
+/**
+ * Smart wallet executes shop txs against its configured rewardSystem(). If that address != game's
+ * rewardSystem(), on-chain calls can revert (e.g. "Not for sale") while backend reads look valid.
+ */
+async function assertSmartWalletRewardSystemMatches(provider, smartWalletAddress, expectedRewardAddress) {
+  if (!expectedRewardAddress || String(expectedRewardAddress).toLowerCase() === ZeroAddress.toLowerCase()) {
+    throw new Error("Reward system address is not configured for this chain");
+  }
+  const read = new Contract(smartWalletAddress, USER_WALLET_ABI, provider);
+  let walletRs;
+  try {
+    walletRs = await read.rewardSystem();
+  } catch (e) {
+    logger.warn({ err: e?.message, smartWalletAddress }, "rewardSystem() read failed on smart wallet");
+    throw new Error(
+      "Could not read shop settings from your smart wallet. Try recreating your smart wallet from Profile, then try again."
+    );
+  }
+  if (!walletRs || String(walletRs).toLowerCase() === ZeroAddress.toLowerCase()) {
+    throw new Error("Your smart wallet has no perk shop configured. Recreate your smart wallet from Profile.");
+  }
+  if (String(walletRs).toLowerCase() !== String(expectedRewardAddress).toLowerCase()) {
+    throw new Error(
+      `Your smart wallet is using a different perk contract than this app (wallet: ${walletRs}, app: ${expectedRewardAddress}). Recreate your smart wallet from Profile so purchases work.`
+    );
+  }
+}
+
 export async function buyCollectibleFromSmartWalletWithAuth(smartWalletAddress, tokenId, useUsdc = true, maxPrice, chain = "CELO") {
   return withTxQueue(async () => {
     const cfg = getChainConfig(chain);
@@ -1587,6 +1622,7 @@ export async function buyCollectibleFromSmartWalletWithAuth(smartWalletAddress, 
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
     const network = new Network(networkName, cfg.chainId);
     const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    await assertSmartWalletRewardSystemMatches(provider, smartWalletAddress, rewardAddress);
     const operator = new Wallet(key, provider);
     const rewardRead = new Contract(rewardAddress, REWARD_ABI_MINT, provider);
     const userWallet = new Contract(smartWalletAddress, USER_WALLET_ABI, operator);
@@ -1627,6 +1663,7 @@ export async function buyBundleFromSmartWalletWithAuth(smartWalletAddress, bundl
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
     const network = new Network(networkName, cfg.chainId);
     const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    await assertSmartWalletRewardSystemMatches(provider, smartWalletAddress, rewardAddress);
     const operator = new Wallet(key, provider);
     const rewardRead = new Contract(rewardAddress, REWARD_ABI_MINT, provider);
     const userWallet = new Contract(smartWalletAddress, USER_WALLET_ABI, operator);

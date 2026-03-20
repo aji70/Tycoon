@@ -11,6 +11,18 @@ const FLW_BASE = "https://api.flutterwave.com/v3";
 const FLW_DEFAULT_EMAIL = "realjaiboi70@gmail.com";
 const FLW_DEFAULT_PHONE = "08060332714";
 
+/** Flutterwave expects a valid customer phone; normalize to digits, prefer 234… for Nigeria. */
+function normalizeFlutterwavePhone(raw) {
+  const fromEnv = (process.env.FLW_CUSTOMER_PHONE || "").trim();
+  const src = fromEnv || String(raw || "").trim();
+  const digits = src.replace(/\D/g, "");
+  if (!digits) return "2348000000000";
+  if (digits.startsWith("234") && digits.length >= 12) return digits;
+  if (digits.startsWith("0") && digits.length === 11) return `234${digits.slice(1)}`;
+  if (digits.length === 10) return `234${digits}`;
+  return digits;
+}
+
 function isLikelyEmail(value) {
   if (!value) return false;
   const v = String(value).trim();
@@ -76,6 +88,7 @@ export async function initializePayment({
   // Fall back to a known-good sender email when the provided value is malformed.
   const customerEmail = isLikelyEmail(email) ? String(email).trim() : FLW_DEFAULT_EMAIL;
   const customerNameStr = (customerName && String(customerName).trim()) || "Tycoon Player";
+  const customerPhone = normalizeFlutterwavePhone(FLW_DEFAULT_PHONE);
   const defaultCustomizations = {
     title: "Tycoon — Perk Bundle",
     description: "Secure payment for your perk bundle. Your perks will be available in-game after purchase.",
@@ -97,7 +110,8 @@ export async function initializePayment({
     customer: {
       email: customerEmail,
       name: customerNameStr,
-      phonenumber: String(FLW_DEFAULT_PHONE || "08000000000"),
+      phonenumber: customerPhone,
+      country: "NG",
     },
     customizations,
   };
