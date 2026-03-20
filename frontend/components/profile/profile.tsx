@@ -320,13 +320,13 @@ function GuestProfileView({
     e.target.value = '';
   };
 
-  const handleRedeemVoucher = async (voucherId: bigint) => {
+  const handleRedeemVoucher = async (voucherId: bigint, voucherOwner?: Address) => {
     try {
       setRedeemingVoucherId(voucherId.toString());
-      // Guest (not connected): backend redeem path
       const res = await apiClient.post<ApiResponse>('/auth/redeem-voucher', {
         tokenId: voucherId.toString(),
         chain: 'CELO',
+        ...(voucherOwner ? { voucher_owner: voucherOwner } : {}),
       });
       if (res?.data?.success) {
         toast.success('Voucher redeemed! Check your balance.');
@@ -805,7 +805,7 @@ function GuestProfileView({
                         <button
                           type="button"
                           disabled={!smartWalletAddress || redeemingVoucherId === voucher.tokenId.toString()}
-                          onClick={() => handleRedeemVoucher(voucher.tokenId)}
+                          onClick={() => handleRedeemVoucher(voucher.tokenId, voucher.heldBy)}
                           className={`w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition ${
                             !smartWalletAddress
                               ? 'bg-white/10 text-white/50 cursor-not-allowed'
@@ -1061,6 +1061,7 @@ export default function Profile() {
       const res = await apiClient.post<ApiResponse>('/auth/redeem-voucher', {
         tokenId: tokenId.toString(),
         chain: 'CELO',
+        voucher_owner: voucherHolder,
       });
       if (res?.data?.success) {
         toast.success('Voucher redeemed! Check your balance.');

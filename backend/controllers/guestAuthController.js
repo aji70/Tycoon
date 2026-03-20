@@ -898,7 +898,7 @@ export async function redeemVoucher(req, res) {
     }
     const reward = new ethers.Contract(rewardAddress, ERC1155_BALANCE_OF_ABI, provider);
     const tokenIdBig = BigInt(tokenId);
-    const candidateOwners = [
+    const baseCandidates = [
       smartWallet,
       user.legacy_smart_wallet_address,
       user.linked_wallet_address,
@@ -906,6 +906,11 @@ export async function redeemVoucher(req, res) {
     ]
       .map((v) => asAddressOrNull(v))
       .filter((v, i, arr) => !!v && arr.indexOf(v) === i);
+    const frontendVoucherOwner = asAddressOrNull(req.body?.voucher_owner ?? req.body?.voucherOwner);
+    const candidateOwners =
+      frontendVoucherOwner
+        ? [frontendVoucherOwner, ...baseCandidates.filter((a) => safeLower(a) !== safeLower(frontendVoucherOwner))]
+        : baseCandidates;
 
     let voucherOwner = null;
     for (const owner of candidateOwners) {
