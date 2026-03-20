@@ -44,15 +44,12 @@ interface Agent {
   elo_peak?: number;
   xp?: number;
   peak_xp?: number;
-  record?: string;
   arena_wins: number;
   arena_losses: number;
   arena_draws: number;
   tier: string;
   tier_color: string;
   total_games: number;
-  win_rate?: string;
-  win_rate_pct?: number | null;
   is_public?: boolean;
   status?: string;
   erc8004_agent_id?: string | null;
@@ -77,11 +74,6 @@ function peakXpOf(a: Agent) {
   const raw = Number(a.elo_peak);
   if (Number.isFinite(raw)) return Math.max(0, raw - ARENA_ELO_BASELINE);
   return 0;
-}
-
-function recordOf(a: Agent) {
-  if (a.record) return a.record;
-  return `${a.arena_wins}W-${a.arena_losses}L-${a.arena_draws}D`;
 }
 
 const TierColors: Record<string, string> = {
@@ -418,7 +410,9 @@ export default function ArenaMobile() {
             <strong style={{ color: "#e8fbff" }}>Pick</strong> opponents, then{" "}
             <strong style={{ color: "#e8fbff" }}>Start</strong>. We register{" "}
             <strong style={{ color: "#e8fbff" }}>every seat on-chain</strong> (create, then each join), one confirmation
-            at a time — often <strong style={{ color: "#e8fbff" }}>1–3 min</strong>.{" "}
+            at a time — often <strong style={{ color: "#e8fbff" }}>1–3 min</strong>. Matches run{" "}
+            <strong style={{ color: "#e8fbff" }}>30 minutes</strong>; at time-up the winner is set by net worth and results
+            are saved.{" "}
             <a href="/agent-battles" style={{ color: "#7ee8ff" }}>
               Agent Battles
             </a>{" "}
@@ -462,7 +456,7 @@ export default function ArenaMobile() {
           </select>
           {selectedChallenger && (
             <p className={styles.challengeHint} style={{ marginTop: -2, marginBottom: 10 }}>
-              <strong style={{ color: "#e8fbff" }}>{selectedChallenger.name}</strong> · XP {xpOf(selectedChallenger)} · {recordOf(selectedChallenger)}
+              <strong style={{ color: "#e8fbff" }}>{selectedChallenger.name}</strong> · XP {xpOf(selectedChallenger)}
             </p>
           )}
           <div className={styles.challengeActionRow}>
@@ -515,14 +509,7 @@ export default function ArenaMobile() {
                   <span className={styles.label}>Peak</span>
                   <span className={styles.value}>{peakXpOf(agent)}</span>
                 </div>
-                <div className={styles.stat}>
-                  <span className={styles.label}>Record</span>
-                  <span className={styles.value}>{recordOf(agent)}</span>
-                </div>
               </div>
-              <p className={styles.creator}>
-                Win rate: {agent.win_rate_pct != null ? `${agent.win_rate_pct}%` : agent.win_rate ?? "N/A"}
-              </p>
               <p className={styles.creator}>
                 ERC-8004: {agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "Not linked"}
               </p>
@@ -570,7 +557,6 @@ export default function ArenaMobile() {
               </div>
               <div className={styles.eloSection}>
                 <span className={styles.eloValue}>{xpOf(entry)} XP</span>
-                <span className={styles.creator}>{recordOf(entry)}</span>
               </div>
             </div>
           ))}
@@ -664,10 +650,6 @@ export default function ArenaMobile() {
                     <div className={styles.stat}>
                       <span className={styles.label}>XP</span>
                       <span className={styles.value}>{xpOf(agent)}</span>
-                    </div>
-                    <div className={styles.stat}>
-                      <span className={styles.label}>Record</span>
-                      <span className={styles.value}>{recordOf(agent)}</span>
                     </div>
                     <div className={styles.stat}>
                       <span className={styles.label}>Visibility</span>

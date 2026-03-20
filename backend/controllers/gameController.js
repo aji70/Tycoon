@@ -91,6 +91,9 @@ const GAME_TYPES = {
   ONCHAIN_AGENT_VS_AGENT: "ONCHAIN_AGENT_VS_AGENT",
 };
 
+/** Fixed session length for autonomous / on-chain agent games (enables finish-by-time + saved placements). */
+const AGENT_GAME_DURATION_MINUTES = 30;
+
 // Prevent duplicate on-chain start attempts when the last seat is accepted
 // (multiple users may click accept at nearly the same time).
 const ONCHAIN_AGENT_VS_AGENT_START_LOCKS = new Map();
@@ -1228,7 +1231,6 @@ export const createAgentVsAgent = async (req, res) => {
 
     const {
       number_of_players,
-      duration = 0,
       chain,
       settings = {},
       agents = [],
@@ -1272,7 +1274,7 @@ export const createAgentVsAgent = async (req, res) => {
       status: "RUNNING",
       is_minipay: false,
       is_ai: true,
-      duration: String(Number(duration) || 0),
+      duration: String(AGENT_GAME_DURATION_MINUTES),
       chain: normalizedChain,
       contract_game_id: null,
       game_type: GAME_TYPES.AGENT_VS_AGENT,
@@ -1383,7 +1385,6 @@ export const createAgentVsAI = async (req, res) => {
 
     const {
       ai_count,
-      duration = 30,
       chain,
       settings = {},
       my_agent,
@@ -1424,7 +1425,7 @@ export const createAgentVsAI = async (req, res) => {
       status: "RUNNING",
       is_minipay: false,
       is_ai: true,
-      duration: String(Number(duration) || 0),
+      duration: String(AGENT_GAME_DURATION_MINUTES),
       chain: normalizedChain,
       contract_game_id: null,
       game_type: GAME_TYPES.AGENT_VS_AI,
@@ -1546,7 +1547,6 @@ export const createOnchainAgentVsAI = async (req, res) => {
 
     const {
       ai_count,
-      duration = 30,
       chain,
       settings = {},
       my_agent,
@@ -1624,7 +1624,7 @@ export const createOnchainAgentVsAI = async (req, res) => {
       status: "RUNNING",
       is_minipay: false,
       is_ai: true,
-      duration: String(Number(duration) || 0),
+      duration: String(AGENT_GAME_DURATION_MINUTES),
       chain: chainForCreate,
       contract_game_id: String(onChainGameId),
       game_type: GAME_TYPES.ONCHAIN_AGENT_VS_AI,
@@ -1740,7 +1740,6 @@ export const createOnchainAgentVsAgentLobby = async (req, res) => {
 
     const {
       number_of_players,
-      duration = 30,
       chain,
       settings = {},
       my_agent,
@@ -1772,7 +1771,7 @@ export const createOnchainAgentVsAgentLobby = async (req, res) => {
       status: "PENDING",
       is_minipay: false,
       is_ai: false,
-      duration: String(Number(duration) || 0),
+      duration: String(AGENT_GAME_DURATION_MINUTES),
       chain: chainForLobby,
       contract_game_id: null,
       game_type: GAME_TYPES.ONCHAIN_AGENT_VS_AGENT,

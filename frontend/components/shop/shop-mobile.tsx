@@ -1,14 +1,8 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import {
-  useAccount,
-  useChainId,
-  useBalance,
-  useReadContract,
-  useReadContracts,
-} from 'wagmi';
-import { formatUnits, parseUnits, type Address, type Abi } from 'viem';
+import { useAccount, useBalance, useReadContract, useReadContracts } from 'wagmi';
+import { formatUnits, parseUnits, isAddress, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -49,11 +43,12 @@ import {
   useRewardTokenAddresses,
   useUserRegistryWallet,
   useRewardStockBundle,
+  useReadChainIdOrCelo,
   useUserWalletApproveERC20,
 } from '@/context/ContractProvider';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { apiClient } from '@/lib/api';
-import { useAppKit } from '@reown/appkit/react';
+import { useAppKit, useAppKitAccount } from '@reown/appkit/react';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -133,14 +128,27 @@ export default function GameShopMobile() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { open: openWallet } = useAppKit();
-  const { address, isConnected } = useAccount();
-  const chainId = useChainId();
+  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
+  const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount();
+  const address = useMemo((): Address | undefined => {
+    const a = appKitAddress ?? wagmiAddress;
+    return a && isAddress(a) ? (a as Address) : undefined;
+  }, [appKitAddress, wagmiAddress]);
+  const isConnected = Boolean(appKitConnected || wagmiConnected);
+  const chainId = useReadChainIdOrCelo();
   const auth = useGuestAuthOptional();
   const stockBundleHook = useRewardStockBundle();
 
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
   const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
-  const { data: registrySmartWallet } = useUserRegistryWallet(address);
+
+  const guestProfileOwner = auth?.guestUser?.address;
+  const registryOwnerAddress = useMemo((): Address | undefined => {
+    if (address) return address;
+    if (guestProfileOwner && isAddress(guestProfileOwner)) return guestProfileOwner as Address;
+    return undefined;
+  }, [address, guestProfileOwner]);
+  const { data: registrySmartWallet } = useUserRegistryWallet(registryOwnerAddress);
   const guestSmartWallet = auth?.guestUser?.smart_wallet_address ?? undefined;
   const smartWalletAddress =
     (isValidWallet(registrySmartWallet) ? registrySmartWallet : null) ??
@@ -149,7 +157,17 @@ export default function GameShopMobile() {
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
   const [shopTab, setShopTab] = useState<'perks' | 'bundles'>('perks');
   const [payWith, setPayWith] = useState<'connected' | 'smart_wallet'>('connected');
-  const [bundles, setBundles] = useState<Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }>>([]);
+  const [bundles, setBundles] = useState<
+    Array<{
+      id: number;
+      name: string;
+      description: string | null;
+      price_tyc: string;
+      price_usdc: string;
+      price_ngn?: number | null;
+      available?: boolean;
+    }>
+  >([]);
   const [ngnAvailable, setNgnAvailable] = useState(false);
   const [ngnLoadingBundleId, setNgnLoadingBundleId] = useState<number | null>(null);
   const [ngnLoadingTokenId, setNgnLoadingTokenId] = useState<string | null>(null);
@@ -171,13 +189,6 @@ export default function GameShopMobile() {
   };
 
   const payerAddress = payWith === 'smart_wallet' && smartWalletAddress ? smartWalletAddress : address ?? undefined;
-
-  useEffect(() => {
-    apiClient.get<{ success?: boolean; ngn_available?: boolean; bundles?: Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }> }>('shop/bundles').then((r) => {
-      if (r?.data?.bundles) setBundles(r.data.bundles);
-      if (typeof r?.data?.ngn_available === 'boolean') setNgnAvailable(r.data.ngn_available);
-    }).catch(() => {});
-  }, []);
 
   useEffect(() => {
     const ref = searchParams.get('reference') ?? searchParams.get('tx_ref');
@@ -363,6 +374,40 @@ export default function GameShopMobile() {
       .filter((item): item is NonNullable<typeof item> => item !== null);
   }, [shopInfoResults, shopTokenIds]);
 
+  // Same as desktop: derive bundles from on-chain perk stock (API list alone is often empty).
+  const computedBundles = useMemo(() => {
+    const bundleMap = new Map<string, { perk: number; strength: number }>();
+    for (const item of shopItems) {
+      const key = `${item.perk}:${item.strength}`;
+      bundleMap.set(key, { perk: item.perk, strength: item.strength });
+    }
+    return BUNDLE_DEFS.map((bundle, idx) => {
+      const allComponentsAvailable = bundle.items.every((item) => {
+        const key = `${item.perk}:${item.strength}`;
+        return bundleMap.has(key);
+      });
+      const bundleDef = BUNDLE_DEFS_FOR_STOCK[idx];
+      const baseNgnPrice = Math.round(Number(bundleDef.price_usdc) * USDC_TO_NGN_RATE);
+      const ngnPrice = calculateNgnPrice(baseNgnPrice);
+      return {
+        id: idx + 1,
+        name: bundle.name,
+        description: bundle.description,
+        price_tyc: bundleDef.price_tyc,
+        price_usdc: bundleDef.price_usdc,
+        price_ngn: ngnPrice,
+        available: allComponentsAvailable,
+      };
+    });
+  }, [shopItems]);
+
+  useEffect(() => {
+    setBundles(computedBundles);
+    apiClient.get<{ ngn_available?: boolean }>('shop/bundles').then((r) => {
+      if (typeof r?.data?.ngn_available === 'boolean') setNgnAvailable(r.data.ngn_available);
+    }).catch(() => {});
+  }, [computedBundles]);
+
   // For admin bundle stocking we need tokenIds even when stock is 0
   const allCollectiblesByPerkStrength = useMemo(() => {
     const map = new Map<string, { tokenId: bigint; perk: number; strength: number }>();
@@ -394,55 +439,94 @@ export default function GameShopMobile() {
     }
   }, [address, rewardOwner]);
 
-  // User Vouchers
-  const { data: userOwnedCount } = useReadContract({
-    address: contractAddress,
-    abi: RewardABI,
-    functionName: 'ownedTokenCount',
-    args: address ? [address] : undefined,
-    query: { enabled: !!address && !!contractAddress },
+  // User vouchers: union of connected wallet + smart wallet (readable without signing)
+  const voucherOwners = useMemo((): Address[] => {
+    const list: Address[] = [];
+    const seen = new Set<string>();
+    const push = (a: Address | null | undefined) => {
+      if (!a || !isValidWallet(a)) return;
+      const k = a.toLowerCase();
+      if (seen.has(k)) return;
+      seen.add(k);
+      list.push(a);
+    };
+    push(smartWalletAddress);
+    push(address);
+    return list;
+  }, [smartWalletAddress, address]);
+
+  const voucherOwnedCountCalls = useMemo(
+    () =>
+      voucherOwners.map((owner) => ({
+        address: contractAddress!,
+        abi: RewardABI as Abi,
+        functionName: 'ownedTokenCount' as const,
+        args: [owner] as const,
+      })),
+    [voucherOwners, contractAddress]
+  );
+
+  const { data: voucherOwnedCountResults } = useReadContracts({
+    contracts: voucherOwnedCountCalls,
+    query: { enabled: voucherOwners.length > 0 && !!contractAddress },
   });
 
-  const userTokenCount = Number(userOwnedCount ?? 0);
+  const voucherTokenIndexPlan = useMemo(() => {
+    if (!voucherOwnedCountResults) return [] as Array<{ owner: Address; index: bigint }>;
+    const plan: Array<{ owner: Address; index: bigint }> = [];
+    voucherOwners.forEach((owner, oi) => {
+      const res = voucherOwnedCountResults[oi];
+      if (res?.status !== 'success') return;
+      const n = Number(res.result as bigint);
+      for (let i = 0; i < n; i++) plan.push({ owner, index: BigInt(i) });
+    });
+    return plan;
+  }, [voucherOwners, voucherOwnedCountResults]);
 
-  const userTokenIdCalls = useMemo(
+  const voucherTokenIdCalls = useMemo(
     () =>
-      Array.from({ length: userTokenCount }, (_, i) => ({
+      voucherTokenIndexPlan.map(({ owner, index }) => ({
         address: contractAddress!,
         abi: RewardABI as Abi,
         functionName: 'tokenOfOwnerByIndex' as const,
-        args: [address!, BigInt(i)] as const,
+        args: [owner, index] as const,
       })),
-    [contractAddress, address, userTokenCount]
+    [voucherTokenIndexPlan, contractAddress]
   );
 
-  const { data: userTokenIdResults } = useReadContracts({
-    contracts: userTokenIdCalls,
-    query: { enabled: userTokenCount > 0 && !!address && !!contractAddress },
+  const { data: voucherTokenIdResults } = useReadContracts({
+    contracts: voucherTokenIdCalls,
+    query: { enabled: voucherTokenIdCalls.length > 0 && !!contractAddress },
   });
 
-  const userVoucherIds = useMemo(() => {
-    return (
-      userTokenIdResults
-        ?.map((res) => (res.status === 'success' ? (res.result as bigint) : undefined))
-        .filter((id): id is bigint => id !== undefined && isVoucherToken(id)) ?? []
-    );
-  }, [userTokenIdResults]);
+  const vouchersWithOwner = useMemo(() => {
+    if (!voucherTokenIdResults) return [] as Array<{ tokenId: bigint; voucherOwner: Address }>;
+    const out: Array<{ tokenId: bigint; voucherOwner: Address }> = [];
+    voucherTokenIdResults.forEach((res, i) => {
+      if (res.status !== 'success') return;
+      const tokenId = res.result as bigint;
+      if (!isVoucherToken(tokenId)) return;
+      const row = voucherTokenIndexPlan[i];
+      if (!row) return;
+      out.push({ tokenId, voucherOwner: row.owner });
+    });
+    return out;
+  }, [voucherTokenIdResults, voucherTokenIndexPlan]);
 
   const voucherInfoCalls = useMemo(
     () =>
-      userVoucherIds.map((tokenId) => ({
+      vouchersWithOwner.map(({ tokenId }) => ({
         address: contractAddress!,
         abi: RewardABI as Abi,
         functionName: 'getCollectibleInfo' as const,
         args: [tokenId] as const,
       })),
-    [contractAddress, userVoucherIds]
+    [vouchersWithOwner, contractAddress]
   );
 
   const { data: voucherInfoResults } = useReadContracts({
     contracts: voucherInfoCalls,
-    query: { enabled: userVoucherIds.length > 0 && !!contractAddress },
+    query: { enabled: voucherInfoCalls.length > 0 && !!contractAddress },
   });
 
   const myVouchers = useMemo(() => {
@@ -452,14 +536,15 @@ export default function GameShopMobile() {
       .map((result, i) => {
         if (result.status !== 'success') return null;
         const [, , tycPrice] = result.result as [number, bigint, bigint, bigint, bigint];
-        const tokenId = userVoucherIds[i];
+        const { tokenId, voucherOwner } = vouchersWithOwner[i];
         return {
           tokenId,
+          voucherOwner,
           value: formatUnits(tycPrice, 18),
         };
       })
       .filter((v): v is NonNullable<typeof v> => v !== null);
-  }, [voucherInfoResults, userVoucherIds]);
+  }, [voucherInfoResults, vouchersWithOwner]);
 
   // Handlers
   const handleBuy = async (item: typeof shopItems[0]) => {
@@ -677,26 +762,21 @@ export default function GameShopMobile() {
     }
   };
 
-  const handleRedeemVoucher = async (tokenId: bigint) => {
-    const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
-    if (!hasPaymentMethod) {
-      toast.error('Please connect your wallet or create a smart wallet');
+  const handleRedeemVoucher = async (tokenId: bigint, voucherOwner: Address) => {
+    if (!isConnected || !address) {
+      openWallet();
+      toast.info('Connect your wallet to redeem');
       return;
     }
 
     try {
-      if (smartWalletAddress && !isConnected) {
-        const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/redeem-voucher', {
-          tokenId: tokenId.toString(),
-        });
-        if (!res?.success && !res?.data?.success) {
-          throw new Error(res?.data?.message || 'Redemption failed');
-        }
-      } else {
+      if (address.toLowerCase() === voucherOwner.toLowerCase()) {
         await redeem(tokenId);
+      } else {
+        await redeemFor(voucherOwner, tokenId);
       }
-    } catch (err: any) {
-      toast.error(err.message || 'Redemption failed');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Redemption failed');
     }
   };
 
@@ -886,9 +966,9 @@ export default function GameShopMobile() {
               <span className="text-xs text-slate-500 uppercase tracking-widest">Bundles</span>
               <div className="h-px flex-1 bg-[#003B3E]/80" />
             </div>
-            {bundles.length > 0 ? (
+            {bundles.filter((b) => b.available !== false).length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {bundles.map((b, idx) => (
+              {bundles.filter((b) => b.available !== false).map((b, idx) => (
                 <motion.div
                   key={b.id ?? b.name ?? idx}
                   initial={{ opacity: 0, y: 12 }}
@@ -1151,6 +1231,12 @@ export default function GameShopMobile() {
                   </button>
                 </div>
 
+                {!isConnected && myVouchers.length > 0 && (
+                  <p className="text-sm text-amber-200/85 mb-4 rounded-xl border border-amber-500/25 bg-amber-950/20 px-3 py-2">
+                    Connect your wallet to redeem. Redemption is signed in your wallet only (no backend transaction).
+                  </p>
+                )}
+
                 {myVouchers.length === 0 ? (
                   <EmptyState
                     icon={<Ticket className="w-14 h-14 text-amber-500/70" />}
@@ -1175,14 +1261,19 @@ export default function GameShopMobile() {
                         </div>
 
                         <button
-                          onClick={() => handleRedeemVoucher(v.tokenId)}
-                          disabled={redeemingPending || redeemingConfirming}
+                          onClick={() => handleRedeemVoucher(v.tokenId, v.voucherOwner)}
+                          disabled={
+                            redeemingPending ||
+                            redeemingConfirming ||
+                            redeemForPending ||
+                            redeemForConfirming
+                          }
                           className={`w-full py-4 rounded-xl font-bold transition-all
-                            ${redeemingPending || redeemingConfirming
+                            ${redeemingPending || redeemingConfirming || redeemForPending || redeemForConfirming
                               ? 'bg-slate-700/80 text-slate-400'
                               : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black shadow-lg shadow-amber-500/20'}`}
                         >
-                          {redeemingPending || redeemingConfirming ? (
+                          {redeemingPending || redeemingConfirming || redeemForPending || redeemForConfirming ? (
                             <Loader2 className="animate-spin inline mr-2" />
                           ) : 'Redeem Now'}
                         </button>

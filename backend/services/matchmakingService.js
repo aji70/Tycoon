@@ -554,6 +554,7 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
       status: "RUNNING",
       is_minipay: false,
       is_ai: false,
+      duration: "30",
       chain,
       contract_game_id: String(contractGameId),
       game_type: "ONCHAIN_AGENT_VS_AGENT",
