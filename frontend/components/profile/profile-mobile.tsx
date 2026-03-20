@@ -123,6 +123,9 @@ function GuestProfileViewMobile({
     username: string;
     linked_wallet_address?: string | null;
     smart_wallet_address?: string | null;
+    legacy_smart_wallet_address?: string | null;
+    smart_wallet_migration_status?: string | null;
+    smart_wallet_migration_report?: string | null;
   };
   onRecreateClick?: () => void | Promise<void>;
   recreatePending?: boolean;
@@ -429,6 +432,20 @@ function GuestProfileViewMobile({
           >
             {recreatePending ? 'Creating…' : 'Recreate smart wallet'}
           </button>
+        )}
+
+        {(guestUser.smart_wallet_migration_status || guestUser.legacy_smart_wallet_address) && (
+          <div className="rounded-2xl border border-amber-500/20 bg-[#011112]/80 p-4">
+            <h3 className="text-xs font-semibold text-amber-300 uppercase tracking-wider mb-2">Wallet migration</h3>
+            <p className="text-xs text-white/70">
+              Status: <span className="font-semibold text-white">{guestUser.smart_wallet_migration_status ?? 'unknown'}</span>
+            </p>
+            {guestUser.legacy_smart_wallet_address ? (
+              <p className="text-[11px] text-white/60 mt-1 break-all">
+                Legacy wallet: {guestUser.legacy_smart_wallet_address}
+              </p>
+            ) : null}
+          </div>
         )}
 
         {displayStats && (
@@ -774,7 +791,13 @@ export default function ProfilePageMobile() {
     const isSmartWalletVoucher = rewardOwnerAddress && walletAddress && rewardOwnerAddress.toLowerCase() !== walletAddress.toLowerCase();
     
     if (isSmartWalletVoucher) {
-      handleRedeemVoucherViaApi(tokenId);
+      setRedeemingId(tokenId);
+      writeContract({
+        address: rewardAddress,
+        abi: RewardABI,
+        functionName: 'redeemVoucherFor',
+        args: [rewardOwnerAddress as Address, tokenId],
+      });
     } else {
       setRedeemingId(tokenId);
       writeContract({
@@ -1028,6 +1051,19 @@ export default function ProfilePageMobile() {
                 </button>
               )}
             </div>
+            {(guestUser?.smart_wallet_migration_status || guestUser?.legacy_smart_wallet_address) && (
+              <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-left">
+                <p className="text-[10px] uppercase tracking-wider text-amber-300 font-semibold">Wallet migration</p>
+                <p className="text-xs text-white/70 mt-1">
+                  Status: <span className="font-semibold text-white">{guestUser?.smart_wallet_migration_status ?? 'unknown'}</span>
+                </p>
+                {guestUser?.legacy_smart_wallet_address ? (
+                  <p className="text-[11px] text-white/60 mt-1 break-all">
+                    Legacy wallet: {guestUser.legacy_smart_wallet_address}
+                  </p>
+                ) : null}
+              </div>
+            )}
           </div>
         </motion.div>
 

@@ -81,6 +81,252 @@ function passwordToHash(password) {
 }
 
 const GUEST_CHAIN_OPTIONS = ["POLYGON", "CELO", "BASE"];
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+const ERC20_BALANCE_OF_ABI = [
+  {
+    type: "function",
+    name: "balanceOf",
+    inputs: [{ name: "account", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+];
+
+const TYCOON_REWARD_ADDR_ABI = [
+  {
+    type: "function",
+    name: "rewardSystem",
+    inputs: [],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view",
+  },
+];
+
+const REWARD_OWNED_COUNT_ABI = [
+  {
+    type: "function",
+    name: "ownedTokenCount",
+    inputs: [{ name: "owner", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+];
+
+const REWARD_TOKEN_OF_OWNER_BY_INDEX_ABI = [
+  {
+    type: "function",
+    name: "tokenOfOwnerByIndex",
+    inputs: [
+      { name: "owner", type: "address", internalType: "address" },
+      { name: "index", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+];
+
+const ERC1155_BALANCE_OF_ABI = [
+  {
+    type: "function",
+    name: "balanceOf",
+    inputs: [
+      { name: "account", type: "address", internalType: "address" },
+      { name: "id", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+];
+
+const USER_WALLET_WITHDRAW_ERC20_WITH_AUTH_ABI = [
+  {
+    type: "function",
+    name: "withdrawERC20WithAuth",
+    inputs: [
+      { name: "token", type: "address", internalType: "address" },
+      { name: "to", type: "address", internalType: "address" },
+      { name: "amount", type: "uint256", internalType: "uint256" },
+      { name: "nonce", type: "uint256", internalType: "uint256" },
+      { name: "signature", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+];
+
+const USER_WALLET_WITHDRAW_ERC1155_WITH_AUTH_ABI = [
+  {
+    type: "function",
+    name: "withdrawERC1155WithAuth",
+    inputs: [
+      { name: "collection", type: "address", internalType: "address" },
+      { name: "to", type: "address", internalType: "address" },
+      { name: "id", type: "uint256", internalType: "uint256" },
+      { name: "amount", type: "uint256", internalType: "uint256" },
+      { name: "nonce", type: "uint256", internalType: "uint256" },
+      { name: "signature", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+];
+
+function safeLower(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function asAddressOrNull(value) {
+  const s = String(value || "").trim();
+  if (!s || safeLower(s) === ZERO_ADDRESS.toLowerCase()) return null;
+  return s;
+}
+
+function randomNonce() {
+  return BigInt("0x" + crypto.randomBytes(8).toString("hex"));
+}
+
+function getWithdrawalAuthoritySigner(chain = "CELO") {
+  const cfg = getChainConfig(chain);
+  const pk =
+    process.env.WITHDRAWAL_AUTHORITY_PRIVATE_KEY ??
+    process.env.SMART_WALLET_OPERATOR_PRIVATE_KEY ??
+    cfg.privateKey;
+  if (!pk) throw new Error("Withdrawal authority key not set for wallet migration");
+  const provider = new ethers.JsonRpcProvider(cfg.rpcUrl);
+  return new ethers.Wallet(String(pk).startsWith("0x") ? pk : `0x${pk}`, provider);
+}
+
+async function getRewardContractAddressByChain(chain = "CELO") {
+  const cfg = getChainConfig(chain);
+  if (!cfg?.rpcUrl || !cfg?.contractAddress) return null;
+  const provider = new ethers.JsonRpcProvider(cfg.rpcUrl);
+  const tycoon = new ethers.Contract(cfg.contractAddress, TYCOON_REWARD_ADDR_ABI, provider);
+  const rewardAddress = await tycoon.rewardSystem();
+  return asAddressOrNull(rewardAddress);
+}
+
+async function snapshotWalletAssets(chain, walletAddress) {
+  const cfg = getChainConfig(chain);
+  if (!cfg?.rpcUrl) throw new Error(`RPC not configured for ${chain}`);
+  const provider = new ethers.JsonRpcProvider(cfg.rpcUrl);
+  const wallet = asAddressOrNull(walletAddress);
+  if (!wallet) throw new Error("Invalid wallet address for migration");
+
+  const usdcAddress = asAddressOrNull(cfg.usdcAddress ?? process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS);
+  const rewardAddress = await getRewardContractAddressByChain(chain);
+  let tycAddress = null;
+  if (rewardAddress) {
+    try {
+      const reward = new ethers.Contract(
+        rewardAddress,
+        [{ type: "function", name: "tycToken", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" }],
+        provider
+      );
+      tycAddress = asAddressOrNull(await reward.tycToken());
+    } catch (_) {}
+  }
+
+  const nativeWei = await provider.getBalance(wallet);
+  const usdcWei = usdcAddress
+    ? await new ethers.Contract(usdcAddress, ERC20_BALANCE_OF_ABI, provider).balanceOf(wallet)
+    : 0n;
+  const tycWei = tycAddress
+    ? await new ethers.Contract(tycAddress, ERC20_BALANCE_OF_ABI, provider).balanceOf(wallet)
+    : 0n;
+
+  let rewardOwnedCount = 0n;
+  const rewardItems = [];
+  if (rewardAddress) {
+    try {
+      const reward = new ethers.Contract(rewardAddress, [...REWARD_OWNED_COUNT_ABI, ...REWARD_TOKEN_OF_OWNER_BY_INDEX_ABI, ...ERC1155_BALANCE_OF_ABI], provider);
+      rewardOwnedCount = await reward.ownedTokenCount(wallet);
+      const countNum = Number(rewardOwnedCount);
+      for (let i = 0; i < countNum; i += 1) {
+        const tokenId = await reward.tokenOfOwnerByIndex(wallet, BigInt(i));
+        const amount = await reward.balanceOf(wallet, tokenId);
+        if (amount > 0n) {
+          rewardItems.push({ tokenId, amount });
+        }
+      }
+    } catch (_) {}
+  }
+
+  return {
+    wallet,
+    nativeWei,
+    usdcWei,
+    tycWei,
+    usdcAddress,
+    tycAddress,
+    rewardAddress,
+    rewardOwnedCount,
+    rewardItems,
+  };
+}
+
+async function transferWalletFungibleAssets({ chain, fromWallet, toWallet, nativeWei, usdcWei, tycWei, usdcAddress, tycAddress }) {
+  const withdrawErc20 = async (tokenAddress, amountWei, signature, nonce) => {
+    const cfg = getChainConfig(chain);
+    const pk = process.env.SMART_WALLET_OPERATOR_PRIVATE_KEY ?? cfg.privateKey;
+    if (!pk) throw new Error("Operator key not set for wallet asset migration");
+    const provider = new ethers.JsonRpcProvider(cfg.rpcUrl);
+    const signer = new ethers.Wallet(String(pk).startsWith("0x") ? pk : `0x${pk}`, provider);
+    const wallet = new ethers.Contract(fromWallet, USER_WALLET_WITHDRAW_ERC20_WITH_AUTH_ABI, signer);
+    const tx = await wallet.withdrawERC20WithAuth(tokenAddress, toWallet, amountWei, nonce, signature);
+    await tx.wait();
+  };
+
+  const transfers = [];
+  if (nativeWei > 0n) {
+    const nonce = randomNonce();
+    const sig = await signWithdrawalAuthCelo(fromWallet, toWallet, nativeWei, nonce, chain);
+    await withdrawFromSmartWalletCelo(fromWallet, toWallet, nativeWei, nonce, sig, chain);
+    transfers.push({ asset: "CELO", amount: nativeWei.toString() });
+  }
+  if (usdcAddress && usdcWei > 0n) {
+    const nonce = randomNonce();
+    const sig = await signWithdrawalAuthUsdc(fromWallet, usdcAddress, toWallet, usdcWei, nonce, chain);
+    await withdrawFromSmartWalletUsdc(fromWallet, toWallet, usdcWei, nonce, sig, chain);
+    transfers.push({ asset: "USDC", amount: usdcWei.toString() });
+  }
+  if (tycAddress && tycWei > 0n) {
+    const nonce = randomNonce();
+    const sig = await signWithdrawalAuthUsdc(fromWallet, tycAddress, toWallet, tycWei, nonce, chain);
+    await withdrawErc20(tycAddress, tycWei, sig, nonce);
+    transfers.push({ asset: "TYC", amount: tycWei.toString() });
+  }
+  return transfers;
+}
+
+async function transferWalletRewardItems({ chain, fromWallet, toWallet, rewardAddress, rewardItems }) {
+  const moved = [];
+  if (!rewardAddress || !Array.isArray(rewardItems) || rewardItems.length < 1) return moved;
+
+  const cfg = getChainConfig(chain);
+  const operatorPk = process.env.SMART_WALLET_OPERATOR_PRIVATE_KEY ?? cfg.privateKey;
+  if (!operatorPk) throw new Error("Operator key not set for reward item migration");
+  const provider = new ethers.JsonRpcProvider(cfg.rpcUrl);
+  const operator = new ethers.Wallet(String(operatorPk).startsWith("0x") ? operatorPk : `0x${operatorPk}`, provider);
+  const wallet = new ethers.Contract(fromWallet, USER_WALLET_WITHDRAW_ERC1155_WITH_AUTH_ABI, operator);
+  const authSigner = getWithdrawalAuthoritySigner(chain);
+
+  for (const item of rewardItems) {
+    const tokenId = BigInt(item.tokenId);
+    const amount = BigInt(item.amount);
+    if (amount <= 0n) continue;
+    const nonce = randomNonce();
+    const hash = ethers.solidityPackedKeccak256(
+      ["address", "address", "address", "uint256", "uint256", "uint256"],
+      [fromWallet, rewardAddress, toWallet, tokenId, amount, nonce]
+    );
+    const signature = await authSigner.signMessage(ethers.getBytes(hash));
+    const tx = await wallet.withdrawERC1155WithAuth(rewardAddress, toWallet, tokenId, amount, nonce, signature);
+    await tx.wait();
+    moved.push({ token_id: tokenId.toString(), amount: amount.toString() });
+  }
+  return moved;
+}
 
 /**
  * POST /auth/privy-signin
@@ -480,12 +726,76 @@ export async function recreateSmartWallet(req, res) {
     // Check if this registry already has a profile for this user (same registry, or new registry with no profile yet).
     const existingWallet = await getSmartWalletAddress(profileOwner, chain);
     let newWallet;
+    let migration = null;
 
     if (existingWallet) {
+      const oldWallet = asAddressOrNull(existingWallet);
+      const preSnapshot = await snapshotWalletAssets(chain, oldWallet);
       // Profile exists on this registry → recreate (replace with new wallet).
       const result = await recreateSmartWalletByBackend(profileOwner, chain);
       newWallet = result?.wallet ?? null;
       logger.info({ userId: user.id, profileOwner, newWallet, chain, action: "recreate" }, "recreateSmartWallet: recreated");
+
+      const newWalletAddr = asAddressOrNull(newWallet);
+      if (oldWallet && newWalletAddr && safeLower(oldWallet) !== safeLower(newWalletAddr)) {
+        try {
+          const transfers = await transferWalletFungibleAssets({
+            chain,
+            fromWallet: oldWallet,
+            toWallet: newWalletAddr,
+            nativeWei: preSnapshot.nativeWei,
+            usdcWei: preSnapshot.usdcWei,
+            tycWei: preSnapshot.tycWei,
+            usdcAddress: preSnapshot.usdcAddress,
+            tycAddress: preSnapshot.tycAddress,
+          });
+          const rewardTransfers = await transferWalletRewardItems({
+            chain,
+            fromWallet: oldWallet,
+            toWallet: newWalletAddr,
+            rewardAddress: preSnapshot.rewardAddress,
+            rewardItems: preSnapshot.rewardItems,
+          });
+          const postOld = await snapshotWalletAssets(chain, oldWallet);
+          const postNew = await snapshotWalletAssets(chain, newWalletAddr);
+          migration = {
+            status: "completed",
+            old_wallet: oldWallet,
+            new_wallet: newWalletAddr,
+            moved: transfers,
+            moved_reward_items: rewardTransfers,
+            pre: {
+              native_wei: preSnapshot.nativeWei.toString(),
+              usdc_units: preSnapshot.usdcWei.toString(),
+              tyc_wei: preSnapshot.tycWei.toString(),
+              reward_items_count: preSnapshot.rewardOwnedCount.toString(),
+            },
+            post_old: {
+              native_wei: postOld.nativeWei.toString(),
+              usdc_units: postOld.usdcWei.toString(),
+              tyc_wei: postOld.tycWei.toString(),
+              reward_items_count: postOld.rewardOwnedCount.toString(),
+            },
+            post_new: {
+              native_wei: postNew.nativeWei.toString(),
+              usdc_units: postNew.usdcWei.toString(),
+              tyc_wei: postNew.tycWei.toString(),
+              reward_items_count: postNew.rewardOwnedCount.toString(),
+            },
+          };
+        } catch (migrationErr) {
+          logger.error(
+            { userId: user.id, oldWallet, newWallet: newWalletAddr, err: migrationErr?.message },
+            "recreateSmartWallet: migration failed after recreate"
+          );
+          migration = {
+            status: "failed",
+            old_wallet: oldWallet,
+            new_wallet: newWalletAddr,
+            error: migrationErr?.message || "migration failed",
+          };
+        }
+      }
     } else {
       // No profile on this registry (e.g. new registry) → create a new wallet.
       if (user.linked_wallet_address && String(user.linked_wallet_address).trim()) {
@@ -500,14 +810,29 @@ export async function recreateSmartWallet(req, res) {
     }
 
     if (newWallet) {
-      await db("users").where({ id: user.id }).update({ smart_wallet_address: newWallet });
+      const updatePayload = {
+        smart_wallet_address: newWallet,
+      };
+      if (migration?.old_wallet) {
+        updatePayload.legacy_smart_wallet_address = migration.old_wallet;
+        updatePayload.smart_wallet_migration_status = migration.status || "unknown";
+        updatePayload.smart_wallet_migration_report = JSON.stringify(migration);
+      }
+      await db("users").where({ id: user.id }).update(updatePayload);
     }
     const updated = await User.findById(user.id);
     const { password_hash: _, ...safe } = updated;
     return res.status(200).json({
       success: true,
-      message: existingWallet ? "Smart wallet recreated." : "Smart wallet created.",
-      data: safe,
+      message: existingWallet
+        ? migration?.status === "failed"
+          ? "Smart wallet recreated, but asset migration needs manual completion."
+          : "Smart wallet recreated with asset migration."
+        : "Smart wallet created.",
+      data: {
+        ...safe,
+        migration,
+      },
     });
   } catch (err) {
     logger.error({ err: err?.message, userId: req.user?.id }, "recreateSmartWallet failed");
