@@ -1113,7 +1113,7 @@ export default function RewardAdminPanel() {
                   <span className="text-cyan-300">{tycBalance != null ? formatUnits(BigInt(String(tycBalance)), 18) : '—'} TYC</span>
                 </div>
                 <div className="flex justify-between gap-2 py-2 border-b border-gray-700/50">
-                  <span className="text-gray-400">balanceOf USDC (contract)</span>
+                  <span className="text-gray-400">Perk contract USDC balance</span>
                   <span className="text-cyan-300">{usdcBalance != null ? formatUnits(BigInt(String(usdcBalance)), 6) : '—'} USDC</span>
                 </div>
               </div>

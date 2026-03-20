@@ -26,7 +26,6 @@ import {
   MapPin,
   Banknote,
   Smartphone,
-  Landmark,
 } from 'lucide-react';
 
 import RewardABI from '@/context/abi/rewardabi.json';
@@ -268,17 +267,6 @@ export default function GameShop() {
 
   const usdcBalance = usdcBalanceData ? Number(usdcBalanceData.formatted).toFixed(2) : '0.00';
 
-  /** USDC accumulated in the Reward contract from perk/bundle sales (withdrawn by contract owner). */
-  const {
-    data: contractUsdcData,
-    isLoading: contractUsdcLoading,
-    refetch: refetchContractUsdc,
-  } = useBalance({
-    address: contractAddress,
-    token: usdcTokenAddress,
-    query: { enabled: !!contractAddress && !!usdcTokenAddress },
-  });
-  const contractUsdcBalance = contractUsdcData ? Number(contractUsdcData.formatted).toFixed(2) : '0.00';
 
   const payFromSmartWalletUnsupported = payWith === 'smart_wallet' && !smartWalletAddress;
 
@@ -1025,31 +1013,6 @@ export default function GameShop() {
             </button>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
-            className="rounded-xl px-4 py-3 flex items-center gap-3 border border-emerald-500/20 bg-emerald-950/20 backdrop-blur-xl max-w-sm"
-          >
-            <Landmark className="w-5 h-5 text-emerald-400/90 shrink-0" />
-            <div className="text-left min-w-0">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider">Perk contract USDC</p>
-              <p className="text-base font-bold text-emerald-300/95 font-[family-name:var(--font-orbitron-sans)]">
-                {contractUsdcLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `$${contractUsdcBalance}`}
-              </p>
-              <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-                USDC from shop purchases is sent to this on-chain contract; the owner can withdraw via the protocol.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => refetchContractUsdc()}
-              className="p-1 rounded text-slate-500 hover:text-emerald-400 shrink-0"
-              title="Refresh contract balance"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-          </motion.div>
         </div>
 
         {payFromSmartWalletUnsupported && (
