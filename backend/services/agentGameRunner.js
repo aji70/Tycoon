@@ -7,6 +7,7 @@
  */
 import db from "../config/database.js";
 import logger from "../config/logger.js";
+import GameSetting from "../models/GameSetting.js";
 import agentRegistry from "./agentRegistry.js";
 import * as eloService from "./eloService.js";
 
@@ -134,6 +135,24 @@ function completesMonopolyAfterBuy(landedPropertyId, ownedPropertyIds) {
   return false;
 }
 
+/** Monopoly even-build: only properties at min development within each color group. */
+function filterBuildCandidatesEvenBuild(buildCandidates) {
+  const byGroup = new Map();
+  for (const c of buildCandidates) {
+    const g = c.groupId;
+    if (!byGroup.has(g)) byGroup.set(g, []);
+    byGroup.get(g).push(c);
+  }
+  const out = [];
+  for (const list of byGroup.values()) {
+    const minD = Math.min(...list.map((x) => x.development));
+    for (const c of list) {
+      if (c.development === minD) out.push(c);
+    }
+  }
+  return out;
+}
+
 async function maybeBuildHouses({ gameId, gp, slot, myBalance }) {
   // gp is a row from game_players (contains: id, user_id, in_jail?, position, balance, turn_order, etc.)
   if (!gp?.id) return;
@@ -209,13 +228,18 @@ async function maybeBuildHouses({ gameId, gp, slot, myBalance }) {
 
   if (!buildCandidates.length) return;
 
+  const gameSettings = await GameSetting.findByGameId(gameId);
+  const evenBuild = Boolean(gameSettings?.even_build);
+  const candidatesForAgent = evenBuild ? filterBuildCandidatesEvenBuild(buildCandidates) : buildCandidates;
+  if (!candidatesForAgent.length) return;
+
   // Try the agent decision first (preferred).
   // If it fails or points to a non-candidate, fallback to a safe heuristic.
   try {
     const decision = await agentRegistry.getAIDecision(gameId, slot, "building", {
       myBalance,
       // Provide enough info for smarter agents without bloating context.
-      myProperties: buildCandidates.map((c) => ({
+      myProperties: candidatesForAgent.map((c) => ({
         propertyId: c.propertyId,
         development: c.development,
         cost_of_house: c.cost,
@@ -225,7 +249,7 @@ async function maybeBuildHouses({ gameId, gp, slot, myBalance }) {
 
     const wantsBuild = String(decision?.action || "").toLowerCase() === "build";
     const targetId = wantsBuild ? Number(decision?.propertyId ?? decision?.property_id ?? 0) : 0;
-    const target = buildCandidates.find((c) => c.propertyId === targetId);
+    const target = candidatesForAgent.find((c) => c.propertyId === targetId);
     if (target) {
       await post("/game-properties/development", {
         user_id: gp.user_id,
@@ -239,8 +263,10 @@ async function maybeBuildHouses({ gameId, gp, slot, myBalance }) {
   }
 
   // Fallback: build on the lowest-development candidate (typical Monopoly building rule).
-  buildCandidates.sort((a, b) => (a.development ?? 0) - (b.development ?? 0) || (a.cost ?? 0) - (b.cost ?? 0));
-  const target = buildCandidates[0];
+  candidatesForAgent.sort(
+    (a, b) => (a.development ?? 0) - (b.development ?? 0) || (a.cost ?? 0) - (b.cost ?? 0)
+  );
+  const target = candidatesForAgent[0];
   if (!target) return;
 
   await post("/game-properties/development", {

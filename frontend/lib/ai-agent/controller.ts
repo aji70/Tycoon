@@ -2,6 +2,7 @@
 import { AIWalletManager } from './wallet-manager';
 import { MonopolyAIDecisionEngine } from './decision-engine';
 import { apiClient } from '@/lib/api';
+import { pickMonopolyDevelopmentTarget } from '@/lib/pickMonopolyDevelopmentTarget';
 
 export class MonopolyAIController {
   private walletManager: AIWalletManager;
@@ -121,13 +122,25 @@ export class MonopolyAIController {
     });
 
     if (decision.action === 'build' && decision.propertyId) {
+      const gameStub = { settings: gameState?.settings };
+      const properties = (gameState?.properties ?? []) as Array<{ id: number; type?: string; group_id: number; cost_of_house: number; name?: string }>;
+      const game_properties = gameState?.game_properties ?? [];
+      const resolved = pickMonopolyDevelopmentTarget({
+        game: gameStub,
+        properties,
+        game_properties,
+        player: aiPlayer,
+        preferredPropertyId: decision.propertyId,
+      });
+      if (resolved == null) return;
+
       await apiClient.post('/game-properties/development', {
         game_id: gameId,
         user_id: aiPlayer.user_id,
-        property_id: decision.propertyId,
+        property_id: resolved,
       });
 
-      console.log(`🏠 AI built on property ${decision.propertyId}: ${decision.reasoning}`);
+      console.log(`🏠 AI built on property ${resolved}: ${decision.reasoning}`);
     }
   }
 
