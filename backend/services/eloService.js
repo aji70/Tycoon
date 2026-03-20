@@ -204,12 +204,11 @@ const ARENA_ELO_BASELINE = 1000;
 export function getTierNameArena(eloRating) {
   const r = Number(eloRating);
   const x = Number.isFinite(r) ? r : ARENA_ELO_BASELINE;
-  // Arena tiers are intentionally wider than default Elo bands so progression
-  // feels less "bunched up" at the lower-mid ranks (Challenger vs Pro).
-  if (x >= 2200) return "Legend";
-  if (x >= 1850) return "Diamond";
-  if (x >= 1550) return "Platinum";
-  if (x >= 1300) return "Gold";
+  // Arena tiers scaled x10 to heavily spread progression bands.
+  if (x >= 13000) return "Legend";
+  if (x >= 9500) return "Diamond";
+  if (x >= 6500) return "Platinum";
+  if (x >= 4000) return "Gold";
   if (x > ARENA_ELO_BASELINE) return "Silver";
   return "Bronze";
 }
@@ -217,10 +216,10 @@ export function getTierNameArena(eloRating) {
 export function getTierColorArena(eloRating) {
   const r = Number(eloRating);
   const x = Number.isFinite(r) ? r : ARENA_ELO_BASELINE;
-  if (x >= 2200) return "gold";
-  if (x >= 1850) return "cyan";
-  if (x >= 1550) return "purple";
-  if (x >= 1300) return "yellow";
+  if (x >= 13000) return "gold";
+  if (x >= 9500) return "cyan";
+  if (x >= 6500) return "purple";
+  if (x >= 4000) return "yellow";
   if (x > ARENA_ELO_BASELINE) return "silver";
   return "brown";
 }
