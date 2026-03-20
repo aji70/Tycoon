@@ -109,7 +109,7 @@ export default function AccountLinkWallet() {
 
   return (
     <div className="rounded-2xl border border-[#0E282A] bg-[#011112]/80 p-5 space-y-3">
-      <h3 className="text-base font-semibold text-cyan-400">Account & login</h3>
+      <h3 className="text-base font-semibold text-cyan-400">Account, wallet & login</h3>
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       {/* Guest & Privy: Link / Unlink wallet */}
@@ -133,6 +133,11 @@ export default function AccountLinkWallet() {
           ) : (
             <p className="text-sm text-white/70">
               Link your wallet to use the same account when you connect (staked games, same stats).
+              {!isConnected && (
+                <span className="block mt-1 text-cyan-300/90">
+                  Connect your wallet in the navbar, then return here to click &quot;Link this wallet&quot;.
+                </span>
+              )}
             </p>
           )}
           {needsTransferToLink && (

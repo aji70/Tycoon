@@ -125,16 +125,6 @@ const TYCOON_REWARD_ADDR_ABI = [
   },
 ];
 
-const REWARD_OWNED_COUNT_ABI = [
-  {
-    type: "function",
-    name: "ownedTokenCount",
-    inputs: [{ name: "owner", type: "address", internalType: "address" }],
-    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
-    stateMutability: "view",
-  },
-];
-
 const REWARD_TOKEN_OF_OWNER_BY_INDEX_ABI = [
   {
     type: "function",
@@ -259,18 +249,24 @@ async function snapshotWalletAssets(chain, walletAddress) {
 
   let rewardOwnedCount = 0n;
   const rewardItems = [];
+  /** Align with frontend slot-scan: ownedTokenCount can be < _ownedIds.length if zero-balance slots remain. */
+  const REWARD_SLOT_SCAN_CAP = 96;
   if (rewardAddress) {
     try {
-      const reward = new ethers.Contract(rewardAddress, [...REWARD_OWNED_COUNT_ABI, ...REWARD_TOKEN_OF_OWNER_BY_INDEX_ABI, ...ERC1155_BALANCE_OF_ABI], provider);
-      rewardOwnedCount = await reward.ownedTokenCount(wallet);
-      const countNum = Number(rewardOwnedCount);
-      for (let i = 0; i < countNum; i += 1) {
-        const tokenId = await reward.tokenOfOwnerByIndex(wallet, BigInt(i));
+      const reward = new ethers.Contract(rewardAddress, [...REWARD_TOKEN_OF_OWNER_BY_INDEX_ABI, ...ERC1155_BALANCE_OF_ABI], provider);
+      for (let i = 0; i < REWARD_SLOT_SCAN_CAP; i += 1) {
+        let tokenId;
+        try {
+          tokenId = await reward.tokenOfOwnerByIndex(wallet, BigInt(i));
+        } catch (_) {
+          break;
+        }
         const amount = await reward.balanceOf(wallet, tokenId);
         if (amount > 0n) {
           rewardItems.push({ tokenId, amount });
         }
       }
+      rewardOwnedCount = BigInt(rewardItems.length);
     } catch (_) {}
   }
 
@@ -690,10 +686,16 @@ export async function createSmartWallet(req, res) {
       return res.status(200).json({ success: true, message: "Smart wallet created. You can play and use the shop; link a wallet in Profile anytime.", data: safe });
     } catch (walletFirstErr) {
       logger.warn({ err: walletFirstErr?.message, userId: user.id }, "createSmartWallet: wallet-first flow failed");
-      return res.status(500).json({
-        success: false,
-        message: walletFirstErr?.message || "Could not create smart wallet. Try again or link a wallet in Profile first.",
-      });
+      const rawMsg = walletFirstErr?.message || "";
+      // OnlyGame (0x6bc324ad): backend must send from registry owner, not user wallet
+      const isOnlyGame =
+        rawMsg.includes("OnlyGame") ||
+        rawMsg.includes("0x6bc324ad") ||
+        (rawMsg.includes("execution reverted") && rawMsg.includes("unknown custom error"));
+      const message = isOnlyGame
+        ? "Smart wallet creation failed: backend is not authorized. Set TYCOON_OWNER_PRIVATE_KEY in backend .env to the registry owner's private key (same as contract/.env PRIVATE_KEY used to deploy the User Registry)."
+        : rawMsg || "Could not create smart wallet. Try again or link a wallet in Profile first.";
+      return res.status(500).json({ success: false, message });
     }
   } catch (err) {
     logger.error({ err: err?.message, userId: req.user?.id }, "createSmartWallet failed");

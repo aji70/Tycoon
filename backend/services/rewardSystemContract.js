@@ -176,13 +176,18 @@ function receiptHash(receipt) {
 /**
  * Map "perk:strength" → tokenId for collectibles currently held by the reward contract (shop inventory).
  */
+const REWARD_SLOT_SCAN_CAP = 96;
+
 async function buildPerkStrengthTokenMap(contract) {
   const rewardAddr = await contract.getAddress();
-  const countBn = await contract.ownedTokenCount(rewardAddr);
-  const n = Number(countBn);
   const map = new Map();
-  for (let i = 0; i < n; i++) {
-    const tid = await contract.tokenOfOwnerByIndex(rewardAddr, BigInt(i));
+  for (let i = 0; i < REWARD_SLOT_SCAN_CAP; i += 1) {
+    let tid;
+    try {
+      tid = await contract.tokenOfOwnerByIndex(rewardAddr, BigInt(i));
+    } catch (_) {
+      break;
+    }
     const perk = Number(await contract.collectiblePerk(tid));
     const strength = Number(await contract.collectiblePerkStrength(tid));
     if (perk === 0) continue;
