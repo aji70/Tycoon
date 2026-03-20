@@ -287,7 +287,8 @@ export async function generateBattleRoyaleBracket(tournamentId, entries, options
         match_index: matchIndex++,
         slot_a_type: "ENTRY",
         slot_a_entry_id: gameEntries[0]?.id,
-        slot_b_type: "BATTLE_ROYALE_GAME",
+        // Schema only allows ENTRY | MATCH_WINNER | BYE; multi-player list lives in `notes`.
+        slot_b_type: "BYE",
         slot_b_entry_id: null,
         status: "PENDING",
         // Store battle_royale_entry_ids as JSON in metadata

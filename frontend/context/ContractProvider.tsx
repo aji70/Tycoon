@@ -22,6 +22,7 @@ import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
 import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
 import { getCeloRpcUrlForChainId, registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
+import { API_BASE_URL } from '@/lib/api';
 
 // Fixed stake amount (adjust if needed)
 const STAKE_AMOUNT = 1; // 1 wei for testing? Or change to actual value like 0.01 ether = 10000000000000000n
@@ -864,10 +865,7 @@ export function useRegisterAgentERC8004() {
 
   const register = useCallback(
     async (agentDbId: number): Promise<number | null> => {
-      const base = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
-      if (!base) {
-        throw new Error('NEXT_PUBLIC_API_URL is not set; cannot build agent registration URI.');
-      }
+      const base = API_BASE_URL.replace(/\/$/, "");
       const agentURI = `${base}/agents/${agentDbId}/erc8004-registration`;
       /** Celo mainnet vs Alfajores — do not use arbitrary wagmi chainId (e.g. Base) for registry lookup. */
       const registryChainId = chainId === 44787 ? 44787 : 42220;
