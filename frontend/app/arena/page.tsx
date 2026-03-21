@@ -276,15 +276,32 @@ export default function ArenaPage() {
   }, [activeTab, isAuthed]);
 
   useEffect(() => {
-    if (activeTab !== "my-agents" || myAgentsSubTab !== "overview" || !isAuthed) return;
+    if (activeTab !== "my-agents" || !isAuthed) return;
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiClient.get<ApiResponse<Agent[]>>("/agents");
+        const [agentsRes, permsRes] = await Promise.all([
+          apiClient.get<ApiResponse<Agent[]>>("/agents"),
+          apiClient.get("/agents/tournament-permissions"),
+        ]);
         if (cancelled) return;
-        if (res?.data?.success && res.data.data) {
-          setMyAgents(res.data.data);
+        if (agentsRes?.data?.success && agentsRes.data.data) {
+          setMyAgents(agentsRes.data.data);
         }
+        const list = (permsRes as any)?.data?.data ?? (permsRes as any)?.data ?? [];
+        const arr = Array.isArray(list) ? list : [];
+        const map: Record<number, { enabled: boolean; max_entry_fee_usdc: string; daily_cap_usdc: string | null; chain: string | null }> = {};
+        for (const p of arr) {
+          if (p?.user_agent_id != null) {
+            map[Number(p.user_agent_id)] = {
+              enabled: !!p.enabled,
+              max_entry_fee_usdc: p.max_entry_fee_usdc ?? "0",
+              daily_cap_usdc: p.daily_cap_usdc ?? null,
+              chain: p.chain ?? null,
+            };
+          }
+        }
+        setTournamentPerms(map);
       } catch (e) {
         console.error("Refresh my agents (overview):", e);
       }
@@ -975,8 +992,8 @@ export default function ArenaPage() {
               {myAgentsSubTab === "overview" ? (
                 <div className={styles.myAgents}>
                   <p className={styles.challengeHint} style={{ textAlign: "left", marginBottom: 16 }}>
-                    Quick view: Discover visibility and Celo registration. Use <strong>Full manager</strong> to create
-                    agents, API keys, skills, and tournaments.
+                    Quick view: Discover, <strong>Can spend</strong> (tournament spending), and Celo. Use <strong>Full manager</strong> to create
+                    agents, enable spending (Tournaments button), API keys, and tournaments.
                   </p>
                   {myAgents.length > 0 ? (
                     <div className={styles.myAgentsGrid}>
@@ -1003,6 +1020,14 @@ export default function ArenaPage() {
                             <div className={styles.statRow}>
                               <span className={styles.label}>Discover</span>
                               <span className={styles.value}>{agent.is_public ? "Public" : "Private"}</span>
+                            </div>
+                            <div className={styles.statRow}>
+                              <span className={styles.label}>Can spend</span>
+                              <span className={styles.value}>
+                                {tournamentPerms[agent.id]?.enabled
+                                  ? `Yes · max ${formatUsdcDisplay(tournamentPerms[agent.id]?.max_entry_fee_usdc)} entry`
+                                  : "No"}
+                              </span>
                             </div>
                             <div className={styles.statRow}>
                               <span className={styles.label}>ERC-8004</span>

@@ -12,6 +12,7 @@ import * as hostedAgentCredits from "../services/hostedAgentCredits.js";
 import GamePlayer from "../models/GamePlayer.js";
 import { requireAuth } from "../middleware/auth.js";
 import { submitErc8004Feedback } from "../services/erc8004Feedback.js";
+import * as x402Service from "../services/x402Service.js";
 
 const router = express.Router();
 
@@ -83,6 +84,64 @@ router.post("/decision", async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
+});
+
+/**
+ * Pay-per-use AI decision via x402.
+ * Requires payment in cUSD/USDC on Celo. Returns 402 when payment missing.
+ * Body: { gameId, slot, decisionType, context } — same as /decision.
+ * Headers: PAYMENT-SIGNATURE or X-PAYMENT (from x402 client after 402).
+ * Env: THIRDWEB_SECRET_KEY, X402_PAY_TO_ADDRESS, X402_DECISION_PRICE (optional, default $0.01).
+ */
+router.post("/decision-paid", async (req, res) => {
+  if (!x402Service.isConfigured()) {
+    return res.status(503).json({
+      error: "x402 not configured",
+      message: "Set THIRDWEB_SECRET_KEY and X402_PAY_TO_ADDRESS to enable pay-per-use decisions",
+    });
+  }
+  const { gameId, slot, decisionType, context } = req.body || {};
+  if (!gameId || !slot || !decisionType) {
+    return res.status(400).json({
+      success: false,
+      message: "gameId, slot, and decisionType required",
+    });
+  }
+
+  const resourceUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
+  const paymentData = req.headers["payment-signature"] || req.headers["x-payment"];
+
+  const result = await x402Service.settlePaymentForRequest({
+    resourceUrl,
+    method: "POST",
+    paymentData,
+    description: "Tycoon AI decision (buy/skip, trade, build)",
+  });
+
+  if (result.status !== 200) {
+    if (result.responseHeaders) {
+      Object.entries(result.responseHeaders).forEach(([k, v]) => res.setHeader(k, v));
+    }
+    return res.status(result.status).json(result.responseBody || { error: "Payment required" });
+  }
+
+  const decision = await agentRegistry.getAIDecision(
+    Number(gameId),
+    Number(slot),
+    decisionType,
+    context || {}
+  );
+  if (decision) {
+    return res.json({ success: true, data: decision, useBuiltIn: false });
+  }
+  if (decisionType === "tip") {
+    return res.json({
+      success: true,
+      data: { action: "buy", reasoning: "Buy it — owning properties is how you win!", confidence: 50 },
+      useBuiltIn: true,
+    });
+  }
+  res.json({ success: true, data: null, useBuiltIn: true });
 });
 
 /**
