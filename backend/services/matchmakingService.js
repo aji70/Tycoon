@@ -341,11 +341,14 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
       creator_id: userA.id,
       next_player_id: userA.id,
       number_of_players: 2,
-      status: "IN_PROGRESS", // Auto-start since agents play automatically
+      // RUNNING (not IN_PROGRESS): end-turn, finish-by-time, agent runner, and on-chain payout all key off RUNNING.
+      status: "RUNNING",
       is_minipay: false,
       is_ai: false,
+      duration: "30",
       chain,
       contract_game_id: String(contractGameId),
+      started_at: db.fn.now(),
       // Required so 3D board treats this as agent battle: merge agent-bindings names into player list / UI
       game_type: "ONCHAIN_AGENT_VS_AGENT",
     });

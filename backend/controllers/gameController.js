@@ -267,15 +267,18 @@ async function computeWinnerByNetWorth(game) {
   };
 }
 
+/** DB statuses that allow finishing a live multiplayer / on-chain session (not PENDING lobby). */
+const FINISHABLE_GAME_STATUSES = ["RUNNING", "IN_PROGRESS"];
+
 /**
  * Finish a running game by net worth (winner = highest net worth). Used by finishByTime and by vote-end-by-networth.
  * Updates DB, runs contract cleanup, invalidates cache, emits socket. Does not send HTTP response.
  * @param {object} io - Socket.io server instance (from req.app.get("io"))
- * @param {object} game - Game row (RUNNING)
+ * @param {object} game - Game row (RUNNING or IN_PROGRESS)
  * @returns {Promise<{ winner_id, placements, winner_turn_count, valid_win } | null>}
  */
 export async function finishGameByNetWorthAndNotify(io, game) {
-  if (!game || game.status !== "RUNNING") return null;
+  if (!game || !FINISHABLE_GAME_STATUSES.includes(game.status)) return null;
   const result = await computeWinnerByNetWorth(game);
   if (!result || result.winner_id == null) return null;
 
@@ -288,7 +291,8 @@ export async function finishGameByNetWorthAndNotify(io, game) {
 
   const updatePayload = { status: "FINISHED", winner_id: result.winner_id, placements: JSON.stringify(placements) };
   const rowCount = await db("games")
-    .where({ id: game.id, status: "RUNNING" })
+    .where({ id: game.id })
+    .whereIn("status", FINISHABLE_GAME_STATUSES)
     .update({ ...updatePayload, updated_at: db.fn.now() });
 
   if (rowCount === 0) return null;
@@ -740,7 +744,9 @@ const gameController = {
           data: { game, winner_id: game.winner_id, valid_win: true },
         });
       }
-      if (game.status !== "RUNNING") return res.status(400).json({ success: false, error: "Game is not running" });
+      if (!FINISHABLE_GAME_STATUSES.includes(game.status)) {
+        return res.status(400).json({ success: false, error: "Game is not running" });
+      }
 
       const durationMinutes = Number(game.duration) || 0;
       if (durationMinutes <= 0) return res.status(400).json({ success: false, error: "Game has no duration" });
@@ -763,9 +769,10 @@ const gameController = {
       const updatePayload = { status: "FINISHED", winner_id: result.winner_id };
       if (placements) updatePayload.placements = JSON.stringify(placements);
 
-      // Atomic claim: only one request wins the transition RUNNING → FINISHED. Others get 0 rows and return existing game.
+      // Atomic claim: only one request wins the transition RUNNING/IN_PROGRESS → FINISHED. Others get 0 rows and return existing game.
       const rowCount = await db("games")
-        .where({ id: game.id, status: "RUNNING" })
+        .where({ id: game.id })
+        .whereIn("status", FINISHABLE_GAME_STATUSES)
         .update({ ...updatePayload, updated_at: db.fn.now() });
 
       if (rowCount === 0) {

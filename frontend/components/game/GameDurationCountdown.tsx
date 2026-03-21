@@ -39,34 +39,53 @@ export interface GameDurationCountdownProps {
 export function GameDurationCountdown({ game, className = "", compact, onTimeUp }: GameDurationCountdownProps) {
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const timeUpFiredRef = useRef(false);
+  /** Previous second-bucket remaining; null until first tick for this RUNNING session. */
+  const prevRemainingRef = useRef<number | null>(null);
+  const onTimeUpRef = useRef(onTimeUp);
+  onTimeUpRef.current = onTimeUp;
 
   useEffect(() => {
     if (!game || game.status !== "RUNNING") {
       setRemainingSeconds(null);
       timeUpFiredRef.current = false;
+      prevRemainingRef.current = null;
       return;
     }
 
     const endMs = getEndTimeMs(game);
     if (endMs == null) {
       setRemainingSeconds(null);
+      timeUpFiredRef.current = false;
+      prevRemainingRef.current = null;
       return;
     }
+
+    timeUpFiredRef.current = false;
+    prevRemainingRef.current = null;
 
     const update = () => {
       const now = Date.now();
       const remaining = Math.max(0, Math.floor((endMs - now) / 1000));
       setRemainingSeconds(remaining);
-      if (remaining === 0 && onTimeUp && !timeUpFiredRef.current) {
+
+      const prev = prevRemainingRef.current;
+      prevRemainingRef.current = remaining;
+
+      // Only fire when the countdown actually reaches zero in this session (was positive, now zero).
+      // On a full page refresh, the first tick often sees 0:00 already; firing here spuriously POSTs
+      // /finish-by-time and ends RUNNING games. Backend + agent runner still finish when time truly elapses.
+      const crossedIntoZero = prev !== null && prev > 0 && remaining === 0;
+      const cb = onTimeUpRef.current;
+      if (crossedIntoZero && cb && !timeUpFiredRef.current) {
         timeUpFiredRef.current = true;
-        void Promise.resolve(onTimeUp()).catch(() => {});
+        void Promise.resolve(cb()).catch(() => {});
       }
     };
 
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [game?.id, game?.status, game?.started_at, game?.created_at, game?.duration, onTimeUp]);
+  }, [game?.id, game?.status, game?.started_at, game?.created_at, game?.duration]);
 
   if (remainingSeconds === null) return null;
 

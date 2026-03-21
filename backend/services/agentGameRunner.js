@@ -298,7 +298,7 @@ async function maybeBuildHouses({ gameId, gp, slot, myBalance }) {
 
 async function stepGame(game) {
   const gameId = Number(game.id);
-  if (!gameId || game.status !== "RUNNING") return;
+  if (!gameId || !["RUNNING", "IN_PROGRESS"].includes(game.status)) return;
   if (!GAME_TYPES.has(String(game.game_type || ""))) return;
 
   try {
@@ -325,7 +325,7 @@ async function stepGame(game) {
       "contract_game_id"
     )
     .first();
-  if (!refreshed || refreshed.status !== "RUNNING") return;
+  if (!refreshed || !["RUNNING", "IN_PROGRESS"].includes(refreshed.status)) return;
   Object.assign(game, refreshed);
 
   // Auto-finish timed games.
@@ -747,7 +747,7 @@ async function processCompletedArenaMatches() {
 async function pollOnce() {
   const games = await db("games")
     .select("id", "status", "next_player_id", "game_type", "duration", "created_at", "started_at")
-    .where({ status: "RUNNING" })
+    .whereIn("status", ["RUNNING", "IN_PROGRESS"])
     .whereIn("game_type", Array.from(GAME_TYPES))
     .limit(50);
 
