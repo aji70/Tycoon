@@ -1652,3 +1652,126 @@ export async function requestMatchStart(tournamentId, matchId, userId, preferred
     throw err;
   }
 }
+
+/** Same “final” match as computePayouts: highest round_index, match_index 0 in that round. */
+function pickFinalMatch(matches) {
+  if (!matches?.length) return null;
+  const rounds = [...new Set(matches.map((m) => Number(m.round_index)))].sort((a, b) => b - a);
+  const ri = rounds[0];
+  const inRound = matches
+    .filter((m) => Number(m.round_index) === ri)
+    .sort((a, b) => Number(a.match_index) - Number(b.match_index));
+  return inRound.find((m) => Number(m.match_index) === 0) ?? inRound[0] ?? null;
+}
+
+async function maybeMarkArenaStakePaidOutAfterPayouts(gameId, tournamentId) {
+  if (!gameId) return;
+  const nRow = await db("tournament_payouts").where({ tournament_id: tournamentId }).count("* as c").first();
+  if (Number(nRow?.c ?? 0) === 0) return;
+  const stake = await db("arena_match_stakes").where("game_id", gameId).where("status", "COLLECTED").first();
+  if (!stake) return;
+  await db("arena_match_stakes").where("id", stake.id).update({
+    status: "PAID_OUT",
+    paid_out_at: db.fn.now(),
+    updated_at: db.fn.now(),
+  });
+}
+
+/**
+ * Admin: mark tournament completed, set final match winner (or draw refunds), run payouts.
+ * Secured by SHOP_ADMIN_SECRET on the route — not invite-gated.
+ * @param {number} tournamentId
+ * @param {{ mode?: string, winner_entry_id?: number, winner_user_id?: number, payouts_only?: boolean }} opts
+ */
+export async function adminResolveTournament(tournamentId, opts = {}) {
+  const id = Number(tournamentId);
+  if (!Number.isInteger(id) || id <= 0) throw new Error("Invalid tournament id");
+
+  const modeRaw = opts.mode != null ? String(opts.mode) : "payout";
+  const drawMode = modeRaw.toLowerCase() === "draw";
+  const payoutsOnly = Boolean(opts.payouts_only);
+
+  const tournament = await Tournament.findById(id);
+  if (!tournament) throw new Error("Tournament not found");
+
+  const { executePayouts, executeDrawRefunds } = await import("./tournamentPayoutService.js");
+
+  if (payoutsOnly) {
+    if (String(tournament.status || "") !== "COMPLETED") {
+      throw new Error("Tournament is not completed; run full resolve first");
+    }
+    const payout = await executePayouts(id);
+    return { payouts_only: true, payout };
+  }
+
+  if (String(tournament.status || "") === "COMPLETED") {
+    const payout = await executePayouts(id);
+    return { already_completed: true, payout };
+  }
+
+  const matches = await TournamentMatch.findByTournament(id);
+  if (!matches?.length) throw new Error("No bracket matches");
+
+  const entries = await TournamentEntry.findByTournament(id);
+  const incomplete = matches.filter((m) => !["COMPLETED", "BYE"].includes(String(m.status || "")));
+  if (incomplete.length > 1) {
+    throw new Error("Multiple incomplete matches; cannot admin-resolve in one step");
+  }
+
+  const finalMatch = pickFinalMatch(matches);
+  const targetMatch = incomplete.length === 1 ? incomplete[0] : finalMatch;
+  if (!targetMatch) throw new Error("No match to resolve");
+
+  if (drawMode) {
+    if (String(tournament.prize_source || "") !== "ENTRY_FEE_POOL") {
+      throw new Error("Draw refunds only apply to entry-fee pool tournaments");
+    }
+    await TournamentMatch.update(targetMatch.id, { status: "COMPLETED" });
+    await Tournament.update(id, { status: "COMPLETED" });
+    const drawResult = await executeDrawRefunds(id);
+    await maybeMarkArenaStakePaidOutAfterPayouts(targetMatch.game_id, id);
+    logger.info({ tournamentId: id, mode: "draw" }, "adminResolveTournament: draw");
+    return { mode: "draw", draw: drawResult };
+  }
+
+  let winId =
+    opts.winner_entry_id != null && opts.winner_entry_id !== ""
+      ? Number(opts.winner_entry_id)
+      : null;
+  if (!winId && opts.winner_user_id != null && opts.winner_user_id !== "") {
+    const e = entries.find((en) => Number(en.user_id) === Number(opts.winner_user_id));
+    winId = e?.id != null ? Number(e.id) : null;
+  }
+  if (!winId && targetMatch.winner_entry_id != null) {
+    winId = Number(targetMatch.winner_entry_id);
+  }
+  if (!winId && targetMatch.game_id) {
+    const game = await Game.findById(targetMatch.game_id);
+    if (game && String(game.status || "") === "FINISHED" && game.winner_id != null) {
+      const e = entries.find((en) => Number(en.user_id) === Number(game.winner_id));
+      winId = e?.id != null ? Number(e.id) : null;
+    }
+  }
+  if (!winId) {
+    throw new Error("Provide winner_entry_id or winner_user_id, or finish the linked game with a winner");
+  }
+
+  const slotIds = getMatchEntryIds(targetMatch).map(Number);
+  if (slotIds.length >= 2 && !slotIds.includes(Number(winId))) {
+    throw new Error("Winner entry is not a participant in the resolved match");
+  }
+
+  await TournamentMatch.update(targetMatch.id, {
+    winner_entry_id: winId,
+    status: "COMPLETED",
+  });
+  await Tournament.update(id, { status: "COMPLETED" });
+
+  let payout = { done: 0, failed: 0, message: "No pool", skipped: true };
+  if (String(tournament.prize_source || "") !== "NO_POOL") {
+    payout = await executePayouts(id);
+  }
+  await maybeMarkArenaStakePaidOutAfterPayouts(targetMatch.game_id, id);
+  logger.info({ tournamentId: id, winner_entry_id: winId }, "adminResolveTournament: payout");
+  return { mode: "payout", winner_entry_id: winId, payout };
+}
