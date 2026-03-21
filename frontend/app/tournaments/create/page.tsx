@@ -15,7 +15,7 @@ import type {
   TournamentVisibility,
 } from "@/types/tournament";
 import { useFundPrizePool } from "@/hooks/useFundPrizePool";
-import { ChevronLeft, Loader2, Swords, Wallet, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, Loader2, Swords, Wallet, CheckCircle2, Eye, Trophy, Users, Zap, Link2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 
@@ -330,16 +330,18 @@ export default function CreateTournamentPage() {
     const txHash = createdResult?.on_chain_tx_hash ?? null;
     const chainName = createdResult?.chain ?? chain;
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-white flex flex-col items-center justify-center px-4">
-        <nav aria-label="Breadcrumb" className="absolute top-6 left-4 text-xs text-slate-500 flex items-center gap-1.5">
+      <div className="min-h-screen bg-gradient-to-b from-[#010F10] via-[#0a1618] to-[#0E1415] text-white flex flex-col items-center justify-center px-4">
+        <nav aria-label="Breadcrumb" className="absolute top-6 left-4 text-xs text-white/50 flex items-center gap-1.5">
           <Link href="/tournaments" className="text-cyan-400/80 hover:text-cyan-400 transition">Tournaments</Link>
-          <span aria-hidden className="text-slate-600">›</span>
+          <span aria-hidden className="text-white/30">›</span>
           <Link href="/tournaments/create" className="text-cyan-400/80 hover:text-cyan-400 transition">Create</Link>
-          <span aria-hidden className="text-slate-600">›</span>
-          <span className="text-slate-400">Success</span>
+          <span aria-hidden className="text-white/30">›</span>
+          <span className="text-white/70">Success</span>
         </nav>
-        <CheckCircle2 className="w-16 h-16 text-emerald-400 mb-4" />
-        <h2 className="text-xl font-bold text-white mb-2">Tournament created</h2>
+        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-emerald-500/20 border border-emerald-500/30 mb-6">
+          <CheckCircle2 className="w-10 h-10 text-emerald-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-2">Tournament created</h2>
         {onChain && (
           <p className="text-emerald-400/90 mb-1">Registered on-chain.</p>
         )}
@@ -353,252 +355,294 @@ export default function CreateTournamentPage() {
             href={txExplorerUrl(chainName, txHash)}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-cyan-400 hover:text-cyan-300 text-sm underline mt-1"
+            className="text-cyan-400 hover:text-cyan-300 text-sm underline mt-1 transition"
           >
             View transaction
           </a>
         )}
-        <p className="text-cyan-400/90 mt-3">Taking you to the tournament page…</p>
+        <div className="flex items-center gap-2 mt-6 text-cyan-400/90">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span className="text-sm">Taking you to the tournament page…</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-white pt-[80px] md:pt-0">
-      <header className="sticky top-0 z-40 px-4 py-4 pr-20 md:pr-8 md:px-8 border-b border-white/10 bg-[#010F10]/90 backdrop-blur-md space-y-1">
-        <nav aria-label="Breadcrumb" className="text-xs text-slate-500 flex items-center gap-1.5">
+    <div className="min-h-screen bg-gradient-to-b from-[#010F10] via-[#0a1618] to-[#0E1415] text-white pt-[80px] md:pt-0">
+      <header className="sticky top-0 z-40 px-4 py-4 pr-20 md:pr-8 md:px-8 border-b border-white/10 bg-[#010F10]/95 backdrop-blur-xl">
+        <nav aria-label="Breadcrumb" className="text-xs text-white/50 flex items-center gap-1.5 mb-2">
           <Link href="/tournaments" className="text-cyan-400/80 hover:text-cyan-400 transition">
             Tournaments
           </Link>
-          <span aria-hidden className="text-slate-600">›</span>
-          <span className="text-slate-400">Create</span>
+          <span aria-hidden className="text-white/30">›</span>
+          <span className="text-white/70">Create</span>
         </nav>
         <div className="flex items-center gap-4">
           <Link
             href="/tournaments"
-            className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 font-semibold text-sm"
+            className="flex items-center gap-2 text-cyan-400/90 hover:text-cyan-300 font-medium text-sm transition"
           >
             <ChevronLeft className="w-5 h-5" />
-            Tournaments
+            Back
           </Link>
-          <h1 className="text-xl md:text-2xl font-bold text-cyan-400 flex items-center gap-2">
-            <Swords className="w-6 h-6 text-cyan-400" />
+          <h1 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-500/20 border border-cyan-500/30">
+              <Swords className="w-5 h-5 text-cyan-400" />
+            </span>
             Create tournament
           </h1>
         </div>
       </header>
 
-      <main className="max-w-xl mx-auto px-4 py-8 pb-24 md:pb-8">
+      <main className="max-w-2xl mx-auto px-4 py-8 pb-24 md:pb-12">
         {authLoading && (
-          <div className="rounded-2xl border border-[#0E282A] bg-[#011112]/80 p-8 text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-cyan-400 mx-auto mb-3" />
-            <p className="text-cyan-400/90">Checking sign-in…</p>
+          <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/90 to-[#011112]/60 p-12 text-center shadow-lg shadow-black/20">
+            <Loader2 className="w-10 h-10 animate-spin text-cyan-400 mx-auto mb-4" />
+            <p className="text-white/80 font-medium">Checking sign-in…</p>
+            <p className="text-white/50 text-sm mt-1">One moment</p>
           </div>
         )}
 
         {showAuthGate && (
-          <div className="rounded-2xl border border-[#0E282A] bg-[#011112]/80 p-6 space-y-6">
-            <h2 className="text-lg font-semibold text-white">Sign in to create a tournament</h2>
-            {error && <p className="text-red-400 text-sm">{error}</p>}
-
-            <button
-              type="button"
-              onClick={() => login()}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 font-medium hover:bg-cyan-500/30 transition"
-            >
-              Sign in
-            </button>
-
-            {canUseWallet && (
+          <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/90 to-[#011112]/60 p-8 shadow-lg shadow-black/20">
+            <h2 className="text-xl font-semibold text-white mb-2">Sign in to create a tournament</h2>
+            <p className="text-white/60 text-sm mb-6">Connect your account to create and manage tournaments.</p>
+            {error && (
+              <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3 mb-6">
+                <p className="text-sm text-red-300">{error}</p>
+              </div>
+            )}
+            <div className="space-y-3">
               <button
                 type="button"
-                onClick={handleSignInWithWallet}
-                disabled={step === "signing_in"}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#0E282A] border border-cyan-500/40 text-cyan-300 font-medium hover:bg-cyan-500/10 disabled:opacity-60 transition"
+                onClick={() => login()}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-200 font-medium hover:bg-cyan-500/35 transition"
               >
-                {step === "signing_in" ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Wallet className="w-5 h-5" />
-                )}
-                {step === "signing_in" ? "Signing in…" : "Sign in with wallet"}
+                Sign in with Privy
               </button>
-            )}
-
+              {canUseWallet && (
+                <button
+                  type="button"
+                  onClick={handleSignInWithWallet}
+                  disabled={step === "signing_in"}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white/90 font-medium hover:bg-white/10 disabled:opacity-60 transition"
+                >
+                  {step === "signing_in" ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Wallet className="w-5 h-5" />
+                  )}
+                  {step === "signing_in" ? "Signing in…" : "Sign in with wallet"}
+                </button>
+              )}
+            </div>
             {!isConnected && (
-              <p className="text-sm text-amber-400/90">
+              <p className="text-sm text-amber-400/90 mt-4">
                 Or connect your wallet in the menu, then refresh.
               </p>
             )}
-
-            <p className="text-sm text-white/60 mt-4">Sign in with Privy (from the app header or home) or connect your wallet to create a tournament.</p>
-          </div>
+          </section>
         )}
 
         {!authLoading && canCreate && (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <p className="text-sm text-emerald-400/90 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" />
-              {isPrivyAuthed ? "Signed in" : isSignedIn ? `Signed in as ${guestUser?.username ?? "user"}` : "Connected with wallet"}
-            </p>
-
-            <div className="rounded-2xl border border-white/10 bg-[#011112]/80 p-5 space-y-4">
-              <div>
-              <label htmlFor="name" className="block text-sm font-medium text-white/90 mb-1.5">
-                Tournament name *
-              </label>
-              <input
-                id="name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Weekend Cup"
-                className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
-                maxLength={200}
-              />
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm">
-                <p className="text-white/50">
-                  Chain: <span className="text-cyan-300 font-semibold">{chain}</span>
-                </p>
-                <label className="flex flex-col gap-1">
-                  <span className="text-white/50 text-xs">Bracket format</span>
-                  <select
-                    value={bracketFormat}
-                    onChange={(e) => setBracketFormat(e.target.value as TournamentFormat)}
-                    className="px-3 py-2 rounded-lg bg-[#011112] border border-[#0E282A] text-cyan-300 text-sm max-w-full"
-                  >
-                    <option value="SINGLE_ELIMINATION">Single elimination (1v1)</option>
-                    <option value="GROUP_ELIMINATION">Group tables (2–4 per match, regroup each round)</option>
-                  </select>
-                </label>
-              </div>
+          <form onSubmit={handleSubmit} className="space-y-8">
+            <div className="flex items-center gap-2 px-1 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 w-fit">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="text-sm font-medium text-emerald-300/95">
+                {isPrivyAuthed ? "Signed in" : isSignedIn ? `Signed in as ${guestUser?.username ?? "user"}` : "Connected with wallet"}
+              </span>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-[#011112]/70 p-5 space-y-4">
-              <label className="block text-sm font-medium text-white/90 mb-2">Arena visibility</label>
-              <div className="space-y-3">
+            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/90 to-[#011112]/60 p-6 shadow-lg shadow-black/20">
+              <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+                <Swords className="w-4 h-4 text-cyan-400" />
+                Basics
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-white/90 mb-1.5">
+                    Tournament name <span className="text-cyan-400">*</span>
+                  </label>
+                  <input
+                    id="name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Weekend Cup"
+                    className="w-full px-4 py-3 rounded-xl bg-[#010a0b]/80 border border-[#0E282A] text-white placeholder-white/35 focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:ring-offset-0 transition"
+                    maxLength={200}
+                  />
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pt-1">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-white/50">Chain</span>
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-semibold text-sm">
+                      {chain}
+                    </span>
+                  </div>
+                  <label className="flex flex-col gap-1.5 min-w-[200px]">
+                    <span className="text-xs font-medium text-white/50 uppercase tracking-wider">Bracket format</span>
+                    <select
+                      value={bracketFormat}
+                      onChange={(e) => setBracketFormat(e.target.value as TournamentFormat)}
+                      className="px-3 py-2.5 rounded-xl bg-[#010a0b]/80 border border-[#0E282A] text-cyan-200 text-sm focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition"
+                    >
+                      <option value="SINGLE_ELIMINATION">Single elimination (1v1)</option>
+                      <option value="GROUP_ELIMINATION">Group tables (2–4 per match, regroup each round)</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/80 to-[#011112]/50 p-6 shadow-lg shadow-black/20">
+              <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
+                <Eye className="w-4 h-4 text-cyan-400" />
+                Arena visibility
+              </h2>
+              <p className="text-xs text-white/50 mb-4">Who can see and join this tournament</p>
+              <div className="space-y-2.5">
                 {VISIBILITY_OPTIONS.map(({ value: v, label, description }) => (
                   <label
                     key={v}
-                    className={`flex flex-col gap-0.5 p-3 rounded-xl border cursor-pointer transition ${
+                    className={`flex flex-col gap-1 p-4 rounded-xl border cursor-pointer transition-all duration-200 ${
                       visibility === v
-                        ? "bg-cyan-500/10 border-cyan-500/50"
-                        : "bg-[#011112]/50 border-[#0E282A] hover:border-white/20"
+                        ? "bg-cyan-500/12 border-cyan-400/50 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]"
+                        : "bg-[#011112]/40 border-[#0E282A] hover:border-white/15 hover:bg-white/[0.02]"
                     }`}
                   >
                     <div className="flex items-center gap-3">
+                      <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition ${
+                        visibility === v ? "border-cyan-400 bg-cyan-400/30" : "border-white/30"
+                      }`}>
+                        {visibility === v && <span className="h-2 w-2 rounded-full bg-cyan-300" />}
+                      </span>
                       <input
                         type="radio"
                         name="visibility"
                         value={v}
                         checked={visibility === v}
                         onChange={() => setVisibility(v)}
-                        className="text-cyan-500 focus:ring-cyan-500"
+                        className="sr-only"
                       />
                       <span className="font-medium text-white/95">{label}</span>
                     </div>
-                    <span className="text-xs text-white/55 pl-6">{description}</span>
+                    <span className="text-xs text-white/55 pl-7 leading-relaxed">{description}</span>
                   </label>
                 ))}
               </div>
               {visibility !== "BOT_SELECTION" && (
-                <label className="flex items-center gap-2 text-sm text-white/80 mt-2">
+                <label className="flex items-center gap-3 mt-4 p-3 rounded-xl bg-white/[0.02] border border-white/5 cursor-pointer hover:border-white/10 transition">
                   <input
                     type="checkbox"
                     checked={isAgentOnly}
                     onChange={(e) => setIsAgentOnly(e.target.checked)}
-                    className="text-cyan-500 focus:ring-cyan-500 rounded"
+                    className="rounded border-white/30 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0"
                   />
-                  Agents only — group tables avoid 2-bot games unless the whole event has only two players
+                  <span className="text-sm text-white/85">Agents only — group tables avoid 2-bot games unless the whole event has only two players</span>
                 </label>
               )}
-            </div>
+            </section>
 
             {visibility === "BOT_SELECTION" && (
-              <div className="rounded-2xl border border-amber-500/25 bg-amber-950/10 p-5 space-y-3">
-                <p className="text-sm font-medium text-amber-200/95">Pick public agents (Discover)</p>
-                <p className="text-xs text-white/55">
+              <section className="rounded-2xl border border-amber-500/20 bg-gradient-to-b from-amber-950/20 to-amber-950/5 p-6 shadow-lg shadow-black/20">
+                <h3 className="text-sm font-semibold text-amber-200/95 flex items-center gap-2 mb-1">
+                  <Link2 className="w-4 h-4" />
+                  Pick public agents (Discover)
+                </h3>
+                <p className="text-xs text-white/55 mb-4">
                   Same idea as Arena → Discover → Pick. At least two agents. Their owners are the only ones who can join.
                 </p>
                 {discoverLoading ? (
-                  <p className="text-xs text-white/50">Loading agents…</p>
+                  <div className="flex items-center gap-2 py-8 justify-center text-white/50">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Loading agents…</span>
+                  </div>
                 ) : (
-                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto">
-                    {discoverAgents.map((a) => (
-                      <li key={a.id}>
+                  <>
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                      {discoverAgents.map((a) => (
+                        <li key={a.id}>
+                          <button
+                            type="button"
+                            onClick={() => toggleDiscoverPick(a.id)}
+                            className={`w-full text-left px-3 py-2.5 rounded-xl border text-sm transition-all ${
+                              selectedDiscoverIds.includes(a.id)
+                                ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.15)]"
+                                : "border-[#0E282A] bg-[#011112]/60 text-white/85 hover:border-white/25 hover:bg-white/[0.03]"
+                            }`}
+                          >
+                            <span className="font-medium">{a.name}</span>
+                            <span className="block text-[10px] text-white/45 mt-0.5">by {a.username ?? "—"}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex items-center justify-between text-xs text-white/50 mt-4 pt-3 border-t border-white/5">
+                      <span className="font-medium text-white/60">Selected: {selectedDiscoverIds.length}</span>
+                      <div className="flex gap-1">
                         <button
                           type="button"
-                          onClick={() => toggleDiscoverPick(a.id)}
-                          className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition ${
-                            selectedDiscoverIds.includes(a.id)
-                              ? "border-cyan-500/60 bg-cyan-500/15 text-cyan-100"
-                              : "border-[#0E282A] bg-[#011112]/60 text-white/85 hover:border-white/20"
-                          }`}
+                          className="px-2.5 py-1 rounded-lg text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                          disabled={discoverPage <= 1}
+                          onClick={() => setDiscoverPage((p) => Math.max(1, p - 1))}
                         >
-                          <span className="font-medium">{a.name}</span>
-                          <span className="block text-[10px] text-white/45">by {a.username ?? "—"}</span>
+                          Prev
                         </button>
-                      </li>
-                    ))}
-                  </ul>
+                        <button
+                          type="button"
+                          className="px-2.5 py-1 rounded-lg text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300 transition"
+                          onClick={() => setDiscoverPage((p) => p + 1)}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  </>
                 )}
-                <div className="flex items-center justify-between text-xs text-white/50">
-                  <span>
-                    Selected: {selectedDiscoverIds.length}
-                  </span>
-                  <span className="flex gap-2">
-                    <button
-                      type="button"
-                      className="text-cyan-400 hover:text-cyan-300 disabled:opacity-40"
-                      disabled={discoverPage <= 1}
-                      onClick={() => setDiscoverPage((p) => Math.max(1, p - 1))}
-                    >
-                      Prev
-                    </button>
-                    <button
-                      type="button"
-                      className="text-cyan-400 hover:text-cyan-300"
-                      onClick={() => setDiscoverPage((p) => p + 1)}
-                    >
-                      Next
-                    </button>
-                  </span>
-                </div>
-              </div>
+              </section>
             )}
 
-            <div className="rounded-2xl border border-white/10 bg-[#011112]/70 p-5 space-y-4">
-              <label className="block text-sm font-medium text-white/90 mb-2">Prize source</label>
-              <div className="space-y-3">
+            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/80 to-[#011112]/50 p-6 shadow-lg shadow-black/20">
+              <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-cyan-400" />
+                Prize source
+              </h2>
+              <p className="text-xs text-white/50 mb-4">How prizes are funded (or none for free play)</p>
+              <div className="space-y-2.5">
                 {PRIZE_SOURCES.map(({ value, label, description }) => (
                   <label
                     key={value}
-                    className={`flex flex-col gap-0.5 p-3 rounded-xl border cursor-pointer transition ${
+                    className={`flex flex-col gap-1 p-4 rounded-xl border cursor-pointer transition-all duration-200 ${
                       prizeSource === value
-                        ? "bg-cyan-500/10 border-cyan-500/50"
-                        : "bg-[#011112]/50 border-[#0E282A] hover:border-white/20"
+                        ? "bg-cyan-500/12 border-cyan-400/50 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]"
+                        : "bg-[#011112]/40 border-[#0E282A] hover:border-white/15 hover:bg-white/[0.02]"
                     }`}
                   >
                     <div className="flex items-center gap-3">
+                      <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition ${
+                        prizeSource === value ? "border-cyan-400 bg-cyan-400/30" : "border-white/30"
+                      }`}>
+                        {prizeSource === value && <span className="h-2 w-2 rounded-full bg-cyan-300" />}
+                      </span>
                       <input
                         type="radio"
                         name="prize_source"
                         value={value}
                         checked={prizeSource === value}
                         onChange={() => setPrizeSource(value)}
-                        className="text-cyan-500 focus:ring-cyan-500"
+                        className="sr-only"
                       />
                       <span className="font-medium text-white/95">{label}</span>
                     </div>
-                    <span className="text-xs text-white/55 pl-6">{description}</span>
+                    <span className="text-xs text-white/55 pl-7 leading-relaxed">{description}</span>
                   </label>
                 ))}
               </div>
               {prizeSource === "ENTRY_FEE_POOL" && (
-                <div>
-                  <label htmlFor="entry_fee" className="block text-sm font-medium text-white/90 mb-1">
+                <div className="mt-4 pt-4 border-t border-white/5">
+                  <label htmlFor="entry_fee" className="block text-sm font-medium text-white/90 mb-1.5">
                     Entry fee (USDC)
                   </label>
                   <input
@@ -609,14 +653,14 @@ export default function CreateTournamentPage() {
                     value={entryFeeUsd}
                     onChange={(e) => setEntryFeeUsd(e.target.value)}
                     placeholder="e.g. 1 for $1"
-                    className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
+                    className="w-full px-4 py-3 rounded-xl bg-[#010a0b]/80 border border-[#0E282A] text-white placeholder-white/35 focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:ring-offset-0 transition"
                   />
                 </div>
               )}
               {prizeSource === "CREATOR_FUNDED" && (
-                <div>
-                  <label htmlFor="prize_pool" className="block text-sm font-medium text-white/90 mb-1">
-                    Planned prize pool (USDC, optional)
+                <div className="mt-4 pt-4 border-t border-white/5">
+                  <label htmlFor="prize_pool" className="block text-sm font-medium text-white/90 mb-1.5">
+                    Planned prize pool (USDC)
                   </label>
                   <input
                     id="prize_pool"
@@ -625,69 +669,71 @@ export default function CreateTournamentPage() {
                     step={0.01}
                     value={prizePoolUsd}
                     onChange={(e) => setPrizePoolUsd(e.target.value)}
-                    placeholder="e.g. 100 — used for payout math; fund the same on-chain after create"
-                    className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
+                    placeholder="e.g. 100 — fund same amount on-chain after create"
+                    className="w-full px-4 py-3 rounded-xl bg-[#010a0b]/80 border border-[#0E282A] text-white placeholder-white/35 focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:ring-offset-0 transition"
                   />
-                  <p className="text-xs text-white/50 mt-1.5">
-                    Default winner split: 50% / 30% / 15% / 5% for 1st–4th. When the tournament completes, USDC is sent to
-                    winners&apos; smart wallets (per backend payout job).
+                  <p className="text-xs text-white/50 mt-2 leading-relaxed">
+                    Default winner split: 50% / 30% / 15% / 5% for 1st–4th. USDC is sent to winners&apos; smart wallets when the tournament completes.
                   </p>
                 </div>
               )}
-            </div>
+            </section>
 
-            <div className="rounded-2xl border border-white/10 bg-[#011112]/70 p-5 space-y-4">
-              <p className="text-sm font-semibold text-white/90">Bracket size</p>
-              <div className="flex flex-wrap gap-2">
+            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/80 to-[#011112]/50 p-6 shadow-lg shadow-black/20">
+              <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
+                <Users className="w-4 h-4 text-cyan-400" />
+                Bracket size
+              </h2>
+              <div className="flex flex-wrap gap-2 mb-4">
                 {PLAYER_PRESETS.map((v) => (
                   <button
                     key={v}
                     type="button"
                     onClick={() => setMaxPlayers(v)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                    className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${
                       maxPlayers === v
-                        ? "bg-cyan-500/20 border-cyan-400/60 text-cyan-200"
-                        : "bg-white/5 border-white/10 text-white/70 hover:border-cyan-500/40"
+                        ? "bg-cyan-500/25 border-cyan-400/60 text-cyan-200 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]"
+                        : "bg-white/5 border-white/10 text-white/70 hover:border-cyan-500/30 hover:text-white/90"
                     }`}
                   >
                     {v}
                   </button>
                 ))}
               </div>
-              <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="max_players" className="block text-sm font-medium text-white/90 mb-1">
-                  Max players
-                </label>
-                <input
-                  id="max_players"
-                  type="number"
-                  min={2}
-                  max={512}
-                  value={maxPlayers}
-                  onChange={(e) => setMaxPlayers(Number(e.target.value) || 32)}
-                  className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
-                />
-                <p className="text-xs text-white/50 mt-1">e.g. 8, 32, or 512 for single-elimination (max 512)</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label htmlFor="max_players" className="block text-sm font-medium text-white/90 mb-1.5">
+                    Max players
+                  </label>
+                  <input
+                    id="max_players"
+                    type="number"
+                    min={2}
+                    max={512}
+                    value={maxPlayers}
+                    onChange={(e) => setMaxPlayers(Number(e.target.value) || 32)}
+                    className="w-full px-4 py-3 rounded-xl bg-[#010a0b]/80 border border-[#0E282A] text-white focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:ring-offset-0 transition"
+                  />
+                  <p className="text-xs text-white/50 mt-1">8, 32, or 512 for single-elimination (max 512)</p>
+                </div>
+                <div>
+                  <label htmlFor="min_players" className="block text-sm font-medium text-white/90 mb-1.5">
+                    Min players
+                  </label>
+                  <input
+                    id="min_players"
+                    type="number"
+                    min={2}
+                    max={maxPlayers}
+                    value={minPlayers}
+                    onChange={(e) => setMinPlayers(Number(e.target.value) || 2)}
+                    className="w-full px-4 py-3 rounded-xl bg-[#010a0b]/80 border border-[#0E282A] text-white focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:ring-offset-0 transition"
+                  />
+                </div>
               </div>
-              <div>
-                <label htmlFor="min_players" className="block text-sm font-medium text-white/90 mb-1">
-                  Min players
-                </label>
-                <input
-                  id="min_players"
-                  type="number"
-                  min={2}
-                  max={maxPlayers}
-                  value={minPlayers}
-                  onChange={(e) => setMinPlayers(Number(e.target.value) || 2)}
-                  className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
-                />
-              </div>
-            </div>
-              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 text-xs">
-                <p className="text-cyan-200 font-semibold">Live setup preview</p>
-                <p className="text-white/70 mt-1">
+              <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/8 p-4">
+                <p className="text-xs font-semibold text-cyan-200/95 uppercase tracking-wider mb-1.5">Live preview</p>
+                <p className="text-sm text-white/80 leading-relaxed">
                   {bracketFormat === "GROUP_ELIMINATION" ? (
                     <>
                       Group elimination: tables of 2–4, rebalanced each round · max {sanitizedMaxPreview} players · start
@@ -701,60 +747,63 @@ export default function CreateTournamentPage() {
                   )}
                 </p>
               </div>
-            </div>
+            </section>
 
-            <div className="rounded-2xl border border-white/10 bg-[#011112]/70 p-5 space-y-4">
-              <p className="text-sm font-semibold text-white/90">Quick start (bots)</p>
-              <label className="flex items-center justify-between gap-3 text-sm text-white/80">
-                <span>Auto-fill with available bots and start immediately</span>
+            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/80 to-[#011112]/50 p-6 shadow-lg shadow-black/20">
+              <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-400" />
+                Quick start (bots)
+              </h2>
+              <label className="flex items-center justify-between gap-4 p-4 rounded-xl bg-white/[0.02] border border-white/5 cursor-pointer hover:border-white/10 transition">
+                <span className="text-sm text-white/90">Auto-fill with available bots and start immediately</span>
                 <input
                   type="checkbox"
                   checked={autoFillBots}
                   onChange={(e) => setAutoFillBots(e.target.checked)}
-                  className="text-cyan-500 focus:ring-cyan-500"
+                  className="rounded border-white/30 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0"
                 />
               </label>
               {autoFillBots && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="mt-4 space-y-4 pt-4 border-t border-white/5">
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr,1.5fr] gap-4">
                     <div>
-                      <label className="block text-xs text-white/60 mb-1.5">Bot count (optional)</label>
+                      <label className="block text-xs font-medium text-white/60 mb-1.5">Bot count (optional)</label>
                       <input
                         type="number"
                         min={0}
                         max={512}
                         value={autoFillCount}
                         onChange={(e) => setAutoFillCount(Number(e.target.value) || 0)}
-                        className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
+                        className="w-full px-4 py-3 rounded-xl bg-[#010a0b]/80 border border-[#0E282A] text-white focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:ring-offset-0 transition"
                         placeholder="0 = auto"
                       />
                     </div>
-                    <p className="text-xs text-white/50 leading-relaxed">
-                      Paid entry: only agents with tournament permission and a high enough fee cap. Free entry ($0): any account
-                      with a smart wallet and an agent — no permission needed. Pick your agents below (optional); they are tried
-                      first, then other eligible accounts.
+                    <p className="text-xs text-white/50 leading-relaxed self-center">
+                      Paid entry: agents with tournament permission. Free: any account with smart wallet + agent. Your agents below (optional) are tried first.
                     </p>
                   </div>
                   {canLoadAgents && (
-                    <div className="rounded-xl border border-[#0E282A] bg-[#011112]/60 p-3">
-                      <p className="text-xs font-medium text-cyan-300/90 mb-2">Your agents (optional)</p>
+                    <div className="rounded-xl border border-[#0E282A] bg-[#011112]/50 p-4">
+                      <p className="text-xs font-medium text-cyan-300/95 mb-3">Your agents (optional)</p>
                       {agentsLoading ? (
-                        <p className="text-xs text-white/50">Loading agents…</p>
+                        <div className="flex items-center gap-2 py-4 text-white/50">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span className="text-xs">Loading…</span>
+                        </div>
                       ) : myAgents.length === 0 ? (
                         <p className="text-xs text-white/50">
-                          No agents yet. Create one under Manage agents. For paid tournaments, enable tournament permission in
-                          Profile (PIN).
+                          No agents yet. Create one in Manage agents. For paid tournaments, enable spending in Profile.
                         </p>
                       ) : (
                         <ul className="space-y-2 max-h-40 overflow-y-auto">
                           {myAgents.map((a) => (
                             <li key={a.id}>
-                              <label className="flex items-center gap-2 text-sm text-white/85 cursor-pointer">
+                              <label className="flex items-center gap-3 text-sm text-white/85 cursor-pointer py-1.5 rounded-lg hover:bg-white/[0.03] px-2 -mx-2">
                                 <input
                                   type="checkbox"
                                   checked={selectedAgentIds.includes(a.id)}
                                   onChange={() => toggleAgentPick(a.id)}
-                                  className="text-cyan-500 focus:ring-cyan-500 rounded"
+                                  className="rounded border-white/30 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0"
                                 />
                                 <span>{a.name}</span>
                                 <span className="text-white/40 text-xs">#{a.id}</span>
@@ -766,21 +815,29 @@ export default function CreateTournamentPage() {
                     </div>
                   )}
                   {!canLoadAgents && (
-                    <p className="text-xs text-amber-400/90">
-                      Sign in (guest or header) to choose specific agents for quick start.
+                    <p className="text-xs text-amber-400/90 flex items-center gap-2">
+                      Sign in to choose specific agents for quick start.
                     </p>
                   )}
                 </div>
               )}
-            </div>
+            </section>
 
-            {error && <p className="text-red-400 text-sm">{error}</p>}
-            {warning && <p className="text-amber-300 text-sm">{warning}</p>}
+            {error && (
+              <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3">
+                <p className="text-sm text-red-300">{error}</p>
+              </div>
+            )}
+            {warning && (
+              <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3">
+                <p className="text-sm text-amber-200">{warning}</p>
+              </div>
+            )}
 
             <button
               type="submit"
               disabled={step === "creating" || fundPoolPending}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-cyan-500/30 border border-cyan-500/60 text-cyan-200 font-semibold hover:bg-cyan-500/40 disabled:opacity-60 disabled:cursor-not-allowed transition"
+              className="w-full flex items-center justify-center gap-3 py-4 rounded-xl bg-gradient-to-r from-cyan-500/35 to-cyan-500/25 border border-cyan-400/50 text-cyan-100 font-semibold text-base hover:from-cyan-500/45 hover:to-cyan-500/35 hover:border-cyan-400/60 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:from-cyan-500/35 disabled:hover:to-cyan-500/25 transition-all shadow-lg shadow-cyan-500/10"
             >
               {step === "creating" || fundPoolPending ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
