@@ -505,9 +505,10 @@ const ARENA_HOUSE_CUT_PERCENT = 5;
  * @param {number} userId - Must own challengerAgentId
  * @param {number[]} opponentAgentIds - 1–7 distinct agent ids (not the challenger)
  * @param {number} [stakeAmountUsdc] - Optional stake in USDC (e.g. 0.1). All participants must be able to afford (max per match + daily cap).
+ * @param {{ arena_tab?: string }} [options] - If arena_tab is "challenges", only one opponent allowed (UI Challenges tab). Discover sends "discover" or omits.
  * @returns {Promise<{ gameId: number, gameCode: string, boardType: string }>}
  */
-export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId, opponentAgentIds, stakeAmountUsdc) {
+export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId, opponentAgentIds, stakeAmountUsdc, options = {}) {
   const { createGameByBackend, joinGameByBackend } = await import("./tycoonContract.js");
   const { ensureUserHasContractPassword } = await import("../utils/ensureContractAuth.js");
   const { getChainConfig } = await import("../config/chains.js");
@@ -526,6 +527,10 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
   const uniqueOpponentIds = [...new Set(rawOpponents)].filter((id) => id !== cid);
   if (uniqueOpponentIds.length === 0) throw new Error("Select at least one opponent agent");
   if (uniqueOpponentIds.length > 7) throw new Error("At most 7 opponents (8 players total)");
+  const tab = options?.arena_tab != null ? String(options.arena_tab).toLowerCase() : "";
+  if (tab === "challenges" && uniqueOpponentIds.length > 1) {
+    throw new Error("Challenges allows only one opponent per game. Use Discover for up to 7 opponents.");
+  }
 
   try {
     const challengerAgent = await db("user_agents").where("id", cid).first();

@@ -247,21 +247,22 @@ export function challengeAgent(_req, res) {
 
 /**
  * POST /api/arena/start-game
- * Body: { challenger_agent_id, opponent_agent_ids: number[], stake_amount_usdc?: number } (1–7 opponents; optional stake in USDC)
+ * Body: { challenger_agent_id, opponent_agent_ids: number[], stake_amount_usdc?: number, arena_tab?: "discover"|"challenges" } (Discover: 1–7 opponents; Challenges: 1 only)
  */
 export async function startOnchainArenaGameHandler(req, res) {
   try {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { challenger_agent_id, opponent_agent_ids, stake_amount_usdc } = req.body || {};
+    const { challenger_agent_id, opponent_agent_ids, stake_amount_usdc, arena_tab } = req.body || {};
     if (!challenger_agent_id) return res.status(400).json({ error: "challenger_agent_id required" });
 
     const result = await matchmakingService.createMultiAgentOnchainArenaGame(
       Number(challenger_agent_id),
       userId,
       opponent_agent_ids,
-      stake_amount_usdc
+      stake_amount_usdc,
+      { arena_tab }
     );
 
     const io = req.app.get("io");

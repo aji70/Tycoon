@@ -23,7 +23,10 @@ import {
   Zap,
 } from "lucide-react";
 
-const MAX_CHALLENGE_TARGETS = 7;
+/** Multi-opponent batch games from Discover tab. */
+const MAX_DISCOVER_OPPONENTS = 7;
+/** Challenges tab (approved pool) is one opponent per game. */
+const MAX_CHALLENGES_OPPONENTS = 1;
 
 interface ArenaTournamentRow {
   id: number;
@@ -157,6 +160,13 @@ export default function ArenaPage() {
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
   const { isCelo } = useVerifyErc8004AgentId();
+
+  const maxOpponentPicks = activeTab === "discover" ? MAX_DISCOVER_OPPONENTS : MAX_CHALLENGES_OPPONENTS;
+
+  useEffect(() => {
+    const max = activeTab === "discover" ? MAX_DISCOVER_OPPONENTS : MAX_CHALLENGES_OPPONENTS;
+    setSelectedOpponents((prev) => (prev.length > max ? prev.slice(0, max) : prev));
+  }, [activeTab]);
 
   const mergeTournamentPermsFromApiResponse = useCallback((permsRes: unknown) => {
     const list =
@@ -462,8 +472,12 @@ export default function ArenaPage() {
   const toggleOpponentSelect = (agentId: number) => {
     setSelectedOpponents((prev) => {
       if (prev.includes(agentId)) return prev.filter((id) => id !== agentId);
-      if (prev.length >= MAX_CHALLENGE_TARGETS) {
-        alert(`You can select up to ${MAX_CHALLENGE_TARGETS} agents per batch.`);
+      if (prev.length >= maxOpponentPicks) {
+        alert(
+          maxOpponentPicks === 1
+            ? "Challenges allow only one opponent per game. Clear your pick or use Discover for multi-opponent games."
+            : `You can select up to ${maxOpponentPicks} opponents per batch in Discover.`
+        );
         return prev;
       }
       return [...prev, agentId];
@@ -493,6 +507,7 @@ export default function ArenaPage() {
         {
           challenger_agent_id: challengerAgentId,
           opponent_agent_ids: selectedOpponents,
+          arena_tab: activeTab,
           ...(stakeNum > 0 && { stake_amount_usdc: stakeNum }),
         },
         { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
@@ -665,11 +680,11 @@ export default function ArenaPage() {
           <div className={styles.challengePanelHead}>
             <h2 className={styles.challengePanelTitle}>Challenge setup</h2>
             <span className={styles.challengeCountPill}>
-              {selectedOpponents.length}/{MAX_CHALLENGE_TARGETS} picked
+              {selectedOpponents.length}/{maxOpponentPicks} picked
             </span>
           </div>
           <p className={styles.challengeHint}>
-            <strong style={{ color: "#e8fbff" }}>Pick</strong> up to {MAX_CHALLENGE_TARGETS} opponents, then{" "}
+            <strong style={{ color: "#e8fbff" }}>Pick</strong> up to {maxOpponentPicks} opponent{maxOpponentPicks === 1 ? "" : "s"}, then{" "}
             <strong style={{ color: "#e8fbff" }}>Start</strong>. On-chain setup often takes{" "}
             <strong style={{ color: "#e8fbff" }}>1–3 minutes</strong>; keep this tab open. Matches run{" "}
             <strong style={{ color: "#e8fbff" }}>30 minutes</strong>. Faster lobby flow:{" "}
@@ -892,7 +907,7 @@ export default function ArenaPage() {
                     <h3 className={styles.challengePanelTitle} style={{ fontSize: "1rem" }}>Create game</h3>
                   </div>
                   <p className={styles.challengeHint}>
-                    Opponents below are also approved to spend. Pick your agent, select one or more, then Start. Matches run 30 minutes.
+                    Opponents below are also approved to spend. Pick your agent, select <strong style={{ color: "#e8fbff" }}>one</strong> opponent, then Start. (Discover tab allows up to {MAX_DISCOVER_OPPONENTS} for batch games.) Matches run 30 minutes.
                   </p>
                   <div className={styles.challengeToolbar}>
                     <div className={styles.challengeField}>

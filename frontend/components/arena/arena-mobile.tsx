@@ -13,7 +13,8 @@ import styles from "./arena-mobile.module.css";
 import AgentsPageMobile from "@/components/agents/agents-page-mobile";
 import { Swords, Search, Trophy, Target, UserRound, Zap } from "lucide-react";
 
-const MAX_CHALLENGE_TARGETS = 7;
+const MAX_DISCOVER_OPPONENTS = 7;
+const MAX_CHALLENGES_OPPONENTS = 1;
 
 interface ArenaTournamentRow {
   id: number;
@@ -141,6 +142,13 @@ export default function ArenaMobile() {
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
   const { isCelo } = useVerifyErc8004AgentId();
+
+  const maxOpponentPicks = activeTab === "discover" ? MAX_DISCOVER_OPPONENTS : MAX_CHALLENGES_OPPONENTS;
+
+  useEffect(() => {
+    const max = activeTab === "discover" ? MAX_DISCOVER_OPPONENTS : MAX_CHALLENGES_OPPONENTS;
+    setSelectedOpponents((prev) => (prev.length > max ? prev.slice(0, max) : prev));
+  }, [activeTab]);
 
   const mergeTournamentPermsFromApiResponse = useCallback((permsRes: unknown) => {
     const list =
@@ -437,8 +445,12 @@ export default function ArenaMobile() {
   const toggleOpponentSelect = (agentId: number) => {
     setSelectedOpponents((prev) => {
       if (prev.includes(agentId)) return prev.filter((id) => id !== agentId);
-      if (prev.length >= MAX_CHALLENGE_TARGETS) {
-        alert(`Max ${MAX_CHALLENGE_TARGETS} opponents.`);
+      if (prev.length >= maxOpponentPicks) {
+        alert(
+          maxOpponentPicks === 1
+            ? "Challenges allow only one opponent. Clear your pick or use Discover for up to 7."
+            : `Up to ${maxOpponentPicks} opponents in Discover.`
+        );
         return prev;
       }
       return [...prev, agentId];
@@ -460,6 +472,7 @@ export default function ArenaMobile() {
         {
           challenger_agent_id: challengerAgentId,
           opponent_agent_ids: selectedOpponents,
+          arena_tab: activeTab,
           ...(stakeNum > 0 && { stake_amount_usdc: stakeNum }),
         },
         { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
@@ -621,11 +634,11 @@ export default function ArenaMobile() {
           <div className={styles.challengePanelHead}>
             <h2 className={styles.challengePanelTitle}>Challenges</h2>
             <span className={styles.challengeCountPill}>
-              {selectedOpponents.length}/{MAX_CHALLENGE_TARGETS}
+              {selectedOpponents.length}/{maxOpponentPicks}
             </span>
           </div>
           <p className={styles.challengeHint}>
-            <strong style={{ color: "#e8fbff" }}>Pick</strong> opponents, then{" "}
+            <strong style={{ color: "#e8fbff" }}>Pick</strong> up to {maxOpponentPicks} opponent{maxOpponentPicks === 1 ? "" : "s"}, then{" "}
             <strong style={{ color: "#e8fbff" }}>Start</strong>. We register{" "}
             <strong style={{ color: "#e8fbff" }}>every seat on-chain</strong> (create, then each join), one confirmation
             at a time — often <strong style={{ color: "#e8fbff" }}>1–3 min</strong>. Matches run{" "}
@@ -770,6 +783,9 @@ export default function ArenaMobile() {
                     <h3 className={styles.challengePanelTitle} style={{ fontSize: "0.95rem", marginTop: 8 }}>
                       Create game
                     </h3>
+                    <p className={styles.challengeHint} style={{ marginBottom: 8 }}>
+                      Select <strong style={{ color: "#e8fbff" }}>one</strong> opponent below. (Discover allows up to {MAX_DISCOVER_OPPONENTS}.)
+                    </p>
                     <label className={styles.challengeFieldLabel}>Playing as</label>
                     <select
                       className={styles.agentSelect}
