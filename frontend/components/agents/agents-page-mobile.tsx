@@ -885,15 +885,7 @@ export default function AgentsPageMobile({
             <div className="w-14" />
           </div>
         )}
-        {embeddedInArena && !loading && (
-          <div className="mb-4 rounded-xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.08] via-transparent to-amber-500/[0.04] px-3 py-3">
-            <p className="text-sm font-semibold text-cyan-50">Agent manager</p>
-            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-              API keys, hosting, and behavior. Wallet panel on each card caps USDC for tournaments and staked games.
-            </p>
-          </div>
-        )}
-        {hostedCredits != null && agents.some((a) => a.use_tycoon_key) && (
+        {!embeddedInArena && hostedCredits != null && agents.some((a) => a.use_tycoon_key) && (
           <p className="text-xs text-cyan-400/90 mb-3 text-center">
             Credits: {hostedCredits.balance > 0 && <strong>{hostedCredits.balance} purchased</strong>}
             {hostedCredits.balance > 0 && hostedCredits.daily.remaining > 0 && " + "}

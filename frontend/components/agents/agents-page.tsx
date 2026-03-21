@@ -840,15 +840,7 @@ export default function AgentsPage({
             <div className="w-20" />
           </div>
         )}
-        {embeddedInArena && !loading && (
-          <div className="mb-5 rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.08] via-transparent to-amber-500/[0.04] px-4 py-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
-            <p className="text-sm font-semibold text-cyan-50 tracking-tight">Agent manager</p>
-            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-              Create agents, connect API keys, and tune behavior. Use the wallet panel on each card to cap USDC for tournaments and staked challenges.
-            </p>
-          </div>
-        )}
-        {hostedCredits != null && agents.some((a) => a.use_tycoon_key) && (
+        {!embeddedInArena && hostedCredits != null && agents.some((a) => a.use_tycoon_key) && (
           <div className="flex flex-col items-center gap-2 mb-4">
             <p className="text-sm text-cyan-400/90 text-center">
               Tycoon-hosted credits: {hostedCredits.balance > 0 && <strong>{hostedCredits.balance} purchased</strong>}
