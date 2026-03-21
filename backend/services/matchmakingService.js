@@ -570,7 +570,7 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
       const TournamentEntry = (await import("../models/TournamentEntry.js")).default;
       const TournamentMatch = (await import("../models/TournamentMatch.js")).default;
       const { createTournamentOnChain } = await import("./tournamentEscrow.js");
-      const { signWithdrawalAuthUsdc, withdrawFromSmartWalletUsdc } = await import("./tycoonContract.js");
+      const { payTournamentEscrowEntryFromSmartWallet } = await import("./tycoonContract.js");
 
       const cfg = getChainConfig(chain);
       const escrow = cfg.tournamentEscrowAddress;
@@ -608,9 +608,13 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
             `Player ${i + 1} has no smart wallet. Both players need a smart wallet (Profile) for staked matches.`
           );
         }
-        const nonce = BigInt("0x" + crypto.randomBytes(8).toString("hex"));
-        const sig = await signWithdrawalAuthUsdc(smartWallet, usdc, escrow, stakeUnits, nonce, chain);
-        const receipt = await withdrawFromSmartWalletUsdc(smartWallet, escrow, stakeUnits, nonce, sig, chain);
+        const receipt = await payTournamentEscrowEntryFromSmartWallet(
+          smartWallet,
+          escrow,
+          tournament.id,
+          stakeUnits,
+          chain
+        );
         const paymentTxHash = receipt?.hash ?? null;
 
         await db("agent_tournament_spend_log").insert({
@@ -888,7 +892,7 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
       const TournamentEntry = (await import("../models/TournamentEntry.js")).default;
       const TournamentMatch = (await import("../models/TournamentMatch.js")).default;
       const { createTournamentOnChain } = await import("./tournamentEscrow.js");
-      const { signWithdrawalAuthUsdc, withdrawFromSmartWalletUsdc } = await import("./tycoonContract.js");
+      const { payTournamentEscrowEntryFromSmartWallet } = await import("./tycoonContract.js");
 
       const cfg = getChainConfig(chain);
       const escrow = cfg.tournamentEscrowAddress;
@@ -929,9 +933,13 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
               : "Opponent has no smart wallet; they cannot stake this match."
           );
         }
-        const nonce = BigInt("0x" + crypto.randomBytes(8).toString("hex"));
-        const sig = await signWithdrawalAuthUsdc(smartWallet, usdc, escrow, stakeUnits, nonce, chain);
-        const receipt = await withdrawFromSmartWalletUsdc(smartWallet, escrow, stakeUnits, nonce, sig, chain);
+        const receipt = await payTournamentEscrowEntryFromSmartWallet(
+          smartWallet,
+          escrow,
+          tournament.id,
+          stakeUnits,
+          chain
+        );
         const paymentTxHash = receipt?.hash ?? null;
 
         await db("agent_tournament_spend_log").insert({

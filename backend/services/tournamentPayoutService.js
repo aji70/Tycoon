@@ -8,7 +8,7 @@ import TournamentEntry from "../models/TournamentEntry.js";
 import TournamentMatch from "../models/TournamentMatch.js";
 import User from "../models/User.js";
 import logger from "../config/logger.js";
-import { isEscrowConfigured, lockAndFinalizeTournamentOnEscrow } from "./tournamentEscrow.js";
+import { lockAndFinalizeTournamentOnEscrow } from "./tournamentEscrow.js";
 
 /**
  * Persist one tournament payout row (same semantics as executePayouts loop).
@@ -108,11 +108,11 @@ export async function executeDrawRefunds(tournamentId) {
 
   if (escrowPlan.length > 0) {
     const res = await lockAndFinalizeTournamentOnEscrow(tournamentId, tournament.chain, escrowPlan);
-    if (res?.skipped && isEscrowConfigured(tournament.chain)) {
-      const fatal = ["zero_onchain_pool", "read_failed"];
-      if (fatal.includes(res.reason)) {
-        throw new Error(`Escrow draw payout failed (${res.reason}) for tournament ${tournamentId}`);
-      }
+    if (res?.skipped) {
+      logger.warn(
+        { tournamentId, reason: res.reason },
+        "Escrow lock/finalize skipped (e.g. legacy stakes or already finalized); DB payout rows still recorded"
+      );
     }
   }
 
@@ -223,11 +223,11 @@ export async function executePayouts(tournamentId) {
 
   if (escrowPlan.length > 0) {
     const res = await lockAndFinalizeTournamentOnEscrow(tournamentId, tournament.chain, escrowPlan);
-    if (res?.skipped && isEscrowConfigured(tournament.chain)) {
-      const fatal = ["zero_onchain_pool", "read_failed"];
-      if (fatal.includes(res.reason)) {
-        throw new Error(`Escrow winner payout failed (${res.reason}) for tournament ${tournamentId}`);
-      }
+    if (res?.skipped) {
+      logger.warn(
+        { tournamentId, reason: res.reason },
+        "Escrow lock/finalize skipped; DB payout rows still recorded"
+      );
     }
   }
 
