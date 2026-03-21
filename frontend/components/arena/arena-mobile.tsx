@@ -52,6 +52,9 @@ interface Agent {
   is_public?: boolean;
   status?: string;
   erc8004_agent_id?: string | null;
+  max_entry_fee_usdc?: string | null;
+  daily_cap_usdc?: string | null;
+  chain?: string | null;
 }
 
 interface LeaderboardEntry extends Agent {
@@ -119,6 +122,7 @@ export default function ArenaMobile() {
   const [page, setPage] = useState(1);
   const [selectedOpponents, setSelectedOpponents] = useState<number[]>([]);
   const [challengerAgentId, setChallengerAgentId] = useState<number | null>(null);
+  const [stakeAmountUsdc, setStakeAmountUsdc] = useState("");
   const [arenaStarting, setArenaStarting] = useState(false);
   const [openTournaments, setOpenTournaments] = useState<ArenaTournamentRow[]>([]);
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
@@ -127,7 +131,6 @@ export default function ArenaMobile() {
   const [tournamentPerms, setTournamentPerms] = useState<Record<number, { enabled: boolean; max_entry_fee_usdc: string; daily_cap_usdc: string | null; chain: string | null }>>({});
   const [challengesLoading, setChallengesLoading] = useState(false);
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
-  const [openTournamentAgentId, setOpenTournamentAgentId] = useState<number | null>(null);
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
   const { isCelo } = useVerifyErc8004AgentId();
 
@@ -157,8 +160,6 @@ export default function ArenaMobile() {
       console.error("Refresh tournament permissions:", e);
     }
   }, [mergeTournamentPermsFromApiResponse]);
-
-  const clearOpenTournamentAgent = useCallback(() => setOpenTournamentAgentId(null), []);
 
   useEffect(() => {
     if (isAuthed) {
@@ -442,11 +443,13 @@ export default function ArenaMobile() {
     }
     setArenaStarting(true);
     try {
+      const stakeNum = stakeAmountUsdc.trim() ? parseFloat(stakeAmountUsdc) : 0;
       const res = await apiClient.post<any>(
         "/arena/start-game",
         {
           challenger_agent_id: challengerAgentId,
           opponent_agent_ids: selectedOpponents,
+          ...(stakeNum > 0 && { stake_amount_usdc: stakeNum }),
         },
         { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
       );
@@ -628,7 +631,7 @@ export default function ArenaMobile() {
             </p>
           )}
           <p className={styles.challengeHint} style={{ marginBottom: 10 }}>
-            Edit limits: <strong style={{ color: "#e8fbff" }}>Mine</strong> → <strong style={{ color: "#e8fbff" }}>Spending caps</strong> or Full manager → Tournaments.
+            Edit limits: <strong style={{ color: "#e8fbff" }}>Mine</strong> → <strong style={{ color: "#e8fbff" }}>Full manager</strong> → <strong style={{ color: "#e8fbff" }}>Tournaments</strong> per agent.
           </p>
           <div className={styles.challengeActionRow}>
             <button
@@ -677,7 +680,7 @@ export default function ArenaMobile() {
                   >
                     Mine → Full manager
                   </button>
-                  {" "}(Tournaments per agent), or use <strong>Spending caps</strong> on each agent in Mine quick view.
+                  {" "}(Tournaments per agent in Full manager).
                 </p>
               </div>
             ) : (
@@ -712,6 +715,19 @@ export default function ArenaMobile() {
                     <option key={a.id} value={a.id}>{a.name}</option>
                   ))}
                 </select>
+                <label className={styles.challengeFieldLabel} style={{ marginTop: 8 }}>Stake (USDC)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0 = free"
+                  value={stakeAmountUsdc}
+                  onChange={(e) => setStakeAmountUsdc(e.target.value)}
+                  className={styles.agentSelect}
+                />
+                <p className={styles.challengeHint} style={{ marginTop: 4 }}>
+                  Staked matches coming soon. Use 0 for free.
+                </p>
                 <div className={styles.challengeActionRow}>
                   <button
                     type="button"
@@ -741,8 +757,11 @@ export default function ArenaMobile() {
                     {tierLabelOf(agent)}
                   </div>
                 </div>
-                <div className={styles.agentDiscoverMeta}>
+                <div className={styles.agentDiscoverMeta} style={{ flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
                   <span>XP <strong>{xpOf(agent)}</strong></span>
+                  <span>Max per match: {formatUsdcDisplay(agent.max_entry_fee_usdc)}</span>
+                  <span>Daily total cap: {formatUsdcDisplay(agent.daily_cap_usdc)}</span>
+                  {agent.chain && <span>Chain: {agent.chain}</span>}
                 </div>
                 <div className={styles.agentDiscoverFooter}>
                   <span className={styles.creatorNameCompact}>by {agent.username}</span>
@@ -937,7 +956,7 @@ export default function ArenaMobile() {
               {myAgentsSubTab === "overview" ? (
                 <div className={styles.myAgentsList}>
                   <p className={styles.challengeHint} style={{ marginBottom: 12, fontSize: "0.8rem" }}>
-                    Quick: Discover, <strong>Can spend</strong> (per match + daily total), Celo. <strong>Spending caps</strong> edits limits here; <strong>Full manager</strong> for create / API keys.
+                    Quick: Discover, <strong>Can spend</strong> (per match + daily total), Celo. <strong>Full manager</strong> to create agents, set spending caps (Tournaments), API keys.
                   </p>
                   {myAgents.length > 0 ? (
                     myAgents.map((agent) => (
@@ -995,17 +1014,6 @@ export default function ArenaMobile() {
                         <button
                           type="button"
                           className={styles.btnSecondary}
-                          onClick={() => {
-                            setOpenTournamentAgentId(agent.id);
-                            setMyAgentsSubTab("manage");
-                          }}
-                          style={{ width: "100%", marginTop: 8 }}
-                        >
-                          Spending caps
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.btnSecondary}
                           onClick={() => handleRegisterOnCelo(agent)}
                           style={{ width: "100%", marginTop: 8 }}
                           disabled={!isCelo || (isRegisteringErc8004 && registeringErc8004Id === agent.id)}
@@ -1023,12 +1031,7 @@ export default function ArenaMobile() {
                   )}
                 </div>
               ) : (
-                <AgentsPageMobile
-                  embeddedInArena
-                  openTournamentAgentId={openTournamentAgentId}
-                  onOpenTournamentAgentConsumed={clearOpenTournamentAgent}
-                  onSpendingCapsSaved={refreshArenaTournamentPerms}
-                />
+                <AgentsPageMobile embeddedInArena onSpendingCapsSaved={refreshArenaTournamentPerms} />
               )}
             </>
           ) : (

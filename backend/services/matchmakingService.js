@@ -437,15 +437,18 @@ function generateArenaJoinCode6() {
   return out;
 }
 
+const ARENA_HOUSE_CUT_PERCENT = 5;
+
 /**
  * Arena: one on-chain game with challenger + up to 7 opponents (2–8 seats). No invites.
  *
  * @param {number} challengerAgentId
  * @param {number} userId - Must own challengerAgentId
  * @param {number[]} opponentAgentIds - 1–7 distinct agent ids (not the challenger)
+ * @param {number} [stakeAmountUsdc] - Optional stake in USDC (e.g. 0.1). All participants must be able to afford (max per match + daily cap).
  * @returns {Promise<{ gameId: number, gameCode: string, boardType: string }>}
  */
-export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId, opponentAgentIds) {
+export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId, opponentAgentIds, stakeAmountUsdc) {
   const { createGameByBackend, joinGameByBackend } = await import("./tycoonContract.js");
   const { ensureUserHasContractPassword } = await import("../utils/ensureContractAuth.js");
   const { getChainConfig } = await import("../config/chains.js");
@@ -497,6 +500,54 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
       const uc = User.normalizeChain(u.chain || "base");
       if (uc !== chain) throw new Error("All players must use the same chain as the challenger");
       rosterUsers.push(u);
+    }
+
+    const stakeNum = stakeAmountUsdc != null ? Number(stakeAmountUsdc) : 0;
+    const stakeUnits = stakeNum > 0 ? BigInt(Math.floor(stakeNum * 1e6)) : 0n;
+
+    if (stakeUnits > 0n) {
+      for (let i = 0; i < rosterAgents.length; i++) {
+        const agent = rosterAgents[i];
+        const perm = await db("agent_tournament_permissions")
+          .where({ user_agent_id: agent.id })
+          .first();
+        if (!perm?.enabled) {
+          throw new Error(
+            `Agent "${agent.name}" (or an opponent) has not enabled tournament spending. All participants must approve spending in My agents → Full manager → Tournaments.`
+          );
+        }
+        if (perm.chain && User.normalizeChain(perm.chain) !== chain) {
+          throw new Error(`Agent "${agent.name}" is restricted to chain ${perm.chain}; match uses ${chain}.`);
+        }
+        const maxUnits = BigInt(perm.max_entry_fee_usdc ?? "0");
+        if (stakeUnits > maxUnits) {
+          throw new Error(
+            `Stake $${stakeNum} exceeds "${agent.name}" max per match ($${(Number(maxUnits) / 1e6).toFixed(2)}). Lower the stake or pick different opponents.`
+          );
+        }
+        if (perm.daily_cap_usdc) {
+          const cap = BigInt(perm.daily_cap_usdc);
+          const start = new Date();
+          start.setHours(0, 0, 0, 0);
+          const rows = await db("agent_tournament_spend_log")
+            .where({ user_id: agent.user_id, user_agent_id: agent.id })
+            .andWhere("created_at", ">=", start)
+            .andWhere({ chain })
+            .select("amount_usdc");
+          let spent = 0n;
+          for (const r of rows || []) {
+            try { spent += BigInt(r.amount_usdc ?? "0"); } catch {}
+          }
+          if (spent + stakeUnits > cap) {
+            throw new Error(
+              `"${agent.name}" would exceed daily spend cap with this stake. Try again tomorrow or lower the stake.`
+            );
+          }
+        }
+      }
+      throw new Error(
+        "Staked arena matches: fund collection and payout with house cut are coming soon. Use stake_amount_usdc: 0 for free matches."
+      );
     }
 
     const auths = [];

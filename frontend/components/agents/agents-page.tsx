@@ -142,17 +142,10 @@ const ARENA_MANAGE_AGENTS_PATH = "/arena?tab=my-agents&sub=manage";
 
 export type AgentsPageProps = {
   embeddedInArena?: boolean;
-  openTournamentAgentId?: number | null;
-  onOpenTournamentAgentConsumed?: () => void;
   onSpendingCapsSaved?: () => void | Promise<void>;
 };
 
-export default function AgentsPage({
-  embeddedInArena = false,
-  openTournamentAgentId = null,
-  onOpenTournamentAgentConsumed,
-  onSpendingCapsSaved,
-}: AgentsPageProps) {
+export default function AgentsPage({ embeddedInArena = false, onSpendingCapsSaved }: AgentsPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { address, isConnected } = useAccount();
@@ -293,17 +286,6 @@ export default function AgentsPage({
   React.useEffect(() => {
     fetchAgents();
   }, [fetchAgents]);
-
-  React.useEffect(() => {
-    if (!embeddedInArena || openTournamentAgentId == null || loading) return;
-    const a = agents.find((x) => x.id === openTournamentAgentId);
-    if (a) {
-      openTournamentPerms(a);
-    }
-    onOpenTournamentAgentConsumed?.();
-    // openTournamentPerms uses tournamentPerms from this render (same as fetchAgents completion).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [embeddedInArena, openTournamentAgentId, agents, loading, onOpenTournamentAgentConsumed]);
 
   // Check for NGN redirect (reference from Flutterwave)
   React.useEffect(() => {

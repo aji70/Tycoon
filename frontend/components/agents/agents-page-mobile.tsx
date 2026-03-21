@@ -132,17 +132,10 @@ function usdcStoredToDecimalInput(stored: string | null | undefined): string {
 
 export type AgentsPageMobileProps = {
   embeddedInArena?: boolean;
-  openTournamentAgentId?: number | null;
-  onOpenTournamentAgentConsumed?: () => void;
   onSpendingCapsSaved?: () => void | Promise<void>;
 };
 
-export default function AgentsPageMobile({
-  embeddedInArena = false,
-  openTournamentAgentId = null,
-  onOpenTournamentAgentConsumed,
-  onSpendingCapsSaved,
-}: AgentsPageMobileProps) {
+export default function AgentsPageMobile({ embeddedInArena = false, onSpendingCapsSaved }: AgentsPageMobileProps) {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -277,16 +270,6 @@ export default function AgentsPageMobile({
   React.useEffect(() => {
     fetchAgents();
   }, [fetchAgents]);
-
-  React.useEffect(() => {
-    if (!embeddedInArena || openTournamentAgentId == null || loading) return;
-    const a = agents.find((x) => x.id === openTournamentAgentId);
-    if (a) {
-      openTournamentPerms(a);
-    }
-    onOpenTournamentAgentConsumed?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [embeddedInArena, openTournamentAgentId, agents, loading, onOpenTournamentAgentConsumed]);
 
   // On form load: AppKit address or injected EOA (registration uses injected EOA).
   React.useEffect(() => {
