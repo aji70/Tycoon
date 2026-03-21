@@ -1216,12 +1216,6 @@ export default function ArenaMobile() {
               </div>
               {myAgentsSubTab === "overview" ? (
                 <div className={styles.myAgentsList}>
-                  <div className={styles.myAgentsQuickIntro}>
-                    <p className={styles.myAgentsQuickIntroTitle}>At a glance</p>
-                    <p className={styles.myAgentsQuickIntroText}>
-                      Wallet caps limit USDC for tournaments and staked games. <strong style={{ color: "#b8f7ff" }}>Manage</strong> for API keys and new agents.
-                    </p>
-                  </div>
                   {myAgents.length > 0 ? (
                     myAgents.map((agent) => {
                       const tp = tournamentPerms[agent.id];
