@@ -295,7 +295,7 @@ export async function getQueueStats() {
  */
 export async function createDirectChallenge(userAgentId, userId, opponentAgentId) {
   const { createGameByBackend, joinGameByBackend } = await import("./tycoonContract.js");
-  const { ensureUserHasContractPassword } = await import("../utils/ensureContractAuth.js");
+  const { ensureUserHasContractAuthResult } = await import("../utils/ensureContractAuth.js");
   const agentRegistry = (await import("./agentRegistry.js")).default;
   const User = (await import("../models/User.js")).default;
   const Game = (await import("../models/Game.js")).default;
@@ -325,13 +325,16 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
 
     const chain = User.normalizeChain(userA.chain || "base");
 
-    // Ensure both users have contract passwords (generates if needed)
-    const authA = await ensureUserHasContractPassword(db, userA.id, chain);
-    const authB = await ensureUserHasContractPassword(db, userB.id, chain);
-
-    if (!authA || !authB) {
-      throw new Error("Failed to ensure contract authentication for players");
+    const rA = await ensureUserHasContractAuthResult(db, userA.id, chain);
+    const rB = await ensureUserHasContractAuthResult(db, userB.id, chain);
+    if (!rA.ok || !rB.ok) {
+      const parts = [];
+      if (!rA.ok) parts.push(`You (${userA.username || `user ${userA.id}`}): ${rA.reason}`);
+      if (!rB.ok) parts.push(`Opponent owner (${userB.username || `user ${userB.id}`}): ${rB.reason}`);
+      throw new Error(parts.join(" · "));
     }
+    const authA = { address: rA.address, username: rA.username, password_hash: rA.password_hash };
+    const authB = { address: rB.address, username: rB.username, password_hash: rB.password_hash };
 
     // Generate game code
     const code = `CHALLENGE_${Date.now()}`;
@@ -510,7 +513,7 @@ const ARENA_HOUSE_CUT_PERCENT = 5;
  */
 export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId, opponentAgentIds, stakeAmountUsdc, options = {}) {
   const { createGameByBackend, joinGameByBackend } = await import("./tycoonContract.js");
-  const { ensureUserHasContractPassword } = await import("../utils/ensureContractAuth.js");
+  const { ensureUserHasContractAuthResult } = await import("../utils/ensureContractAuth.js");
   const { getChainConfig } = await import("../config/chains.js");
   const agentRegistry = (await import("./agentRegistry.js")).default;
   const User = (await import("../models/User.js")).default;
@@ -618,10 +621,14 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
     }
 
     const auths = [];
+    const authFailures = [];
     for (const u of rosterUsers) {
-      const auth = await ensureUserHasContractPassword(db, u.id, chain);
-      if (!auth) throw new Error("Failed to ensure contract authentication for a player");
-      auths.push(auth);
+      const r = await ensureUserHasContractAuthResult(db, u.id, chain);
+      if (!r.ok) authFailures.push(`${u.username || `User ${u.id}`}: ${r.reason}`);
+      else auths.push({ address: r.address, username: r.username, password_hash: r.password_hash });
+    }
+    if (authFailures.length) {
+      throw new Error(authFailures.join("; "));
     }
 
     let arenaStakeTournamentId = null;
@@ -878,7 +885,7 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
  */
 export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId, stakeAmountUsdc) {
   const { createGameByBackend, joinGameByBackend } = await import("./tycoonContract.js");
-  const { ensureUserHasContractPassword } = await import("../utils/ensureContractAuth.js");
+  const { ensureUserHasContractAuthResult } = await import("../utils/ensureContractAuth.js");
   const { getChainConfig } = await import("../config/chains.js");
   const agentRegistry = (await import("./agentRegistry.js")).default;
   const User = (await import("../models/User.js")).default;
@@ -953,10 +960,18 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
     }
 
     const auths = [];
+    const authFailures = [];
     for (const u of [humanUser, opponentOwner]) {
-      const auth = await ensureUserHasContractPassword(db, u.id, chain);
-      if (!auth) throw new Error("Failed to ensure contract authentication for a player");
-      auths.push(auth);
+      const r = await ensureUserHasContractAuthResult(db, u.id, chain);
+      if (!r.ok) {
+        const label = u.id === humanUser.id ? "You" : `Opponent owner (${opponentAgent.name || "agent"})`;
+        authFailures.push(`${label}: ${r.reason}`);
+      } else {
+        auths.push({ address: r.address, username: r.username, password_hash: r.password_hash });
+      }
+    }
+    if (authFailures.length) {
+      throw new Error(authFailures.join("; "));
     }
 
     let arenaStakeTournamentId = null;

@@ -65,21 +65,27 @@ function privyPlaceholderAddress(privyDid) {
 }
 
 /**
- * Returns user with address, username, password_hash so backend can call createGameByBackend/joinGameByBackend etc.
- * If addressOverride is provided (e.g. linked_wallet_address), uses that for contract; otherwise uses user.address.
- * Ensures that address is registered on-chain with a backend password (syncs from DB or registers if not on-chain).
+ * Same as ensureUserHasContractPassword but returns why it failed (for API / matchmaking errors).
  *
- * @param {object} db - Knex instance
- * @param {number} userId - users.id
- * @param {string} [chain] - Chain (CELO, POLYGON, BASE) for contract. Default CELO.
- * @param {string} [addressOverride] - Address to use for contract (e.g. linked_wallet_address). If not set, uses user.address.
- * @returns {Promise<{ address: string, username: string, password_hash: string } | null>}
+ * @returns {Promise<
+ *   | { ok: true, address: string, username: string, password_hash: string }
+ *   | { ok: false, reason: string, userId: number, chain?: string }
+ * >}
  */
-export async function ensureUserHasContractPassword(db, userId, chain = "CELO", addressOverride = null) {
+export async function ensureUserHasContractAuthResult(db, userId, chain = "CELO", addressOverride = null) {
+  const uid = Number(userId);
+  if (!uid) {
+    return { ok: false, reason: "Invalid user id for contract auth.", userId: uid };
+  }
+
   const user = await db("users")
-    .where({ id: userId })
+    .where({ id: uid })
     .select("address", "linked_wallet_address", "username", "password_hash", "privy_did", "smart_wallet_address")
     .first();
+
+  if (!user) {
+    return { ok: false, reason: "User record not found.", userId: uid };
+  }
 
   /** Registry.getWallet expects the profile owner EOA — not the smart wallet contract address. */
   function shouldSyncSmartWalletFromRegistry(eff) {
@@ -96,10 +102,25 @@ export async function ensureUserHasContractPassword(db, userId, chain = "CELO", 
   else if (isValidEthAddress(user?.address)) effectiveAddress = String(user.address).trim();
   else if (user?.privy_did) effectiveAddress = privyPlaceholderAddress(user.privy_did);
 
-  if (!effectiveAddress) return null;
+  if (!effectiveAddress) {
+    return {
+      ok: false,
+      reason:
+        "No valid 0x wallet address on this account. Link a wallet in Profile, complete Privy sign-in, or use Register on-chain so the game can create/join matches for you.",
+      userId: uid,
+    };
+  }
 
   const normalizedChain = User.normalizeChain(chain);
-  if (!isContractConfigured(normalizedChain)) return null;
+  if (!isContractConfigured(normalizedChain)) {
+    return {
+      ok: false,
+      reason: `Server has no game contract configured for chain ${normalizedChain}. The team must set TYCOON / registry RPC env vars for this chain, or change your account chain to one that is deployed.`,
+      userId: uid,
+      chain: normalizedChain,
+    };
+  }
+
   try {
     const isRegistered = await callContractRead("registered", [effectiveAddress], normalizedChain);
     const displayHint = user?.username || effectiveAddress.slice(0, 10);
@@ -110,23 +131,23 @@ export async function ensureUserHasContractPassword(db, userId, chain = "CELO", 
     // register it using the existing hash so backend auth works.
     if (user?.password_hash) {
       if (!isRegistered) {
-        usernameForGames = buildContractUsername(userId, user?.username);
+        usernameForGames = buildContractUsername(uid, user?.username);
         await registerPlayerFor(effectiveAddress, usernameForGames, user.password_hash, normalizedChain);
         if (shouldSyncSmartWalletFromRegistry(effectiveAddress)) {
           const smartWalletAddress = await getSmartWalletAddress(effectiveAddress, normalizedChain);
           await db("users")
-            .where({ id: userId })
+            .where({ id: uid })
             .update({ smart_wallet_address: smartWalletAddress || null });
         }
         logger.info(
-          { userId, address: effectiveAddress, chain: normalizedChain, contractUsername: usernameForGames },
+          { userId: uid, address: effectiveAddress, chain: normalizedChain, contractUsername: usernameForGames },
           "Synced existing backend password to contract for user"
         );
       } else {
         const onChain = await readOnChainUsername(effectiveAddress, normalizedChain);
         if (onChain) usernameForGames = onChain;
       }
-      return { address: effectiveAddress, username: usernameForGames, password_hash: user.password_hash };
+      return { ok: true, address: effectiveAddress, username: usernameForGames, password_hash: user.password_hash };
     }
 
     // No password_hash in DB yet.
@@ -138,7 +159,7 @@ export async function ensureUserHasContractPassword(db, userId, chain = "CELO", 
       const onChain = await readOnChainUsername(effectiveAddress, normalizedChain);
       if (onChain) usernameForGames = onChain;
     } else {
-      usernameForGames = buildContractUsername(userId, user?.username);
+      usernameForGames = buildContractUsername(uid, user?.username);
       await registerPlayerFor(effectiveAddress, usernameForGames, passwordHash, normalizedChain);
     }
     const updateRow = { password_hash: passwordHash };
@@ -146,14 +167,40 @@ export async function ensureUserHasContractPassword(db, userId, chain = "CELO", 
       const smartWalletAddress = await getSmartWalletAddress(effectiveAddress, normalizedChain);
       updateRow.smart_wallet_address = smartWalletAddress || null;
     }
-    await db("users").where({ id: userId }).update(updateRow);
+    await db("users").where({ id: uid }).update(updateRow);
     logger.info(
-      { userId, address: effectiveAddress, chain: normalizedChain, contractUsername: usernameForGames },
+      { userId: uid, address: effectiveAddress, chain: normalizedChain, contractUsername: usernameForGames },
       "Registered user on contract with backend password for future game-end"
     );
-    return { address: effectiveAddress, username: usernameForGames, password_hash: passwordHash };
+    return { ok: true, address: effectiveAddress, username: usernameForGames, password_hash: passwordHash };
   } catch (err) {
-    logger.warn({ err: err?.message, userId }, "ensureUserHasContractPassword failed");
+    const detail = err?.reason || err?.message || String(err);
+    logger.warn({ err: detail, userId: uid, chain: normalizedChain }, "ensureUserHasContractAuthResult failed");
+    return {
+      ok: false,
+      reason: `On-chain registration or password sync failed (${detail}). Check RPC, game controller wallet funding, and that this address can register on ${normalizedChain}.`,
+      userId: uid,
+      chain: normalizedChain,
+    };
+  }
+}
+
+/**
+ * Returns user with address, username, password_hash so backend can call createGameByBackend/joinGameByBackend etc.
+ * If addressOverride is provided (e.g. linked_wallet_address), uses that for contract; otherwise uses user.address.
+ * Ensures that address is registered on-chain with a backend password (syncs from DB or registers if not on-chain).
+ *
+ * @param {object} db - Knex instance
+ * @param {number} userId - users.id
+ * @param {string} [chain] - Chain (CELO, POLYGON, BASE) for contract. Default CELO.
+ * @param {string} [addressOverride] - Address to use for contract (e.g. linked_wallet_address). If not set, uses user.address.
+ * @returns {Promise<{ address: string, username: string, password_hash: string } | null>}
+ */
+export async function ensureUserHasContractPassword(db, userId, chain = "CELO", addressOverride = null) {
+  const r = await ensureUserHasContractAuthResult(db, userId, chain, addressOverride);
+  if (!r.ok) {
+    logger.warn({ userId, reason: r.reason }, "ensureUserHasContractPassword failed");
     return null;
   }
+  return { address: r.address, username: r.username, password_hash: r.password_hash };
 }

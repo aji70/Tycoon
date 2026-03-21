@@ -336,6 +336,20 @@ function getUserRegistryContract(chain = "CELO") {
   return new Contract(userRegistryAddress, USER_REGISTRY_ABI, wallet);
 }
 
+/**
+ * Private key that signs User Registry owner-only calls (createWalletForUserByBackend, etc.).
+ * Must be the registry deployer / owner unless BACKEND_GAME_CONTROLLER_* is the same key.
+ */
+export function getRegistryOwnerPrivateKey(chain = "CELO") {
+  const cfg = getChainConfig(chain);
+  const pk =
+    process.env.TYCOON_OWNER_PRIVATE_KEY ??
+    process.env.REGISTRY_OWNER_PRIVATE_KEY ??
+    cfg.privateKey;
+  if (pk == null || String(pk).trim() === "") return null;
+  return String(pk).trim();
+}
+
 /** Registry functions createWalletForUserByBackend and linkEOAToProfile use onlyGame() which allows gameContract or registry owner. Backend must send as registry owner. */
 function getRegistryOwnerContract(chain = "CELO") {
   const cfg = getChainConfig(chain);
@@ -343,10 +357,7 @@ function getRegistryOwnerContract(chain = "CELO") {
   if (!rpcUrl || !userRegistryAddress) {
     throw new Error(`User registry not configured for ${String(chain).toUpperCase()}`);
   }
-  const pk =
-    process.env.TYCOON_OWNER_PRIVATE_KEY ??
-    process.env.REGISTRY_OWNER_PRIVATE_KEY ??
-    cfg.privateKey;
+  const pk = getRegistryOwnerPrivateKey(chain);
   if (!pk) {
     throw new Error(
       `Registry owner key required for wallet-first flows. Set TYCOON_OWNER_PRIVATE_KEY or REGISTRY_OWNER_PRIVATE_KEY (or ensure BACKEND_GAME_CONTROLLER_* is the registry owner).`
@@ -366,11 +377,7 @@ export function isWalletFirstConfigured(chain = "CELO") {
   const cfg = getChainConfig(chain);
   const { rpcUrl, userRegistryAddress } = cfg;
   if (!rpcUrl || !userRegistryAddress) return false;
-  const pk =
-    process.env.TYCOON_OWNER_PRIVATE_KEY ??
-    process.env.REGISTRY_OWNER_PRIVATE_KEY ??
-    cfg.privateKey;
-  return Boolean(pk);
+  return Boolean(getRegistryOwnerPrivateKey(chain));
 }
 
 /**
@@ -933,13 +940,13 @@ export async function getProfileOwnerForWallet(walletAddress, chain = "CELO") {
  */
 /**
  * Create smart wallet for a player already registered on-chain (e.g. registered before User Registry was set).
- * Requires TYCOON_OWNER_PRIVATE_KEY; uses same chain config (RPC, contract address).
+ * Requires registry owner key (TYCOON_OWNER_PRIVATE_KEY, REGISTRY_OWNER_PRIVATE_KEY, or same as BACKEND_GAME_CONTROLLER_* if that key is the registry owner).
  * @param {string} playerAddress - EOA address of the registered player
  * @param {string} [chain] - CELO | POLYGON | BASE
  * @returns {Promise<string|null>} Smart wallet address or null
  */
 export async function createWalletForExistingUser(playerAddress, chain = "CELO") {
-  const ownerKey = process.env.TYCOON_OWNER_PRIVATE_KEY;
+  const ownerKey = getRegistryOwnerPrivateKey(chain);
   if (!ownerKey || !playerAddress) return null;
   return withTxQueue(async () => {
     const { rpcUrl, contractAddress, chainId } = getChainConfig(chain);
@@ -976,9 +983,9 @@ export async function createWalletForExistingUser(playerAddress, chain = "CELO")
   });
 }
 
-/** True if TYCOON_OWNER_PRIVATE_KEY is set (backend can call createWalletForExistingUser). */
-export function canCreateWalletForExistingUser() {
-  return !!process.env.TYCOON_OWNER_PRIVATE_KEY;
+/** True if a registry-owner-class key is available (backend can call createWalletForExistingUser). */
+export function canCreateWalletForExistingUser(chain = "CELO") {
+  return Boolean(getRegistryOwnerPrivateKey(chain));
 }
 
 /**
