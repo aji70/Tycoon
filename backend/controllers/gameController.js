@@ -40,48 +40,12 @@ import agentRegistry from "../services/agentRegistry.js";
 import crypto from "crypto";
 import bcrypt from "bcrypt";
 import { parseUnits } from "ethers";
+import {
+  getOnchainAddressForGuestFlow,
+  isValidEthAddress as isValidEthAddressForOnchain,
+} from "../utils/onchainUserAddress.js";
 
-function isValidEthAddress(maybeAddress) {
-  return typeof maybeAddress === "string" && /^0x[a-fA-F0-9]{40}$/.test(maybeAddress.trim());
-}
-
-/**
- * Pick the best address to use for on-chain registration/calls for a user.
- * We must validate `linked_wallet_address` / `smart_wallet_address` because some
- * code paths can leave them as non-address strings, which breaks on-chain setup.
- */
-function getOnchainAddressForUser(user) {
-  const linked = user?.linked_wallet_address;
-  if (isValidEthAddress(linked)) return linked.trim();
-
-  const smart = user?.smart_wallet_address;
-  if (isValidEthAddress(smart)) return smart.trim();
-
-  const primary = user?.address;
-  if (isValidEthAddress(primary)) return primary.trim();
-
-  return null;
-}
-
-/** Same derivation as guestAuthController.placeholderAddressForPrivyDid — must stay in sync. */
-function privyPlaceholderAddress(privyDid) {
-  const id = privyDid && String(privyDid).trim();
-  if (!id) return null;
-  const hash = crypto.createHash("sha256").update(id).digest("hex").slice(0, 40);
-  return `0x${hash}`;
-}
-
-/**
- * Resolved EVM address for backend-signed (guest / Privy) flows.
- * Falls back to the Privy placeholder EOA when wallet columns are missing or invalid
- * (e.g. bad linked_wallet string), matching the address created at privy-signin.
- */
-function getOnchainAddressForGuestFlow(user) {
-  const fromWallets = getOnchainAddressForUser(user);
-  if (fromWallets) return fromWallets;
-  if (user?.privy_did) return privyPlaceholderAddress(user.privy_did);
-  return null;
-}
+const isValidEthAddress = isValidEthAddressForOnchain;
 
 const GAME_TYPES = {
   PVP_HUMAN: "PVP_HUMAN",

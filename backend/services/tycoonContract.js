@@ -724,6 +724,51 @@ export function getContract(chain = "CELO") {
 }
 
 /**
+ * Self-serve registerPlayer() can leave registered=true with _passwordHashOf unset. Backend createGameByBackend then reverts "No password set".
+ * Probe with staticCall; only send setBackendPasswordFor when that specific revert is detected (avoids an extra tx on every auth sync).
+ */
+export async function syncBackendPasswordIfMissingOnChain(
+  forPlayer,
+  passwordHash,
+  creatorUsername,
+  startingBalance,
+  chain = "CELO"
+) {
+  const tycoon = getContract(chain);
+  const probeCode = `__PWPROBE_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+  const startBal = BigInt(startingBalance ?? 1500);
+  try {
+    await tycoon.createGameByBackend.staticCall(
+      forPlayer,
+      "",
+      passwordHash,
+      creatorUsername,
+      "PRIVATE",
+      "hat",
+      2,
+      probeCode,
+      startBal,
+      0n
+    );
+    return { synced: false };
+  } catch (e) {
+    const msg = `${e?.shortMessage || ""} ${e?.message || ""} ${e?.info?.error?.message || ""}`;
+    if (msg.includes("No password set")) {
+      await callContractWrite("setBackendPasswordFor", [forPlayer, passwordHash], chain);
+      return { synced: true };
+    }
+    if (msg.includes("Wrong password")) {
+      const err = new Error(
+        "On-chain backend password does not match this account. Sign in again or contact support."
+      );
+      err.code = "BACKEND_PASSWORD_MISMATCH";
+      throw err;
+    }
+    return { synced: false };
+  }
+}
+
+/**
  * Read Naira vault CELO and USDC balances (view only). Used for liquidity checks before allowing purchases.
  * @param {string} [chain] - CELO | POLYGON | BASE
  * @returns {Promise<{ balanceCeloWei: bigint, balanceUsdcUnits: bigint } | null>} null if vault not configured
