@@ -56,7 +56,7 @@ import { MyAgentToggle } from "@/components/game/MyAgentToggle";
 import { getStoredAgentApiKey, setStoredAgentApiKey } from "@/lib/agentApiKeySession";
 import PerksBar from "@/components/game/board3d/PerksBar";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
-import { gameHasRankedPlacements } from "@/lib/utils/games";
+import { gameHasRankedPlacements, isOnchainHumanVsAgentGame } from "@/lib/utils/games";
 
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 
@@ -421,7 +421,7 @@ function Board3DPageContent() {
     setMyAgentApiKeyState(value);
     setStoredAgentApiKey(value);
   }, []);
-  const agentOn = myAgentOn || !!myAgentApiKey;
+  const agentOn = !isOnchainHumanVsAgentGame(game) && (myAgentOn || !!myAgentApiKey);
   const { agentSettings, updateAgentSettings } = useAgentSettings();
 
   // AI turn: classic AI usernames, or agent-arena seats (real usernames; backend runner may also step the game)
@@ -2554,7 +2554,7 @@ function Board3DPageContent() {
             Agent arena: you’re spectating — seats use backend player accounts. The match runs automatically on this board.
           </p>
         )}
-        {isLiveGame && game && me && (
+        {isLiveGame && game && me && !isOnchainHumanVsAgentGame(game) && (
           <MyAgentToggle
             gameId={game.id}
             myAgentOn={myAgentOn}

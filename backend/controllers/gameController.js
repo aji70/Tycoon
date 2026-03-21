@@ -871,7 +871,8 @@ const gameController = {
 
   /**
    * POST: Submit ERC-8004 reputation feedback when the user followed an AI tip (e.g. tip said buy and user bought).
-   * Call from frontend when user's buy/skip action matches the last tip recommendation. Small positive score (10) per tip followed.
+   * Call from frontend when user's buy/skip action matches the last tip recommendation.
+   * Use 100 on the same scale as gameResult (AI win): explorers show on-chain value as "x/100"; low values read as bad rep.
    */
   async submitErc8004TipFeedback(req, res) {
     try {
@@ -884,7 +885,7 @@ const gameController = {
       if (!agentId || String(agentId).trim() === "") {
         return res.status(200).json({ success: true, skipped: true, message: "ERC8004_AGENT_ID not set" });
       }
-      const TIP_FOLLOWED_SCORE = 10;
+      const TIP_FOLLOWED_SCORE = 100;
       const result = await submitErc8004FeedbackTx(agentId, TIP_FOLLOWED_SCORE, "tipFollowed", "starred");
       if (result.success) {
         return res.status(200).json({ success: true, hash: result.hash });

@@ -202,13 +202,15 @@ router.post("/action-feedback", async (req, res) => {
     const { gameId, slot, actionType } = req.body || {};
     if (!gameId || !actionType) return;
 
+    // On-chain `value` is shown as "x/100" on explorers; small numbers look like failure. Same scale as AI-win gameResult.
+    const POSITIVE = 100;
     const SCORES = {
-      buyProperty: 5,
-      buildHotel: 15,
-      proposeTrade: 5,
-      acceptTrade: 5,
+      buyProperty: POSITIVE,
+      buildHotel: POSITIVE,
+      proposeTrade: POSITIVE,
+      acceptTrade: POSITIVE,
     };
-    const score = SCORES[actionType] ?? 5;
+    const score = SCORES[actionType] ?? POSITIVE;
 
     // Resolve ERC-8004 agent ID: prefer the registered agent's ID, fall back to env var
     let erc8004AgentId = process.env.ERC8004_AGENT_ID;
