@@ -63,19 +63,27 @@ export async function getPublicAgents(req, res) {
       query = query.whereNot("user_agents.user_id", userId);
     }
 
+    const baseSelect = [
+      "user_agents.id",
+      "user_agents.name",
+      "user_agents.erc8004_agent_id",
+      "user_agents.elo_rating",
+      "user_agents.elo_peak",
+      "user_agents.arena_wins",
+      "user_agents.arena_losses",
+      "user_agents.arena_draws",
+      "user_agents.user_id",
+      db.raw("users.username"),
+    ];
+    if (approvedToSpend) {
+      baseSelect.push(
+        "atp.max_entry_fee_usdc",
+        "atp.daily_cap_usdc",
+        "atp.chain"
+      );
+    }
     const agents = await query
-      .select(
-        "user_agents.id",
-        "user_agents.name",
-        "user_agents.erc8004_agent_id",
-        "user_agents.elo_rating",
-        "user_agents.elo_peak",
-        "user_agents.arena_wins",
-        "user_agents.arena_losses",
-        "user_agents.arena_draws",
-        "user_agents.user_id",
-        db.raw("users.username")
-      )
+      .select(baseSelect)
       .join("users", "user_agents.user_id", "users.id")
       .orderBy("user_agents.elo_rating", "desc")
       .limit(pageSize)
@@ -239,20 +247,21 @@ export function challengeAgent(_req, res) {
 
 /**
  * POST /api/arena/start-game
- * Body: { challenger_agent_id, opponent_agent_ids: number[] } (1–7 opponents; game starts on-chain immediately)
+ * Body: { challenger_agent_id, opponent_agent_ids: number[], stake_amount_usdc?: number } (1–7 opponents; optional stake in USDC)
  */
 export async function startOnchainArenaGameHandler(req, res) {
   try {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { challenger_agent_id, opponent_agent_ids } = req.body || {};
+    const { challenger_agent_id, opponent_agent_ids, stake_amount_usdc } = req.body || {};
     if (!challenger_agent_id) return res.status(400).json({ error: "challenger_agent_id required" });
 
     const result = await matchmakingService.createMultiAgentOnchainArenaGame(
       Number(challenger_agent_id),
       userId,
-      opponent_agent_ids
+      opponent_agent_ids,
+      stake_amount_usdc
     );
 
     const io = req.app.get("io");
