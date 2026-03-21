@@ -2797,7 +2797,7 @@ function Board3DMobileContent() {
           className="absolute left-2 right-2 z-10 flex flex-col"
           style={{
             top: `${BOARD_HEIGHT_PCT}%`,
-            bottom: "72px",
+            bottom: "120px",
           }}
         >
           <ActionLog

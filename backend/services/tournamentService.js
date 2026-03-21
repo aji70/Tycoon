@@ -1308,6 +1308,42 @@ export async function onGameFinished(gameId) {
   const game = await Game.findById(gameId);
   if (!game || game.status !== "FINISHED") return null;
 
+  const stake = await db("arena_match_stakes").where({ game_id: gameId }).first();
+  const tournamentRowEarly = await Tournament.findById(match.tournament_id);
+  if (stake && match.status === "COMPLETED" && tournamentRowEarly?.status === "COMPLETED") {
+    const nPayRow = await db("tournament_payouts").where({ tournament_id: match.tournament_id }).count("* as c").first();
+    const nPay = Number(nPayRow?.c ?? 0);
+    if (match.winner_entry_id == null) {
+      if (nPay === 0) {
+        try {
+          const { executeDrawRefunds } = await import("./tournamentPayoutService.js");
+          await executeDrawRefunds(match.tournament_id);
+          await db("arena_match_stakes").where({ id: stake.id }).update({
+            status: "PAID_OUT",
+            paid_out_at: db.fn.now(),
+            updated_at: db.fn.now(),
+          });
+        } catch (err) {
+          logger.error(
+            { err: err?.message, gameId, tournamentId: match.tournament_id },
+            "onGameFinished: retry executeDrawRefunds for staked arena draw"
+          );
+        }
+      }
+      logger.info({ gameId, matchId: match.id }, "onGameFinished: staked arena draw — skipping net-worth winner bracket update");
+      return { matchId: match.id, winnerEntryId: null, tournamentCompleted: true, stakedArenaDraw: true };
+    }
+    if (match.winner_entry_id != null && nPay > 0) {
+      logger.info({ gameId, matchId: match.id }, "onGameFinished: staked arena already settled (winner); skipping duplicate");
+      return {
+        matchId: match.id,
+        winnerEntryId: match.winner_entry_id,
+        tournamentCompleted: true,
+        stakedArenaSettled: true,
+      };
+    }
+  }
+
   const winnerUserId = game.winner_id;
   const entries = await TournamentEntry.findByTournament(match.tournament_id);
   const gt = String(game.game_type || "");

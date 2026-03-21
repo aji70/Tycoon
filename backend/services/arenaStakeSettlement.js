@@ -27,6 +27,25 @@ const ARENA_STAKE_GAME_TYPES = new Set([
   "ONCHAIN_HUMAN_VS_AGENT",
 ]);
 
+async function loadEntryIdToUserId(match) {
+  const ids = [match.slot_a_entry_id, match.slot_b_entry_id].filter((x) => x != null);
+  if (ids.length < 2) return new Map();
+  const rows = await db("tournament_entries").whereIn("id", ids).select("id", "user_id");
+  return new Map(rows.map((r) => [Number(r.id), Number(r.user_id)]));
+}
+
+/** Align escrow winner with games.winner_id (net worth / finish-by-time), not cash-only. */
+function resolveWinnerEntryIdFromGame(match, entryIdToUserId, gameWinnerUserId) {
+  if (gameWinnerUserId == null || gameWinnerUserId === "") return null;
+  const w = Number(gameWinnerUserId);
+  if (!Number.isFinite(w)) return null;
+  const sa = Number(match.slot_a_entry_id);
+  const sb = Number(match.slot_b_entry_id);
+  if (entryIdToUserId.get(sa) === w) return sa;
+  if (entryIdToUserId.get(sb) === w) return sb;
+  return null;
+}
+
 /**
  * Idempotent best-effort: run escrow payout/draw + human arena_completion_at + agent ELO once.
  * @param {number} gameId
@@ -62,9 +81,6 @@ export async function settleStakedArenaForFinishedGame(gameId) {
     if (isHumanVsAgent) {
       const ph = players[0];
       const po = players[1];
-      let winnerEntryId = null;
-      if (Number(ph.balance) > Number(po.balance)) winnerEntryId = "a";
-      else if (Number(po.balance) > Number(ph.balance)) winnerEntryId = "b";
 
       const stakeRow = await db("arena_match_stakes").where("game_id", id).where("status", "COLLECTED").first();
       if (stakeRow?.tournament_id) {
@@ -73,12 +89,12 @@ export async function settleStakedArenaForFinishedGame(gameId) {
         const match = await TournamentMatch.findByGameId(id);
         if (match?.slot_a_entry_id != null && match?.slot_b_entry_id != null) {
           const payoutService = await import("./tournamentPayoutService.js");
-          const winId =
-            winnerEntryId === "a"
-              ? match.slot_a_entry_id
-              : winnerEntryId === "b"
-                ? match.slot_b_entry_id
-                : null;
+          const entryIdToUserId = await loadEntryIdToUserId(match);
+          let winId = resolveWinnerEntryIdFromGame(match, entryIdToUserId, game.winner_id);
+          if (winId == null) {
+            if (Number(ph.balance) > Number(po.balance)) winId = Number(match.slot_a_entry_id);
+            else if (Number(po.balance) > Number(ph.balance)) winId = Number(match.slot_b_entry_id);
+          }
           if (winId != null) {
             await TournamentMatch.update(match.id, { winner_entry_id: winId, status: "COMPLETED" });
             await Tournament.update(stakeRow.tournament_id, { status: "COMPLETED" });
@@ -150,12 +166,7 @@ export async function settleStakedArenaForFinishedGame(gameId) {
       return { ok: false, reason: "no_agents" };
     }
 
-    let winnerId = null;
-    if (players[0].balance > players[1].balance) {
-      winnerId = agentA.id;
-    } else if (players[1].balance > players[0].balance) {
-      winnerId = agentB.id;
-    }
+    let winnerAgentIdForElo = null;
 
     const stakeRow = await db("arena_match_stakes").where("game_id", id).where("status", "COLLECTED").first();
     if (stakeRow?.tournament_id) {
@@ -164,8 +175,15 @@ export async function settleStakedArenaForFinishedGame(gameId) {
       const match = await TournamentMatch.findByGameId(id);
       if (match?.slot_a_entry_id != null && match?.slot_b_entry_id != null) {
         const payoutService = await import("./tournamentPayoutService.js");
-        if (winnerId != null) {
-          const winnerEntryId = winnerId === agentA.id ? match.slot_a_entry_id : match.slot_b_entry_id;
+        const entryIdToUserId = await loadEntryIdToUserId(match);
+        let winnerEntryId = resolveWinnerEntryIdFromGame(match, entryIdToUserId, game.winner_id);
+        if (winnerEntryId == null) {
+          if (players[0].balance > players[1].balance) winnerEntryId = Number(match.slot_a_entry_id);
+          else if (players[1].balance > players[0].balance) winnerEntryId = Number(match.slot_b_entry_id);
+        }
+        if (winnerEntryId != null) {
+          winnerAgentIdForElo =
+            Number(winnerEntryId) === Number(match.slot_a_entry_id) ? agentA.id : agentB.id;
           await TournamentMatch.update(match.id, { winner_entry_id: winnerEntryId, status: "COMPLETED" });
           await Tournament.update(stakeRow.tournament_id, { status: "COMPLETED" });
           try {
@@ -206,6 +224,11 @@ export async function settleStakedArenaForFinishedGame(gameId) {
       }
     }
 
+    if (winnerAgentIdForElo == null) {
+      if (players[0].balance > players[1].balance) winnerAgentIdForElo = agentA.id;
+      else if (players[1].balance > players[0].balance) winnerAgentIdForElo = agentB.id;
+    }
+
     await syncArenaStakePaidOutIfPayoutsExist(id);
     const stakeAfter = await db("arena_match_stakes").where("game_id", id).first();
     if (stakeAfter?.status === "COLLECTED") {
@@ -215,8 +238,11 @@ export async function settleStakedArenaForFinishedGame(gameId) {
 
     const alreadyElo = await db("agent_arena_matches").where({ game_id: id }).where("status", "COMPLETED").first();
     if (!alreadyElo) {
-      await eloService.recordArenaResult(agentA.id, agentB.id, winnerId, id);
-      logger.info({ gameId: id, agentAId: agentA.id, agentBId: agentB.id, winnerId }, "Recorded arena ELO");
+      await eloService.recordArenaResult(agentA.id, agentB.id, winnerAgentIdForElo, id);
+      logger.info(
+        { gameId: id, agentAId: agentA.id, agentBId: agentB.id, winnerId: winnerAgentIdForElo },
+        "Recorded arena ELO"
+      );
     }
 
     return { ok: true, path: "agent_vs_agent" };
