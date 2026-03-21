@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-hot-toast";
 import { Crown, Trophy, Sparkles, Wallet, HeartHandshake } from "lucide-react";
@@ -6,6 +6,7 @@ import { Game, Player } from "@/types/game";
 import { apiClient } from "@/lib/api";
 import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
 import { CardModal } from "../../modals/cards";
+import { gameHasRankedPlacements } from "@/lib/utils/games";
 
 interface GameModalsProps {
   winner: Player | null;
@@ -63,6 +64,8 @@ const GameModals: React.FC<GameModalsProps> = ({
   fetchUpdatedGame,
   showToast,
 }) => {
+  const endedByRankedSession = useMemo(() => gameHasRankedPlacements(currentGame), [currentGame]);
+
   const handleRaiseFunds = () => {
     setShowInsolvencyModal(false);
     setIsRaisingFunds(true);
@@ -217,7 +220,9 @@ const GameModals: React.FC<GameModalsProps> = ({
                     transition={{ delay: 0.35 }}
                     className="text-lg text-slate-200 mb-2"
                   >
-                    You had the highest net worth when time ran out.
+                    {endedByRankedSession
+                      ? "You had the highest net worth when the session ended."
+                      : "Congratulations — you won this match."}
                   </motion.p>
                   <motion.p
                     initial={{ opacity: 0 }}
@@ -266,7 +271,7 @@ const GameModals: React.FC<GameModalsProps> = ({
                     transition={{ delay: 0.25 }}
                     className="text-2xl sm:text-3xl font-bold text-slate-200 mb-1"
                   >
-                    Time&apos;s up
+                    {endedByRankedSession ? "Time's up" : "Game over"}
                   </motion.h1>
                   <motion.p
                     initial={{ opacity: 0 }}

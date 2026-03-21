@@ -48,6 +48,7 @@ import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
 import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW, calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUtils";
 import { useAiBankruptcy } from "@/hooks/useAiBankruptcy";
 import { reportAiAction } from "@/lib/agentFeedback";
+import { gameHasRankedPlacements } from "@/lib/utils/games";
 import { MyAgentToggle } from "../MyAgentToggle";
 import { useAgentBindings } from "@/hooks/useAgentBindings";
 import { useAgentSettings } from "@/hooks/useAgentSettings";
@@ -210,6 +211,8 @@ const AiBoard = ({
   const [turnEndScheduled, setTurnEndScheduled] = useState(false);
   const [endByNetWorthStatus, setEndByNetWorthStatus] = useState<{ vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> } | null>(null);
   const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
+
+  const endedByRankedSession = useMemo(() => gameHasRankedPlacements(game), [game]);
 
   const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -1811,7 +1814,9 @@ const endTurnAfterSpecialMove = useCallback(() => {
                     transition={{ delay: 0.35 }}
                     className="text-lg text-slate-200 mb-2"
                   >
-                    You had the highest net worth when time ran out.
+                    {endedByRankedSession
+                      ? "You had the highest net worth when the session ended."
+                      : "Congratulations — you won this match."}
                   </motion.p>
                   <motion.p
                     initial={{ opacity: 0 }}
@@ -1860,7 +1865,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
                     transition={{ delay: 0.25 }}
                     className="text-2xl sm:text-3xl font-bold text-slate-200 mb-1"
                   >
-                    Time&apos;s up
+                    {endedByRankedSession ? "Time's up" : "Game over"}
                   </motion.h1>
                   <motion.p
                     initial={{ opacity: 0 }}
