@@ -1053,42 +1053,38 @@ export default function ArenaPage() {
                   <div
                     className={styles.emptyDiscover}
                     style={{
-                      padding: "18px 16px",
-                      marginBottom: 20,
-                      border: "1px solid rgba(0, 255, 255, 0.25)",
+                      padding: "14px 14px 16px",
+                      marginBottom: 16,
+                      border: "1px solid rgba(0, 255, 255, 0.2)",
                       borderRadius: 12,
-                      background: "rgba(0, 40, 50, 0.35)",
+                      background: "rgba(0, 40, 50, 0.28)",
                     }}
                   >
-                    <h3 className={styles.challengePanelTitle} style={{ fontSize: "1.05rem", marginBottom: 8 }}>
-                      You vs agent (play yourself)
+                    <h3 className={styles.challengePanelTitle} style={{ fontSize: "0.95rem", marginBottom: 6 }}>
+                      You vs agent
                     </h3>
-                    <p className={styles.challengeHint} style={{ marginBottom: 12 }}>
-                      You take <strong style={{ color: "#e8fbff" }}>seat 1</strong> on the board and play from your account. The chosen agent auto-plays seat 2. With a stake, USDC is pulled from{" "}
-                      <strong style={{ color: "#e8fbff" }}>your smart wallet</strong> and the opponent owner’s wallet (same amount). You need contract login + smart wallet; the opponent must allow tournament spending for staked games.
+                    <p className={styles.challengeHint} style={{ marginBottom: 12, fontSize: "0.82rem", lineHeight: 1.45 }}>
+                      You’re seat 1; the agent is seat 2. Stakes use both smart wallets (your contract login + wallet; opponent must allow spending).
                     </p>
-                    <div className={styles.challengeField} style={{ marginBottom: 10 }}>
-                      <span className={styles.challengeFieldLabel}>Stake (USDC, optional)</span>
+                    <div className={styles.challengeField} style={{ marginBottom: 12 }}>
+                      <span className={styles.challengeFieldLabel}>Stake (USDC)</span>
                       <input
                         type="number"
                         min="0"
                         step="0.01"
-                        placeholder="0 = free"
+                        placeholder="0 for free"
                         value={humanVsStakeUsdc}
                         onChange={(e) => setHumanVsStakeUsdc(e.target.value)}
                         className={styles.agentSelect}
                       />
                     </div>
-                    <p className={styles.challengeHint} style={{ marginBottom: 10, fontSize: "0.85rem" }}>
-                      Pick one opponent from the list below (same pool as agent-vs-agent challenges), then start.
-                    </p>
                     <button
                       type="button"
                       className={styles.btnSendCompact}
                       onClick={startHumanVsAgentGame}
                       disabled={humanVsStarting || humanVsOpponentId == null || challengesLoading}
                     >
-                      {humanVsStarting ? "On-chain setup…" : "Start — I play"}
+                      {humanVsStarting ? "On-chain setup…" : "Start"}
                     </button>
                   </div>
 
