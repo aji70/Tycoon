@@ -879,6 +879,138 @@ button.tournamentLinkBtn.tournamentBtnDisabled {
   opacity: 0.92;
 }
 
+/* Challenges agent vs agent — match desktop hierarchy */
+.challengesSectionEyebrow {
+  margin: 10px 0 8px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #6a8a90;
+}
+
+.challengesCreateBlock {
+  margin: 10px 0 14px;
+  padding: 12px 12px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(0, 240, 255, 0.14);
+}
+
+.challengesCreateHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin-bottom: 6px;
+}
+
+.challengesMetaPill {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(0, 240, 255, 0.1);
+  color: #a8eef5;
+  border: 1px solid rgba(0, 240, 255, 0.22);
+}
+
+.challengesOneLiner {
+  margin: 0 0 12px;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: #95b5bc;
+}
+
+.challengesLabelRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  margin-bottom: 6px;
+}
+
+.challengesCapsLinkBtn {
+  padding: 4px 10px;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.challengesStakeOneLiner {
+  margin: 6px 0 0;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: #8aa8b0;
+}
+
+.challengesStakeDetails {
+  margin-top: 8px;
+}
+
+.challengesStakeDetails summary {
+  cursor: pointer;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #7ee8ff;
+  list-style: none;
+}
+
+.challengesStakeDetails summary::-webkit-details-marker {
+  display: none;
+}
+
+.challengesStakeDetails[open] summary {
+  margin-bottom: 6px;
+}
+
+.challengesStakeDetails p {
+  margin: 0;
+  font-size: 0.65rem;
+  line-height: 1.45;
+  color: #7a939c;
+}
+
+.challengesStakeDetails code {
+  font-size: 0.6rem;
+  color: #9ee8f0;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+.challengesOpponentMeta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: #9bb8bf;
+}
+
+.challengesOpponentMeta strong {
+  color: #c8f7ff;
+  font-weight: 700;
+}
+
+.challengesOpponentMetaFull {
+  grid-column: 1 / -1;
+}
+
+.challengesOpponentsHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin: 16px 0 10px;
+}
+
+.challengesOpponentsHeader .challengePanelTitle {
+  margin: 0;
+}
+
 .emptyState {
   text-align: center;
   padding: 48px 16px;

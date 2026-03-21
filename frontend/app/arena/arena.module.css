@@ -928,6 +928,172 @@ button.tournamentLinkBtn.tournamentBtnDisabled:hover {
   gap: 0.5rem;
 }
 
+/* Challenges → agent vs agent: denser setup + opponents */
+.challengesSectionEyebrow {
+  margin: 0.75rem 0 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #6a8a90;
+}
+
+.challengesCreateBlock {
+  margin: 0.75rem 0 1.25rem;
+  padding: 1rem 1.15rem 1.1rem;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(0, 240, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.challengesCreateHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.4rem;
+}
+
+.challengesCreateHeader .challengePanelTitle {
+  font-size: 0.8125rem;
+}
+
+.challengesMetaPill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(0, 240, 255, 0.1);
+  color: #a8eef5;
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  white-space: nowrap;
+}
+
+.challengesOneLiner {
+  margin: 0 0 1rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #95b5bc;
+  max-width: 48rem;
+}
+
+.challengesFormTwoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 1.5rem;
+  align-items: start;
+  margin-bottom: 0.75rem;
+}
+
+@media (max-width: 720px) {
+  .challengesFormTwoCol {
+    grid-template-columns: 1fr;
+  }
+}
+
+.challengesFormTwoCol .challengeField {
+  min-width: 0;
+}
+
+.challengesLabelRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.challengesLabelRow .challengeFieldLabel {
+  margin: 0;
+}
+
+.challengesCapsLinkBtn {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.challengesStakeOneLiner {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: #8aa8b0;
+}
+
+.challengesStakeDetails {
+  margin-top: 0.45rem;
+}
+
+.challengesStakeDetails summary {
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #7ee8ff;
+  opacity: 0.9;
+  list-style: none;
+}
+
+.challengesStakeDetails summary::-webkit-details-marker {
+  display: none;
+}
+
+.challengesStakeDetails[open] summary {
+  margin-bottom: 0.35rem;
+}
+
+.challengesStakeDetails p {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  color: #7a939c;
+}
+
+.challengesStakeDetails code {
+  font-size: 0.65rem;
+  color: #9ee8f0;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 0.1rem 0.25rem;
+  border-radius: 4px;
+}
+
+.challengesOpponentsHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin: 1.35rem 0 0.65rem;
+}
+
+.challengesOpponentsHeader .challengePanelTitle {
+  margin: 0;
+}
+
+.challengesOpponentMeta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.2rem 0.75rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #9bb8bf;
+}
+
+.challengesOpponentMeta span {
+  min-width: 0;
+}
+
+.challengesOpponentMeta strong {
+  color: #c8f7ff;
+  font-weight: 700;
+}
+
+.challengesOpponentMetaFull {
+  grid-column: 1 / -1;
+}
+
 .btnSendCompact {
   display: inline-flex;
   align-items: center;
