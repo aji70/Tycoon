@@ -641,7 +641,7 @@ export async function createSmartWallet(req, res) {
       if (!isRegistered) {
         return res.status(400).json({ success: false, message: "Register on-chain first (e.g. link a wallet and register), then create smart wallet." });
       }
-      if (canCreateWalletForExistingUser()) {
+      if (canCreateWalletForExistingUser(chain)) {
         try {
           const smartWallet = await createWalletForExistingUser(addrForChain, chain);
           if (smartWallet) {
@@ -654,7 +654,10 @@ export async function createSmartWallet(req, res) {
           logger.warn({ err: err?.message, userId: user.id }, "createSmartWallet: createWalletForExistingUser failed");
         }
       } else {
-        logger.warn({ userId: user.id, addrForChain }, "createSmartWallet: TYCOON_OWNER_PRIVATE_KEY not set, cannot call createWalletForExistingUser");
+        logger.warn(
+          { userId: user.id, addrForChain, chain },
+          "createSmartWallet: no registry owner key for chain, cannot call createWalletForExistingUser"
+        );
       }
       const existing = await getSmartWalletAddress(addrForChain, chain);
       if (existing) {
@@ -695,7 +698,7 @@ export async function createSmartWallet(req, res) {
         rawMsg.includes("0x6bc324ad") ||
         (rawMsg.includes("execution reverted") && rawMsg.includes("unknown custom error"));
       const message = isOnlyGame
-        ? "Smart wallet creation failed: backend is not authorized. Set TYCOON_OWNER_PRIVATE_KEY in backend .env to the registry owner's private key (same as contract/.env PRIVATE_KEY used to deploy the User Registry)."
+        ? "Smart wallet creation failed: the backend signer is not the User Registry owner (on-chain onlyGame). Set TYCOON_OWNER_PRIVATE_KEY or REGISTRY_OWNER_PRIVATE_KEY in backend .env to the same private key as contract/.env PRIVATE_KEY used to deploy TycoonUserRegistry. If you only set BACKEND_GAME_CONTROLLER_PRIVATE_KEY, it must be the same wallet as the registry owner, or add TYCOON_OWNER_PRIVATE_KEY for the deployer key."
         : rawMsg || "Could not create smart wallet. Try again or link a wallet in Profile first.";
       return res.status(500).json({ success: false, message });
     }
@@ -1485,7 +1488,7 @@ export async function me(req, res) {
           logger.info({ userId: req.user.id, address: addrForChain, chain: normalizedChain }, "me: registered user on-chain and synced smart wallet");
         } else if (safe.smart_wallet_address == null || safe.smart_wallet_address === "") {
         let smartWallet = await getSmartWalletAddress(addrForChain, normalizedChain);
-        if (!smartWallet && canCreateWalletForExistingUser()) {
+        if (!smartWallet && canCreateWalletForExistingUser(normalizedChain)) {
           try {
             smartWallet = await createWalletForExistingUser(addrForChain, normalizedChain);
             if (smartWallet) {
