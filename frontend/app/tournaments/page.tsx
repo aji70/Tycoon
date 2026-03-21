@@ -9,7 +9,9 @@ import { Swords, ChevronRight, Loader2, Users, Trophy, ChevronLeft } from "lucid
 function formatEntryFee(wei: string | number): string {
   const n = Number(wei);
   if (n === 0) return "Free";
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(2)} USDC`;
+  const usd = n / 1e6;
+  if (usd >= 0.01) return `$${usd.toFixed(2)} USDC`;
+  if (usd > 0) return `$${usd.toFixed(4)} USDC`;
   return `${n} wei`;
 }
 
