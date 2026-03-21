@@ -14,8 +14,16 @@ import {
   readEscrowTournamentLedger,
 } from "./tournamentEscrow.js";
 
-/** On-chain skip reasons that are OK — ledger already settled or never held funds for this id. */
-const OK_ESCROW_SKIP = new Set(["already_finalized_or_cancelled", "escrow_not_configured"]);
+/**
+ * On-chain skip reasons that are OK — ledger already settled, escrow disabled, or no USDC on escrow
+ * for this tournament id (staked arena / legacy paths; DB payout rows still recorded).
+ * Must match lockAndFinalizeTournamentOnEscrow skip reasons we treat as non-fatal.
+ */
+const OK_ESCROW_SKIP = new Set([
+  "already_finalized_or_cancelled",
+  "escrow_not_configured",
+  "zero_onchain_pool",
+]);
 
 /** Match TycoonTournamentEscrow.TournamentStatus */
 const ESCROW_LEDGER_FINALIZED = 3;
