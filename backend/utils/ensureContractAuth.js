@@ -54,6 +54,34 @@ export function buildContractUsername(userId, displayUsername) {
   return combined;
 }
 
+/**
+ * registerPlayerFor reverts "Username taken" when that string is already mapped to another address
+ * (common after linking a new wallet or changing Privy placeholder while keeping the same DB user id).
+ */
+async function registerPlayerForUniqueUsername(effectiveAddress, passwordHash, uid, displayUsername, normalizedChain) {
+  const baseDisplay = (displayUsername && String(displayUsername).trim()) || "p";
+  let lastErr;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const label = attempt === 0 ? baseDisplay : `${baseDisplay}_r${crypto.randomBytes(3).toString("hex")}`;
+    const contractUsername = buildContractUsername(uid, label);
+    try {
+      await registerPlayerFor(effectiveAddress, contractUsername, passwordHash, normalizedChain);
+      return contractUsername;
+    } catch (e) {
+      lastErr = e;
+      const msg = `${e?.reason || ""} ${e?.message || ""} ${e?.shortMessage || ""}`;
+      if (!/Username taken/i.test(msg)) {
+        throw e;
+      }
+      logger.warn(
+        { userId: uid, attempt, contractUsername, addrPrefix: String(effectiveAddress).slice(0, 12) },
+        "registerPlayerFor Username taken — retrying with salted on-chain name"
+      );
+    }
+  }
+  throw lastErr || new Error("Username taken after retries");
+}
+
 async function readOnChainUsername(effectiveAddress, normalizedChain) {
   try {
     const u = await callContractRead("addressToUsername", [effectiveAddress], normalizedChain);
@@ -139,8 +167,13 @@ export async function ensureUserHasContractAuthResult(db, userId, chain = "CELO"
     // register it using the existing hash so backend auth works.
     if (user?.password_hash) {
       if (!isRegistered) {
-        usernameForGames = buildContractUsername(uid, user?.username);
-        await registerPlayerFor(effectiveAddress, usernameForGames, user.password_hash, normalizedChain);
+        usernameForGames = await registerPlayerForUniqueUsername(
+          effectiveAddress,
+          user.password_hash,
+          uid,
+          user?.username,
+          normalizedChain
+        );
         if (shouldSyncSmartWalletFromRegistry(effectiveAddress)) {
           const smartWalletAddress = await getSmartWalletAddress(effectiveAddress, normalizedChain);
           await db("users")
@@ -175,8 +208,13 @@ export async function ensureUserHasContractAuthResult(db, userId, chain = "CELO"
       const onChain = await readOnChainUsername(effectiveAddress, normalizedChain);
       if (onChain) usernameForGames = onChain;
     } else {
-      usernameForGames = buildContractUsername(uid, user?.username);
-      await registerPlayerFor(effectiveAddress, usernameForGames, passwordHash, normalizedChain);
+      usernameForGames = await registerPlayerForUniqueUsername(
+        effectiveAddress,
+        passwordHash,
+        uid,
+        user?.username,
+        normalizedChain
+      );
     }
     const updateRow = { password_hash: passwordHash };
     if (shouldSyncSmartWalletFromRegistry(effectiveAddress)) {
