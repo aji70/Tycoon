@@ -30,6 +30,8 @@ type CenterAreaProps = {
   timerSlot?: React.ReactNode;
   /** When true, show "Time's Up" and hide Roll Dice (time-up by net worth). */
   gameTimeUp?: boolean;
+  /** False when the DB session is no longer RUNNING (e.g. FINISHED) — hides controls even if local timer state lags. */
+  isSessionActive?: boolean;
   /** When true and it's my turn, show "Pay $50 to get out" (leave jail before rolling). */
   inJail?: boolean;
   /** After rolling from jail with no doubles, show Pay / Use card / Stay */
@@ -78,6 +80,7 @@ export default function CenterArea({
   isPending,
   timerSlot,
   gameTimeUp = false,
+  isSessionActive = true,
   inJail = false,
   jailChoiceRequired = false,
   canPayToLeaveJail = false,
@@ -138,7 +141,7 @@ export default function CenterArea({
       </h1>
 
       {/* AI Turn: "Username is playing" — on top, above time */}
-      {isAITurn && (
+      {isAITurn && isSessionActive && !gameTimeUp && (
         <div className="text-center mb-4 z-10">
           <motion.h2
             className="text-xl font-bold text-cyan-400"
@@ -154,14 +157,14 @@ export default function CenterArea({
       {timerSlot && <div className="flex justify-center mb-4 z-10">{timerSlot}</div>}
 
       {/* Time's Up (net worth) — hide roll dice */}
-      {gameTimeUp && (
+      {gameTimeUp && isSessionActive && (
         <div className="text-center mb-4 z-10 font-mono font-bold rounded-xl px-6 py-3 bg-amber-500/20 border-2 border-amber-400/60 text-amber-300 text-lg">
           Time&apos;s Up!
         </div>
       )}
 
       {/* Jail: rolled from jail, no doubles — choose Pay $50 / Use card / Stay */}
-      {!gameTimeUp && isMyTurn && jailChoiceRequired && (
+      {isSessionActive && !gameTimeUp && isMyTurn && jailChoiceRequired && (
         <div className="flex flex-col items-center gap-3 mb-3">
           <p className="text-cyan-200 text-sm font-medium">No doubles. Pay $50, use a card, or stay in jail.</p>
           <div className="flex flex-wrap justify-center gap-2">
@@ -194,7 +197,7 @@ export default function CenterArea({
       )}
 
       {/* Jail: in jail, before rolling — Pay / Use card / Roll */}
-      {!gameTimeUp && isMyTurn && !turnEndScheduled && inJail && !jailChoiceRequired && !roll && !isRolling && (
+      {isSessionActive && !gameTimeUp && isMyTurn && !turnEndScheduled && inJail && !jailChoiceRequired && !roll && !isRolling && (
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           {onPayToLeaveJail && (
             <button
@@ -275,7 +278,7 @@ export default function CenterArea({
       </AnimatePresence>
 
       {/* Player's Turn: Roll or Bankruptcy (when not in jail choice flow) */}
-      {!gameTimeUp && isMyTurn && !turnEndScheduled && !roll && !isRolling && !inJail && !jailChoiceRequired && (
+      {isSessionActive && !gameTimeUp && isMyTurn && !turnEndScheduled && !roll && !isRolling && !inJail && !jailChoiceRequired && (
         playerCanRoll ? (
           <button
             onClick={onRollDice}
@@ -295,7 +298,7 @@ export default function CenterArea({
       )}
 
       {/* AI Tips toggle — when it's human's turn in an AI game */}
-      {isMyTurn && onToggleAiTips && (
+      {isSessionActive && isMyTurn && onToggleAiTips && (
         <label className="flex items-center gap-2 mt-2 z-10 cursor-pointer select-none">
           <span className="text-sm text-cyan-200/90">AI tips</span>
           <button
@@ -318,7 +321,7 @@ export default function CenterArea({
       )}
 
       {/* Buy Property Prompt */}
-      {isMyTurn && buyPrompted && currentProperty && (
+      {isSessionActive && isMyTurn && buyPrompted && currentProperty && (
         <div className="flex flex-col gap-3 items-center mt-4">
           <div className="flex gap-4 flex-wrap justify-center">
             <button
@@ -354,7 +357,7 @@ export default function CenterArea({
       )}
 
       {/* AI Turn: Spinner + subtitle (below Roll Dice area) */}
-      {isAITurn && (
+      {isAITurn && isSessionActive && !gameTimeUp && (
         <div className="mt-5 text-center z-10">
           <div className="flex justify-center mt-4">
             <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyan-400"></div>

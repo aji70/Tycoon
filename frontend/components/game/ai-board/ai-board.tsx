@@ -231,7 +231,11 @@ const AiBoard = ({
   }, [tradeRequests, me]);
 
   const playerCanRoll = Boolean(
-    isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0 && !gameTimeUp
+    game.status === "RUNNING" &&
+      isMyTurn &&
+      currentPlayer &&
+      (currentPlayer.balance ?? 0) > 0 &&
+      !gameTimeUp
   );
 
   // AI with negative balance: liquidate then declare bankruptcy automatically
@@ -275,7 +279,7 @@ const AiBoard = ({
     return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
   }, [landedPositionThisTurn.current, properties]);
 
-  // AI game end is backend-signed (gasless): finish-by-time and game update (e.g. bankruptcy) trigger endAIGameByBackend
+  // AI game end is backend-signed (gasless): timed finish poller / bankruptcy paths trigger endAIGameByBackend
   const [finalizeInProgress, setFinalizeInProgress] = useState(false);
   const buyGuard = usePreventDoubleSubmit();
   const jailGuard = usePreventDoubleSubmit();
@@ -305,34 +309,11 @@ const AiBoard = ({
     timeUpHandledRef.current = true;
     setGameTimeUp(true);
     try {
-      // Backend finishes the game (assigns winner) before we show the modal.
-      const res = await apiClient.post<{
-        success?: boolean;
-        data?: { winner_id: number; game?: { players?: Player[] }; valid_win?: boolean; winner_turn_count?: number };
-      }>(`/games/${game.id}/finish-by-time`);
-      const data = res?.data?.data;
-      const winnerId = data?.winner_id;
-      if (winnerId == null) {
-        throw new Error((res?.data as { error?: string })?.error ?? "Could not finish game by time");
-      }
-      const updatedPlayers = data?.game?.players ?? players;
-      const winnerPlayer = updatedPlayers.find((p) => p.user_id === winnerId) ?? null;
-      setWinner(winnerPlayer);
-      const myPosition = me?.position ?? 0;
-      const myBalance = BigInt(me?.balance ?? 0);
-      const validWin = data?.valid_win !== false;
-      if (winnerId === me?.user_id) {
-        setEndGameCandidate({ winner: me!, position: myPosition, balance: myBalance, validWin });
-      } else {
-        setEndGameCandidate({ winner: null, position: myPosition, balance: myBalance, validWin: true });
-      }
-      await onFinishGameByTime?.(); // invalidate & refetch so parent has updated game
+      await onFinishGameByTime?.();
     } catch (e) {
-      console.error("Time up / finish-by-time failed:", e);
-      timeUpHandledRef.current = false;
-      setGameTimeUp(false);
+      console.error("Refetch after session timer elapsed failed:", e);
     }
-  }, [game.id, game.status, me, players, onFinishGameByTime]);
+  }, [game.status, onFinishGameByTime]);
 
   const handleFinalizeTimeUpAndLeave = useCallback(async () => {
     setShowExitPrompt(false);
@@ -1655,6 +1636,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
               timerSlot={game?.duration && Number(game.duration) > 0 ? (
                 <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} />
               ) : null}
+              isSessionActive={game.status === "RUNNING"}
               gameTimeUp={gameTimeUp}
               inJail={meInJail}
               jailChoiceRequired={jailChoiceRequired}

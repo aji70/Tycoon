@@ -179,13 +179,8 @@ export default function GamePlayPage() {
   /** Call when backend must be set to FINISHED + winner (e.g. when AI wins by time, or when human claims win). */
   const finishGameByTime = useCallback(async () => {
     if (!game?.id || !game?.is_ai || game?.status !== "RUNNING") return;
-    try {
-      await apiClient.post(`/games/${game.id}/finish-by-time`);
-      await queryClient.invalidateQueries({ queryKey: ["game", gameCode] });
-      await refetchGame();
-    } catch (e) {
-      console.error("Finish by time failed:", e);
-    }
+    await queryClient.invalidateQueries({ queryKey: ["game", gameCode] });
+    await refetchGame();
   }, [game?.id, game?.is_ai, game?.status, gameCode, queryClient, refetchGame]);
 
   const finishByTimeGuard = usePreventDoubleSubmit();

@@ -136,12 +136,7 @@ export default function AiPlay3DPage() {
 
   const finishGameByTime = useCallback(async () => {
     if (!game?.id || !game?.is_ai || game?.status !== "RUNNING") return;
-    try {
-      await apiClient.post(`/games/${game.id}/finish-by-time`);
-      await refetchGame();
-    } catch (e) {
-      console.error(e);
-    }
+    await refetchGame();
   }, [game?.id, game?.is_ai, game?.status, refetchGame]);
 
   const finishByTimeGuard = usePreventDoubleSubmit();
