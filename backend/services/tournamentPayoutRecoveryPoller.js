@@ -66,10 +66,16 @@ export function startTournamentPayoutRecoveryPoller() {
   };
 
   const retryStuckArenaStakes = async () => {
+    // Only games linked to a bracket row with both slots — otherwise settleStakedArenaForFinishedGame
+    // always returns player_count / no_agents and spams logs every poll.
     const rows = await db("arena_match_stakes as s")
       .join("games as g", "g.id", "s.game_id")
+      .join("tournament_matches as tm", "tm.game_id", "s.game_id")
       .where("s.status", "COLLECTED")
       .where("g.status", "FINISHED")
+      .whereNotNull("tm.slot_a_entry_id")
+      .whereNotNull("tm.slot_b_entry_id")
+      .groupBy("s.game_id")
       .select("s.game_id")
       .limit(25);
     for (const r of rows) {
@@ -80,6 +86,10 @@ export function startTournamentPayoutRecoveryPoller() {
         if (out?.ok) {
           logger.info({ gameId: gid, path: out.path }, "Recovery: staked arena settlement succeeded");
         } else if (out?.reason && out.reason !== "not_staked_arena_type" && out.reason !== "not_finished") {
+          if (out.reason === "player_count" || out.reason === "no_agents") {
+            logger.debug({ gameId: gid, reason: out.reason }, "Recovery: staked arena skipped (data shape)");
+            continue;
+          }
           logger.warn({ gameId: gid, reason: out.reason }, "Recovery: staked arena settlement still pending or failed");
         }
       } catch (err) {
