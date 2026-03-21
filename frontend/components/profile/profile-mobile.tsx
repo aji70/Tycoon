@@ -866,12 +866,21 @@ export default function ProfilePageMobile() {
   const { guestUser } = guestAuth ?? {};
   const refetchGuest = guestAuth?.refetchGuest;
   const { data: registrySmartWallet, refetch: refetchRegistryWallet } = useUserRegistryWallet(walletAddress);
+  const connectedWalletIsLinked =
+    !!guestUser &&
+    !!walletAddress &&
+    !!guestUser.linked_wallet_address &&
+    isValidWallet(guestUser.linked_wallet_address) &&
+    walletAddress.toLowerCase() === (guestUser.linked_wallet_address as string).toLowerCase();
   const accountSmartWallet = isValidWallet(guestUser?.smart_wallet_address)
     ? (guestUser!.smart_wallet_address as Address)
     : undefined;
-  const smartWalletAddress = isValidWallet(registrySmartWallet)
-    ? (registrySmartWallet as Address)
-    : accountSmartWallet;
+  const smartWalletAddress =
+    connectedWalletIsLinked && isValidWallet(accountSmartWallet)
+      ? accountSmartWallet
+      : isValidWallet(registrySmartWallet)
+        ? (registrySmartWallet as Address)
+        : accountSmartWallet;
   const smartWallet = smartWalletAddress;
   const hasSmartWalletFromCurrentRegistry =
     isValidWallet(registrySmartWallet) && (registrySmartWallet as string) !== "0x0000000000000000000000000000000000000000";

@@ -875,15 +875,23 @@ export default function Profile() {
 
   const { data: registrySmartWallet } = useUserRegistryWallet(walletAddress);
   // Smart wallet can come from on-chain registry OR from the logged-in account (guest/Privy)
-  // Depending on the connected chain / registry deployment, the registry lookup may be empty even though
-  // the account has a smart wallet created on another supported chain. Prefer registry, then fall back.
+  // When the connected wallet is the user's linked wallet, prefer account smart wallet so we show full profile (no mismatch).
+  const connectedWalletIsLinked =
+    !!guestUser &&
+    !!walletAddress &&
+    !!guestUser.linked_wallet_address &&
+    isValidWallet(guestUser.linked_wallet_address) &&
+    walletAddress.toLowerCase() === (guestUser.linked_wallet_address as string).toLowerCase();
   const accountSmartWallet =
     guestUser && isValidWallet(guestUser.smart_wallet_address)
       ? (guestUser.smart_wallet_address as Address)
       : undefined;
-  const smartWalletAddress = isValidWallet(registrySmartWallet)
-    ? (registrySmartWallet as Address)
-    : accountSmartWallet;
+  const smartWalletAddress =
+    connectedWalletIsLinked && isValidWallet(accountSmartWallet)
+      ? accountSmartWallet
+      : isValidWallet(registrySmartWallet)
+        ? (registrySmartWallet as Address)
+        : accountSmartWallet;
   const smartWallet = smartWalletAddress;
   const { data: smartWalletOwner } = useProfileOwner(smartWallet);
 
