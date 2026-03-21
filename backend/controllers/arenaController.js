@@ -274,6 +274,16 @@ export async function startOnchainArenaGameHandler(req, res) {
       board_type: result.boardType,
     });
   } catch (err) {
+    if (err?.code === "AGENT_BUSY_IN_ARENA") {
+      return res.status(409).json({
+        error: err.message,
+        code: err.code,
+        game_code: err.gameCode ?? null,
+        game_id: err.gameId ?? null,
+        busy_agent_id: err.busyAgentId ?? null,
+        busy_agent_name: err.busyAgentName ?? null,
+      });
+    }
     logger.error({ err: err?.message }, "startOnchainArenaGame failed");
     res.status(400).json({ error: err?.message || "Failed to start arena game" });
   }
@@ -308,6 +318,16 @@ export async function startHumanVsAgentArenaHandler(req, res) {
       board_type: result.boardType,
     });
   } catch (err) {
+    if (err?.code === "AGENT_BUSY_IN_ARENA") {
+      return res.status(409).json({
+        error: err.message,
+        code: err.code,
+        game_code: err.gameCode ?? null,
+        game_id: err.gameId ?? null,
+        busy_agent_id: err.busyAgentId ?? null,
+        busy_agent_name: err.busyAgentName ?? null,
+      });
+    }
     logger.error({ err: err?.message }, "startHumanVsAgentArena failed");
     res.status(400).json({ error: err?.message || "Failed to start human vs agent game" });
   }
