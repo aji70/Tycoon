@@ -300,9 +300,11 @@ export async function finishGameByNetWorthAndNotify(io, game) {
 
   await agentRegistry.cleanupGame(game.id);
 
-  tournamentOnGameFinished(game.id).catch((err) =>
-    logger.warn({ err: err?.message, gameId: game.id }, "tournament onGameFinished failed")
-  );
+  try {
+    await tournamentOnGameFinished(game.id);
+  } catch (err) {
+    logger.error({ err: err?.message, gameId: game.id }, "tournament onGameFinished failed");
+  }
 
   const playerUserIds = (result.net_worths || []).map((n) => n.user_id).filter(Boolean);
   User.recordChainGameResult(game.chain || "BASE", result.winner_id, playerUserIds).catch((err) =>
@@ -367,9 +369,11 @@ export async function finishGameByNetWorthAndNotify(io, game) {
   await invalidateGameById(game.id);
   if (io) emitGameUpdate(io, game.code);
 
-  settleStakedArenaForFinishedGame(game.id).catch((err) =>
-    logger.warn({ err: err?.message, gameId: game.id }, "settleStakedArenaForFinishedGame after finishByNetWorth failed")
-  );
+  try {
+    await settleStakedArenaForFinishedGame(game.id);
+  } catch (err) {
+    logger.error({ err: err?.message, gameId: game.id }, "settleStakedArenaForFinishedGame after finishByNetWorth failed");
+  }
 
   return {
     winner_id: result.winner_id,
@@ -621,9 +625,14 @@ const gameController = {
       if (payload.status === "FINISHED") {
         await recordEvent("game_finished", { entityType: "game", entityId: Number(req.params.id), payload: { winner_id: payload.winner_id ?? null } });
         await agentRegistry.cleanupGame(req.params.id);
-        settleStakedArenaForFinishedGame(Number(req.params.id)).catch((err) =>
-          logger.warn({ err: err?.message, gameId: req.params.id }, "settleStakedArenaForFinishedGame on game update FINISHED failed")
-        );
+        try {
+          await settleStakedArenaForFinishedGame(Number(req.params.id));
+        } catch (err) {
+          logger.error(
+            { err: err?.message, gameId: req.params.id },
+            "settleStakedArenaForFinishedGame on game update FINISHED failed"
+          );
+        }
       }
       await invalidateGameById(req.params.id);
       const io = req.app.get("io");

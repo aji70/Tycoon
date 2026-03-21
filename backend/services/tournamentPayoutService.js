@@ -8,7 +8,23 @@ import TournamentEntry from "../models/TournamentEntry.js";
 import TournamentMatch from "../models/TournamentMatch.js";
 import User from "../models/User.js";
 import logger from "../config/logger.js";
-import { lockAndFinalizeTournamentOnEscrow } from "./tournamentEscrow.js";
+import {
+  isEscrowConfigured,
+  lockAndFinalizeTournamentOnEscrow,
+  readEscrowTournamentLedger,
+} from "./tournamentEscrow.js";
+
+/** On-chain skip reasons that are OK — ledger already settled or never held funds for this id. */
+const OK_ESCROW_SKIP = new Set(["already_finalized_or_cancelled", "escrow_not_configured"]);
+
+function assertOnChainPayoutOk(tournamentId, chain, escrowRes, context) {
+  if (!escrowRes?.skipped) return;
+  const reason = escrowRes.reason || "unknown";
+  if (OK_ESCROW_SKIP.has(reason)) return;
+  throw new Error(
+    `${context} tournament ${tournamentId} (${chain}): escrow step skipped (${reason}) — USDC may still be in escrow; fix configuration or chain state and retry`
+  );
+}
 
 /**
  * Persist one tournament payout row (same semantics as executePayouts loop).
@@ -57,8 +73,16 @@ async function insertTournamentPayoutRecord(tournamentId, row) {
 }
 
 /**
- * Staked arena draw: house keeps 5% of the pool; remaining 95% split equally among all entries.
+ * House cut on draw/tie refunds (remainder split equally across entries).
+ * For 2 players: each gets (100 - houseCut) / 2 percent of the pool (e.g. houseCut=10 → 45% / 45% / 10%).
+ * Env: TOURNAMENT_DRAW_HOUSE_CUT_PERCENT (0–100, default 5).
  */
+export function getDrawRefundHouseCutPercent() {
+  const n = Number(process.env.TOURNAMENT_DRAW_HOUSE_CUT_PERCENT);
+  if (!Number.isFinite(n)) return 5;
+  return Math.min(100, Math.max(0, Math.floor(n)));
+}
+
 export async function executeDrawRefunds(tournamentId) {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) throw new Error("Tournament not found");
@@ -85,7 +109,8 @@ export async function executeDrawRefunds(tournamentId) {
     return { done: 0, failed: 0, message: "Zero pool" };
   }
 
-  const houseWei = Math.floor((pool * 5) / 100);
+  const houseCutPct = getDrawRefundHouseCutPercent();
+  const houseWei = Math.floor((pool * houseCutPct) / 100);
   const toPlayers = pool - houseWei;
   const base = Math.floor(toPlayers / count);
   let remainder = toPlayers - base * count;
@@ -107,11 +132,25 @@ export async function executeDrawRefunds(tournamentId) {
   }
 
   if (escrowPlan.length > 0) {
-    const res = await lockAndFinalizeTournamentOnEscrow(tournamentId, tournament.chain, escrowPlan);
-    if (res?.skipped) {
+    if (!isEscrowConfigured(tournament.chain)) {
+      throw new Error(
+        `executeDrawRefunds tournament ${tournamentId}: smart-wallet recipients need on-chain escrow payout but escrow is not configured for ${tournament.chain}`
+      );
+    }
+    const ledger = await readEscrowTournamentLedger(tournamentId, tournament.chain);
+    if (!ledger) {
+      throw new Error(
+        `executeDrawRefunds tournament ${tournamentId}: cannot read escrow ledger on ${tournament.chain} — retry when RPC is healthy`
+      );
+    }
+    const poolOnBooks = ledger.totalEntryFees + ledger.prizePoolDeposited;
+    if (poolOnBooks > 0n) {
+      const res = await lockAndFinalizeTournamentOnEscrow(tournamentId, tournament.chain, escrowPlan);
+      assertOnChainPayoutOk(tournamentId, tournament.chain, res, "executeDrawRefunds");
+    } else {
       logger.warn(
-        { tournamentId, reason: res.reason },
-        "Escrow lock/finalize skipped (e.g. legacy stakes or already finalized); DB payout rows still recorded"
+        { tournamentId, chain: tournament.chain },
+        "executeDrawRefunds: on-chain ledger pool is zero; recording DB refunds only (no escrow transfer)"
       );
     }
   }
@@ -134,8 +173,8 @@ export async function executeDrawRefunds(tournamentId) {
   }
 
   logger.info(
-    { tournamentId, pool, houseWei, toPlayers, count, done, failed },
-    "Draw refunds: 5% house, remainder split equally"
+    { tournamentId, pool, houseWei, houseCutPct, toPlayers, count, done, failed },
+    "Draw refunds: house cut % of pool, remainder split equally"
   );
 
   return { done, failed, message: `Draw refunds: ${done} sent, ${failed} failed`, houseWei, toPlayers };
@@ -221,14 +260,30 @@ export async function executePayouts(tournamentId) {
     if (sw && payout.amount_wei > 0) escrowPlan.push({ address: sw, amountWei: payout.amount_wei });
   }
 
-  if (escrowPlan.length > 0) {
-    const res = await lockAndFinalizeTournamentOnEscrow(tournamentId, tournament.chain, escrowPlan);
-    if (res?.skipped) {
-      logger.warn(
-        { tournamentId, reason: res.reason },
-        "Escrow lock/finalize skipped; DB payout rows still recorded"
+  const positivePayouts = payouts.filter((p) => Number(p.amount_wei) > 0);
+  if (positivePayouts.length > 0 && escrowPlan.length === 0 && isEscrowConfigured(tournament.chain)) {
+    const ledger = await readEscrowTournamentLedger(tournamentId, tournament.chain);
+    if (!ledger) {
+      throw new Error(
+        `executePayouts tournament ${tournamentId}: cannot read escrow ledger on ${tournament.chain} — fix RPC and retry`
       );
     }
+    const poolOnBooks = ledger.totalEntryFees + ledger.prizePoolDeposited;
+    if (poolOnBooks > 0n) {
+      throw new Error(
+        `executePayouts tournament ${tournamentId}: escrow holds USDC but no recipients have smart_wallet_address — cannot transfer; set wallets then retry`
+      );
+    }
+  }
+
+  if (escrowPlan.length > 0) {
+    if (!isEscrowConfigured(tournament.chain)) {
+      throw new Error(
+        `executePayouts tournament ${tournamentId}: payout recipients require on-chain transfer but escrow is not configured for ${tournament.chain}`
+      );
+    }
+    const res = await lockAndFinalizeTournamentOnEscrow(tournamentId, tournament.chain, escrowPlan);
+    assertOnChainPayoutOk(tournamentId, tournament.chain, res, "executePayouts");
   }
 
   let done = 0;

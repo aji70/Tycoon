@@ -212,6 +212,30 @@ export async function registerForTournamentFor(tournamentId, playerAddress, chai
 /** On-chain enum TycoonTournamentEscrow.TournamentStatus */
 const ESCROW_STATUS = { NONE: 0, OPEN: 1, LOCKED: 2, FINALIZED: 3, CANCELLED: 4 };
 
+function isTransientEscrowRpcError(err) {
+  const m = `${err?.shortMessage || ""} ${err?.message || ""} ${err?.code || ""}`;
+  return /timeout|timed out|ECONNRESET|ECONNREFUSED|503|502|429|rate limit|network|nonce|replacement|underpriced/i.test(m);
+}
+
+/**
+ * Retry transient RPC / nonce issues so finalize is less likely to leave funds stuck after a single blip.
+ */
+async function withEscrowRpcRetries(label, fn, maxAttempts = 3) {
+  let last;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      last = err;
+      if (attempt >= maxAttempts || !isTransientEscrowRpcError(err)) throw err;
+      const delayMs = 1200 * attempt;
+      logger.warn({ label, attempt, delayMs, err: err?.message }, "Escrow tx retry after transient error");
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  throw last;
+}
+
 function getEscrowReadOnlyContract(chain) {
   const { rpcUrl, chainId, tournamentEscrowAddress } = getChainConfig(chain);
   if (!rpcUrl || !tournamentEscrowAddress) return null;
@@ -305,14 +329,14 @@ export async function lockAndFinalizeTournamentOnEscrow(tournamentId, chain, pla
     return { skipped: true, reason: "read_failed" };
   }
 
+  if (ledger.status === ESCROW_STATUS.FINALIZED || ledger.status === ESCROW_STATUS.CANCELLED) {
+    return { skipped: true, reason: "already_finalized_or_cancelled" };
+  }
+
   const poolOnBooks = ledger.totalEntryFees + ledger.prizePoolDeposited;
   if (poolOnBooks === 0n) {
     logger.info({ tournamentId, chain }, "Escrow ledger pool is zero; skipping on-chain finalize (legacy stake path or free tournament)");
     return { skipped: true, reason: "zero_onchain_pool" };
-  }
-
-  if (ledger.status === ESCROW_STATUS.FINALIZED || ledger.status === ESCROW_STATUS.CANCELLED) {
-    return { skipped: true, reason: "already_finalized_or_cancelled" };
   }
 
   const ZERO = "0x0000000000000000000000000000000000000000";
@@ -341,7 +365,9 @@ export async function lockAndFinalizeTournamentOnEscrow(tournamentId, chain, pla
   let lockHash;
   if (ledger.status === ESCROW_STATUS.OPEN) {
     try {
-      const lockRes = await lockTournamentOnChain(tournamentId, chain);
+      const lockRes = await withEscrowRpcRetries(`lockTournament:${tournamentId}`, () =>
+        lockTournamentOnChain(tournamentId, chain)
+      );
       lockHash = lockRes?.hash;
     } catch (err) {
       const msg = `${err?.shortMessage || ""} ${err?.message || ""}`;
@@ -357,6 +383,13 @@ export async function lockAndFinalizeTournamentOnEscrow(tournamentId, chain, pla
     );
   }
 
-  const fin = await finalizeTournamentOnChain(tournamentId, recipients, amounts, chain);
-  return { lockHash, finalizeHash: fin?.hash };
+  const fin = await withEscrowRpcRetries(`finalizeTournament:${tournamentId}`, () =>
+    finalizeTournamentOnChain(tournamentId, recipients, amounts, chain)
+  );
+  if (!fin?.hash) {
+    throw new Error(
+      `Escrow finalizeTournament did not return a tx hash for tournament ${tournamentId} on ${chain} — check signer, RPC, and contract configuration`
+    );
+  }
+  return { lockHash, finalizeHash: fin.hash };
 }

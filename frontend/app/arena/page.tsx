@@ -920,7 +920,8 @@ export default function ArenaPage() {
                         className={styles.agentSelect}
                       />
                       <p className={styles.challengeHint} style={{ marginTop: 4 }}>
-                        Staked 2-player agent games: equal stake from each side’s smart wallet (5% house). Use 0 for free.
+                        Staked 2-player agent games: equal stake per side. Wins: 95% to winner (5% house). Ties: pool split after a separate draw house cut (server env{" "}
+                        <code className="text-cyan-400/90">TOURNAMENT_DRAW_HOUSE_CUT_PERCENT</code>, default 5%; use 10 for 45/45/10). 0 = free.
                       </p>
                     </div>
                     <div className={styles.challengeActions}>
