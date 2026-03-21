@@ -848,9 +848,7 @@ export default function ArenaPage() {
             <h2 className={styles.challengePanelTitle}>Challenges</h2>
           </div>
           <p className={styles.challengeHint}>
-            Agents you’ve <strong style={{ color: "#e8fbff" }}>approved to spend</strong> from your smart wallet: a{" "}
-            <strong style={{ color: "#e8fbff" }}>max per match</strong> (entry fee ceiling) and an optional{" "}
-            <strong style={{ color: "#e8fbff" }}>daily total cap</strong>. Opponents in the pool have also enabled spending.
+            You set <strong style={{ color: "#e8fbff" }}>per-match</strong> and optional <strong style={{ color: "#e8fbff" }}>daily</strong> caps on your wallet; everyone here has spending enabled.
           </p>
 
           <div className={styles.challengeSubTabs} role="tablist" aria-label="Challenge type">
@@ -902,7 +900,8 @@ export default function ArenaPage() {
                 </div>
               ) : (
                 <>
-                  <div className={styles.agentsGrid} style={{ marginBottom: 20 }}>
+                  <p className={styles.challengesSectionEyebrow}>Your agents · spending caps</p>
+                  <div className={styles.agentsGrid} style={{ marginBottom: 16 }}>
                     {approvedAgentsForChallenges.map((agent) => {
                       const perm = tournamentPerms[agent.id];
                       return (
@@ -916,87 +915,29 @@ export default function ArenaPage() {
                               {tierLabelOf(agent)}
                             </div>
                           </div>
-                          <div className={styles.agentDiscoverMeta} style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
-                            <span>Max per match: <strong>{formatUsdcDisplay(perm?.max_entry_fee_usdc)}</strong></span>
-                            <span>Daily total cap: <strong>{formatUsdcDisplay(perm?.daily_cap_usdc)}</strong></span>
-                            {perm?.chain && <span>Chain: {perm.chain}</span>}
+                          <div className={styles.challengesOpponentMeta}>
+                            <span>
+                              Per match <strong>{formatUsdcDisplay(perm?.max_entry_fee_usdc)}</strong>
+                            </span>
+                            <span>
+                              Daily <strong>{formatUsdcDisplay(perm?.daily_cap_usdc)}</strong>
+                            </span>
+                            {perm?.chain ? (
+                              <span className={styles.challengesOpponentMetaFull}>
+                                Chain <strong>{perm.chain}</strong>
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                       );
                     })}
                   </div>
 
-                  <div className={styles.challengePanelHead} style={{ marginTop: 8 }}>
-                    <h3 className={styles.challengePanelTitle} style={{ fontSize: "1rem" }}>Create game</h3>
+                  <div className={styles.challengesOpponentsHeader}>
+                    <h3 className={styles.challengePanelTitle}>Pick opponent</h3>
+                    <span className={styles.challengeCountPill}>{discoverList.length} available</span>
                   </div>
-                  <p className={styles.challengeHint}>
-                    Opponents below are also approved to spend. Pick your agent, select <strong style={{ color: "#e8fbff" }}>one</strong> opponent, then Start. (Discover tab allows up to {MAX_DISCOVER_OPPONENTS} for batch games.) Matches run 30 minutes.
-                  </p>
-                  <div className={styles.challengeToolbar}>
-                    <div className={styles.challengeField}>
-                      <span className={styles.challengeFieldLabel}>Playing as</span>
-                      <select
-                        className={styles.agentSelect}
-                        value={challengerAgentId ?? ""}
-                        onChange={(e) => setChallengerAgentId(Number(e.target.value))}
-                        aria-label="Your agent for challenges"
-                      >
-                        {approvedAgentsForChallenges.map((a) => (
-                          <option key={a.id} value={a.id}>{a.name}</option>
-                        ))}
-                      </select>
-                      {challengerAgentId != null && (
-                        <button
-                          type="button"
-                          className={styles.tournamentLinkBtn}
-                          style={{ marginTop: 8, alignSelf: "flex-start" }}
-                          onClick={() => {
-                            setActiveTab("my-agents");
-                            setMyAgentsSubTab("manage");
-                            setOpenTournamentSpendingJumpAgentId(challengerAgentId);
-                          }}
-                        >
-                          Edit wallet spending for this agent
-                        </button>
-                      )}
-                    </div>
-                    <div className={styles.challengeField} style={{ marginTop: 8 }}>
-                      <span className={styles.challengeFieldLabel}>Stake (USDC, optional)</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0 = free"
-                        value={stakeAmountUsdc}
-                        onChange={(e) => setStakeAmountUsdc(e.target.value)}
-                        className={styles.agentSelect}
-                      />
-                      <p className={styles.challengeHint} style={{ marginTop: 4 }}>
-                        Staked 2-player agent games: equal stake per side. Wins: 95% to winner (5% house). Ties: pool split after a separate draw house cut (server env{" "}
-                        <code className="text-cyan-400/90">TOURNAMENT_DRAW_HOUSE_CUT_PERCENT</code>, default 5%; use 10 for 45/45/10). 0 = free.
-                      </p>
-                    </div>
-                    <div className={styles.challengeActions}>
-                      <button
-                        type="button"
-                        className={styles.btnSendCompact}
-                        onClick={startArenaGame}
-                        disabled={arenaStarting || selectedOpponents.length === 0}
-                      >
-                        {arenaStarting ? "On-chain setup…" : `Start${selectedOpponents.length > 0 ? ` · ${selectedOpponents.length + 1}` : ""}`}
-                      </button>
-                      {selectedOpponents.length > 0 && (
-                        <button type="button" className={styles.btnClearCompact} onClick={() => setSelectedOpponents([])}>
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <p className={styles.challengeHint} style={{ marginTop: 12, marginBottom: 4 }}>
-                    Opponents (approved to spend): {discoverList.length}
-                  </p>
-                  <div className={styles.agentsGrid} style={{ marginTop: 8 }}>
+                  <div className={styles.agentsGrid} style={{ marginTop: 4, marginBottom: 8 }}>
                     {discoverList.map((agent) => (
                       <div key={agent.id} className={`${styles.agentCard} ${styles.agentCardDiscover}`}>
                         <div className={styles.agentDiscoverTop}>
@@ -1008,11 +949,21 @@ export default function ArenaPage() {
                             {tierLabelOf(agent)}
                           </div>
                         </div>
-                        <div className={styles.agentDiscoverMeta} style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
-                          <span>XP <strong>{xpOf(agent)}</strong></span>
-                          <span>Max per match: <strong>{formatUsdcDisplay(agent.max_entry_fee_usdc)}</strong></span>
-                          <span>Daily total cap: <strong>{formatUsdcDisplay(agent.daily_cap_usdc)}</strong></span>
-                          {agent.chain && <span>Chain: {agent.chain}</span>}
+                        <div className={styles.challengesOpponentMeta}>
+                          <span>
+                            XP <strong>{xpOf(agent)}</strong>
+                          </span>
+                          <span>
+                            Per match <strong>{formatUsdcDisplay(agent.max_entry_fee_usdc)}</strong>
+                          </span>
+                          <span>
+                            Daily <strong>{formatUsdcDisplay(agent.daily_cap_usdc)}</strong>
+                          </span>
+                          {agent.chain ? (
+                            <span>
+                              Chain <strong>{agent.chain}</strong>
+                            </span>
+                          ) : null}
                         </div>
                         <div className={styles.agentDiscoverFooter}>
                           <span className={styles.creatorNameCompact}>by {agent.username}</span>
@@ -1031,7 +982,7 @@ export default function ArenaPage() {
                     ))}
                   </div>
                   {!loading && discoverList.length === 0 && (
-                    <div className={styles.emptyDiscover} style={{ padding: 16 }}>
+                    <div className={styles.emptyDiscover} style={{ padding: 16, marginBottom: 12 }}>
                       <strong>No approved opponents yet</strong>
                       <p style={{ marginTop: 8, fontSize: "0.9rem", color: "rgba(255,255,255,0.7)" }}>
                         Other users’ agents will appear here once they enable wallet spending in{" "}
@@ -1039,6 +990,84 @@ export default function ArenaPage() {
                       </p>
                     </div>
                   )}
+
+                  <div className={styles.challengesCreateBlock}>
+                    <div className={styles.challengesCreateHeader}>
+                      <h3 className={styles.challengePanelTitle}>Create game</h3>
+                      <span className={styles.challengesMetaPill}>1 opponent · 30 min</span>
+                    </div>
+                    <p className={styles.challengesOneLiner}>
+                      After you pick an opponent above, choose your agent and stake, then Start. For batch games (up to {MAX_DISCOVER_OPPONENTS}), use Discover.
+                    </p>
+                    <div className={styles.challengesFormTwoCol}>
+                      <div className={styles.challengeField}>
+                        <div className={styles.challengesLabelRow}>
+                          <span className={styles.challengeFieldLabel}>Your agent</span>
+                          {challengerAgentId != null ? (
+                            <button
+                              type="button"
+                              className={`${styles.tournamentLinkBtn} ${styles.challengesCapsLinkBtn}`}
+                              onClick={() => {
+                                setActiveTab("my-agents");
+                                setMyAgentsSubTab("manage");
+                                setOpenTournamentSpendingJumpAgentId(challengerAgentId);
+                              }}
+                            >
+                              Edit caps
+                            </button>
+                          ) : null}
+                        </div>
+                        <select
+                          className={styles.agentSelect}
+                          value={challengerAgentId ?? ""}
+                          onChange={(e) => setChallengerAgentId(Number(e.target.value))}
+                          aria-label="Your agent for challenges"
+                        >
+                          {approvedAgentsForChallenges.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className={styles.challengeField}>
+                        <span className={styles.challengeFieldLabel}>Stake (USDC)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0 for free"
+                          value={stakeAmountUsdc}
+                          onChange={(e) => setStakeAmountUsdc(e.target.value)}
+                          className={styles.agentSelect}
+                        />
+                        <p className={styles.challengesStakeOneLiner}>
+                          Same stake both sides · winner 95% · ties split after house cut · leave 0 for free play.
+                        </p>
+                        <details className={styles.challengesStakeDetails}>
+                          <summary>Server / tie-break detail</summary>
+                          <p>
+                            Tie pools use env <code>TOURNAMENT_DRAW_HOUSE_CUT_PERCENT</code> (default 5%). Example: set to 10 for a 45% / 45% / 10% split.
+                          </p>
+                        </details>
+                      </div>
+                    </div>
+                    <div className={styles.challengeActions}>
+                      <button
+                        type="button"
+                        className={styles.btnSendCompact}
+                        onClick={startArenaGame}
+                        disabled={arenaStarting || selectedOpponents.length === 0}
+                      >
+                        {arenaStarting ? "On-chain setup…" : `Start${selectedOpponents.length > 0 ? ` · ${selectedOpponents.length + 1}` : ""}`}
+                      </button>
+                      {selectedOpponents.length > 0 && (
+                        <button type="button" className={styles.btnClearCompact} onClick={() => setSelectedOpponents([])}>
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </>
               )}
             </>
