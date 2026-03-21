@@ -8,6 +8,7 @@
  * - Creates AGENT_VS_AGENT games via agentGameRunner
  */
 
+import crypto from "crypto";
 import db from "../config/database.js";
 import logger from "../config/logger.js";
 import { ACTIVITY_XP, awardActivityXpByAgentId } from "./eloService.js";
@@ -506,6 +507,9 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
     const stakeUnits = stakeNum > 0 ? BigInt(Math.floor(stakeNum * 1e6)) : 0n;
 
     if (stakeUnits > 0n) {
+      if (rosterAgents.length !== 2) {
+        throw new Error("Staked arena matches support only 2 players. Use stake 0 for free multi-player matches.");
+      }
       for (let i = 0; i < rosterAgents.length; i++) {
         const agent = rosterAgents[i];
         const perm = await db("agent_tournament_permissions")
@@ -545,9 +549,6 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
           }
         }
       }
-      throw new Error(
-        "Staked arena matches: fund collection and payout with house cut are coming soon. Use stake_amount_usdc: 0 for free matches."
-      );
     }
 
     const auths = [];
@@ -555,6 +556,100 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
       const auth = await ensureUserHasContractPassword(db, u.id, chain);
       if (!auth) throw new Error("Failed to ensure contract authentication for a player");
       auths.push(auth);
+    }
+
+    let arenaStakeTournamentId = null;
+    let arenaStakeMatchId = null;
+
+    if (stakeUnits > 0n) {
+      const Tournament = (await import("../models/Tournament.js")).default;
+      const TournamentEntry = (await import("../models/TournamentEntry.js")).default;
+      const TournamentMatch = (await import("../models/TournamentMatch.js")).default;
+      const { createTournamentOnChain } = await import("./tournamentEscrow.js");
+      const { signWithdrawalAuthUsdc, withdrawFromSmartWalletUsdc } = await import("./tycoonContract.js");
+
+      const cfg = getChainConfig(chain);
+      const escrow = cfg.tournamentEscrowAddress;
+      const usdc = cfg.usdcAddress ?? process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
+      if (!escrow || !usdc) {
+        throw new Error("Tournament escrow or USDC not configured for this chain. Staked matches are unavailable.");
+      }
+
+      const tournament = await Tournament.create({
+        creator_id: rosterUsers[0].id,
+        name: "Arena stake",
+        status: "IN_PROGRESS",
+        prize_source: "ENTRY_FEE_POOL",
+        max_players: 2,
+        min_players: 2,
+        entry_fee_wei: String(stakeUnits),
+        chain,
+        prize_distribution: { 1: 95 },
+      });
+      arenaStakeTournamentId = tournament.id;
+
+      await createTournamentOnChain(tournament.id, stakeUnits, auths[0].address, chain);
+
+      const entries = [];
+      for (let i = 0; i < 2; i++) {
+        const u = rosterUsers[i];
+        const smartWallet = u.smart_wallet_address && String(u.smart_wallet_address).trim();
+        if (!smartWallet) {
+          throw new Error(
+            `Player ${i + 1} has no smart wallet. Both players need a smart wallet (Profile) for staked matches.`
+          );
+        }
+        const nonce = BigInt("0x" + crypto.randomBytes(8).toString("hex"));
+        const sig = await signWithdrawalAuthUsdc(smartWallet, usdc, escrow, stakeUnits, nonce, chain);
+        const receipt = await withdrawFromSmartWalletUsdc(smartWallet, escrow, stakeUnits, nonce, sig, chain);
+        const paymentTxHash = receipt?.hash ?? null;
+
+        await db("agent_tournament_spend_log").insert({
+          user_id: u.id,
+          user_agent_id: rosterAgents[i].id,
+          tournament_id: tournament.id,
+          chain,
+          amount_usdc: stakeUnits.toString(),
+          tx_hash: paymentTxHash,
+          status: paymentTxHash ? "SUBMITTED" : "FAILED",
+          error: paymentTxHash ? null : "No tx hash returned",
+          created_at: db.fn.now(),
+          updated_at: db.fn.now(),
+        });
+
+        const entry = await TournamentEntry.create({
+          tournament_id: tournament.id,
+          user_id: u.id,
+          address: u.address || auths[i].address,
+          chain: u.chain || chain,
+          seed_order: i + 1,
+          payment_tx_hash: paymentTxHash,
+          status: "CONFIRMED",
+        });
+        entries.push(entry);
+
+        const agent = rosterAgents[i];
+        await db("tournament_entry_agents").insert({
+          tournament_entry_id: entry.id,
+          user_agent_id: agent.id,
+          agent_name: agent.name || null,
+          created_at: db.fn.now(),
+          updated_at: db.fn.now(),
+        });
+      }
+
+      const tMatch = await TournamentMatch.create({
+        tournament_id: tournament.id,
+        round_index: 0,
+        match_index: 0,
+        slot_a_type: "ENTRY",
+        slot_a_entry_id: entries[0].id,
+        slot_b_type: "ENTRY",
+        slot_b_entry_id: entries[1].id,
+        game_id: null,
+        status: "PENDING",
+      });
+      arenaStakeMatchId = tMatch.id;
     }
 
     let code = generateArenaJoinCode6();
@@ -611,6 +706,26 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
       game_type: "ONCHAIN_AGENT_VS_AGENT",
       started_at: db.fn.now(),
     });
+
+    if (arenaStakeTournamentId != null && arenaStakeMatchId != null) {
+      await db("tournament_matches").where("id", arenaStakeMatchId).update({
+        game_id: game.id,
+        contract_game_id: String(contractGameId),
+        status: "IN_PROGRESS",
+        updated_at: db.fn.now(),
+      });
+      const stakeNum = stakeAmountUsdc != null ? Number(stakeAmountUsdc) : 0;
+      await db("arena_match_stakes").insert({
+        game_id: game.id,
+        tournament_id: arenaStakeTournamentId,
+        stake_amount_usdc: String(stakeNum),
+        chain,
+        status: "COLLECTED",
+        collected_at: db.fn.now(),
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+    }
 
     for (let i = 0; i < n; i++) {
       await GamePlayer.create({
