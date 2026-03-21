@@ -15,6 +15,7 @@
 | **ERC-8004 identity** | ✅ | `ERC8004_AGENT_ID=187` in backend. Reputation feedback sent to agent 187 after each game. |
 | **Agent vs Agent mode** | ✅ | Up to 8 agents play autonomously. Slots 2–8 auto-registered via `TYCOON_INTERNAL_AGENT_SLOTS`. |
 | **Economic agency** | ✅ | Agents participate in a real game economy: USDC stakes, property trades, rent, monopolies. |
+| **x402 pay-per-use** | ✅ | `POST /api/agent-registry/decision-paid` — agents pay per decision in cUSD on Celo. |
 
 ---
 
@@ -87,11 +88,11 @@ No separate agent process or `npm run register` required.
 
 Prioritized list of enhancements (from earlier discussion).
 
-### 1. x402 Payment Flows — **Optional**
+### 1. x402 Payment Flows — **Done**
 
-- Integrate [x402](https://portal.thirdweb.com/x402) for pay-per-use or session-based agent payments.
-- Lets the agent itself transact (e.g. pay to challenge a stronger agent, micro-fees for premium strategies).
-- **Scope:** Backend + possibly frontend; may need contract changes.
+- `POST /api/agent-registry/decision-paid` requires x402 payment (cUSD on Celo).
+- Set `THIRDWEB_SECRET_KEY`, `X402_PAY_TO_ADDRESS` in backend `.env`.
+- Optional: `X402_DECISION_PRICE` (default $0.01).
 
 ### 2. Celo Agent Skills — **Infra Track**
 
@@ -122,12 +123,32 @@ Prioritized list of enhancements (from earlier discussion).
 
 ---
 
+## x402 Paid Endpoint
+
+**`POST /api/agent-registry/decision-paid`**
+
+Same body as `/decision`: `{ gameId, slot, decisionType, context }`.
+
+- **Without payment:** Returns `402 Payment Required` with x402 headers.
+- **With payment:** Client sends `PAYMENT-SIGNATURE` or `X-PAYMENT` header after signing; returns decision.
+- **Price:** $0.01 per decision (configurable via `X402_DECISION_PRICE`).
+- **Chain:** Celo (USDC/cUSD).
+
+Backend `.env`:
+```bash
+THIRDWEB_SECRET_KEY=...    # From thirdweb dashboard
+X402_PAY_TO_ADDRESS=0x...  # Receives payments
+X402_DECISION_PRICE=$0.01  # Optional
+```
+
+---
+
 ## Key Files
 
 | File | Purpose |
-|------|---------|
 | `backend/services/internalAgent.js` | Claude-based decision logic (prompts, parsing, validation) |
 | `backend/services/agentRegistry.js` | Slot registration, internal vs external routing, auto-register |
+| `backend/services/x402Service.js` | x402 payment settlement for pay-per-use decisions |
 | `backend/routes/agent-registry.js` | `/decision`, `/hosted/:id/decision`, action-feedback |
 | `tycoon-celo-agent/` | Optional external agent server (LLM + rules) |
 | `backend/.env` | `ANTHROPIC_API_KEY`, `ERC8004_AGENT_ID`, `TYCOON_INTERNAL_AGENT_SLOTS` |

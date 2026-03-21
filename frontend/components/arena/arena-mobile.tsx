@@ -257,15 +257,32 @@ export default function ArenaMobile() {
   }, [activeTab, isAuthed]);
 
   useEffect(() => {
-    if (activeTab !== "my-agents" || myAgentsSubTab !== "overview" || !isAuthed) return;
+    if (activeTab !== "my-agents" || !isAuthed) return;
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiClient.get<ApiResponse<Agent[]>>("/agents");
+        const [agentsRes, permsRes] = await Promise.all([
+          apiClient.get<ApiResponse<Agent[]>>("/agents"),
+          apiClient.get("/agents/tournament-permissions"),
+        ]);
         if (cancelled) return;
-        if (res?.data?.success && res.data.data) {
-          setMyAgents(res.data.data);
+        if (agentsRes?.data?.success && agentsRes.data.data) {
+          setMyAgents(agentsRes.data.data);
         }
+        const list = (permsRes as any)?.data?.data ?? (permsRes as any)?.data ?? [];
+        const arr = Array.isArray(list) ? list : [];
+        const map: Record<number, { enabled: boolean; max_entry_fee_usdc: string; daily_cap_usdc: string | null; chain: string | null }> = {};
+        for (const p of arr) {
+          if (p?.user_agent_id != null) {
+            map[Number(p.user_agent_id)] = {
+              enabled: !!p.enabled,
+              max_entry_fee_usdc: p.max_entry_fee_usdc ?? "0",
+              daily_cap_usdc: p.daily_cap_usdc ?? null,
+              chain: p.chain ?? null,
+            };
+          }
+        }
+        setTournamentPerms(map);
       } catch (e) {
         console.error("Refresh my agents (overview):", e);
       }
@@ -885,7 +902,7 @@ export default function ArenaMobile() {
               {myAgentsSubTab === "overview" ? (
                 <div className={styles.myAgentsList}>
                   <p className={styles.challengeHint} style={{ marginBottom: 12, fontSize: "0.8rem" }}>
-                    Quick: Discover + Celo. <strong>Full manager</strong> for create, keys, skills.
+                    Quick: Discover, <strong>Can spend</strong>, Celo. <strong>Full manager</strong> to enable spending (Tournaments) or create agents.
                   </p>
                   {myAgents.length > 0 ? (
                     myAgents.map((agent) => (
@@ -910,6 +927,14 @@ export default function ArenaMobile() {
                           <div className={styles.stat}>
                             <span className={styles.label}>Discover</span>
                             <span className={styles.value}>{agent.is_public ? "On" : "Off"}</span>
+                          </div>
+                          <div className={styles.stat}>
+                            <span className={styles.label}>Can spend</span>
+                            <span className={styles.value}>
+                              {tournamentPerms[agent.id]?.enabled
+                                ? `Yes · ${formatUsdcDisplay(tournamentPerms[agent.id]?.max_entry_fee_usdc)} max`
+                                : "No"}
+                            </span>
                           </div>
                         </div>
                         <p className={styles.creator} style={{ marginTop: 6 }}>

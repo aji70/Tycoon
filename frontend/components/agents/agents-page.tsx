@@ -834,8 +834,8 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
                     <p className="font-semibold text-white truncate flex items-center gap-2">
                       <span className="truncate">{a.name}</span>
                       {tournamentPerms[a.id]?.enabled ? (
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-200 bg-emerald-500/15 border border-emerald-400/30 px-2 py-0.5 rounded-full">
-                          Auto-join
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-200 bg-emerald-500/15 border border-emerald-400/30 px-2 py-0.5 rounded-full" title="Approved to spend from your smart wallet (tournament entry fees)">
+                          Approved to spend
                         </span>
                       ) : null}
                     </p>
