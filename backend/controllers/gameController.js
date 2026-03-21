@@ -31,7 +31,7 @@ import {
   parseGameByCodeResult,
   isStarknetConfigured,
 } from "../services/starknetContract.js";
-import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
+import { ensureUserHasContractPassword, ensureGuestContractPlayReady } from "../utils/ensureContractAuth.js";
 import { onGameFinished as tournamentOnGameFinished } from "../services/tournamentService.js";
 import { settleStakedArenaForFinishedGame } from "../services/arenaStakeSettlement.js";
 import { submitErc8004Feedback as submitErc8004FeedbackTx } from "../services/erc8004Feedback.js";
@@ -1526,14 +1526,21 @@ export const createOnchainAgentVsAI = async (req, res) => {
       return res.status(400).json({ success: false, message: "Game code already exists" });
     }
 
-    const addrForCreate = getOnchainAddressForGuestFlow(user);
-    const contractUser = await ensureUserHasContractPassword(db, user.id, chainForCreate, addrForCreate);
-    if (!contractUser?.password_hash) {
+    const rPlay = await ensureGuestContractPlayReady(db, user, chainForCreate);
+    if (!rPlay.ok) {
       return res.status(403).json({
         success: false,
-        message: "Your account is not set up for play on this network. Link a wallet in Profile and register on-chain, then try again.",
+        code: "ONCHAIN_PLAYER_SETUP_FAILED",
+        message:
+          "Your account is not set up for play on this network. Open Profile once, link a wallet if needed, then try again.",
+        reason: rPlay.reason,
       });
     }
+    const contractUser = {
+      address: rPlay.address,
+      username: rPlay.username,
+      password_hash: rPlay.password_hash,
+    };
 
     await syncBackendPasswordIfMissingOnChain(
       contractUser.address,
@@ -2001,14 +2008,17 @@ async function startOnchainAgentVsAgentInternal({ req, gameId, starterUserId }) 
 
   const contractByOwnerId = new Map();
   for (const [ownerId, owner] of ownerById.entries()) {
-    const addrForChain = getOnchainAddressForGuestFlow(owner);
-    const contractUser = await ensureUserHasContractPassword(db, ownerId, chainForStart, addrForChain);
-    if (!contractUser?.password_hash) {
+    const rPlay = await ensureGuestContractPlayReady(db, owner, chainForStart);
+    if (!rPlay.ok) {
       throw new Error(
-        `Player for owner ${owner.username} is not set up for on-chain play on ${chainForStart}`
+        `Player for owner ${owner.username} is not set up for on-chain play on ${chainForStart}: ${rPlay.reason}`
       );
     }
-    contractByOwnerId.set(ownerId, contractUser);
+    contractByOwnerId.set(ownerId, {
+      address: rPlay.address,
+      username: rPlay.username,
+      password_hash: rPlay.password_hash,
+    });
   }
 
   // Create on-chain game with creator (slot 1).
@@ -2376,6 +2386,18 @@ function canUseGuestFlow(user) {
   return user && (user.is_guest === true || (user.privy_did && String(user.privy_did).trim()));
 }
 
+/** 403 when ensureGuestContractPlayReady fails — includes `reason` for debugging (RPC, env, registration). */
+function jsonGuestOnchainSetupFailed(res, reason, forJoin = false) {
+  return res.status(403).json({
+    success: false,
+    code: "ONCHAIN_PLAYER_SETUP_FAILED",
+    message: forJoin
+      ? "Your account could not be prepared to join on this network. Open Profile once, link a wallet if needed, and use the same chain as the game."
+      : "Your account could not be prepared to create games on this network. Open Profile once, link a wallet if needed, or confirm the server has the game contract and RPC configured for this chain.",
+    reason: reason || "Unknown",
+  });
+}
+
 /**
  * Staked guest games: stake USDC lives on the TycoonUserWallet. Register that address on Tycoon (if needed),
  * verify withdrawal PIN, then approve USDC to the game contract via executeCallWithAuth.
@@ -2510,14 +2532,15 @@ export const createAsGuest = async (req, res) => {
       }
     } else {
       // Free games: linked EOA, smart wallet (wallet-first Privy), or placeholder.
-      const addrForChain = getOnchainAddressForGuestFlow(user);
-      contractUser = await ensureUserHasContractPassword(db, user.id, chainForCreate, addrForChain);
-      if (!contractUser?.password_hash) {
-        return res.status(403).json({
-          success: false,
-          message: "Guest authentication required. Link a wallet or use a guest account that can create games.",
-        });
+      const rPlay = await ensureGuestContractPlayReady(db, user, chainForCreate);
+      if (!rPlay.ok) {
+        return jsonGuestOnchainSetupFailed(res, rPlay.reason, false);
       }
+      contractUser = {
+        address: rPlay.address,
+        username: rPlay.username,
+        password_hash: rPlay.password_hash,
+      };
     }
     const numberOfAI = isAI ? Math.max(1, (number_of_players ?? 2) - 1) : 0;
     const numberOfPlayersProbe = Math.max(
@@ -2744,14 +2767,15 @@ export const joinAsGuest = async (req, res) => {
         throw err;
       }
     } else {
-      const addrForJoin = getOnchainAddressForGuestFlow(user);
-      contractUser = await ensureUserHasContractPassword(db, user.id, chainForJoin, addrForJoin);
-      if (!contractUser?.password_hash) {
-        return res.status(403).json({
-          success: false,
-          message: "Guest authentication required. Link a wallet or use a guest account that can join games.",
-        });
+      const rPlay = await ensureGuestContractPlayReady(db, user, chainForJoin);
+      if (!rPlay.ok) {
+        return jsonGuestOnchainSetupFailed(res, rPlay.reason, true);
       }
+      contractUser = {
+        address: rPlay.address,
+        username: rPlay.username,
+        password_hash: rPlay.password_hash,
+      };
     }
 
     // Sync with contract: reject if game is already full on-chain (e.g. wallet user joined first)
@@ -2875,14 +2899,15 @@ export const createAIAsGuest = async (req, res) => {
     const numberOfAI = number_of_players != null ? Math.max(1, Number(number_of_players) - 1) : 1;
     const chainForAICreate = User.normalizeChain(chain || "CELO");
 
-    const addrForCreate = getOnchainAddressForGuestFlow(user);
-    const contractUser = await ensureUserHasContractPassword(db, user.id, chainForAICreate, addrForCreate);
-    if (!contractUser?.password_hash) {
-      return res.status(403).json({
-        success: false,
-        message: "Guest authentication required. Link a wallet or use a guest account that can create games.",
-      });
+    const rPlay = await ensureGuestContractPlayReady(db, user, chainForAICreate);
+    if (!rPlay.ok) {
+      return jsonGuestOnchainSetupFailed(res, rPlay.reason, false);
     }
+    const contractUser = {
+      address: rPlay.address,
+      username: rPlay.username,
+      password_hash: rPlay.password_hash,
+    };
 
     await syncBackendPasswordIfMissingOnChain(
       contractUser.address,
