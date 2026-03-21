@@ -17,6 +17,10 @@ import {
 /** On-chain skip reasons that are OK — ledger already settled or never held funds for this id. */
 const OK_ESCROW_SKIP = new Set(["already_finalized_or_cancelled", "escrow_not_configured"]);
 
+/** Match TycoonTournamentEscrow.TournamentStatus */
+const ESCROW_LEDGER_FINALIZED = 3;
+const ESCROW_LEDGER_CANCELLED = 4;
+
 function assertOnChainPayoutOk(tournamentId, chain, escrowRes, context) {
   if (!escrowRes?.skipped) return;
   const reason = escrowRes.reason || "unknown";
@@ -24,6 +28,81 @@ function assertOnChainPayoutOk(tournamentId, chain, escrowRes, context) {
   throw new Error(
     `${context} tournament ${tournamentId} (${chain}): escrow step skipped (${reason}) — USDC may still be in escrow; fix configuration or chain state and retry`
   );
+}
+
+/**
+ * Build smart-wallet recipient plan from computed payout rows (same amounts as DB payout records).
+ */
+async function buildEscrowPlanForPayoutList(payouts) {
+  const escrowPlan = [];
+  for (const payout of payouts) {
+    const entry = await TournamentEntry.findById(payout.entry_id);
+    if (!entry) continue;
+    const user = await User.findById(entry.user_id);
+    const sw = user?.smart_wallet_address && String(user.smart_wallet_address).trim();
+    if (sw && payout.amount_wei > 0) escrowPlan.push({ address: sw, amountWei: payout.amount_wei });
+  }
+  return escrowPlan;
+}
+
+/**
+ * When tournament_payouts rows already exist (idempotent skip) but escrow is still Open/Locked with USDC,
+ * run lock+finalize so funds are not stranded. No-op if already Finalized/Cancelled or on-chain pool is zero.
+ */
+async function tryReconcileEscrowFinalize(tournamentId, chain, escrowPlan, context) {
+  if (!escrowPlan?.length) return { reconciled: false, reason: "no_plan" };
+  if (!isEscrowConfigured(chain)) return { reconciled: false, reason: "escrow_not_configured" };
+
+  const ledger = await readEscrowTournamentLedger(tournamentId, chain);
+  if (!ledger) {
+    logger.warn({ tournamentId, chain, context }, "tryReconcileEscrowFinalize: ledger read failed");
+    return { reconciled: false, reason: "read_failed" };
+  }
+  if (ledger.status === ESCROW_LEDGER_FINALIZED || ledger.status === ESCROW_LEDGER_CANCELLED) {
+    return { reconciled: false, reason: "already_settled_on_chain" };
+  }
+  const poolOnBooks = ledger.totalEntryFees + ledger.prizePoolDeposited;
+  if (poolOnBooks === 0n) {
+    return { reconciled: false, reason: "zero_onchain_pool" };
+  }
+
+  const res = await lockAndFinalizeTournamentOnEscrow(tournamentId, chain, escrowPlan);
+  assertOnChainPayoutOk(tournamentId, chain, res, context);
+  logger.info({ tournamentId, chain, context }, "Escrow lock+finalize reconciled (payout rows existed without prior finalize)");
+  return { reconciled: true, res };
+}
+
+async function buildDrawRefundRowsAndEscrowPlan(tournamentId, tournament) {
+  const entries = await TournamentEntry.findByTournament(tournamentId);
+  if (!entries?.length) return null;
+
+  const count = entries.length;
+  const pool = (Number(tournament.entry_fee_wei) || 0) * count;
+  if (pool <= 0) return null;
+
+  const houseCutPct = getDrawRefundHouseCutPercent();
+  const houseWei = Math.floor((pool * houseCutPct) / 100);
+  const toPlayers = pool - houseWei;
+  const base = Math.floor(toPlayers / count);
+  let remainder = toPlayers - base * count;
+
+  const rows = [];
+  let rem = remainder;
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    const amountWei = base + (rem > 0 ? 1 : 0);
+    if (rem > 0) rem -= 1;
+    rows.push({ entry, amountWei });
+  }
+
+  const escrowPlan = [];
+  for (const { entry, amountWei } of rows) {
+    const user = await User.findById(entry.user_id);
+    const sw = user?.smart_wallet_address && String(user.smart_wallet_address).trim();
+    if (sw && amountWei > 0) escrowPlan.push({ address: sw, amountWei });
+  }
+
+  return { rows, escrowPlan, pool, houseWei, toPlayers, count, houseCutPct };
 }
 
 /**
@@ -93,43 +172,36 @@ export async function executeDrawRefunds(tournamentId) {
   const existingRow = await db("tournament_payouts").where({ tournament_id: tournamentId }).count("* as c").first();
   const existingCount = Number(existingRow?.c ?? 0);
   if (existingCount > 0) {
+    const matches = await TournamentMatch.findByTournament(tournamentId);
+    const rounds = [...new Set((matches || []).map((m) => m.round_index))].sort((a, b) => b - a);
+    const finalMatch = matches?.find((m) => m.round_index === rounds[0] && m.match_index === 0);
+    const isDrawOutcome = finalMatch != null && finalMatch.winner_entry_id == null;
+    if (isDrawOutcome) {
+      const built = await buildDrawRefundRowsAndEscrowPlan(tournamentId, tournament);
+      if (built?.escrowPlan?.length) {
+        await tryReconcileEscrowFinalize(
+          tournamentId,
+          tournament.chain,
+          built.escrowPlan,
+          "executeDrawRefunds(idempotent)"
+        );
+      }
+    }
     logger.info({ tournamentId, existingCount }, "executeDrawRefunds: rows already exist; idempotent skip");
     return { done: existingCount, failed: 0, message: "Already recorded", skipped: true, houseWei: 0, toPlayers: 0 };
   }
 
-  const entries = await TournamentEntry.findByTournament(tournamentId);
-  if (!entries?.length) {
-    logger.info({ tournamentId }, "executeDrawRefunds: no entries");
-    return { done: 0, failed: 0, message: "No entries" };
-  }
-
-  const count = entries.length;
-  const pool = (Number(tournament.entry_fee_wei) || 0) * count;
-  if (pool <= 0) {
+  const built = await buildDrawRefundRowsAndEscrowPlan(tournamentId, tournament);
+  if (!built) {
+    const entries = await TournamentEntry.findByTournament(tournamentId);
+    if (!entries?.length) {
+      logger.info({ tournamentId }, "executeDrawRefunds: no entries");
+      return { done: 0, failed: 0, message: "No entries" };
+    }
     return { done: 0, failed: 0, message: "Zero pool" };
   }
 
-  const houseCutPct = getDrawRefundHouseCutPercent();
-  const houseWei = Math.floor((pool * houseCutPct) / 100);
-  const toPlayers = pool - houseWei;
-  const base = Math.floor(toPlayers / count);
-  let remainder = toPlayers - base * count;
-
-  const rows = [];
-  let rem = remainder;
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i];
-    const amountWei = base + (rem > 0 ? 1 : 0);
-    if (rem > 0) rem -= 1;
-    rows.push({ entry, amountWei });
-  }
-
-  const escrowPlan = [];
-  for (const { entry, amountWei } of rows) {
-    const user = await User.findById(entry.user_id);
-    const sw = user?.smart_wallet_address && String(user.smart_wallet_address).trim();
-    if (sw && amountWei > 0) escrowPlan.push({ address: sw, amountWei });
-  }
+  const { rows, escrowPlan, pool, houseWei, toPlayers, count, houseCutPct } = built;
 
   if (escrowPlan.length > 0) {
     if (!isEscrowConfigured(tournament.chain)) {
@@ -241,6 +313,11 @@ export async function executePayouts(tournamentId) {
   const existingRow = await db("tournament_payouts").where({ tournament_id: tournamentId }).count("* as c").first();
   const existingCount = Number(existingRow?.c ?? 0);
   if (existingCount > 0) {
+    const payouts = await computePayouts(tournamentId);
+    const escrowPlan = await buildEscrowPlanForPayoutList(payouts);
+    if (escrowPlan.length > 0) {
+      await tryReconcileEscrowFinalize(tournamentId, tournament.chain, escrowPlan, "executePayouts(idempotent)");
+    }
     logger.info({ tournamentId, existingCount }, "executePayouts: rows already exist; idempotent skip");
     return { done: existingCount, failed: 0, message: "Already recorded", skipped: true };
   }
@@ -251,14 +328,7 @@ export async function executePayouts(tournamentId) {
     return { done: 0, failed: 0, message: "No payouts" };
   }
 
-  const escrowPlan = [];
-  for (const payout of payouts) {
-    const entry = await TournamentEntry.findById(payout.entry_id);
-    if (!entry) continue;
-    const user = await User.findById(entry.user_id);
-    const sw = user?.smart_wallet_address && String(user.smart_wallet_address).trim();
-    if (sw && payout.amount_wei > 0) escrowPlan.push({ address: sw, amountWei: payout.amount_wei });
-  }
+  const escrowPlan = await buildEscrowPlanForPayoutList(payouts);
 
   const positivePayouts = payouts.filter((p) => Number(p.amount_wei) > 0);
   if (positivePayouts.length > 0 && escrowPlan.length === 0 && isEscrowConfigured(tournament.chain)) {
