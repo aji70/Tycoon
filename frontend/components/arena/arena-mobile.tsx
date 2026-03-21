@@ -473,10 +473,7 @@ export default function ArenaMobile() {
     } catch (err) {
       const e = err as ApiError;
       if (e.status === 409 && e.data?.code === "AGENT_BUSY_IN_ARENA") {
-        setArenaTxBusy({
-          message: e.message,
-          gameCode: String(e.data?.game_code ?? ""),
-        });
+        setArenaTxBusy({ message: e.message });
       } else {
         setArenaTxModalOpen(false);
         alert(`Error: ${e.message || (err as Error).message}`);
@@ -516,10 +513,7 @@ export default function ArenaMobile() {
     } catch (err) {
       const e = err as ApiError;
       if (e.status === 409 && e.data?.code === "AGENT_BUSY_IN_ARENA") {
-        setArenaTxBusy({
-          message: e.message,
-          gameCode: String(e.data?.game_code ?? ""),
-        });
+        setArenaTxBusy({ message: e.message });
       } else {
         setArenaTxModalOpen(false);
         alert(`Error: ${e.message || (err as Error).message}`);
