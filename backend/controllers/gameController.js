@@ -374,6 +374,80 @@ export async function finishGameByNetWorthAndNotify(io, game) {
 }
 
 /**
+ * If the session is timed and end time has passed, finish by net worth (same as POST /games/:id/finish-by-time).
+ * Used by the HTTP handler and by timedGameFinishPoller.
+ *
+ * @param {number|string} gameId
+ * @param {object|null} io - socket.io server for emitGameUpdate (optional)
+ */
+export async function tryFinishTimedGameById(gameId, io) {
+  try {
+    const game = await Game.findById(gameId);
+    if (!game) {
+      return { outcome: "not_found" };
+    }
+    if (game.status === "FINISHED" || game.status === "CANCELLED") {
+      return {
+        outcome: "already_finished",
+        game,
+        winner_id: game.winner_id,
+      };
+    }
+    if (!FINISHABLE_GAME_STATUSES.includes(game.status)) {
+      return { outcome: "bad_request", error: "Game is not running" };
+    }
+
+    const durationMinutes = Number(game.duration) || 0;
+    if (durationMinutes <= 0) {
+      return { outcome: "bad_request", error: "Game has no duration" };
+    }
+    const startAt = game.started_at || game.created_at;
+    const endMs = new Date(startAt).getTime() + durationMinutes * 60 * 1000;
+    if (Date.now() < endMs - 30000) {
+      return { outcome: "bad_request", error: "Game time has not ended yet" };
+    }
+
+    const notifyResult = await finishGameByNetWorthAndNotify(io, game);
+    if (!notifyResult) {
+      const updated = await Game.findById(game.id);
+      if (updated?.status === "FINISHED") {
+        return {
+          outcome: "already_finished",
+          game: updated,
+          winner_id: updated.winner_id,
+        };
+      }
+      return { outcome: "bad_request", error: "Could not compute winner" };
+    }
+
+    await recordEvent("game_finished", {
+      entityType: "game",
+      entityId: game.id,
+      payload: { winner_id: notifyResult.winner_id },
+    });
+
+    const updated = await Game.findById(game.id);
+    const parsedPlacements = notifyResult.placements;
+    return {
+      outcome: "finished",
+      data: {
+        game: updated,
+        winner_id: notifyResult.winner_id,
+        winner_turn_count: notifyResult.winner_turn_count || 0,
+        valid_win: notifyResult.valid_win !== false,
+        placements: parsedPlacements,
+      },
+    };
+  } catch (err) {
+    logger.error({ err, gameId }, "tryFinishTimedGameById error");
+    return {
+      outcome: "error",
+      message: err?.message || "Failed to finish game by time",
+    };
+  }
+}
+
+/**
  * Game Controller
  *
  * Handles requests related to game sessions.
@@ -734,157 +808,32 @@ const gameController = {
    */
   async finishByTime(req, res) {
     try {
-      const game = await Game.findById(req.params.id);
-      if (!game) return res.status(404).json({ success: false, error: "Game not found" });
-      // Idempotent: if already finished, return success so frontend can show modal with winner_id
-      if (game.status === "FINISHED" || game.status === "CANCELLED") {
-        return res.status(200).json({
-          success: true,
-          message: "Game already concluded",
-          data: { game, winner_id: game.winner_id, valid_win: true },
-        });
-      }
-      if (!FINISHABLE_GAME_STATUSES.includes(game.status)) {
-        return res.status(400).json({ success: false, error: "Game is not running" });
-      }
-
-      const durationMinutes = Number(game.duration) || 0;
-      if (durationMinutes <= 0) return res.status(400).json({ success: false, error: "Game has no duration" });
-
-      const startAt = game.started_at || game.created_at;
-      const endMs = new Date(startAt).getTime() + durationMinutes * 60 * 1000;
-      // Allow up to 30s before end: handles client/server clock skew; countdown fires at 0.
-      if (Date.now() < endMs - 30000) return res.status(400).json({ success: false, error: "Game time has not ended yet" });
-
-      const result = await computeWinnerByNetWorth(game);
-      if (!result || result.winner_id == null) return res.status(400).json({ success: false, error: "Could not compute winner" });
-
-      const sortedByNetWorth = [...(result.net_worths || [])].sort((a, b) => (a.net_worth ?? 0) - (b.net_worth ?? 0));
-      let placements = {};
-      for (let i = 0; i < sortedByNetWorth.length; i++) {
-        const position = sortedByNetWorth.length - i;
-        placements[sortedByNetWorth[i].user_id] = position;
-      }
-
-      const updatePayload = { status: "FINISHED", winner_id: result.winner_id };
-      if (placements) updatePayload.placements = JSON.stringify(placements);
-
-      // Atomic claim: only one request wins the transition RUNNING/IN_PROGRESS → FINISHED. Others get 0 rows and return existing game.
-      const rowCount = await db("games")
-        .where({ id: game.id })
-        .whereIn("status", FINISHABLE_GAME_STATUSES)
-        .update({ ...updatePayload, updated_at: db.fn.now() });
-
-      if (rowCount === 0) {
-        const updated = await Game.findById(game.id);
-        return res.status(200).json({
-          success: true,
-          message: "Game already concluded",
-          data: { game: updated, winner_id: updated?.winner_id, valid_win: true },
-        });
-      }
-
-      await agentRegistry.cleanupGame(game.id);
-      await recordEvent("game_finished", { entityType: "game", entityId: game.id, payload: { winner_id: result.winner_id } });
-      tournamentOnGameFinished(game.id).catch((err) =>
-        logger.warn({ err: err?.message, gameId: game.id }, "tournament onGameFinished failed")
-      );
-
-      const playerUserIds = (result.net_worths || []).map((n) => n.user_id).filter(Boolean);
-      User.recordChainGameResult(game.chain || "BASE", result.winner_id, playerUserIds).catch((err) =>
-        logger.warn({ err: err?.message, gameId: game.id }, "recordChainGameResult failed")
-      );
-
-      // We won the race — run contract removals. Catch errors so "Not in game" (another request removed them) doesn't fail us.
-  let contractGameIdToUse = game.contract_game_id;
-  const chainForContract = User.normalizeChain(game.chain || "CELO");
-  if (!game.is_ai && isContractConfigured(chainForContract) && game.code) {
-        if (!contractGameIdToUse) {
-          try {
-            const contractGame = await callContractRead("getGameByCode", [(game.code || "").trim().toUpperCase()], chainForContract);
-            const onChainId = contractGame?.id ?? contractGame?.[0];
-            if (onChainId != null && onChainId !== "") {
-              contractGameIdToUse = String(onChainId);
-              await db("games").where({ id: game.id }).update({ contract_game_id: contractGameIdToUse });
-            }
-          } catch (err) {
-            logger.warn({ err: err?.message, gameId: game.id, code: game.code }, "getGameByCode in finishByTime failed");
-          }
-        }
-      }
-      if (contractGameIdToUse && isContractConfigured(chainForContract)) {
-        if (game.is_ai) {
-          const creator = await ensureUserHasContractPassword(db, game.creator_id, chainForContract) ||
-            (await db("users").where({ id: game.creator_id }).select("address", "username", "password_hash").first());
-          const humanGp = await db("game_players").where({ game_id: game.id, user_id: game.creator_id }).select("position", "balance").first();
-          if (creator?.address && creator?.password_hash && humanGp) {
-            const isWin = result.winner_id === game.creator_id;
-            await endAIGameByBackend(
-              creator.address,
-              creator.username || "",
-              creator.password_hash,
-              contractGameIdToUse,
-              Number(humanGp.position ?? 0),
-              String(humanGp.balance ?? 0),
-              isWin,
-              chainForContract
-            ).catch((err) => logger.warn({ err: err?.message, gameId: game.id }, "endAIGameByBackend failed (game already ended on-chain?)"));
-          }
-        } else {
-          // Multiplayer: remove players from contract in order (lowest net worth first).
-          // When we remove the second-to-last player (last loser), the contract in that same tx:
-          // - pays that player their rank payout, then sees joinedPlayers == 1,
-          // - ends the game and pays the remaining player (the winner) via _payoutReward(winner, rank 1).
-          // So the winner (guest or wallet user) already receives USDC/rewards in that backend-driven tx;
-          // no wallet signing is needed — "Finalize & go home" only syncs DB.
-          // Guests have a custodial address (created at sign-up); when a guest wins, the contract pays that address.
-          const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
-          const playerRows = await db("game_players").where({ game_id: game.id }).select("user_id", "turn_count");
-          const turnCountByUser = Object.fromEntries(playerRows.map((r) => [r.user_id, Number(r.turn_count ?? 0)]));
-          for (const { user_id } of sortedByNetWorth) {
-            const user = await db("users").where({ id: user_id }).select("address").first();
-            if (!user?.address) {
-              logger.warn({ gameId: game.id, user_id }, "finishByTime: skip contract remove — user has no address");
-              continue;
-            }
-            const turnCount = turnCountByUser[user_id];
-            try {
-              await removePlayerFromGame(
-                contractGameIdToUse,
-                user.address,
-                turnCount != null && turnCount >= 20 ? turnCount : MAX_UINT256,
-                chainForContract
-              );
-            } catch (err) {
-              logger.warn(
-                { err: err?.message, gameId: game.id, user_id },
-                "finishByTime: removePlayerFromGame failed (Not in game / race) — continuing"
-              );
-            }
-          }
-        }
-      }
-      await invalidateGameById(game.id);
       const io = req.app.get("io");
-      if (io) emitGameUpdate(io, game.code);
-
-      const updated = await Game.findById(game.id);
-      let parsedPlacements = placements;
-      if (typeof parsedPlacements === "string") parsedPlacements = JSON.parse(parsedPlacements);
-      if (!parsedPlacements && updated?.placements) {
-        parsedPlacements = typeof updated.placements === "string" ? JSON.parse(updated.placements) : updated.placements;
+      const r = await tryFinishTimedGameById(req.params.id, io);
+      if (r.outcome === "not_found") {
+        return res.status(404).json({ success: false, error: "Game not found" });
       }
-      return res.status(200).json({
-        success: true,
-        message: "Game finished by time; winner by net worth",
-        data: {
-          game: updated,
-          winner_id: result.winner_id,
-          winner_turn_count: result.winner_turn_count || 0,
-          valid_win: result.valid_win !== false,
-          placements: parsedPlacements,
-        },
-      });
+      if (r.outcome === "bad_request") {
+        return res.status(400).json({ success: false, error: r.error || "Bad request" });
+      }
+      if (r.outcome === "error") {
+        return res.status(500).json({ success: false, message: r.message || "Failed to finish game by time" });
+      }
+      if (r.outcome === "already_finished") {
+        return res.status(200).json({
+          success: true,
+          message: "Game already concluded",
+          data: { game: r.game, winner_id: r.winner_id, valid_win: true },
+        });
+      }
+      if (r.outcome === "finished") {
+        return res.status(200).json({
+          success: true,
+          message: "Game finished by time; winner by net worth",
+          data: r.data,
+        });
+      }
+      return res.status(500).json({ success: false, message: "Unexpected finish-by-time outcome" });
     } catch (error) {
       logger.error({ err: error }, "finishByTime error");
       return res.status(500).json({ success: false, message: error?.message || "Failed to finish game by time" });

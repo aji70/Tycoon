@@ -56,6 +56,7 @@ import { getStarknetConfig } from "./config/starknet.js";
 import { isStarknetConfigured, testStarknetConnection } from "./services/starknetContract.js";
 import { startAgentGameRunner } from "./services/agentGameRunner.js";
 import { startAgentTournamentRunner } from "./services/agentTournamentRunner.js";
+import { startTimedGameFinishPoller } from "./services/timedGameFinishPoller.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -439,6 +440,12 @@ async function start() {
     startAgentTournamentRunner();
   } catch (err) {
     logger.warn({ err: err?.message }, "Agent tournament runner failed to start");
+  }
+
+  try {
+    startTimedGameFinishPoller(io);
+  } catch (err) {
+    logger.warn({ err: err?.message }, "Timed game finish poller failed to start");
   }
 
   // Step 5: Socket.io Redis adapter (when Redis is available)
