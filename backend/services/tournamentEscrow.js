@@ -212,6 +212,26 @@ export async function registerForTournamentFor(tournamentId, playerAddress, chai
 /** On-chain enum TycoonTournamentEscrow.TournamentStatus */
 const ESCROW_STATUS = { NONE: 0, OPEN: 1, LOCKED: 2, FINALIZED: 3, CANCELLED: 4 };
 
+/**
+ * Lock on-chain tournament when bracket is full and play has begun (e.g. arena stake).
+ * No-op if escrow not configured, ledger unreadable, or status is not Open (already locked/finalized).
+ * Finalize path still locks if this missed (RPC blip).
+ */
+export async function lockOpenTournamentOnEscrowIfNeeded(tournamentId, chain) {
+  const id = Number(tournamentId);
+  if (!Number.isInteger(id) || id <= 0) return { skipped: true, reason: "bad_id" };
+  if (!isEscrowConfigured(chain)) return { skipped: true, reason: "escrow_not_configured" };
+
+  const ledger = await readEscrowTournamentLedger(id, chain);
+  if (!ledger) return { skipped: true, reason: "read_failed" };
+  if (ledger.status !== ESCROW_STATUS.OPEN) {
+    return { skipped: true, reason: "not_open", status: ledger.status };
+  }
+
+  const res = await withEscrowRpcRetries(`lockTournamentAtStart:${id}`, () => lockTournamentOnChain(id, chain));
+  return { skipped: false, hash: res?.hash };
+}
+
 function isTransientEscrowRpcError(err) {
   const m = `${err?.shortMessage || ""} ${err?.message || ""} ${err?.code || ""}`;
   return /timeout|timed out|ECONNRESET|ECONNREFUSED|503|502|429|rate limit|network|nonce|replacement|underpriced/i.test(m);

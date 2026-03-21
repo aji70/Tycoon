@@ -479,6 +479,23 @@ function generateArenaJoinCode6() {
   return out;
 }
 
+/** Staked arena: bracket is full and game is live — lock escrow so the tournament shows Locked on-chain until finalize. */
+async function lockEscrowWhenArenaGameStarts(tournamentId, chain) {
+  if (tournamentId == null) return;
+  try {
+    const { lockOpenTournamentOnEscrowIfNeeded } = await import("./tournamentEscrow.js");
+    const out = await lockOpenTournamentOnEscrowIfNeeded(tournamentId, chain);
+    if (!out.skipped && out.hash) {
+      logger.info({ tournamentId, chain, hash: out.hash }, "Staked arena: escrow locked when game started");
+    }
+  } catch (err) {
+    logger.warn(
+      { err: err?.message, tournamentId, chain },
+      "Staked arena: lockTournament at game start failed (finalize will retry)"
+    );
+  }
+}
+
 const ARENA_HOUSE_CUT_PERCENT = 5;
 
 /**
@@ -785,6 +802,7 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
         created_at: db.fn.now(),
         updated_at: db.fn.now(),
       });
+      await lockEscrowWhenArenaGameStarts(arenaStakeTournamentId, chain);
     }
 
     for (let i = 0; i < n; i++) {
@@ -1121,6 +1139,7 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
         created_at: db.fn.now(),
         updated_at: db.fn.now(),
       });
+      await lockEscrowWhenArenaGameStarts(arenaStakeTournamentId, chain);
     }
 
     const rosterUsers = [humanUser, opponentOwner];
