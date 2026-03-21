@@ -110,7 +110,13 @@ export default function TournamentDetailPage() {
   const { guestUser } = useGuestAuthOptional() ?? {};
   const { address: walletAddress } = useAccount();
   const walletChainId = useChainId();
-  const { fund: fundPrizePoolOnChain, isPending: fundPoolPending, isReady: fundPoolReady } = useFundPrizePool();
+  const smartWalletAddress =
+    guestUser?.smart_wallet_address &&
+    String(guestUser.smart_wallet_address).trim() !== "0x0000000000000000000000000000000000000000"
+      ? (guestUser.smart_wallet_address as `0x${string}`)
+      : undefined;
+  const { fund: fundPrizePoolOnChain, isPending: fundPoolPending, isReady: fundPoolReady, canUseSmartWallet } =
+    useFundPrizePool(smartWalletAddress);
   const [registering, setRegistering] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -139,6 +145,7 @@ export default function TournamentDetailPage() {
   const [creatingRoundIndex, setCreatingRoundIndex] = useState<number | null>(null);
   const [fundPoolUsd, setFundPoolUsd] = useState("");
   const [fundPoolDepositing, setFundPoolDepositing] = useState(false);
+  const [fundFromSmartWallet, setFundFromSmartWallet] = useState(true);
   const [registerAgentId, setRegisterAgentId] = useState<number | null>(null);
   /** Agents the user may register as: invite list (BOT_SELECTION) or all agents (OPEN/INVITE agents-only). */
   const [myRegisterAgents, setMyRegisterAgents] = useState<{ id: number; name: string }[]>([]);
@@ -434,7 +441,14 @@ export default function TournamentDetailPage() {
   const conflictPath = extractTournamentPathFromMessage(actionError);
 
   const walletChainOk = walletAddress && chainIdToBackendChain(walletChainId) === String(tournament?.chain || "").toUpperCase();
-  const depositDisabled = !fundPoolReady || fundPoolPending || fundPoolDepositing || !walletAddress || !walletChainOk;
+  const useSmartWalletForDeposit = fundFromSmartWallet && canUseSmartWallet;
+  const depositDisabled =
+    !fundPoolReady ||
+    fundPoolPending ||
+    fundPoolDepositing ||
+    !walletAddress ||
+    !walletChainOk ||
+    (useSmartWalletForDeposit && !smartWalletAddress);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#010F10] via-[#0a1618] to-[#0E1415] text-white">
@@ -610,6 +624,34 @@ export default function TournamentDetailPage() {
                   <p className="text-amber-200 text-sm">Escrow not configured for this network. Check environment settings.</p>
                 </div>
               )}
+              {canUseSmartWallet && (
+                <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-white/[0.03] border border-white/5">
+                  <span className="text-sm text-white/70">Pay from:</span>
+                  <div className="flex gap-1 p-0.5 rounded-lg bg-white/5">
+                    <button
+                      type="button"
+                      onClick={() => setFundFromSmartWallet(true)}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                        fundFromSmartWallet ? "bg-cyan-500/25 text-cyan-200" : "text-white/60 hover:text-white/80"
+                      }`}
+                    >
+                      Smart wallet
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFundFromSmartWallet(false)}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                        !fundFromSmartWallet ? "bg-cyan-500/25 text-cyan-200" : "text-white/60 hover:text-white/80"
+                      }`}
+                    >
+                      Connected wallet
+                    </button>
+                  </div>
+                  <span className="text-xs text-white/50">
+                    {fundFromSmartWallet ? "Uses USDC in your Tycoon smart wallet" : "Uses USDC in your connected EOA"}
+                  </span>
+                </div>
+              )}
               <div className="flex flex-col sm:flex-row sm:items-end gap-4">
                 <div className="flex-1 max-w-xs">
                   <label htmlFor="fund_pool_usd" className="block text-sm font-medium text-white/90 mb-1.5">
@@ -643,7 +685,7 @@ export default function TournamentDetailPage() {
                     setFundPoolDepositing(true);
                     try {
                       const wei = BigInt(Math.round(usd * 10 ** USDC_DECIMALS));
-                      await fundPrizePoolOnChain(tournament.id, wei);
+                      await fundPrizePoolOnChain(tournament.id, wei, useSmartWalletForDeposit);
                       setActionSuccess("Deposit submitted. Wait for confirmation, then refresh.");
                       setFundPoolUsd("");
                     } catch (e) {
