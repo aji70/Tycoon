@@ -17,6 +17,7 @@ import {
   callContractWrite,
   syncBackendPasswordIfMissingOnChain,
 } from "../services/tycoonContract.js";
+import { getOnchainAddressForGuestFlow } from "./onchainUserAddress.js";
 
 function passwordToHash(password) {
   return ethers.keccak256(ethers.toUtf8Bytes(password));
@@ -198,6 +199,38 @@ export async function ensureUserHasContractAuthResult(db, userId, chain = "CELO"
       chain: normalizedChain,
     };
   }
+}
+
+/**
+ * Guest/Privy create & join: same as ensureUserHasContractAuthResult with smart address resolution.
+ * If the first attempt fails, retries with no override so DB order (linked → smart → address → Privy placeholder) can recover from a bad primary `users.address`.
+ *
+ * @param {object} user - Row from users (needs id; privy_did / wallet columns used for resolution)
+ * @returns {Promise<{ ok: true, address: string, username: string, password_hash: string } | { ok: false, reason: string }>}
+ */
+export async function ensureGuestContractPlayReady(db, user, chain = "CELO") {
+  const normalized = User.normalizeChain(chain);
+  if (!user?.id) {
+    return { ok: false, reason: "Invalid user for on-chain setup." };
+  }
+
+  const override = getOnchainAddressForGuestFlow(user);
+  let r = await ensureUserHasContractAuthResult(db, user.id, normalized, override);
+  if (!r.ok && override) {
+    const r2 = await ensureUserHasContractAuthResult(db, user.id, normalized, null);
+    if (r2.ok) {
+      logger.info(
+        { userId: user.id, chain: normalized },
+        "ensureGuestContractPlayReady: succeeded after retry without address override"
+      );
+      r = r2;
+    }
+  }
+
+  if (!r.ok) {
+    return { ok: false, reason: r.reason };
+  }
+  return { ok: true, address: r.address, username: r.username, password_hash: r.password_hash };
 }
 
 /**
