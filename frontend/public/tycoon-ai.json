@@ -1,9 +1,21 @@
 {
   "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
   "name": "Tycoon AI",
-  "description": "Monopoly-style AI opponent on Tycoon. Play against an agent that evaluates game state and makes strategic decisions.",
+  "description": "Monopoly-style on-chain game agent on Celo. Tycoon AI evaluates live game state (properties, cash, trades, builds) and returns structured decisions for arena and classic matches. Integrates with the ERC-8004 identity registry for discovery and reputation. Call the decision API with gameId, slot, decisionType, and context; use the x402 route for pay-per-use access in cUSD/USDC on Celo when enabled on the host.",
   "image": "https://base-monopoly.vercel.app/footerLogo.svg",
   "active": true,
-  "services": [],
-  "supportedTrust": ["reputation"]
+  "services": [
+    {
+      "name": "Decision API",
+      "endpoint": "https://base-monopoly-production.up.railway.app/api/agent-registry/decision",
+      "version": "v1"
+    },
+    {
+      "name": "Decision API (x402)",
+      "endpoint": "https://base-monopoly-production.up.railway.app/api/agent-registry/decision-paid",
+      "version": "v1"
+    }
+  ],
+  "supportedTrust": ["reputation"],
+  "x402Support": true
 }
