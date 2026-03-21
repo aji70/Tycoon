@@ -4,8 +4,20 @@
  * Used by services/tycoonContract.js so the backend can talk to the correct chain's contract.
  */
 
+/**
+ * Default chain when API/DB omits chain (must match how you deploy: Celo vs Base).
+ * Set GUEST_CHAIN=BASE on Base-only hosts; default CELO matches .env.example.
+ */
+export function getDefaultAppChain() {
+  const g = process.env.GUEST_CHAIN || process.env.DEFAULT_APP_CHAIN;
+  if (g == null || String(g).trim() === "") return "CELO";
+  const s = String(g).trim().toUpperCase();
+  if (s === "BASE" || s === "CELO" || s === "POLYGON") return s;
+  return "CELO";
+}
+
 function normalizeChainName(chain) {
-  if (chain == null || String(chain).trim() === "") return "CELO";
+  if (chain == null || String(chain).trim() === "") return getDefaultAppChain();
   const s = String(chain).trim().toUpperCase();
   const n = Number(chain);
   if (s === "CELO" || n === 42220 || n === 44787) return "CELO";
