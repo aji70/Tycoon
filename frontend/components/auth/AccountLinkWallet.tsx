@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
@@ -36,7 +36,15 @@ export default function AccountLinkWallet() {
   const guestUser = auth?.guestUser ?? null;
   const chain = chainIdToBackendChain(chainId);
   const [createWalletLoading, setCreateWalletLoading] = useState(false);
+  /** True after a failed POST so the button reads "Recreate" (no DB address was written). */
+  const [smartWalletCreateAttemptFailed, setSmartWalletCreateAttemptFailed] = useState(false);
   const hasSmartWallet = !!(guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() && guestUser.smart_wallet_address !== "0x0000000000000000000000000000000000000000");
+  /** Backend sets this in GET /auth/me when the player is registered on-chain but the registry wallet is still missing / creation failed. */
+  const useRecreateSmartWalletLabel = Boolean(guestUser?.needs_smart_wallet_creation || smartWalletCreateAttemptFailed);
+
+  useEffect(() => {
+    if (hasSmartWallet) setSmartWalletCreateAttemptFailed(false);
+  }, [hasSmartWallet]);
   const smartWalletAddress = hasSmartWallet ? (guestUser!.smart_wallet_address as Address) : undefined;
   const { data: profileOwner, isLoading: profileOwnerLoading } = useProfileOwner(smartWalletAddress);
   const { transfer: transferProfileTo, isPending: transferPending } = useTransferProfileTo();
@@ -77,9 +85,18 @@ export default function AccountLinkWallet() {
     setCreateWalletLoading(true);
     try {
       const res = await auth.createSmartWallet({ chain });
-      if (!res.success) setError(res.message ?? "Failed to create smart wallet");
+      if (!res.success) {
+        setError(res.message ?? "Failed to create smart wallet");
+        setSmartWalletCreateAttemptFailed(true);
+        await auth.refetchGuest?.();
+      } else {
+        setSmartWalletCreateAttemptFailed(false);
+        await auth.refetchGuest?.();
+      }
     } catch (e) {
       setError((e as Error)?.message ?? "Failed to create smart wallet");
+      setSmartWalletCreateAttemptFailed(true);
+      await auth.refetchGuest?.();
     } finally {
       setCreateWalletLoading(false);
     }
@@ -232,9 +249,13 @@ export default function AccountLinkWallet() {
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium hover:bg-cyan-500/35 disabled:opacity-50"
               >
                 {createWalletLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
-                Create smart wallet
+                {useRecreateSmartWalletLabel ? "Recreate smart wallet" : "Create smart wallet"}
               </button>
-              <p className="text-xs text-white/50 mt-1">You can have a smart wallet without linking an external wallet.</p>
+              <p className="text-xs text-white/50 mt-1">
+                {useRecreateSmartWalletLabel
+                  ? "Your account may already be on-chain; this retries server-side wallet deployment. Fix any error above (e.g. registry owner key) before trying again."
+                  : "You can have a smart wallet without linking an external wallet."}
+              </p>
             </div>
           )}
         </>

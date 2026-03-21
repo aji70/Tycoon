@@ -347,6 +347,8 @@ export default function ManageSmartWalletPage() {
   const [createWalletError, setCreateWalletError] = useState<string | null>(null);
 
   if (!hasSmartWallet) {
+    const useRecreateLabel = Boolean(guestUser?.needs_smart_wallet_creation || createWalletError);
+
     const handleCreateSmartWallet = async () => {
       if (!auth?.createSmartWallet) return;
       setCreateWalletError(null);
@@ -359,11 +361,13 @@ export default function ManageSmartWalletPage() {
           fromRegistry.refetch();
         } else {
           setCreateWalletError(res.message ?? "Failed to create wallet");
+          await auth.refetchGuest?.();
         }
       } catch (e) {
         const msg = (e as Error)?.message ?? "Failed";
         setCreateWalletError(msg);
         toast.error(msg);
+        await auth.refetchGuest?.();
       } finally {
         setCreateWalletLoading(false);
       }
@@ -382,7 +386,11 @@ export default function ManageSmartWalletPage() {
           </div>
         </header>
         <main className="container mx-auto px-4 py-12 max-w-xl text-center space-y-4">
-          <p className="text-white/80">You don’t have a smart wallet yet. Create one below (no gas required) or from your Profile.</p>
+          <p className="text-white/80">
+            {useRecreateLabel
+              ? "Smart wallet setup didn’t finish yet (see error below if any). After your host fixes server config, use the button to retry — no gas required from you."
+              : "You don’t have a smart wallet yet. Create one below (no gas required) or from your Profile."}
+          </p>
           {createWalletError && <p className="text-sm text-red-300">{createWalletError}</p>}
           <div className="flex flex-wrap gap-3 justify-center">
             <button
@@ -392,7 +400,7 @@ export default function ManageSmartWalletPage() {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 font-medium disabled:opacity-50"
             >
               {createWalletLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
-              Create smart wallet
+              {useRecreateLabel ? "Recreate smart wallet" : "Create smart wallet"}
             </button>
             <Link href="/profile" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white font-medium">
               Go to Profile

@@ -165,15 +165,23 @@ function tournamentSpendSummary(tp: TournamentPermission | undefined): { enabled
 export type AgentsPageMobileProps = {
   embeddedInArena?: boolean;
   onSpendingCapsSaved?: () => void | Promise<void>;
+  openTournamentSpendingForAgentId?: number | null;
+  onTournamentSpendingModalOpened?: () => void;
 };
 
-export default function AgentsPageMobile({ embeddedInArena = false, onSpendingCapsSaved }: AgentsPageMobileProps) {
+export default function AgentsPageMobile({
+  embeddedInArena = false,
+  onSpendingCapsSaved,
+  openTournamentSpendingForAgentId = null,
+  onTournamentSpendingModalOpened,
+}: AgentsPageMobileProps) {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
   const guestAuth = useGuestAuthOptional();
   const triedWalletAutoLogin = React.useRef(false);
+  const tournamentJumpHandledRef = React.useRef<number | null>(null);
   const [walletLinkRetry, setWalletLinkRetry] = useState(0);
   const [agents, setAgents] = useState<UserAgent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -260,7 +268,7 @@ export default function AgentsPageMobile({ embeddedInArena = false, onSpendingCa
     }
   }, []);
 
-  const openTournamentPerms = (a: UserAgent) => {
+  const openTournamentPerms = React.useCallback((a: UserAgent) => {
     const p = tournamentPerms[a.id];
     setPermModalAgent(a);
     setPermEnabled(!!p?.enabled);
@@ -269,7 +277,31 @@ export default function AgentsPageMobile({ embeddedInArena = false, onSpendingCa
     setPermDailyCap(usdcStoredToDecimalInput(p?.daily_cap_usdc));
     setPermChain((p?.chain || "CELO") as string);
     setPermPin("");
-  };
+  }, [tournamentPerms]);
+
+  React.useEffect(() => {
+    if (openTournamentSpendingForAgentId == null) {
+      tournamentJumpHandledRef.current = null;
+      return;
+    }
+    if (loading) return;
+    const id = openTournamentSpendingForAgentId;
+    if (tournamentJumpHandledRef.current === id) return;
+    const agent = agents.find((x) => x.id === id);
+    if (!agent) {
+      if (agents.length > 0) onTournamentSpendingModalOpened?.();
+      return;
+    }
+    tournamentJumpHandledRef.current = id;
+    openTournamentPerms(agent);
+    onTournamentSpendingModalOpened?.();
+  }, [
+    openTournamentSpendingForAgentId,
+    loading,
+    agents,
+    openTournamentPerms,
+    onTournamentSpendingModalOpened,
+  ]);
 
   const saveTournamentPerms = async () => {
     if (!permModalAgent) return;
@@ -702,11 +734,21 @@ export default function AgentsPageMobile({ embeddedInArena = false, onSpendingCa
   return (
     <div className={mainShell}>
       {permModalAgent && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setPermModalAgent(null)}>
-          <div className="bg-[#0d1117] rounded-2xl border border-amber-500/30 p-5 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[200] p-4 overflow-y-auto"
+          onClick={() => setPermModalAgent(null)}
+          role="presentation"
+        >
+          <div
+            className="bg-[#0d1117] rounded-2xl border-2 border-amber-400/40 p-5 max-w-md w-full my-4 shadow-[0_0_40px_rgba(251,191,36,0.12)]"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tournament-spending-modal-title-mobile"
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <h3 id="tournament-spending-modal-title-mobile" className="text-lg font-bold text-white flex items-center gap-2">
                   <Trophy className="w-5 h-5 text-amber-300" />
                   Wallet spending for tournaments
                 </h3>
@@ -838,11 +880,14 @@ export default function AgentsPageMobile({ embeddedInArena = false, onSpendingCa
                   <p className="mt-0.5">Create one to use in Play vs AI.</p>
                 </div>
               )}
-              {agents.map((a) => (
+              {agents.map((a) => {
+                const capRow = tournamentSpendSummary(tournamentPerms[a.id]);
+                return (
                 <div
                   key={a.id}
-                  className="bg-gradient-to-b from-slate-900/80 to-black/80 rounded-xl border-2 border-cyan-500/30 p-3 flex items-center justify-between gap-3"
+                  className="bg-gradient-to-b from-slate-900/80 to-black/80 rounded-xl border-2 border-cyan-500/30 p-3 flex flex-col gap-2"
                 >
+                  <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-white text-sm truncate">{a.name}</p>
                     <p className="text-xs text-gray-500 truncate">
@@ -874,24 +919,19 @@ export default function AgentsPageMobile({ embeddedInArena = false, onSpendingCa
                     <p className={`text-[10px] mt-0.5 font-medium ${a.is_public ? "text-emerald-400/90" : "text-gray-500"}`}>
                       {a.is_public ? "Listed in Arena Discover" : "Not in Discover"}
                     </p>
-                    {(() => {
-                      const cap = tournamentSpendSummary(tournamentPerms[a.id]);
-                      return (
-                        <div
-                          className={`mt-2 rounded-lg border px-2 py-1.5 text-[11px] leading-snug ${
-                            cap.enabled
-                              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
-                              : "border-amber-500/45 bg-amber-500/10 text-amber-100"
-                          }`}
-                        >
-                          <p className="font-bold uppercase tracking-wide text-[9px] opacity-90 mb-0.5 flex items-center gap-1">
-                            <Trophy className="w-3 h-3 shrink-0" />
-                            Challenge wallet
-                          </p>
-                          <p className="font-medium">{cap.text}</p>
-                        </div>
-                      );
-                    })()}
+                    <div
+                      className={`mt-2 rounded-lg border px-2 py-1.5 text-[11px] leading-snug ${
+                        capRow.enabled
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+                          : "border-amber-500/45 bg-amber-500/10 text-amber-100"
+                      }`}
+                    >
+                      <p className="font-bold uppercase tracking-wide text-[9px] opacity-90 mb-0.5 flex items-center gap-1">
+                        <Trophy className="w-3 h-3 shrink-0" />
+                        Tournaments &amp; staked
+                      </p>
+                      <p className="font-medium">{capRow.text}</p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0 self-start">
                     <button
@@ -918,8 +958,8 @@ export default function AgentsPageMobile({ embeddedInArena = false, onSpendingCa
                       type="button"
                       onClick={() => openTournamentPerms(a)}
                       className="p-2 rounded-lg border border-amber-500/40 text-amber-300"
-                      aria-label="Wallet spending for tournaments"
-                      title="Max per match and optional daily total for tournament entries"
+                      aria-label="Wallet spending caps for tournaments and staked arena"
+                      title="Max per match and optional daily total cap"
                     >
                       <Trophy className="w-3.5 h-3.5" />
                     </button>
@@ -955,8 +995,18 @@ export default function AgentsPageMobile({ embeddedInArena = false, onSpendingCa
                       {deletingId === a.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                     </button>
                   </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openTournamentPerms(a)}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-amber-400/50 bg-gradient-to-r from-amber-500/25 to-amber-600/15 text-amber-100 font-bold text-[11px] uppercase tracking-wide hover:from-amber-500/35 hover:border-amber-300/60"
+                  >
+                    <Trophy className="w-4 h-4 shrink-0" />
+                    {capRow.enabled ? "Edit wallet spending caps" : "Set up wallet spending"}
+                  </button>
                 </div>
-              ))}
+              );
+              })}
             </div>
 
             {showForm ? (
