@@ -31,6 +31,28 @@ function assertOnChainPayoutOk(tournamentId, chain, escrowRes, context) {
 }
 
 /**
+ * One payout/finalize chain per tournament: avoids concurrent executePayouts (settle + onGameFinished + poller)
+ * sending overlapping lock/finalize txs and one path failing with "Must be locked".
+ */
+const tournamentPayoutTail = new Map();
+
+function enqueueTournamentPayoutWork(tournamentId, fn) {
+  const id = Number(tournamentId);
+  const key = Number.isInteger(id) && id > 0 ? String(id) : null;
+  if (!key) return fn();
+  const prev = tournamentPayoutTail.get(key) ?? Promise.resolve();
+  const next = prev.then(
+    () => fn(),
+    () => fn()
+  );
+  tournamentPayoutTail.set(key, next);
+  next.finally(() => {
+    if (tournamentPayoutTail.get(key) === next) tournamentPayoutTail.delete(key);
+  });
+  return next;
+}
+
+/**
  * Build smart-wallet recipient plan from computed payout rows (same amounts as DB payout records).
  */
 async function buildEscrowPlanForPayoutList(payouts) {
@@ -162,7 +184,11 @@ export function getDrawRefundHouseCutPercent() {
   return Math.min(100, Math.max(0, Math.floor(n)));
 }
 
-export async function executeDrawRefunds(tournamentId) {
+export function executeDrawRefunds(tournamentId) {
+  return enqueueTournamentPayoutWork(tournamentId, () => executeDrawRefundsInternal(tournamentId));
+}
+
+async function executeDrawRefundsInternal(tournamentId) {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) throw new Error("Tournament not found");
   if (tournament.prize_source !== "ENTRY_FEE_POOL") {
@@ -306,7 +332,11 @@ export async function computePayouts(tournamentId) {
  * Execute payouts: transfer USDC from tournament escrow to smart wallets.
  * Persists payout records to tournament_payouts table.
  */
-export async function executePayouts(tournamentId) {
+export function executePayouts(tournamentId) {
+  return enqueueTournamentPayoutWork(tournamentId, () => executePayoutsInternal(tournamentId));
+}
+
+async function executePayoutsInternal(tournamentId) {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) throw new Error("Tournament not found");
 
