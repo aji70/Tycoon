@@ -176,9 +176,17 @@ const ARENA_MANAGE_AGENTS_PATH = "/arena?tab=my-agents&sub=manage";
 export type AgentsPageProps = {
   embeddedInArena?: boolean;
   onSpendingCapsSaved?: () => void | Promise<void>;
+  /** When set (e.g. from Arena quick view), open tournament spending modal for this agent once agents are loaded. */
+  openTournamentSpendingForAgentId?: number | null;
+  onTournamentSpendingModalOpened?: () => void;
 };
 
-export default function AgentsPage({ embeddedInArena = false, onSpendingCapsSaved }: AgentsPageProps) {
+export default function AgentsPage({
+  embeddedInArena = false,
+  onSpendingCapsSaved,
+  openTournamentSpendingForAgentId = null,
+  onTournamentSpendingModalOpened,
+}: AgentsPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { address, isConnected } = useAccount();
@@ -186,6 +194,7 @@ export default function AgentsPage({ embeddedInArena = false, onSpendingCapsSave
   const { signMessageAsync } = useSignMessage();
   const guestAuth = useGuestAuthOptional();
   const triedWalletAutoLogin = React.useRef(false);
+  const tournamentJumpHandledRef = React.useRef<number | null>(null);
   const [walletLinkRetry, setWalletLinkRetry] = useState(0);
   const [agents, setAgents] = useState<UserAgent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -277,7 +286,7 @@ export default function AgentsPage({ embeddedInArena = false, onSpendingCapsSave
     }
   }, []);
 
-  const openTournamentPerms = (a: UserAgent) => {
+  const openTournamentPerms = React.useCallback((a: UserAgent) => {
     const p = tournamentPerms[a.id];
     setPermModalAgent(a);
     setPermEnabled(!!p?.enabled);
@@ -286,7 +295,31 @@ export default function AgentsPage({ embeddedInArena = false, onSpendingCapsSave
     setPermDailyCap(usdcStoredToDecimalInput(p?.daily_cap_usdc));
     setPermChain((p?.chain || "CELO") as string);
     setPermPin("");
-  };
+  }, [tournamentPerms]);
+
+  React.useEffect(() => {
+    if (openTournamentSpendingForAgentId == null) {
+      tournamentJumpHandledRef.current = null;
+      return;
+    }
+    if (loading) return;
+    const id = openTournamentSpendingForAgentId;
+    if (tournamentJumpHandledRef.current === id) return;
+    const agent = agents.find((x) => x.id === id);
+    if (!agent) {
+      if (agents.length > 0) onTournamentSpendingModalOpened?.();
+      return;
+    }
+    tournamentJumpHandledRef.current = id;
+    openTournamentPerms(agent);
+    onTournamentSpendingModalOpened?.();
+  }, [
+    openTournamentSpendingForAgentId,
+    loading,
+    agents,
+    openTournamentPerms,
+    onTournamentSpendingModalOpened,
+  ]);
 
   const saveTournamentPerms = async () => {
     if (!permModalAgent) return;
@@ -899,18 +932,28 @@ export default function AgentsPage({ embeddedInArena = false, onSpendingCapsSave
                     {(() => {
                       const cap = tournamentSpendSummary(tournamentPerms[a.id]);
                       return (
-                        <div
-                          className={`mt-2 rounded-lg border px-2.5 py-2 text-xs leading-snug ${
-                            cap.enabled
-                              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
-                              : "border-amber-500/45 bg-amber-500/10 text-amber-100"
-                          }`}
-                        >
-                          <p className="font-orbitron font-bold uppercase tracking-wide text-[10px] opacity-90 mb-0.5 flex items-center gap-1.5">
-                            <Trophy className="w-3.5 h-3.5 shrink-0" />
-                            Challenge wallet
-                          </p>
-                          <p className="font-medium">{cap.text}</p>
+                        <div className="mt-2 space-y-2">
+                          <div
+                            className={`rounded-lg border px-2.5 py-2 text-xs leading-snug ${
+                              cap.enabled
+                                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+                                : "border-amber-500/45 bg-amber-500/10 text-amber-100"
+                            }`}
+                          >
+                            <p className="font-orbitron font-bold uppercase tracking-wide text-[10px] opacity-90 mb-0.5 flex items-center gap-1.5">
+                              <Trophy className="w-3.5 h-3.5 shrink-0" />
+                              Tournaments &amp; staked challenges
+                            </p>
+                            <p className="font-medium">{cap.text}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openTournamentPerms(a)}
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-amber-400/50 bg-gradient-to-r from-amber-500/25 to-amber-600/15 text-amber-100 font-orbitron font-bold text-xs uppercase tracking-wide hover:from-amber-500/35 hover:border-amber-300/60 hover:shadow-[0_0_20px_rgba(251,191,36,0.15)] transition-all"
+                          >
+                            <Trophy className="w-4 h-4 shrink-0" />
+                            {cap.enabled ? "Edit wallet spending caps" : "Set up wallet spending"}
+                          </button>
                         </div>
                       );
                     })()}
@@ -962,10 +1005,10 @@ export default function AgentsPage({ embeddedInArena = false, onSpendingCapsSave
                       type="button"
                       onClick={() => openTournamentPerms(a)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/40 text-amber-300 hover:bg-amber-500/10 transition text-sm"
-                      title="Wallet spending for tournament entries: max per match and optional daily total cap."
+                      title="Wallet spending for tournaments and staked arena — max per match and optional daily cap."
                     >
                       <Trophy className="w-3.5 h-3.5" />
-                      Tournaments
+                      Spending
                     </button>
                     {isCelo && (
                       <button
@@ -1433,11 +1476,21 @@ export default function AgentsPage({ embeddedInArena = false, onSpendingCapsSave
         </p>
 
         {permModalAgent && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setPermModalAgent(null)}>
-            <div className="bg-[#0d1117] rounded-2xl border border-amber-500/30 p-6 max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[200] p-4 overflow-y-auto"
+            onClick={() => setPermModalAgent(null)}
+            role="presentation"
+          >
+            <div
+              className="bg-[#0d1117] rounded-2xl border-2 border-amber-400/40 p-6 max-w-lg w-full my-4 shadow-[0_0_40px_rgba(251,191,36,0.12)]"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="tournament-spending-modal-title"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <h3 id="tournament-spending-modal-title" className="text-xl font-bold text-white flex items-center gap-2">
                     <Trophy className="w-5 h-5 text-amber-300" />
                     Wallet spending for tournaments
                   </h3>

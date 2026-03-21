@@ -1461,6 +1461,9 @@ export async function me(req, res) {
       }
     } catch (e) {
       logger.warn({ err: e?.message, userId: req.user.id }, "me: wallet-first ensure failed");
+      if (!safe.smart_wallet_address) {
+        safe.needs_smart_wallet_creation = true;
+      }
     }
   }
 

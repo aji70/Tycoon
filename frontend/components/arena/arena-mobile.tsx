@@ -137,6 +137,10 @@ export default function ArenaMobile() {
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
   const [tournamentsError, setTournamentsError] = useState<string | null>(null);
   const [myAgentsSubTab, setMyAgentsSubTab] = useState<"overview" | "manage">("overview");
+  const [openTournamentSpendingJumpAgentId, setOpenTournamentSpendingJumpAgentId] = useState<number | null>(null);
+  const clearTournamentSpendingJump = useCallback(() => {
+    setOpenTournamentSpendingJumpAgentId(null);
+  }, []);
   const [tournamentPerms, setTournamentPerms] = useState<Record<number, { enabled: boolean; max_entry_fee_usdc: string; daily_cap_usdc: string | null; chain: string | null }>>({});
   const [challengesLoading, setChallengesLoading] = useState(false);
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
@@ -680,9 +684,26 @@ export default function ArenaMobile() {
               <strong style={{ color: "#e8fbff" }}>{selectedChallenger.name}</strong> · XP {xpOf(selectedChallenger)}
             </p>
           )}
-          <p className={styles.challengeHint} style={{ marginBottom: 10 }}>
-            Edit limits: <strong style={{ color: "#e8fbff" }}>Mine</strong> → <strong style={{ color: "#e8fbff" }}>Full manager</strong> → <strong style={{ color: "#e8fbff" }}>Tournaments</strong> per agent.
-          </p>
+          <div className={styles.challengeHint} style={{ marginBottom: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+            <span>
+              Caps: <strong style={{ color: "#e8fbff" }}>Mine</strong> → <strong style={{ color: "#e8fbff" }}>Tournament wallet spending</strong> on each card, or{" "}
+              <strong style={{ color: "#e8fbff" }}>Manage</strong>.
+            </span>
+            {challengerAgentId != null && (
+              <button
+                type="button"
+                className={styles.tournamentLinkBtn}
+                style={{ alignSelf: "flex-start" }}
+                onClick={() => {
+                  setActiveTab("my-agents");
+                  setMyAgentsSubTab("manage");
+                  setOpenTournamentSpendingJumpAgentId(challengerAgentId);
+                }}
+              >
+                Edit spending for selected agent
+              </button>
+            )}
+          </div>
           <div className={styles.challengeActionRow}>
             <button
               type="button"
@@ -752,9 +773,10 @@ export default function ArenaMobile() {
                         onClick={() => {
                           setActiveTab("my-agents");
                           setMyAgentsSubTab("manage");
+                          if (myAgents.length === 1) setOpenTournamentSpendingJumpAgentId(myAgents[0].id);
                         }}
                       >
-                        Mine → Full manager
+                        Mine → Manage &amp; spending
                       </button>
                       . Or use <strong style={{ color: "#e8fbff" }}>You vs agent</strong> to play without an agent seat.
                     </p>
@@ -798,6 +820,20 @@ export default function ArenaMobile() {
                         </option>
                       ))}
                     </select>
+                    {challengerAgentId != null && (
+                      <button
+                        type="button"
+                        className={styles.tournamentLinkBtn}
+                        style={{ marginTop: 8, width: "100%" }}
+                        onClick={() => {
+                          setActiveTab("my-agents");
+                          setMyAgentsSubTab("manage");
+                          setOpenTournamentSpendingJumpAgentId(challengerAgentId);
+                        }}
+                      >
+                        Edit wallet spending for this agent
+                      </button>
+                    )}
                     <label className={styles.challengeFieldLabel} style={{ marginTop: 8 }}>
                       Stake (USDC)
                     </label>
@@ -1166,7 +1202,7 @@ export default function ArenaMobile() {
                   className={`${styles.myAgentsSubTab} ${myAgentsSubTab === "overview" ? styles.myAgentsSubTabActive : ""}`}
                   onClick={() => setMyAgentsSubTab("overview")}
                 >
-                  Mine
+                  Quick
                 </button>
                 <button
                   type="button"
@@ -1175,13 +1211,14 @@ export default function ArenaMobile() {
                   className={`${styles.myAgentsSubTab} ${myAgentsSubTab === "manage" ? styles.myAgentsSubTabActive : ""}`}
                   onClick={() => setMyAgentsSubTab("manage")}
                 >
-                  Full manager
+                  Manage
                 </button>
               </div>
               {myAgentsSubTab === "overview" ? (
                 <div className={styles.myAgentsList}>
                   <p className={styles.challengeHint} style={{ marginBottom: 12, fontSize: "0.8rem" }}>
-                    Quick: Discover, <strong>Can spend</strong> (per match + daily total), Celo. <strong>Full manager</strong> to create agents, set spending caps (Tournaments), API keys.
+                    Quick: Discover, <strong>Can spend</strong> (per match + daily total), Celo. Use{" "}
+                    <strong>Tournament wallet spending</strong> on each card for the caps modal. <strong>Manage</strong> for create agent, API keys, full settings.
                   </p>
                   {myAgents.length > 0 ? (
                     myAgents.map((agent) => (
@@ -1249,14 +1286,45 @@ export default function ArenaMobile() {
                               ? "Re-link on Celo (wallet)"
                               : "Register on Celo (browser wallet)"}
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMyAgentsSubTab("manage");
+                            setOpenTournamentSpendingJumpAgentId(agent.id);
+                          }}
+                          style={{
+                            width: "100%",
+                            marginTop: 8,
+                            padding: "10px 12px",
+                            borderRadius: 8,
+                            border: "2px solid rgba(251, 191, 36, 0.45)",
+                            background: "linear-gradient(90deg, rgba(245, 158, 11, 0.22), rgba(217, 119, 6, 0.12))",
+                            color: "#fde68a",
+                            fontWeight: 700,
+                            fontSize: "0.75rem",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <Trophy className="w-4 h-4 shrink-0" aria-hidden />
+                          Tournament &amp; staked wallet spending
+                        </button>
                       </div>
                     ))
                   ) : (
-                    <p className={styles.emptyState}>No agents — use Full manager to create one.</p>
+                    <p className={styles.emptyState}>No agents — use Manage to create one.</p>
                   )}
                 </div>
               ) : (
-                <AgentsPageMobile embeddedInArena onSpendingCapsSaved={refreshArenaTournamentPerms} />
+                <AgentsPageMobile
+                  embeddedInArena
+                  onSpendingCapsSaved={refreshArenaTournamentPerms}
+                  openTournamentSpendingForAgentId={openTournamentSpendingJumpAgentId}
+                  onTournamentSpendingModalOpened={clearTournamentSpendingJump}
+                />
               )}
             </>
           ) : (
