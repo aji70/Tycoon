@@ -40,6 +40,7 @@ import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 import PlayerSection3D from "@/components/game/board3d/PlayerSection3D";
 import PerksBar from "@/components/game/board3d/PerksBar";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
+import { isOnchainHumanVsAgentGame } from "@/lib/utils/games";
 import { MyAgentToggle } from "@/components/game/MyAgentToggle";
 import { useAgentBindings } from "@/hooks/useAgentBindings";
 import { getStoredAgentApiKey, setStoredAgentApiKey } from "@/lib/agentApiKeySession";
@@ -355,7 +356,7 @@ function Board3DPageContent() {
     setMyAgentApiKeyState(value);
     setStoredAgentApiKey(value);
   }, []);
-  const agentOn = myAgentOn || !!myAgentApiKey;
+  const agentOn = !isOnchainHumanVsAgentGame(game) && (myAgentOn || !!myAgentApiKey);
   const { agentSettings, updateAgentSettings } = useAgentSettings();
 
   const agentNameBySlot = useMemo(() => {
@@ -2262,7 +2263,7 @@ function Board3DPageContent() {
             </div>
           </div>
         )}
-        {isLiveGame && game && me && (
+        {isLiveGame && game && me && !isOnchainHumanVsAgentGame(game) && (
           <MyAgentToggle
             gameId={game.id}
             myAgentOn={myAgentOn}

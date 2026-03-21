@@ -1,5 +1,10 @@
 import type { Game } from "@/types/game";
 
+/** Arena / on-chain: you play as the human; opponent is an agent. Never auto-drive the human seat from the client. */
+export function isOnchainHumanVsAgentGame(game: Game | null | undefined): boolean {
+  return String(game?.game_type ?? "").toUpperCase() === "ONCHAIN_HUMAN_VS_AGENT";
+}
+
 /**
  * True when the backend stored net-worth rankings (e.g. session timer or vote-to-end).
  * Typical FINISHED-by-bankruptcy AI games omit `placements`, so the client can avoid

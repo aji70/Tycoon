@@ -45,6 +45,7 @@ import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
 import { MyAgentToggle } from "@/components/game/MyAgentToggle";
 import { useAgentBindings } from "@/hooks/useAgentBindings";
 import { getStoredAgentApiKey, setStoredAgentApiKey } from "@/lib/agentApiKeySession";
+import { isOnchainHumanVsAgentGame } from "@/lib/utils/games";
 
 const Canvas = dynamic(
   () => import("@react-three/fiber").then((m) => m.Canvas),
@@ -483,7 +484,7 @@ function Board3DMobilePageContent() {
     setMyAgentApiKeyState(value);
     setStoredAgentApiKey(value);
   }, []);
-  const agentOn = myAgentOn || !!myAgentApiKey;
+  const agentOn = !isOnchainHumanVsAgentGame(game) && (myAgentOn || !!myAgentApiKey);
   const { agentSettings, updateAgentSettings } = useAgentSettings();
 
   const currentPlayerId = game?.next_player_id ?? null;
@@ -2330,7 +2331,7 @@ function Board3DMobilePageContent() {
             ${Number(me.balance ?? 0).toLocaleString()}
           </div>
         )}
-        {isLiveGame && game && me && (
+        {isLiveGame && game && me && !isOnchainHumanVsAgentGame(game) && (
           <div className="shrink-0">
             <button
               type="button"
@@ -2372,7 +2373,7 @@ function Board3DMobilePageContent() {
 
       {/* Agent mode panel (mobile) */}
       <AnimatePresence>
-        {showAgentPanel && isLiveGame && game && me && (
+        {showAgentPanel && isLiveGame && game && me && !isOnchainHumanVsAgentGame(game) && (
           <>
             <motion.div
               initial={{ opacity: 0 }}

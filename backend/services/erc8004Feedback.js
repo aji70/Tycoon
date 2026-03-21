@@ -35,7 +35,7 @@ const DEFAULT_FEEDBACK_ENDPOINT =
  * Uses ERC8004_FEEDBACK_PRIVATE_KEY if set (must not be the agent owner, or you get "self feedback not allowed").
  * Otherwise uses Celo game controller key (will fail if that wallet registered the agent).
  * @param {bigint | number | string} agentId - ERC-8004 agent id (from registration)
- * @param {number} score - 0 = human won, 100 = AI won (gameResult); or e.g. 10 for tipFollowed
+ * @param {number} score - 0 = human won, 100 = AI won (gameResult); use 100 for other positive signals too — explorers render value as x/100.
  * @param {string} [tag2] - Optional tag2 for the feedback (default "gameResult"). Use "tipFollowed" when user followed an AI tip.
  * @param {string} [tag1] - Optional tag1 (default "tycoon"). Use "starred" for positive quality signals (ERC-8004 standard metric).
  * @returns {Promise<{ success: boolean, hash?: string, error?: string }>}
