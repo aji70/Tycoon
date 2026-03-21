@@ -3,7 +3,10 @@
  * Matches the pattern used in the settings page for consistent UX.
  */
 
-/** Benign race when agents / polling act out of sync with turn state — do not toast. */
+/**
+ * Benign races (stale client, fast agent runner, double-submit): do not toast.
+ * Includes turn-order and change-position / payRent failures that recover on refetch.
+ */
 const BENIGN_TURN_SUBSTRINGS = [
   "not your turn",
   "not the current player",
@@ -12,14 +15,17 @@ const BENIGN_TURN_SUBSTRINGS = [
   "you already rolled",
   "it's not your turn",
   "it is not your turn",
+  "its not your turn",
   "not your turn to roll",
   "cannot end another player",
+  "failed to process property action",
 ];
 
 function collectErrorText(error: unknown): string {
   const e = error as {
     message?: string;
     shortMessage?: string;
+    data?: { message?: string; error?: string };
     response?: { data?: { message?: string; error?: string } };
   };
   const parts: string[] = [];
@@ -29,6 +35,11 @@ function collectErrorText(error: unknown): string {
   if (d && typeof d === "object") {
     if (typeof d.message === "string") parts.push(d.message);
     if (typeof d.error === "string") parts.push(d.error);
+  }
+  const top = e?.data;
+  if (top && typeof top === "object") {
+    if (typeof top.message === "string") parts.push(top.message);
+    if (typeof top.error === "string") parts.push(top.error);
   }
   return parts.join(" ").toLowerCase();
 }
@@ -44,10 +55,12 @@ export function getContractErrorMessage(
 ): string {
   const e = error as {
     code?: number;
+    status?: number;
     message?: string;
     shortMessage?: string;
     cause?: { name?: string };
     response?: { status?: number; data?: { message?: string; error?: string } };
+    data?: { message?: string; error?: string };
   };
 
   // User rejected / cancelled (wagmi/viem 4001)
@@ -60,6 +73,9 @@ export function getContractErrorMessage(
   ) {
     return "You cancelled the transaction.";
   }
+
+  // Stale turn / double-submit races — never show a toast (all board paths use this helper or should).
+  if (isBenignTurnOrderError(error)) return "";
 
   // Insufficient funds for gas
   if (
@@ -90,17 +106,21 @@ export function getContractErrorMessage(
     return "Smart contract rejected transaction (check balance/stake).";
   }
 
-  // Backend API errors
-  if (e?.response?.status === 400) {
-    const msg = (e?.response?.data?.message ?? "").toLowerCase();
+  // Backend API errors (status on axios response or ApiError.status)
+  const httpStatus = e?.response?.status ?? e?.status;
+  if (httpStatus === 400 || httpStatus === 422) {
+    const msg = (e?.response?.data?.message ?? e?.data?.message ?? "").toLowerCase();
     if (msg.includes("already exists") || msg.includes("duplicate")) {
       return "Game code already taken. Try again in a moment.";
     }
     if (msg.includes("invalid stake") || msg.includes("minimum")) {
       return "Invalid stake amount.";
     }
-    const msg400 = e?.response?.data?.message;
-    if (msg400 && typeof msg400 === "string") return msg400;
+    const msgClient = e?.response?.data?.message ?? e?.data?.message;
+    if (msgClient && typeof msgClient === "string") {
+      if (isBenignTurnOrderError({ response: { data: { message: msgClient } } })) return "";
+      return msgClient;
+    }
   }
 
   if (e?.response?.status === 429) {
@@ -120,12 +140,9 @@ export function getContractErrorMessage(
     return "Connection problem. Check your network and try again.";
   }
 
-  // Turn / roll races: fail quietly in UI (agents + fast polling); see toastContractError / isBenignTurnOrderError
-  const backendMsgRaw = e?.response?.data?.message ?? e?.response?.data?.error;
+  const backendMsgRaw =
+    e?.response?.data?.message ?? e?.response?.data?.error ?? e?.data?.message ?? e?.data?.error;
   const backendStr = typeof backendMsgRaw === "string" ? backendMsgRaw.toLowerCase() : "";
-  if (isBenignTurnOrderError(error)) {
-    return "";
-  }
 
   if (backendStr.includes("timeout") || backendStr.includes("timed out")) {
     return "Turn timed out. You can try again next round, or rejoin the game with your code if you were disconnected.";
@@ -140,7 +157,8 @@ export function getContractErrorMessage(
   }
 
   // Prefer backend message so we don't show generic "API request failed" when we have context
-  const backendMsg = e?.response?.data?.message ?? e?.response?.data?.error;
+  const backendMsg =
+    e?.response?.data?.message ?? e?.response?.data?.error ?? e?.data?.message ?? e?.data?.error;
   if (backendMsg && typeof backendMsg === "string") {
     const slice = backendMsg.slice(0, 140);
     if (isBenignTurnOrderError({ message: slice })) return "";
