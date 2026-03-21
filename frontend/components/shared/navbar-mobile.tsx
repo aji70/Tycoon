@@ -83,6 +83,11 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
+  const hasGameSession = isConnected || !!guestUser;
+  const signOutGuestAndPrivy = () => {
+    guestAuth?.logoutGuest();
+    if (isPrivyAuthed) void logout();
+  };
 
   const networkDisplay = caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : '—');
 
@@ -225,7 +230,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
 
               {/* Wallet Section - HUD card (wallet or Privy signed in) */}
               <div className="mb-6 space-y-4">
-                {(isConnected || isPrivyAuthed || guestUser) && (
+                {(isConnected || guestUser || isPrivyAuthed) && (
                   <div className="p-4 rounded-xl bg-gradient-to-br from-[#022a2c]/90 to-[#011112] border border-[#00F0FF]/20 shadow-[0_4px_16px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(0,240,255,0.06)] flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="h-11 w-11 rounded-lg border-2 border-[#00F0FF]/40 overflow-hidden shadow-[0_0_12px_rgba(0,240,255,0.15)] shrink-0 ring-1 ring-[#00F0FF]/10">
@@ -256,7 +261,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
 
               {/* Navigation Links - game menu options */}
               <nav className="space-y-2 mb-6">
-                {(isConnected || isPrivyAuthed || guestUser) && (
+                {hasGameSession && (
                   <Link
                     href="/arena"
                     onClick={closeMobileMenu}
@@ -290,40 +295,46 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                   How to Play
                 </Link>
 
-                <Link
-                  href="/leaderboard"
-                  onClick={closeMobileMenu}
-                  className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-amber-400/90">
-                    <Trophy size={20} />
-                  </div>
-                  Leaderboard
-                </Link>
+                {hasGameSession && (
+                  <Link
+                    href="/leaderboard"
+                    onClick={closeMobileMenu}
+                    className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-amber-400/90">
+                      <Trophy size={20} />
+                    </div>
+                    Leaderboard
+                  </Link>
+                )}
 
-                <Link
-                  href="/tournaments"
-                  onClick={closeMobileMenu}
-                  className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
-                    <Trophy size={20} />
-                  </div>
-                  Tournaments
-                </Link>
+                {hasGameSession && (
+                  <Link
+                    href="/tournaments"
+                    onClick={closeMobileMenu}
+                    className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
+                      <Trophy size={20} />
+                    </div>
+                    Tournaments
+                  </Link>
+                )}
 
-                <Link
-                  href={shopHref}
-                  onClick={closeMobileMenu}
-                  className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#0FF0FC] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-emerald-400/90">
-                    <ShoppingBag size={20} />
-                  </div>
-                  Perk Shop
-                </Link>
+                {hasGameSession && (
+                  <Link
+                    href={shopHref}
+                    onClick={closeMobileMenu}
+                    className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#0FF0FC] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-emerald-400/90">
+                      <ShoppingBag size={20} />
+                    </div>
+                    Perk Shop
+                  </Link>
+                )}
 
-                {(isConnected || isPrivyAuthed || guestUser) && (
+                {hasGameSession && (
                   <Link
                     href="/profile"
                     onClick={closeMobileMenu}
@@ -367,7 +378,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                     ) : guestUser ? (
                       <button
                         onClick={() => {
-                          guestAuth?.logoutGuest();
+                          signOutGuestAndPrivy();
                           closeMobileMenu();
                         }}
                         className="w-full py-4 rounded-xl bg-[#011112]/80 hover:bg-[#022a2c]/80 border border-[#003B3E]/60 text-[#00F0FF] font-orbitron font-medium transition-all duration-200"
@@ -377,7 +388,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                     ) : isPrivyAuthed ? (
                       <button
                         onClick={() => {
-                          logout();
+                          signOutGuestAndPrivy();
                           closeMobileMenu();
                         }}
                         className="w-full py-4 rounded-xl bg-[#011112]/80 hover:bg-[#022a2c]/80 border border-[#003B3E]/60 text-[#00F0FF] font-orbitron font-medium transition-all duration-200"

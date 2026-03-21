@@ -21,6 +21,8 @@ export default function PrivyBackendSync() {
   const { ready, authenticated, getAccessToken } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const refetchGuest = guestAuth?.refetchGuest;
+  const guestUser = guestAuth?.guestUser ?? null;
+  const guestLoading = guestAuth?.isLoading ?? false;
   const retryCountRef = useRef(0);
   const requestIdRef = useRef(0);
   const RETRY_DELAY_MS = 1500;
@@ -133,16 +135,29 @@ export default function PrivyBackendSync() {
     }
   }, [authenticated]);
 
+  /**
+   * Keep backend JWT in sync with Privy: re-run privy-signin when Privy is authenticated but
+   * /auth/me has no user (expired token, cleared storage, first load). Previously sync stayed
+   * "done" and never retried while Privy remained logged in.
+   */
   useEffect(() => {
     if (!ready || !authenticated || !refetchGuest) return;
-    setSyncState((prev) => {
-      if (prev !== "idle") return prev;
-      queueMicrotask(() => {
-        void callPrivySignin();
-      });
-      return "checking";
+    if (guestLoading) return;
+
+    if (guestUser) {
+      setSyncState((s) => (s === "needs_username" || s === "submitting" ? s : "done"));
+      return;
+    }
+
+    if (syncState === "needs_username" || syncState === "submitting" || syncState === "sync_failed" || syncState === "checking") {
+      return;
+    }
+
+    setSyncState("checking");
+    queueMicrotask(() => {
+      void callPrivySignin();
     });
-  }, [ready, authenticated, refetchGuest, callPrivySignin]);
+  }, [ready, authenticated, refetchGuest, guestLoading, guestUser, syncState, callPrivySignin]);
 
   const handleRetry = useCallback(() => {
     setError(null);

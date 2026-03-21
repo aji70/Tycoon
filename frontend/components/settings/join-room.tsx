@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IoHomeOutline, IoArrowForwardOutline } from "react-icons/io5";
 import { useAccount } from "wagmi";
-import { usePrivy } from "@privy-io/react-auth";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { Game } from "@/lib/types/games";
@@ -30,11 +29,9 @@ export default function JoinRoom({
 }: JoinRoomProps = {}): JSX.Element {
   const router = useRouter();
   const { address, isConnected } = useAccount();
-  const { ready, authenticated } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
-  const isPrivyAuthed = ready && authenticated;
-  const canAct = isConnected || !!guestUser || isPrivyAuthed;
+  const canAct = isConnected || !!guestUser;
 
   const [code, setCode] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);

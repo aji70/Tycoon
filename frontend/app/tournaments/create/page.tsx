@@ -105,10 +105,10 @@ export default function CreateTournamentPage() {
   const isPrivyAuthed = ready && authenticated;
   const isSignedIn = !!guestUser;
   const hasWallet = isConnected && !!address;
-  const canCreate = isSignedIn || hasWallet || isPrivyAuthed;
+  const canCreate = isSignedIn || hasWallet;
   const showAuthGate = !authLoading && !canCreate;
   const canUseWallet = hasWallet && !!loginByWallet;
-  const canLoadAgents = isSignedIn || isPrivyAuthed;
+  const canLoadAgents = isSignedIn;
 
   useEffect(() => {
     if (!autoFillBots) setSelectedAgentIds([]);
