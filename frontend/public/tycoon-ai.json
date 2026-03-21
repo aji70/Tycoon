@@ -6,6 +6,10 @@
   "active": true,
   "services": [
     {
+      "name": "Web",
+      "endpoint": "https://tycoonworld.xyz"
+    },
+    {
       "name": "Decision API",
       "endpoint": "https://base-monopoly-production.up.railway.app/api/agent-registry/decision",
       "version": "v1"
