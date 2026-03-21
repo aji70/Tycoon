@@ -24,6 +24,7 @@ import {
   removePlayerFromGame,
   isContractConfigured,
   ensureUsdcAllowanceFromSmartWalletForTycoon,
+  syncBackendPasswordIfMissingOnChain,
 } from "../services/tycoonContract.js";
 import {
   getGameByCodeStarknet,
@@ -1534,6 +1535,15 @@ export const createOnchainAgentVsAI = async (req, res) => {
       });
     }
 
+    await syncBackendPasswordIfMissingOnChain(
+      contractUser.address,
+      contractUser.password_hash,
+      contractUser.username,
+      startingCash,
+      chainForCreate,
+      { mode: "ai", numberOfAI: aiCount }
+    );
+
     const gameType = "PRIVATE";
     const playerSymbol = String(symbol || "hat").trim().toLowerCase() || "hat";
     const gameCodeForContract = code.trim().toUpperCase();
@@ -2510,6 +2520,18 @@ export const createAsGuest = async (req, res) => {
       }
     }
     const numberOfAI = isAI ? Math.max(1, (number_of_players ?? 2) - 1) : 0;
+    const numberOfPlayersProbe = Math.max(
+      2,
+      Math.min(8, Number(number_of_players) || (isAI ? numberOfAI + 1 : 4))
+    );
+    await syncBackendPasswordIfMissingOnChain(
+      contractUser.address,
+      contractUser.password_hash,
+      contractUser.username,
+      startingCash,
+      chainForCreate,
+      isAI ? { mode: "ai", numberOfAI } : { mode: "game", numberOfPlayers: numberOfPlayersProbe }
+    );
 
     // AI games must be created with createAIGameByBackend so on-chain game.ai is true (required for endAIGame).
     // Use create-ai-as-guest for guest AI games; this branch only handles accidental is_ai on create-as-guest.
@@ -2861,6 +2883,15 @@ export const createAIAsGuest = async (req, res) => {
         message: "Guest authentication required. Link a wallet or use a guest account that can create games.",
       });
     }
+
+    await syncBackendPasswordIfMissingOnChain(
+      contractUser.address,
+      contractUser.password_hash,
+      contractUser.username,
+      startingCash,
+      chainForAICreate,
+      { mode: "ai", numberOfAI }
+    );
 
     const gameCodeForContract = (code || "").trim();
     const { gameId: onChainGameIdFromEvent } = await createAIGameByBackend(
