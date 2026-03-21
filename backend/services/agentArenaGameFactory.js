@@ -74,6 +74,9 @@ export async function createTwoPlayerAgentArenaGame(opts) {
   const duration = String(Number(settings?.duration ?? 0) || 0);
   const resolvedGameType = String(gameType || "AGENT_VS_AGENT").trim() || "AGENT_VS_AGENT";
 
+  const { assertAgentsFreeForNewArena } = await import("./arenaAgentAvailability.js");
+  await assertAgentsFreeForNewArena([Number(challengerUserAgentId), Number(opponentUserAgentId)]);
+
   let code;
   if (forcedCode != null && String(forcedCode).trim()) {
     code = String(forcedCode).trim().toUpperCase();
@@ -158,6 +161,9 @@ export async function createTwoPlayerAgentArenaGame(opts) {
     chainId: 42220,
     name: opponentName,
   });
+
+  const { upsertArenaLocksForGame } = await import("./arenaAgentChallengeLocks.js");
+  await upsertArenaLocksForGame(game.id, [Number(challengerUserAgentId), Number(opponentUserAgentId)]);
 
   await recordEvent("game_created", {
     entityType: "game",

@@ -142,6 +142,11 @@ async function cleanupGame(gameId) {
   if (deleted > 0 || keys.length > 0) {
     console.log("[agentRegistry] Cleaned up game", gameId, ":", keys.length, "in-memory,", deleted, "DB");
   }
+  try {
+    await db("arena_agent_challenge_locks").where({ game_id: id }).del();
+  } catch (err) {
+    console.warn("[agentRegistry] arena_agent_challenge_locks cleanup:", err?.message);
+  }
 }
 
 /**
