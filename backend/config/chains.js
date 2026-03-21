@@ -32,7 +32,10 @@ export function getChainConfig(chain) {
       process.env.TOURNAMENT_ESCROW_SIGNER_PRIVATE_KEY ??
       privateKey;
     const chainId = Number(process.env.CELO_CHAIN_ID) || 42220;
-    const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_CELO ?? process.env.TOURNAMENT_ESCROW_CELO;
+    const tournamentEscrowAddress =
+      process.env.TOURNAMENT_ESCROW_ADDRESS_CELO ??
+      process.env.TOURNAMENT_ESCROW_CELO ??
+      process.env.TOURNAMENT_ESCROW_ADDRESS;
     const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_CELO ?? process.env.TYCOON_USER_REGISTRY_ADDRESS;
     const nairaVaultAddress = process.env.TYCOON_NAIRA_VAULT_CELO ?? process.env.TYCOON_NAIRA_VAULT_ADDRESS;
     const gameFaucetAddress =
@@ -64,7 +67,10 @@ export function getChainConfig(chain) {
       process.env.TOURNAMENT_ESCROW_SIGNER_PRIVATE_KEY ??
       privateKey;
     const chainId = Number(process.env.POLYGON_CHAIN_ID) || 137;
-    const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_POLYGON ?? process.env.TOURNAMENT_ESCROW_POLYGON;
+    const tournamentEscrowAddress =
+      process.env.TOURNAMENT_ESCROW_ADDRESS_POLYGON ??
+      process.env.TOURNAMENT_ESCROW_POLYGON ??
+      process.env.TOURNAMENT_ESCROW_ADDRESS;
     const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_POLYGON;
     const gameFaucetAddress = process.env.TYCOON_GAME_FAUCET_ADDRESS_POLYGON ?? process.env.TYCOON_GAME_FAUCET_POLYGON;
     const usdcAddress = process.env.POLYGON_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
@@ -91,7 +97,10 @@ export function getChainConfig(chain) {
       process.env.TOURNAMENT_ESCROW_SIGNER_PRIVATE_KEY ??
       privateKey;
     const chainId = Number(process.env.BASE_CHAIN_ID) || 8453;
-    const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_BASE ?? process.env.TOURNAMENT_ESCROW_BASE;
+    const tournamentEscrowAddress =
+      process.env.TOURNAMENT_ESCROW_ADDRESS_BASE ??
+      process.env.TOURNAMENT_ESCROW_BASE ??
+      process.env.TOURNAMENT_ESCROW_ADDRESS;
     const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_BASE;
     const gameFaucetAddress = process.env.TYCOON_GAME_FAUCET_ADDRESS_BASE ?? process.env.TYCOON_GAME_FAUCET_BASE;
     const usdcAddress = process.env.BASE_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
@@ -134,3 +143,37 @@ export function isAnyChainConfigured() {
 
 /** Supported chain names for contract operations */
 export const SUPPORTED_CHAINS = ["CELO", "POLYGON", "BASE"];
+
+/**
+ * What’s missing for staked arena / tournament USDC pulls (clear errors for .env).
+ * @param {string} chain
+ * @returns {{ chain: string, missing: string[], ok: boolean }}
+ */
+export function getStakedMatchEscrowDiagnostics(chain) {
+  const c = normalizeChainName(chain);
+  const cfg = getChainConfig(chain);
+  const missing = [];
+  if (!cfg.tournamentEscrowAddress) {
+    if (c === "CELO") {
+      missing.push("TOURNAMENT_ESCROW_ADDRESS_CELO or TOURNAMENT_ESCROW_CELO or TOURNAMENT_ESCROW_ADDRESS");
+    } else if (c === "POLYGON") {
+      missing.push("TOURNAMENT_ESCROW_ADDRESS_POLYGON or TOURNAMENT_ESCROW_POLYGON or TOURNAMENT_ESCROW_ADDRESS");
+    } else if (c === "BASE") {
+      missing.push("TOURNAMENT_ESCROW_ADDRESS_BASE or TOURNAMENT_ESCROW_BASE or TOURNAMENT_ESCROW_ADDRESS");
+    } else {
+      missing.push(`tournament escrow address for chain ${c} (not in CELO/POLYGON/BASE config)`);
+    }
+  }
+  if (!cfg.usdcAddress) {
+    if (c === "CELO") {
+      missing.push("CELO_USDC_ADDRESS or USDC_ADDRESS (native USDC on Celo)");
+    } else if (c === "POLYGON") {
+      missing.push("POLYGON_USDC_ADDRESS or USDC_ADDRESS");
+    } else if (c === "BASE") {
+      missing.push("BASE_USDC_ADDRESS or USDC_ADDRESS");
+    } else {
+      missing.push(`USDC token contract address for chain ${c}`);
+    }
+  }
+  return { chain: c, missing, ok: missing.length === 0 };
+}

@@ -11,6 +11,7 @@
 import crypto from "crypto";
 import db from "../config/database.js";
 import logger from "../config/logger.js";
+import { getStakedMatchEscrowDiagnostics } from "../config/chains.js";
 import { ACTIVITY_XP, awardActivityXpByAgentId } from "./eloService.js";
 
 const QUEUE_POLL_INTERVAL_MS = 5000; // Check for matches every 5 sec
@@ -572,7 +573,12 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
       const escrow = cfg.tournamentEscrowAddress;
       const usdc = cfg.usdcAddress ?? process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
       if (!escrow || !usdc) {
-        throw new Error("Tournament escrow or USDC not configured for this chain. Staked matches are unavailable.");
+        const d = getStakedMatchEscrowDiagnostics(chain);
+        throw new Error(
+          `Staked arena on ${d.chain}: configure ${d.missing.join(" · ")}. ` +
+            `Deploy TycoonTournamentEscrow for this chain and call setBackend(your game-controller address). ` +
+            `See backend/.env.example (TycoonTournamentEscrow + USDC).`
+        );
       }
 
       const tournament = await Tournament.create({
@@ -882,7 +888,12 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
       const escrow = cfg.tournamentEscrowAddress;
       const usdc = cfg.usdcAddress ?? process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
       if (!escrow || !usdc) {
-        throw new Error("Tournament escrow or USDC not configured for this chain. Staked matches are unavailable.");
+        const d = getStakedMatchEscrowDiagnostics(chain);
+        throw new Error(
+          `Staked arena on ${d.chain}: configure ${d.missing.join(" · ")}. ` +
+            `Deploy TycoonTournamentEscrow for this chain and call setBackend(your game-controller address). ` +
+            `See backend/.env.example (TycoonTournamentEscrow + USDC).`
+        );
       }
 
       const tournament = await Tournament.create({
