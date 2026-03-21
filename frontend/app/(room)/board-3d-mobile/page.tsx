@@ -53,6 +53,7 @@ import ActionLog from "@/components/game/ai-board/action-log";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, HeartHandshake, MessageCircle, X, Bot } from "lucide-react";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
+import { gameHasRankedPlacements } from "@/lib/utils/games";
 
 const Canvas = dynamic(
   () => import("@react-three/fiber").then((m) => m.Canvas),
@@ -506,6 +507,8 @@ function Board3DMobileContent() {
       gt.includes("ONCHAIN_HUMAN_VS_AGENT")
     );
   }, [game]);
+
+  const endedByRankedSession = useMemo(() => gameHasRankedPlacements(game), [game]);
 
   const agentNameBySlot = useMemo(() => {
     if (!isAgentBattle) return new Map<number, string>();
@@ -3152,7 +3155,11 @@ function Board3DMobileContent() {
               >
                 <Crown className="w-20 h-20 mx-auto text-cyan-300 mb-4" />
                 <h1 className="text-4xl font-black text-white mb-2">YOU WIN</h1>
-                <p className="text-slate-200 mb-2">You had the highest net worth when time ran out.</p>
+                <p className="text-slate-200 mb-2">
+                  {endedByRankedSession
+                    ? "You had the highest net worth when the session ended."
+                    : "Congratulations — you won this match."}
+                </p>
                 {endGameReason && <p className="text-slate-400 mb-6 text-sm">{endGameReason}</p>}
                 {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
                   <button
@@ -3179,7 +3186,9 @@ function Board3DMobileContent() {
                 className="relative w-full max-w-md rounded-[2rem] overflow-hidden border-2 border-slate-500/50 bg-gradient-to-b from-slate-900/95 to-black/95 shadow-2xl text-center p-8"
               >
                 <Trophy className="w-16 h-16 mx-auto text-amber-400 mb-4" />
-                <h1 className="text-2xl font-bold text-slate-200 mb-2">Time&apos;s up</h1>
+                <h1 className="text-2xl font-bold text-slate-200 mb-2">
+                  {endedByRankedSession ? "Time's up" : "Game over"}
+                </h1>
                 <p className="text-xl text-white mb-4">
                   {winner.username} <span className="text-amber-400">wins</span>
                 </p>
