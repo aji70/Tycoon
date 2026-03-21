@@ -724,32 +724,52 @@ export function getContract(chain = "CELO") {
 }
 
 /**
- * Self-serve registerPlayer() can leave registered=true with _passwordHashOf unset. Backend createGameByBackend then reverts "No password set".
+ * Self-serve registerPlayer() can leave registered=true with _passwordHashOf unset. Backend *ByBackend then reverts "No password set".
  * Probe with staticCall; only send setBackendPasswordFor when that specific revert is detected (avoids an extra tx on every auth sync).
+ * @param {object} [options] - `mode`: "game" (default) uses createGameByBackend probe; "ai" uses createAIGameByBackend. `numberOfAI` for ai mode (default 1).
  */
 export async function syncBackendPasswordIfMissingOnChain(
   forPlayer,
   passwordHash,
   creatorUsername,
   startingBalance,
-  chain = "CELO"
+  chain = "CELO",
+  options = {}
 ) {
+  const mode = options?.mode === "ai" ? "ai" : "game";
+  const numberOfAI = Math.max(1, Math.min(7, Number(options?.numberOfAI) || 1));
+  const numberOfPlayers = Math.max(2, Math.min(8, Number(options?.numberOfPlayers) || 2));
+
   const tycoon = getContract(chain);
   const probeCode = `__PWPROBE_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
   const startBal = BigInt(startingBalance ?? 1500);
   try {
-    await tycoon.createGameByBackend.staticCall(
-      forPlayer,
-      "",
-      passwordHash,
-      creatorUsername,
-      "PRIVATE",
-      "hat",
-      2,
-      probeCode,
-      startBal,
-      0n
-    );
+    if (mode === "ai") {
+      await tycoon.createAIGameByBackend.staticCall(
+        forPlayer,
+        "",
+        passwordHash,
+        creatorUsername,
+        "PRIVATE",
+        "hat",
+        numberOfAI,
+        probeCode,
+        startBal
+      );
+    } else {
+      await tycoon.createGameByBackend.staticCall(
+        forPlayer,
+        "",
+        passwordHash,
+        creatorUsername,
+        "PRIVATE",
+        "hat",
+        numberOfPlayers,
+        probeCode,
+        startBal,
+        0n
+      );
+    }
     return { synced: false };
   } catch (e) {
     const msg = `${e?.shortMessage || ""} ${e?.message || ""} ${e?.info?.error?.message || ""}`;

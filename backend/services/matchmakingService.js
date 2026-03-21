@@ -12,6 +12,7 @@ import crypto from "crypto";
 import db from "../config/database.js";
 import logger from "../config/logger.js";
 import { getStakedMatchEscrowDiagnostics } from "../config/chains.js";
+import { getOnchainAddressForGuestFlow } from "../utils/onchainUserAddress.js";
 import { ACTIVITY_XP, awardActivityXpByAgentId } from "./eloService.js";
 
 const QUEUE_POLL_INTERVAL_MS = 5000; // Check for matches every 5 sec
@@ -325,8 +326,8 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
 
     const chain = User.normalizeChain(userA.chain || "base");
 
-    const rA = await ensureUserHasContractAuthResult(db, userA.id, chain);
-    const rB = await ensureUserHasContractAuthResult(db, userB.id, chain);
+    const rA = await ensureUserHasContractAuthResult(db, userA.id, chain, getOnchainAddressForGuestFlow(userA));
+    const rB = await ensureUserHasContractAuthResult(db, userB.id, chain, getOnchainAddressForGuestFlow(userB));
     if (!rA.ok || !rB.ok) {
       const parts = [];
       if (!rA.ok) parts.push(`You (${userA.username || `user ${userA.id}`}): ${rA.reason}`);
@@ -623,7 +624,7 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
     const auths = [];
     const authFailures = [];
     for (const u of rosterUsers) {
-      const r = await ensureUserHasContractAuthResult(db, u.id, chain);
+      const r = await ensureUserHasContractAuthResult(db, u.id, chain, getOnchainAddressForGuestFlow(u));
       if (!r.ok) authFailures.push(`${u.username || `User ${u.id}`}: ${r.reason}`);
       else auths.push({ address: r.address, username: r.username, password_hash: r.password_hash });
     }
@@ -962,7 +963,7 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
     const auths = [];
     const authFailures = [];
     for (const u of [humanUser, opponentOwner]) {
-      const r = await ensureUserHasContractAuthResult(db, u.id, chain);
+      const r = await ensureUserHasContractAuthResult(db, u.id, chain, getOnchainAddressForGuestFlow(u));
       if (!r.ok) {
         const label = u.id === humanUser.id ? "You" : `Opponent owner (${opponentAgent.name || "agent"})`;
         authFailures.push(`${label}: ${r.reason}`);
