@@ -395,7 +395,7 @@ export default function CreateTournamentPage() {
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-8 pb-24 md:pb-12">
+      <main className="max-w-6xl mx-auto px-4 py-8 pb-24 md:pb-12">
         {authLoading && (
           <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/90 to-[#011112]/60 p-12 text-center shadow-lg shadow-black/20">
             <Loader2 className="w-10 h-10 animate-spin text-cyan-400 mx-auto mb-4" />
@@ -446,17 +446,22 @@ export default function CreateTournamentPage() {
         )}
 
         {!authLoading && canCreate && (
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <div className="flex items-center gap-2 px-1 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 w-fit">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="text-sm font-medium text-emerald-300/95">
-                {isPrivyAuthed ? "Signed in" : isSignedIn ? `Signed in as ${guestUser?.username ?? "user"}` : "Connected with wallet"}
-              </span>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 w-fit">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="text-sm font-medium text-emerald-300/95">
+                  {isPrivyAuthed ? "Signed in" : isSignedIn ? `Signed in as ${guestUser?.username ?? "user"}` : "Connected with wallet"}
+                </span>
+              </div>
             </div>
 
-            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/90 to-[#011112]/60 p-6 shadow-lg shadow-black/20">
-              <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
-                <Swords className="w-4 h-4 text-cyan-400" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-start">
+              {/* Left column */}
+              <div className="space-y-6">
+            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/95 to-[#011112]/70 p-6 shadow-xl shadow-black/30 ring-1 ring-white/5">
+              <h2 className="text-sm font-semibold text-cyan-200/95 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Swords className="w-4 h-4 text-cyan-400/90" />
                 Basics
               </h2>
               <div className="space-y-4">
@@ -496,9 +501,9 @@ export default function CreateTournamentPage() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/80 to-[#011112]/50 p-6 shadow-lg shadow-black/20">
-              <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
-                <Eye className="w-4 h-4 text-cyan-400" />
+            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/95 to-[#011112]/70 p-6 shadow-xl shadow-black/30 ring-1 ring-white/5">
+              <h2 className="text-sm font-semibold text-cyan-200/95 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Eye className="w-4 h-4 text-cyan-400/90" />
                 Arena visibility
               </h2>
               <p className="text-xs text-white/50 mb-4">Who can see and join this tournament</p>
@@ -546,7 +551,7 @@ export default function CreateTournamentPage() {
             </section>
 
             {visibility === "BOT_SELECTION" && (
-              <section className="rounded-2xl border border-amber-500/20 bg-gradient-to-b from-amber-950/20 to-amber-950/5 p-6 shadow-lg shadow-black/20">
+              <section className="rounded-2xl border border-amber-500/20 bg-gradient-to-b from-amber-950/25 to-amber-950/10 p-6 shadow-xl shadow-black/30 ring-1 ring-amber-500/10">
                 <h3 className="text-sm font-semibold text-amber-200/95 flex items-center gap-2 mb-1">
                   <Link2 className="w-4 h-4" />
                   Pick public agents (Discover)
@@ -604,9 +609,9 @@ export default function CreateTournamentPage() {
               </section>
             )}
 
-            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/80 to-[#011112]/50 p-6 shadow-lg shadow-black/20">
-              <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-cyan-400" />
+            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/95 to-[#011112]/70 p-6 shadow-xl shadow-black/30 ring-1 ring-white/5">
+              <h2 className="text-sm font-semibold text-cyan-200/95 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-cyan-400/90" />
                 Prize source
               </h2>
               <p className="text-xs text-white/50 mb-4">How prizes are funded (or none for free play)</p>
@@ -679,9 +684,12 @@ export default function CreateTournamentPage() {
               )}
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/80 to-[#011112]/50 p-6 shadow-lg shadow-black/20">
-              <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
-                <Users className="w-4 h-4 text-cyan-400" />
+              </div>
+              {/* Right column */}
+              <div className="space-y-6">
+            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/95 to-[#011112]/70 p-6 shadow-xl shadow-black/30 ring-1 ring-white/5">
+              <h2 className="text-sm font-semibold text-cyan-200/95 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Users className="w-4 h-4 text-cyan-400/90" />
                 Bracket size
               </h2>
               <div className="flex flex-wrap gap-2 mb-4">
@@ -749,9 +757,9 @@ export default function CreateTournamentPage() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/80 to-[#011112]/50 p-6 shadow-lg shadow-black/20">
-              <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-400" />
+            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/95 to-[#011112]/70 p-6 shadow-xl shadow-black/30 ring-1 ring-white/5">
+              <h2 className="text-sm font-semibold text-cyan-200/95 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-400/90" />
                 Quick start (bots)
               </h2>
               <label className="flex items-center justify-between gap-4 p-4 rounded-xl bg-white/[0.02] border border-white/5 cursor-pointer hover:border-white/10 transition">
@@ -823,13 +831,16 @@ export default function CreateTournamentPage() {
               )}
             </section>
 
+              </div>
+
+              <div className="lg:col-span-2 space-y-4 mt-2">
             {error && (
-              <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3">
+              <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3 mb-4">
                 <p className="text-sm text-red-300">{error}</p>
               </div>
             )}
             {warning && (
-              <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3">
+              <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 mb-4">
                 <p className="text-sm text-amber-200">{warning}</p>
               </div>
             )}
@@ -850,6 +861,8 @@ export default function CreateTournamentPage() {
                   : "Creating tournament…"
                 : "Create tournament"}
             </button>
+            </div>
+            </div>
           </form>
         )}
       </main>

@@ -19,10 +19,12 @@ import {
   Play,
   AlertCircle,
   Wallet,
+  WalletMinimal,
 } from "lucide-react";
 import type { Bracket, BracketRound, TournamentDetail } from "@/types/tournament";
 import { symbols as symbolOptions } from "@/lib/types/symbol";
 import { apiClient } from "@/lib/api";
+import { useUserRegistryWallet } from "@/context/ContractProvider";
 import type { ApiResponse } from "@/types/api";
 
 function formatEntryFee(wei: string | number): string {
@@ -110,11 +112,17 @@ export default function TournamentDetailPage() {
   const { guestUser } = useGuestAuthOptional() ?? {};
   const { address: walletAddress } = useAccount();
   const walletChainId = useChainId();
-  const smartWalletAddress =
+  const { data: registrySmartWallet } = useUserRegistryWallet(walletAddress ?? undefined);
+  const guestSmartWallet =
     guestUser?.smart_wallet_address &&
     String(guestUser.smart_wallet_address).trim() !== "0x0000000000000000000000000000000000000000"
       ? (guestUser.smart_wallet_address as `0x${string}`)
       : undefined;
+  const registrySw =
+    registrySmartWallet && String(registrySmartWallet).trim() !== "0x0000000000000000000000000000000000000000"
+      ? (registrySmartWallet as `0x${string}`)
+      : undefined;
+  const smartWalletAddress = guestSmartWallet ?? registrySw;
   const { fund: fundPrizePoolOnChain, isPending: fundPoolPending, isReady: fundPoolReady, canUseSmartWallet } =
     useFundPrizePool(smartWalletAddress);
   const [registering, setRegistering] = useState(false);
@@ -477,6 +485,9 @@ export default function TournamentDetailPage() {
               <Users className="w-4 h-4" />
               {entryCount} / {tournament.max_players} players
             </span>
+            {isCreator && entryCount === 0 && tournament.status === "REGISTRATION_OPEN" && (
+              <span className="text-xs text-white/50 italic">Refresh to see Quick start registrations.</span>
+            )}
             <span className="inline-flex px-2.5 py-1 rounded-lg bg-white/5 text-white/80 text-sm">
               {formatEntryFee(tournament.entry_fee_wei)}
             </span>
@@ -624,32 +635,47 @@ export default function TournamentDetailPage() {
                   <p className="text-amber-200 text-sm">Escrow not configured for this network. Check environment settings.</p>
                 </div>
               )}
-              {canUseSmartWallet && (
-                <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-white/[0.03] border border-white/5">
-                  <span className="text-sm text-white/70">Pay from:</span>
-                  <div className="flex gap-1 p-0.5 rounded-lg bg-white/5">
-                    <button
-                      type="button"
-                      onClick={() => setFundFromSmartWallet(true)}
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                        fundFromSmartWallet ? "bg-cyan-500/25 text-cyan-200" : "text-white/60 hover:text-white/80"
-                      }`}
-                    >
-                      Smart wallet
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFundFromSmartWallet(false)}
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                        !fundFromSmartWallet ? "bg-cyan-500/25 text-cyan-200" : "text-white/60 hover:text-white/80"
-                      }`}
-                    >
-                      Connected wallet
-                    </button>
-                  </div>
-                  <span className="text-xs text-white/50">
-                    {fundFromSmartWallet ? "Uses USDC in your Tycoon smart wallet" : "Uses USDC in your connected EOA"}
-                  </span>
+              {walletAddress && walletChainOk && (
+                <div className="mb-4 p-4 rounded-xl bg-cyan-500/8 border border-cyan-500/20">
+                  <p className="text-sm font-medium text-cyan-200/95 mb-3 flex items-center gap-2">
+                    <WalletMinimal className="w-4 h-4" />
+                    Pay from
+                  </p>
+                  {canUseSmartWallet ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex gap-1 p-0.5 rounded-lg bg-black/20">
+                        <button
+                          type="button"
+                          onClick={() => setFundFromSmartWallet(true)}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                            fundFromSmartWallet
+                              ? "bg-cyan-500/30 text-cyan-100 border border-cyan-400/40"
+                              : "text-white/60 hover:text-white/80 border border-transparent"
+                          }`}
+                        >
+                          Smart wallet
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFundFromSmartWallet(false)}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                            !fundFromSmartWallet
+                              ? "bg-cyan-500/30 text-cyan-100 border border-cyan-400/40"
+                              : "text-white/60 hover:text-white/80 border border-transparent"
+                          }`}
+                        >
+                          Connected wallet
+                        </button>
+                      </div>
+                      <span className="text-xs text-white/60">
+                        {fundFromSmartWallet ? "USDC in your Tycoon smart wallet" : "USDC in your connected EOA"}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-white/70">
+                      Using <strong>connected wallet</strong>. Sign in and create a profile to use your smart wallet for deposits.
+                    </p>
+                  )}
                 </div>
               )}
               <div className="flex flex-col sm:flex-row sm:items-end gap-4">
