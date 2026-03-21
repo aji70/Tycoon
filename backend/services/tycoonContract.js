@@ -1172,6 +1172,47 @@ export async function ensureUsdcAllowanceFromSmartWalletForTycoon(smartWalletAdd
   return executeCallFromSmartWalletWithAuth(smartWalletAddress, usdc, 0n, calldata, nonce, sig, chain);
 }
 
+/**
+ * Approve TycoonTournamentEscrow to pull USDC from the user's smart wallet (executeCallWithAuth + PIN-gated authority sig).
+ */
+export async function ensureUsdcAllowanceFromSmartWalletForEscrow(smartWalletAddress, escrowAddress, requiredAmount, chain = "CELO") {
+  const cfg = getChainConfig(chain);
+  const usdc = getUsdcAddressForBackend(chain);
+  if (!escrowAddress || !usdc) throw new Error("USDC or escrow address not configured for this chain");
+  if (requiredAmount <= 0n) return { skipped: true };
+
+  const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+  const network = new Network(networkName, cfg.chainId);
+  const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+  const token = new Contract(usdc, ERC20_ALLOWANCE_APPROVE_ABI, provider);
+  const current = await token.allowance(smartWalletAddress, escrowAddress);
+  if (current >= requiredAmount) {
+    logger.info({ smartWalletAddress, escrowAddress, requiredAmount: String(requiredAmount) }, "USDC allowance already sufficient for tournament escrow");
+    return { skipped: true };
+  }
+
+  const approveIface = new Interface(["function approve(address spender, uint256 amount) returns (bool)"]);
+  const calldata = approveIface.encodeFunctionData("approve", [escrowAddress, requiredAmount]);
+  const nonce = BigInt("0x" + crypto.randomBytes(8).toString("hex"));
+  const sig = await signExecuteCallAuth(smartWalletAddress, usdc, 0n, calldata, nonce, chain);
+  return executeCallFromSmartWalletWithAuth(smartWalletAddress, usdc, 0n, calldata, nonce, sig, chain);
+}
+
+const ESCROW_REGISTER_IFACE = new Interface(["function registerForTournament(uint256 tournamentId)"]);
+
+/**
+ * Pay arena/tournament entry into TycoonTournamentEscrow via registerForTournament (updates on-chain totalEntryFees).
+ * Replaces raw USDC transfer to the escrow address, which does not credit the tournament ledger.
+ */
+export async function payTournamentEscrowEntryFromSmartWallet(smartWalletAddress, escrowAddress, tournamentId, stakeUnits, chain = "CELO") {
+  if (stakeUnits <= 0n) throw new Error("stakeUnits must be positive");
+  await ensureUsdcAllowanceFromSmartWalletForEscrow(smartWalletAddress, escrowAddress, stakeUnits, chain);
+  const calldata = ESCROW_REGISTER_IFACE.encodeFunctionData("registerForTournament", [BigInt(tournamentId)]);
+  const nonce = BigInt("0x" + crypto.randomBytes(8).toString("hex"));
+  const sig = await signExecuteCallAuth(smartWalletAddress, escrowAddress, 0n, calldata, nonce, chain);
+  return executeCallFromSmartWalletWithAuth(smartWalletAddress, escrowAddress, 0n, calldata, nonce, sig, chain);
+}
+
 export async function processNairaWithdrawalCelo(fromWallet, amountWei, chain = "CELO") {
   return withTxQueue(async () => {
     const cfg = getChainConfig(chain);

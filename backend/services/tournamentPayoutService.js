@@ -8,6 +8,7 @@ import TournamentEntry from "../models/TournamentEntry.js";
 import TournamentMatch from "../models/TournamentMatch.js";
 import User from "../models/User.js";
 import logger from "../config/logger.js";
+import { isEscrowConfigured, lockAndFinalizeTournamentOnEscrow } from "./tournamentEscrow.js";
 
 /**
  * Persist one tournament payout row (same semantics as executePayouts loop).
@@ -65,6 +66,13 @@ export async function executeDrawRefunds(tournamentId) {
     throw new Error("Draw refunds only apply to entry-fee pool tournaments");
   }
 
+  const existingRow = await db("tournament_payouts").where({ tournament_id: tournamentId }).count("* as c").first();
+  const existingCount = Number(existingRow?.c ?? 0);
+  if (existingCount > 0) {
+    logger.info({ tournamentId, existingCount }, "executeDrawRefunds: rows already exist; idempotent skip");
+    return { done: existingCount, failed: 0, message: "Already recorded", skipped: true, houseWei: 0, toPlayers: 0 };
+  }
+
   const entries = await TournamentEntry.findByTournament(tournamentId);
   if (!entries?.length) {
     logger.info({ tournamentId }, "executeDrawRefunds: no entries");
@@ -82,14 +90,36 @@ export async function executeDrawRefunds(tournamentId) {
   const base = Math.floor(toPlayers / count);
   let remainder = toPlayers - base * count;
 
+  const rows = [];
+  let rem = remainder;
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    const amountWei = base + (rem > 0 ? 1 : 0);
+    if (rem > 0) rem -= 1;
+    rows.push({ entry, amountWei });
+  }
+
+  const escrowPlan = [];
+  for (const { entry, amountWei } of rows) {
+    const user = await User.findById(entry.user_id);
+    const sw = user?.smart_wallet_address && String(user.smart_wallet_address).trim();
+    if (sw && amountWei > 0) escrowPlan.push({ address: sw, amountWei });
+  }
+
+  if (escrowPlan.length > 0) {
+    const res = await lockAndFinalizeTournamentOnEscrow(tournamentId, tournament.chain, escrowPlan);
+    if (res?.skipped && isEscrowConfigured(tournament.chain)) {
+      const fatal = ["zero_onchain_pool", "read_failed"];
+      if (fatal.includes(res.reason)) {
+        throw new Error(`Escrow draw payout failed (${res.reason}) for tournament ${tournamentId}`);
+      }
+    }
+  }
+
   let done = 0;
   let failed = 0;
 
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i];
-    const amountWei = base + (remainder > 0 ? 1 : 0);
-    if (remainder > 0) remainder -= 1;
-
+  for (const { entry, amountWei } of rows) {
     const tea = await db("tournament_entry_agents").where("tournament_entry_id", entry.id).first();
     const userAgentId = tea?.user_agent_id ?? null;
 
@@ -169,10 +199,36 @@ export async function executePayouts(tournamentId) {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) throw new Error("Tournament not found");
 
+  const existingRow = await db("tournament_payouts").where({ tournament_id: tournamentId }).count("* as c").first();
+  const existingCount = Number(existingRow?.c ?? 0);
+  if (existingCount > 0) {
+    logger.info({ tournamentId, existingCount }, "executePayouts: rows already exist; idempotent skip");
+    return { done: existingCount, failed: 0, message: "Already recorded", skipped: true };
+  }
+
   const payouts = await computePayouts(tournamentId);
   if (payouts.length === 0) {
     logger.info({ tournamentId }, "No payouts to execute");
     return { done: 0, failed: 0, message: "No payouts" };
+  }
+
+  const escrowPlan = [];
+  for (const payout of payouts) {
+    const entry = await TournamentEntry.findById(payout.entry_id);
+    if (!entry) continue;
+    const user = await User.findById(entry.user_id);
+    const sw = user?.smart_wallet_address && String(user.smart_wallet_address).trim();
+    if (sw && payout.amount_wei > 0) escrowPlan.push({ address: sw, amountWei: payout.amount_wei });
+  }
+
+  if (escrowPlan.length > 0) {
+    const res = await lockAndFinalizeTournamentOnEscrow(tournamentId, tournament.chain, escrowPlan);
+    if (res?.skipped && isEscrowConfigured(tournament.chain)) {
+      const fatal = ["zero_onchain_pool", "read_failed"];
+      if (fatal.includes(res.reason)) {
+        throw new Error(`Escrow winner payout failed (${res.reason}) for tournament ${tournamentId}`);
+      }
+    }
   }
 
   let done = 0;

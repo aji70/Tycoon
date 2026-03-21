@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
+import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS, ApiError } from "@/lib/api";
+import { ArenaOnchainModal, type ArenaOnchainBusyPayload } from "@/components/arena/arena-onchain-modal";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
@@ -128,6 +129,8 @@ export default function ArenaMobile() {
   const [humanVsStakeUsdc, setHumanVsStakeUsdc] = useState("");
   const [humanVsStarting, setHumanVsStarting] = useState(false);
   const [challengesSubTab, setChallengesSubTab] = useState<"agentVsAgent" | "youVsAgent">("agentVsAgent");
+  const [arenaTxModalOpen, setArenaTxModalOpen] = useState(false);
+  const [arenaTxBusy, setArenaTxBusy] = useState<ArenaOnchainBusyPayload | null>(null);
   const [openTournaments, setOpenTournaments] = useState<ArenaTournamentRow[]>([]);
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
   const [tournamentsError, setTournamentsError] = useState<string | null>(null);
@@ -445,6 +448,8 @@ export default function ArenaMobile() {
       alert("Log in (guest or Privy), pick your agent, and select opponents.");
       return;
     }
+    setArenaTxModalOpen(true);
+    setArenaTxBusy(null);
     setArenaStarting(true);
     try {
       const stakeNum = stakeAmountUsdc.trim() ? parseFloat(stakeAmountUsdc) : 0;
@@ -459,13 +464,23 @@ export default function ArenaMobile() {
       );
       const code = res?.data?.game_code as string | undefined;
       if (code) {
+        setArenaTxModalOpen(false);
         setSelectedOpponents([]);
         router.push(`/board-3d-mobile?gameCode=${encodeURIComponent(code)}`);
       } else {
         throw new Error("No game code");
       }
     } catch (err) {
-      alert(`Error: ${(err as Error).message}`);
+      const e = err as ApiError;
+      if (e.status === 409 && e.data?.code === "AGENT_BUSY_IN_ARENA") {
+        setArenaTxBusy({
+          message: e.message,
+          gameCode: String(e.data?.game_code ?? ""),
+        });
+      } else {
+        setArenaTxModalOpen(false);
+        alert(`Error: ${e.message || (err as Error).message}`);
+      }
     } finally {
       setArenaStarting(false);
     }
@@ -476,6 +491,8 @@ export default function ArenaMobile() {
       alert("Sign in and pick an opponent (You play vs).");
       return;
     }
+    setArenaTxModalOpen(true);
+    setArenaTxBusy(null);
     setHumanVsStarting(true);
     try {
       const stakeNum = humanVsStakeUsdc.trim() ? parseFloat(humanVsStakeUsdc) : 0;
@@ -489,6 +506,7 @@ export default function ArenaMobile() {
       );
       const code = res?.data?.game_code as string | undefined;
       if (code) {
+        setArenaTxModalOpen(false);
         setHumanVsOpponentId(null);
         setHumanVsStakeUsdc("");
         router.push(`/board-3d-mobile?gameCode=${encodeURIComponent(code)}`);
@@ -496,7 +514,16 @@ export default function ArenaMobile() {
         throw new Error("No game code");
       }
     } catch (err) {
-      alert(`Error: ${(err as Error).message}`);
+      const e = err as ApiError;
+      if (e.status === 409 && e.data?.code === "AGENT_BUSY_IN_ARENA") {
+        setArenaTxBusy({
+          message: e.message,
+          gameCode: String(e.data?.game_code ?? ""),
+        });
+      } else {
+        setArenaTxModalOpen(false);
+        alert(`Error: ${e.message || (err as Error).message}`);
+      }
     } finally {
       setHumanVsStarting(false);
     }
@@ -614,27 +641,6 @@ export default function ArenaMobile() {
             uses a lobby first and often feels quicker. Wallet spending caps only apply to{" "}
             <strong style={{ color: "#e8fbff" }}>tournament entries</strong> and the <strong style={{ color: "#e8fbff" }}>Challenges</strong> tab — not required to start games here.
           </p>
-          {arenaStarting && (
-            <div
-              className={styles.challengeHint}
-              style={{
-                marginTop: 8,
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid rgba(126, 232, 255, 0.35)",
-                background: "rgba(0, 40, 48, 0.55)",
-                color: "#c8f7ff",
-                fontSize: "0.9rem",
-              }}
-              role="status"
-              aria-live="polite"
-            >
-              <strong style={{ color: "#e8fbff", display: "block", marginBottom: 4 }}>
-                On-chain setup…
-              </strong>
-              Registering everyone on the blockchain (sequential confirmations). Normal to wait — don’t close this tab.
-            </div>
-          )}
           <label className={styles.challengeFieldLabel} htmlFor="arena-mobile-agent">
             Playing as
           </label>
@@ -1222,6 +1228,16 @@ export default function ArenaMobile() {
         </div>
       )}
       </div>
+
+      <ArenaOnchainModal
+        open={arenaTxModalOpen}
+        busy={arenaTxBusy}
+        isMobile
+        onClose={() => {
+          setArenaTxModalOpen(false);
+          setArenaTxBusy(null);
+        }}
+      />
     </div>
   );
 }

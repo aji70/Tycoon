@@ -488,6 +488,9 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
       throw new Error("Each seat must be a different player (no duplicate owners)");
     }
 
+    const { assertAgentsFreeForNewArena } = await import("./arenaAgentAvailability.js");
+    await assertAgentsFreeForNewArena(rosterAgents.map((a) => Number(a.id)));
+
     const challengerUser = await User.findById(uid);
     if (!challengerUser) throw new Error("User not found");
 
@@ -815,6 +818,9 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
     if (Number(opponentAgent.user_id) === uid) {
       throw new Error("Pick another player's agent — you play yourself here, not your own bot.");
     }
+
+    const { assertAgentsFreeForNewArena } = await import("./arenaAgentAvailability.js");
+    await assertAgentsFreeForNewArena([Number(opponentAgent.id)]);
 
     const humanUser = await User.findById(uid);
     const opponentOwner = await User.findById(opponentAgent.user_id);
