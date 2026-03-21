@@ -824,6 +824,83 @@ button.tournamentLinkBtn.tournamentBtnDisabled {
   margin-bottom: 32px;
 }
 
+.myAgentsQuickIntro {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(8, 22, 28, 0.92) 0%, rgba(10, 20, 30, 0.82) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.18);
+}
+
+.myAgentsQuickIntroTitle {
+  margin: 0 0 4px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #e8fbff;
+}
+
+.myAgentsQuickIntroText {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: #8aa8b0;
+}
+
+.spendChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+.spendChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.spendChipOn {
+  color: #031210;
+  background: linear-gradient(135deg, #5fffd8 0%, #34d399 100%);
+  border: 1px solid rgba(52, 211, 153, 0.45);
+}
+
+.spendChipOff {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.25);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.walletCapsCta {
+  width: 100%;
+  margin-top: 8px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 240, 255, 0.38);
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.14) 0%, rgba(0, 180, 200, 0.08) 45%, rgba(251, 191, 36, 0.12) 100%);
+  color: #e8fbff;
+  font-weight: 700;
+  font-size: 0.72rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.walletCapsCta:active {
+  opacity: 0.92;
+}
+
 .emptyState {
   text-align: center;
   padding: 48px 16px;

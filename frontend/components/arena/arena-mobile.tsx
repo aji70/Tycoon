@@ -11,7 +11,7 @@ import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/Cont
 import { ApiResponse } from "@/types/api";
 import styles from "./arena-mobile.module.css";
 import AgentsPageMobile from "@/components/agents/agents-page-mobile";
-import { Swords, Search, Trophy, Target, UserRound, Zap } from "lucide-react";
+import { Swords, Search, Trophy, Target, UserRound, Zap, Wallet } from "lucide-react";
 
 const MAX_DISCOVER_OPPONENTS = 7;
 const MAX_CHALLENGES_OPPONENTS = 1;
@@ -1216,12 +1216,17 @@ export default function ArenaMobile() {
               </div>
               {myAgentsSubTab === "overview" ? (
                 <div className={styles.myAgentsList}>
-                  <p className={styles.challengeHint} style={{ marginBottom: 12, fontSize: "0.8rem" }}>
-                    Quick: Discover, <strong>Can spend</strong> (per match + daily total), Celo. Use{" "}
-                    <strong>Tournament wallet spending</strong> on each card for the caps modal. <strong>Manage</strong> for create agent, API keys, full settings.
-                  </p>
+                  <div className={styles.myAgentsQuickIntro}>
+                    <p className={styles.myAgentsQuickIntroTitle}>At a glance</p>
+                    <p className={styles.myAgentsQuickIntroText}>
+                      Wallet caps limit USDC for tournaments and staked games. <strong style={{ color: "#b8f7ff" }}>Manage</strong> for API keys and new agents.
+                    </p>
+                  </div>
                   {myAgents.length > 0 ? (
-                    myAgents.map((agent) => (
+                    myAgents.map((agent) => {
+                      const tp = tournamentPerms[agent.id];
+                      const spendOn = Boolean(tp?.enabled);
+                      return (
                       <div key={agent.id} className={styles.agentCard}>
                         <div className={styles.cardTop}>
                           <div className={styles.nameSection}>
@@ -1235,6 +1240,18 @@ export default function ArenaMobile() {
                             {tierLabelOf(agent)}
                           </div>
                         </div>
+                        <div className={styles.spendChipRow}>
+                          <span className={`${styles.spendChip} ${spendOn ? styles.spendChipOn : styles.spendChipOff}`}>
+                            <Wallet className="w-3 h-3 shrink-0" aria-hidden />
+                            {spendOn ? "Caps on" : "Caps off"}
+                          </span>
+                          {spendOn && tp ? (
+                            <span className={`${styles.spendChip} ${styles.spendChipOn}`} style={{ opacity: 0.92 }}>
+                              {formatUsdcDisplay(tp.max_entry_fee_usdc)}/match
+                              {tp.daily_cap_usdc ? ` · ${formatUsdcDisplay(tp.daily_cap_usdc)}/d` : ""}
+                            </span>
+                          ) : null}
+                        </div>
                         <div className={styles.statsRow}>
                           <div className={styles.stat}>
                             <span className={styles.label}>XP</span>
@@ -1243,18 +1260,6 @@ export default function ArenaMobile() {
                           <div className={styles.stat}>
                             <span className={styles.label}>Discover</span>
                             <span className={styles.value}>{agent.is_public ? "On" : "Off"}</span>
-                          </div>
-                          <div className={styles.stat}>
-                            <span className={styles.label}>Can spend</span>
-                            <span className={styles.value}>
-                              {tournamentPerms[agent.id]?.enabled
-                                ? `Yes · ${formatUsdcDisplay(tournamentPerms[agent.id]?.max_entry_fee_usdc)}/match${
-                                    tournamentPerms[agent.id]?.daily_cap_usdc
-                                      ? ` · ${formatUsdcDisplay(tournamentPerms[agent.id]?.daily_cap_usdc)}/day`
-                                      : ""
-                                  }`
-                                : "No"}
-                            </span>
                           </div>
                         </div>
                         <p className={styles.creator} style={{ marginTop: 6 }}>
@@ -1288,32 +1293,18 @@ export default function ArenaMobile() {
                         </button>
                         <button
                           type="button"
+                          className={styles.walletCapsCta}
                           onClick={() => {
                             setMyAgentsSubTab("manage");
                             setOpenTournamentSpendingJumpAgentId(agent.id);
                           }}
-                          style={{
-                            width: "100%",
-                            marginTop: 8,
-                            padding: "10px 12px",
-                            borderRadius: 8,
-                            border: "2px solid rgba(251, 191, 36, 0.45)",
-                            background: "linear-gradient(90deg, rgba(245, 158, 11, 0.22), rgba(217, 119, 6, 0.12))",
-                            color: "#fde68a",
-                            fontWeight: 700,
-                            fontSize: "0.75rem",
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 8,
-                          }}
                         >
                           <Trophy className="w-4 h-4 shrink-0" aria-hidden />
-                          Tournament &amp; staked wallet spending
+                          {spendOn ? "Edit wallet spending caps" : "Set up wallet spending"}
                         </button>
                       </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <p className={styles.emptyState}>No agents — use Manage to create one.</p>
                   )}

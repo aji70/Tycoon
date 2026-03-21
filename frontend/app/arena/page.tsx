@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Zap,
+  Wallet,
 } from "lucide-react";
 
 /** Multi-opponent batch games from Discover tab. */
@@ -1300,13 +1301,19 @@ export default function ArenaPage() {
               </div>
               {myAgentsSubTab === "overview" ? (
                 <div className={styles.myAgents}>
-                  <p className={styles.challengeHint} style={{ textAlign: "left", marginBottom: 16 }}>
-                    Quick view: Discover visibility, <strong>Can spend</strong> (max per match + daily total), and Celo. Each card has{" "}
-                    <strong>Tournament wallet spending</strong> to open the caps modal. Use <strong>Manage &amp; spending</strong> to create agents, API keys, and full settings.
-                  </p>
+                  <div className={styles.myAgentsQuickIntro}>
+                    <p className={styles.myAgentsQuickIntroTitle}>At a glance</p>
+                    <p className={styles.myAgentsQuickIntroText}>
+                      Caps control how much USDC your smart wallet can spend on tournament entries and staked challenges. Open{" "}
+                      <strong style={{ color: "#b8f7ff" }}>Manage &amp; spending</strong> for API keys, behavior, and creating agents.
+                    </p>
+                  </div>
                   {myAgents.length > 0 ? (
                     <div className={styles.myAgentsGrid}>
-                      {myAgents.map((agent) => (
+                      {myAgents.map((agent) => {
+                        const tp = tournamentPerms[agent.id];
+                        const spendOn = Boolean(tp?.enabled);
+                        return (
                         <div key={agent.id} className={styles.agentCard}>
                           <div className={styles.agentHeader}>
                             <h3>{agent.name}</h3>
@@ -1317,41 +1324,43 @@ export default function ArenaPage() {
                               {tierLabelOf(agent)}
                             </div>
                           </div>
-                          <div className={styles.agentStats}>
-                            <div className={styles.statRow}>
-                              <span className={styles.label}>Status</span>
-                              <span className={styles.value}>{agent.status || "unknown"}</span>
-                            </div>
-                            <div className={styles.statRow}>
-                              <span className={styles.label}>XP</span>
-                              <span className={styles.value}>{xpOf(agent)}</span>
-                            </div>
-                            <div className={styles.statRow}>
-                              <span className={styles.label}>Discover</span>
-                              <span className={styles.value}>{agent.is_public ? "Public" : "Private"}</span>
-                            </div>
-                            <div className={styles.statRow}>
-                              <span className={styles.label}>Can spend</span>
-                              <span className={styles.value}>
-                                {tournamentPerms[agent.id]?.enabled
-                                  ? `Yes · ${formatUsdcDisplay(tournamentPerms[agent.id]?.max_entry_fee_usdc)}/match${
-                                      tournamentPerms[agent.id]?.daily_cap_usdc
-                                        ? ` · ${formatUsdcDisplay(tournamentPerms[agent.id]?.daily_cap_usdc)}/day`
-                                        : ""
-                                    }`
-                                  : "No"}
+                          <div className={styles.spendChipRow}>
+                            <span className={`${styles.spendChip} ${spendOn ? styles.spendChipOn : styles.spendChipOff}`}>
+                              <Wallet className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                              {spendOn ? "Wallet caps on" : "Wallet caps off"}
+                            </span>
+                            {spendOn && tp ? (
+                              <span className={`${styles.spendChip} ${styles.spendChipOn}`} style={{ opacity: 0.92 }}>
+                                {formatUsdcDisplay(tp.max_entry_fee_usdc)}/match
+                                {tp.daily_cap_usdc ? ` · ${formatUsdcDisplay(tp.daily_cap_usdc)}/day` : ""}
                               </span>
-                            </div>
-                            <div className={styles.statRow}>
-                              <span className={styles.label}>ERC-8004</span>
-                              <span className={styles.value}>{agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "—"}</span>
-                            </div>
-                            {agent.erc8004_agent_id ? (
-                              <p className={styles.challengeHint} style={{ marginTop: 4, fontSize: "0.75rem" }}>
-                                Linked agents get higher shown XP and earn more from games, tournaments, and trades.
-                              </p>
                             ) : null}
                           </div>
+                          <div className={styles.quickCapsuleGrid}>
+                            <div className={styles.quickCapsule}>
+                              <span className={styles.quickCapsuleLabel}>Status</span>
+                              <span className={styles.quickCapsuleValue}>{agent.status || "—"}</span>
+                            </div>
+                            <div className={styles.quickCapsule}>
+                              <span className={styles.quickCapsuleLabel}>XP</span>
+                              <span className={styles.quickCapsuleValue}>{xpOf(agent)}</span>
+                            </div>
+                            <div className={styles.quickCapsule}>
+                              <span className={styles.quickCapsuleLabel}>Discover</span>
+                              <span className={styles.quickCapsuleValue}>{agent.is_public ? "Public" : "Private"}</span>
+                            </div>
+                          </div>
+                          <div className={styles.statRow} style={{ marginBottom: 4 }}>
+                            <span className={styles.label}>ERC-8004</span>
+                            <span className={styles.value} style={{ fontSize: "0.85rem", textAlign: "right" }}>
+                              {agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "—"}
+                            </span>
+                          </div>
+                          {agent.erc8004_agent_id ? (
+                            <p className={styles.challengeHint} style={{ marginTop: 0, marginBottom: 12, fontSize: "0.75rem" }}>
+                              Linked agents get higher shown XP and earn more from games, tournaments, and trades.
+                            </p>
+                          ) : null}
                           <div className={styles.agentFooter}>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                               <button
@@ -1383,33 +1392,19 @@ export default function ArenaPage() {
                             </div>
                             <button
                               type="button"
+                              className={styles.walletCapsCta}
                               onClick={() => {
                                 setMyAgentsSubTab("manage");
                                 setOpenTournamentSpendingJumpAgentId(agent.id);
                               }}
-                              style={{
-                                width: "100%",
-                                marginTop: 10,
-                                padding: "10px 12px",
-                                borderRadius: 8,
-                                border: "2px solid rgba(251, 191, 36, 0.45)",
-                                background: "linear-gradient(90deg, rgba(245, 158, 11, 0.22), rgba(217, 119, 6, 0.12))",
-                                color: "#fde68a",
-                                fontWeight: 700,
-                                fontSize: "0.8rem",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: 8,
-                              }}
                             >
                               <Trophy className="w-4 h-4 shrink-0" aria-hidden />
-                              Tournament &amp; staked wallet spending
+                              {spendOn ? "Edit wallet spending caps" : "Set up wallet spending"}
                             </button>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className={styles.challengeHint} style={{ textAlign: "center" }}>
