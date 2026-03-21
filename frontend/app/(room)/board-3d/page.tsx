@@ -18,6 +18,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getDiceValues } from "@/components/game/constants";
 import { JAIL_POSITION } from "@/components/game/constants";
 import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
+import { isBenignTurnOrderError } from "@/lib/utils/contractErrors";
 import { socketService } from "@/lib/socket";
 import { useGetGameByCode, useRewardBurnCollectible } from "@/context/ContractProvider";
 import { useChainId } from "wagmi";
@@ -666,6 +667,7 @@ function Board3DPageContent() {
   const showRollUi = !isLiveGame || (playerCanRoll && !(meInJail && !jailChoiceRequired));
 
   const showToast = useCallback((message: string, type?: "success" | "error" | "default") => {
+    if (type === "error" && isBenignTurnOrderError({ message })) return;
     if (type === "success") toast.success(message);
     else if (type === "error") toast.error(message);
     else toast(message);
@@ -1495,9 +1497,7 @@ function Board3DPageContent() {
               toast.success("Turn passed to next player.");
               await refetchGame();
             } else if (!ok && endMsg) {
-              const endMsgLower = String(endMsg).toLowerCase();
-              // Expected during fast auto-moves / stale turn state. Suppress noise.
-              if (endMsgLower.includes("not your turn")) {
+              if (isBenignTurnOrderError({ message: String(endMsg) })) {
                 await refetchGame();
               } else {
                 toast.error(endMsg);

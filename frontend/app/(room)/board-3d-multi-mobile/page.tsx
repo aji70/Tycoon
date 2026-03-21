@@ -21,6 +21,7 @@ import { getCornersPassed } from "@/components/game/board3d/positions";
 import { getDiceValues } from "@/components/game/constants";
 import { JAIL_POSITION, MOVE_ANIMATION_MS_PER_SQUARE } from "@/components/game/constants";
 import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
+import { isBenignTurnOrderError } from "@/lib/utils/contractErrors";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
@@ -646,6 +647,7 @@ function Board3DMobilePageContent() {
   const jailGuard = usePreventDoubleSubmit();
 
   const showToast = useCallback((message: string, type?: "success" | "error" | "default") => {
+    if (type === "error" && isBenignTurnOrderError({ message })) return;
     if (type === "success") toast.success(message);
     else if (type === "error") toast.error(message);
     else toast(message);
@@ -1213,10 +1215,7 @@ function Board3DMobilePageContent() {
               toast.success("Turn passed to next player.");
               await refetchGame();
             } else if (!ok && endMsg) {
-              const endMsgLower = String(endMsg).toLowerCase();
-              // This can happen during fast auto-moves or race conditions when a client action hits
-              // an out-of-turn state. Suppress the toast and just refetch to recover.
-              if (endMsgLower.includes("not your turn")) {
+              if (isBenignTurnOrderError({ message: String(endMsg) })) {
                 await refetchGame();
               } else {
                 toast.error(endMsg);
