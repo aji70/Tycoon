@@ -92,7 +92,7 @@ const isValidWallet = (a: unknown): a is Address => {
   return s.toLowerCase() !== zeroAddress.toLowerCase();
 };
 
-/** Guest/Privy profile when wallet is not connected, or when a connected extension wallet is not the Tycoon-registered address (see notice). */
+/** Guest/Privy profile when wallet is not connected, or when a connected extension wallet is not the Tycoon-registered address (notice only if wallet not registered — smart/linked users see no banner). */
 function GuestProfileViewMobile({
   guestUser,
   onRecreateClick,
@@ -110,6 +110,7 @@ function GuestProfileViewMobile({
   };
   onRecreateClick?: () => void | Promise<void>;
   recreatePending?: boolean;
+  /** Shown when the connected extension wallet is not registered for this account yet (prompt to link). Omitted when user already has smart/linked wallet — perks use those silently. */
   connectedWalletMismatchNotice?: string | null;
 }) {
   const username = guestUser.username;
@@ -1196,15 +1197,16 @@ export default function ProfilePageMobile() {
       );
     }
     if (showGuestProfileForConnectedWalletMismatch && guestUser) {
-      const mismatchNotice = guestHasPerkHolderAddresses
-        ? "Your connected wallet is not your Tycoon player address. Shop perks go to your smart wallet — open My Perks below (from your logged-in account). Disconnect or link the correct wallet in Account for the full connected profile."
-        : "Your connected wallet isn't registered on-chain yet. Link it below to use this account when you connect with that wallet (staked games, same stats).";
       return (
         <GuestProfileViewMobile
           guestUser={guestUser}
           onRecreateClick={handleRecreateViaApi}
           recreatePending={recreateApiPending}
-          connectedWalletMismatchNotice={mismatchNotice}
+          connectedWalletMismatchNotice={
+            guestHasPerkHolderAddresses
+              ? undefined
+              : "Your connected wallet isn't registered on-chain yet. Link it below to use this account when you connect with that wallet (staked games, same stats)."
+          }
         />
       );
     }
