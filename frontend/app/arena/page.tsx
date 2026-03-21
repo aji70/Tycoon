@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
@@ -141,8 +141,38 @@ export default function ArenaPage() {
   const [tournamentPerms, setTournamentPerms] = useState<Record<number, { enabled: boolean; max_entry_fee_usdc: string; daily_cap_usdc: string | null; chain: string | null }>>({});
   const [challengesLoading, setChallengesLoading] = useState(false);
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
+  const [openTournamentAgentId, setOpenTournamentAgentId] = useState<number | null>(null);
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
   const { isCelo } = useVerifyErc8004AgentId();
+
+  const mergeTournamentPermsFromApiResponse = useCallback((permsRes: unknown) => {
+    const list =
+      (permsRes as { data?: { data?: unknown } })?.data?.data ?? (permsRes as { data?: unknown })?.data ?? [];
+    const arr = Array.isArray(list) ? list : [];
+    const map: Record<number, { enabled: boolean; max_entry_fee_usdc: string; daily_cap_usdc: string | null; chain: string | null }> = {};
+    for (const p of arr as Array<{ user_agent_id?: number; enabled?: boolean; max_entry_fee_usdc?: string; daily_cap_usdc?: string | null; chain?: string | null }>) {
+      if (p?.user_agent_id != null) {
+        map[Number(p.user_agent_id)] = {
+          enabled: !!p.enabled,
+          max_entry_fee_usdc: p.max_entry_fee_usdc ?? "0",
+          daily_cap_usdc: p.daily_cap_usdc ?? null,
+          chain: p.chain ?? null,
+        };
+      }
+    }
+    setTournamentPerms(map);
+  }, []);
+
+  const refreshArenaTournamentPerms = useCallback(async () => {
+    try {
+      const permsRes = await apiClient.get("/agents/tournament-permissions");
+      mergeTournamentPermsFromApiResponse(permsRes);
+    } catch (e) {
+      console.error("Refresh tournament permissions:", e);
+    }
+  }, [mergeTournamentPermsFromApiResponse]);
+
+  const clearOpenTournamentAgent = useCallback(() => setOpenTournamentAgentId(null), []);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -250,20 +280,7 @@ export default function ArenaPage() {
         ]);
         if (cancelled) return;
         if (agentsRes?.data?.success && agentsRes.data.data) setMyAgents(agentsRes.data.data);
-        const list = (permsRes as any)?.data?.data ?? (permsRes as any)?.data ?? [];
-        const arr = Array.isArray(list) ? list : [];
-        const map: Record<number, { enabled: boolean; max_entry_fee_usdc: string; daily_cap_usdc: string | null; chain: string | null }> = {};
-        for (const p of arr) {
-          if (p?.user_agent_id != null && p?.enabled) {
-            map[Number(p.user_agent_id)] = {
-              enabled: true,
-              max_entry_fee_usdc: p.max_entry_fee_usdc ?? "0",
-              daily_cap_usdc: p.daily_cap_usdc ?? null,
-              chain: p.chain ?? null,
-            };
-          }
-        }
-        setTournamentPerms(map);
+        mergeTournamentPermsFromApiResponse(permsRes);
       } catch (e) {
         console.error("Challenges fetch:", e);
       } finally {
@@ -273,7 +290,23 @@ export default function ArenaPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, isAuthed]);
+  }, [activeTab, isAuthed, mergeTournamentPermsFromApiResponse]);
+
+  useEffect(() => {
+    if (activeTab !== "discover" || !isAuthed) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const permsRes = await apiClient.get("/agents/tournament-permissions");
+        if (!cancelled) mergeTournamentPermsFromApiResponse(permsRes);
+      } catch (e) {
+        console.error("Discover tournament permissions:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, isAuthed, mergeTournamentPermsFromApiResponse]);
 
   useEffect(() => {
     if (activeTab !== "my-agents" || !isAuthed) return;
@@ -288,20 +321,7 @@ export default function ArenaPage() {
         if (agentsRes?.data?.success && agentsRes.data.data) {
           setMyAgents(agentsRes.data.data);
         }
-        const list = (permsRes as any)?.data?.data ?? (permsRes as any)?.data ?? [];
-        const arr = Array.isArray(list) ? list : [];
-        const map: Record<number, { enabled: boolean; max_entry_fee_usdc: string; daily_cap_usdc: string | null; chain: string | null }> = {};
-        for (const p of arr) {
-          if (p?.user_agent_id != null) {
-            map[Number(p.user_agent_id)] = {
-              enabled: !!p.enabled,
-              max_entry_fee_usdc: p.max_entry_fee_usdc ?? "0",
-              daily_cap_usdc: p.daily_cap_usdc ?? null,
-              chain: p.chain ?? null,
-            };
-          }
-        }
-        setTournamentPerms(map);
+        mergeTournamentPermsFromApiResponse(permsRes);
       } catch (e) {
         console.error("Refresh my agents (overview):", e);
       }
@@ -309,7 +329,7 @@ export default function ArenaPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, myAgentsSubTab, isAuthed]);
+  }, [activeTab, myAgentsSubTab, isAuthed, mergeTournamentPermsFromApiResponse]);
 
   const fetchPublicAgents = async (pageNum: number, opts?: { approvedToSpend?: boolean }) => {
     try {
@@ -589,7 +609,8 @@ export default function ArenaPage() {
             <a href="/agent-battles" style={{ color: "#7ee8ff" }}>
               Agent Battles
             </a>
-            .
+            . You do <strong style={{ color: "#e8fbff" }}>not</strong> need wallet spending enabled here — that only applies to{" "}
+            <strong style={{ color: "#e8fbff" }}>tournament entry fees</strong> and the <strong style={{ color: "#e8fbff" }}>Challenges</strong> tab.
           </p>
           {arenaStarting && (
             <div
@@ -621,13 +642,28 @@ export default function ArenaPage() {
                 onChange={(e) => setChallengerAgentId(Number(e.target.value))}
                 aria-label="Your agent for challenges"
               >
-                {myAgents.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
+                {myAgents.map((a) => {
+                  const tp = tournamentPerms[a.id];
+                  const capHint =
+                    tp?.enabled === true
+                      ? ` — spend: max ${formatUsdcDisplay(tp.max_entry_fee_usdc)}/entry${
+                          tp.daily_cap_usdc ? `, ${formatUsdcDisplay(tp.daily_cap_usdc)}/day total` : ""
+                        }`
+                      : " — tournament spending off";
+                  return (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                      {capHint}
+                    </option>
+                  );
+                })}
               </select>
             </div>
+            <p className={styles.challengeHint} style={{ marginTop: 6 }}>
+              Set or change limits under <strong style={{ color: "#e8fbff" }}>My agents</strong> →{" "}
+              <strong style={{ color: "#e8fbff" }}>Spending caps</strong> (quick view) or <strong style={{ color: "#e8fbff" }}>Tournaments</strong>{" "}
+              (full manager).
+            </p>
             <div className={styles.challengeActions}>
               <button
                 type="button"
@@ -731,7 +767,9 @@ export default function ArenaPage() {
             <h2 className={styles.challengePanelTitle}>Challenges</h2>
           </div>
           <p className={styles.challengeHint}>
-            Agents you’ve <strong style={{ color: "#e8fbff" }}>approved to spend</strong> from your smart wallet (max entry fee + daily cap). Use them to create Arena matches below.
+            Agents you’ve <strong style={{ color: "#e8fbff" }}>approved to spend</strong> from your smart wallet: a{" "}
+            <strong style={{ color: "#e8fbff" }}>max per match</strong> (entry fee ceiling) and an optional{" "}
+            <strong style={{ color: "#e8fbff" }}>daily total cap</strong>. Use them to create Arena matches below; opponents listed here have also enabled spending.
           </p>
 
           {challengesLoading ? (
@@ -771,8 +809,8 @@ export default function ArenaPage() {
                           </div>
                         </div>
                         <div className={styles.agentDiscoverMeta} style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
-                          <span>Max entry: <strong>{formatUsdcDisplay(perm?.max_entry_fee_usdc)}</strong></span>
-                          <span>Daily cap: <strong>{formatUsdcDisplay(perm?.daily_cap_usdc)}</strong></span>
+                          <span>Max per match: <strong>{formatUsdcDisplay(perm?.max_entry_fee_usdc)}</strong></span>
+                          <span>Daily total cap: <strong>{formatUsdcDisplay(perm?.daily_cap_usdc)}</strong></span>
                           {perm?.chain && <span>Chain: {perm.chain}</span>}
                         </div>
                       </div>
@@ -992,8 +1030,8 @@ export default function ArenaPage() {
               {myAgentsSubTab === "overview" ? (
                 <div className={styles.myAgents}>
                   <p className={styles.challengeHint} style={{ textAlign: "left", marginBottom: 16 }}>
-                    Quick view: Discover, <strong>Can spend</strong> (tournament spending), and Celo. Use <strong>Full manager</strong> to create
-                    agents, enable spending (Tournaments button), API keys, and tournaments.
+                    Quick view: Discover visibility, <strong>Can spend</strong> (max per match + daily total for tournament fees), and Celo. Use{" "}
+                    <strong>Spending caps</strong> on each card to edit limits without leaving this tab, or <strong>Full manager</strong> for create / API keys / full editor.
                   </p>
                   {myAgents.length > 0 ? (
                     <div className={styles.myAgentsGrid}>
@@ -1025,7 +1063,11 @@ export default function ArenaPage() {
                               <span className={styles.label}>Can spend</span>
                               <span className={styles.value}>
                                 {tournamentPerms[agent.id]?.enabled
-                                  ? `Yes · max ${formatUsdcDisplay(tournamentPerms[agent.id]?.max_entry_fee_usdc)} entry`
+                                  ? `Yes · ${formatUsdcDisplay(tournamentPerms[agent.id]?.max_entry_fee_usdc)}/match${
+                                      tournamentPerms[agent.id]?.daily_cap_usdc
+                                        ? ` · ${formatUsdcDisplay(tournamentPerms[agent.id]?.daily_cap_usdc)}/day`
+                                        : ""
+                                    }`
                                   : "No"}
                               </span>
                             </div>
@@ -1047,6 +1089,16 @@ export default function ArenaPage() {
                                 onClick={() => toggleAgentPublic(agent.id, agent.is_public || false)}
                               >
                                 {agent.is_public ? "Hide from Discover" : "Show in Discover"}
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.btnSecondary}
+                                onClick={() => {
+                                  setOpenTournamentAgentId(agent.id);
+                                  setMyAgentsSubTab("manage");
+                                }}
+                              >
+                                Spending caps
                               </button>
                               <button
                                 type="button"
@@ -1079,7 +1131,12 @@ export default function ArenaPage() {
                   )}
                 </div>
               ) : (
-                <AgentsPage embeddedInArena />
+                <AgentsPage
+                  embeddedInArena
+                  openTournamentAgentId={openTournamentAgentId}
+                  onOpenTournamentAgentConsumed={clearOpenTournamentAgent}
+                  onSpendingCapsSaved={refreshArenaTournamentPerms}
+                />
               )}
             </>
           ) : (

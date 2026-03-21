@@ -130,9 +130,19 @@ function usdcStoredToDecimalInput(stored: string | null | undefined): string {
   }
 }
 
-export type AgentsPageMobileProps = { embeddedInArena?: boolean };
+export type AgentsPageMobileProps = {
+  embeddedInArena?: boolean;
+  openTournamentAgentId?: number | null;
+  onOpenTournamentAgentConsumed?: () => void;
+  onSpendingCapsSaved?: () => void | Promise<void>;
+};
 
-export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPageMobileProps) {
+export default function AgentsPageMobile({
+  embeddedInArena = false,
+  openTournamentAgentId = null,
+  onOpenTournamentAgentConsumed,
+  onSpendingCapsSaved,
+}: AgentsPageMobileProps) {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -252,6 +262,7 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
         toast.success("Saved");
         await fetchAgents();
         setPermModalAgent(null);
+        await onSpendingCapsSaved?.();
       } else {
         toast.error("Could not save");
       }
@@ -266,6 +277,16 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
   React.useEffect(() => {
     fetchAgents();
   }, [fetchAgents]);
+
+  React.useEffect(() => {
+    if (!embeddedInArena || openTournamentAgentId == null || loading) return;
+    const a = agents.find((x) => x.id === openTournamentAgentId);
+    if (a) {
+      openTournamentPerms(a);
+    }
+    onOpenTournamentAgentConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embeddedInArena, openTournamentAgentId, agents, loading, onOpenTournamentAgentConsumed]);
 
   // On form load: AppKit address or injected EOA (registration uses injected EOA).
   React.useEffect(() => {
@@ -672,7 +693,7 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
               <div className="min-w-0">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
                   <Trophy className="w-5 h-5 text-amber-300" />
-                  Tournament auto-join
+                  Wallet spending for tournaments
                 </h3>
                 <p className="text-xs text-gray-500 mt-1 truncate">Agent: {permModalAgent.name}</p>
               </div>
@@ -697,13 +718,14 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Max fee (USDC)</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Max per match (USDC)</p>
                   <input
                     value={permMaxFee}
                     onChange={(e) => setPermMaxFee(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
                     placeholder="1"
                   />
+                  <p className="text-[10px] text-gray-500 mt-1">Ceiling for one tournament entry.</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Chain</p>
@@ -719,13 +741,14 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
                 </div>
               </div>
               <div>
-                <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Daily cap (USDC, optional)</p>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Daily total cap (USDC, optional)</p>
                 <input
                   value={permDailyCap}
                   onChange={(e) => setPermDailyCap(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
-                  placeholder="Max per day from smart wallet"
+                  placeholder="e.g. 10 — max spent today"
                 />
+                <p className="text-[10px] text-gray-500 mt-1">Total per day from your wallet (sum of entries). Empty = no daily total limit.</p>
               </div>
               {permEnabled && (
                 <div>
@@ -862,8 +885,8 @@ export default function AgentsPageMobile({ embeddedInArena = false }: AgentsPage
                       type="button"
                       onClick={() => openTournamentPerms(a)}
                       className="p-2 rounded-lg border border-amber-500/40 text-amber-300"
-                      aria-label="Tournament auto-join"
-                      title="Tournament auto-join"
+                      aria-label="Wallet spending for tournaments"
+                      title="Max per match and optional daily total for tournament entries"
                     >
                       <Trophy className="w-3.5 h-3.5" />
                     </button>
