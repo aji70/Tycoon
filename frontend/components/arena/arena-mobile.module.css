@@ -611,6 +611,41 @@ button.heroLink {
   color: #c5e8ec;
 }
 
+.challengeSubTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(0, 240, 255, 0.15);
+}
+
+.challengeSubTab {
+  flex: 1 1 120px;
+  padding: 10px 12px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8ecbd1;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.challengeSubTab:hover {
+  color: #c8f7ff;
+  background: rgba(0, 240, 255, 0.08);
+}
+
+.challengeSubTabActive {
+  color: #0a1018;
+  background: linear-gradient(135deg, #7ee8ff 0%, #00d4e8 100%);
+}
+
 .challengeFieldLabel {
   display: block;
   font-size: 0.65rem;
