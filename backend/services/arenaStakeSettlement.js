@@ -6,6 +6,23 @@ import db from "../config/database.js";
 import logger from "../config/logger.js";
 import * as eloService from "./eloService.js";
 
+/** Avoid flooding deploy logs when pollers retry the same malformed FINISHED+COLLECTED rows. */
+const ARENA_SETTLE_WARN_THROTTLE_MS = Number(process.env.ARENA_SETTLE_WARN_THROTTLE_MS ?? 3_600_000);
+const lastArenaSettleWarnAt = new Map();
+
+function warnArenaSettleOnce(gameId, kind, payload, message) {
+  if (!Number.isFinite(ARENA_SETTLE_WARN_THROTTLE_MS) || ARENA_SETTLE_WARN_THROTTLE_MS <= 0) {
+    logger.warn(payload, message);
+    return;
+  }
+  const key = `${gameId}:${kind}`;
+  const now = Date.now();
+  const last = lastArenaSettleWarnAt.get(key) || 0;
+  if (now - last < ARENA_SETTLE_WARN_THROTTLE_MS) return;
+  lastArenaSettleWarnAt.set(key, now);
+  logger.warn(payload, message);
+}
+
 async function syncArenaStakePaidOutIfPayoutsExist(gameId) {
   const stake = await db("arena_match_stakes").where("game_id", gameId).where("status", "COLLECTED").first();
   if (!stake?.tournament_id) return;
@@ -179,7 +196,12 @@ export async function settleStakedArenaForFinishedGame(gameId) {
     if (!hasStakedBracket) {
       if (playersRaw.length !== 2) {
         if (playersRaw.length < 2) {
-          logger.warn({ gameId: id, playerCount: playersRaw.length }, "Arena stake settle: expected 2 players (no bracket)");
+          warnArenaSettleOnce(
+            id,
+            "no_bracket_players",
+            { gameId: id, playerCount: playersRaw.length },
+            "Arena stake settle: expected 2 players (no bracket)"
+          );
         }
         return { ok: false, reason: "player_count" };
       }
@@ -216,7 +238,9 @@ export async function settleStakedArenaForFinishedGame(gameId) {
     }
 
     if (!agentA || !agentB) {
-      logger.warn(
+      warnArenaSettleOnce(
+        id,
+        "no_agents",
         { gameId: id, hasStakedBracket, playerCount: playersRaw.length },
         "Arena stake settle: could not resolve user_agents"
       );

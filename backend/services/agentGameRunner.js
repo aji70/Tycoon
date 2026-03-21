@@ -516,8 +516,12 @@ async function processCompletedArenaMatches() {
     // Games use FINISHED when a match ends (not COMPLETED)
     const completedGames = await db("games")
       .select("games.id", "games.game_type", "games.status")
+      .join("tournament_matches as tm", "tm.game_id", "games.id")
+      .whereNotNull("tm.slot_a_entry_id")
+      .whereNotNull("tm.slot_b_entry_id")
       .whereIn("games.game_type", ["AGENT_VS_AGENT", "ONCHAIN_AGENT_VS_AGENT", "ONCHAIN_HUMAN_VS_AGENT"])
       .where("games.status", "FINISHED")
+      .groupBy("games.id", "games.game_type", "games.status")
       .where(function humanOrAgentArena() {
         this.where(function agentVsAgent() {
           this.whereIn("games.game_type", ["AGENT_VS_AGENT", "ONCHAIN_AGENT_VS_AGENT"]).whereNotExists(
