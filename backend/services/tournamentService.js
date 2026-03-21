@@ -30,6 +30,8 @@ const AGENT_TOURNAMENT_MATCH_DURATION_MIN = 30;
 const GAME_READY_WINDOW_SECONDS = 30;
 const ACTIVE_MATCH_STATUSES = ["IN_PROGRESS", "AWAITING_PLAYERS"];
 const ACTIVE_GAME_STATUSES = ["PENDING", "RUNNING", "IN_PROGRESS"];
+/** Do not treat players as "busy" from tournaments that are already done (avoids stale RUNNING games after arena/settlement). */
+const BLOCKING_TOURNAMENT_STATUSES = ["REGISTRATION_OPEN", "BRACKET_LOCKED", "IN_PROGRESS"];
 
 function getMatchEntryIds(match) {
   const parsed = parseParticipantEntryIds(match);
@@ -59,11 +61,13 @@ async function assertNoCrossTournamentConflict(tournamentId, entryList) {
 
   const activeUserConflict = await db("tournament_matches as tm")
     .join("games as g", "g.id", "tm.game_id")
+    .join("tournaments as t", "t.id", "tm.tournament_id")
     .join("tournament_entries as te", function joinEntries() {
       this.on("te.id", "=", "tm.slot_a_entry_id").orOn("te.id", "=", "tm.slot_b_entry_id");
     })
     .whereIn("tm.status", ACTIVE_MATCH_STATUSES)
     .whereIn("g.status", ACTIVE_GAME_STATUSES)
+    .whereIn("t.status", BLOCKING_TOURNAMENT_STATUSES)
     .whereIn("te.user_id", userIds)
     .whereNot("tm.tournament_id", Number(tournamentId))
     .select("tm.tournament_id", "te.user_id")
@@ -90,6 +94,7 @@ async function assertNoCrossTournamentConflict(tournamentId, entryList) {
 
   const activeAgentConflict = await db("tournament_matches as tm")
     .join("games as g", "g.id", "tm.game_id")
+    .join("tournaments as t", "t.id", "tm.tournament_id")
     .join("tournament_entry_agents as tea", function joinAgents() {
       this.on("tea.tournament_entry_id", "=", "tm.slot_a_entry_id").orOn(
         "tea.tournament_entry_id",
@@ -99,6 +104,7 @@ async function assertNoCrossTournamentConflict(tournamentId, entryList) {
     })
     .whereIn("tm.status", ACTIVE_MATCH_STATUSES)
     .whereIn("g.status", ACTIVE_GAME_STATUSES)
+    .whereIn("t.status", BLOCKING_TOURNAMENT_STATUSES)
     .whereIn("tea.user_agent_id", agentIds)
     .whereNot("tm.tournament_id", Number(tournamentId))
     .select("tm.tournament_id", "tea.user_agent_id")
