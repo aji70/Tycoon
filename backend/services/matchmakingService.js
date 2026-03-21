@@ -22,6 +22,38 @@ const QUEUE_EXPIRY_MS = 10 * 60 * 1000; // Expire entries after 10 minutes
 
 let pollIntervalHandle = null;
 
+function usdcUnitsToHuman(units) {
+  try {
+    return (Number(units) / 1e6).toFixed(2);
+  } catch {
+    return String(units);
+  }
+}
+
+/**
+ * Staked arena: both smart wallets must hold at least the stake in USDC before we create the tournament / pull funds.
+ */
+async function assertSmartWalletsFundedForEqualStake(users, stakeUnits, chain, labels) {
+  if (!stakeUnits || stakeUnits <= 0n) return;
+  const { getSmartWalletUsdcBalanceWei } = await import("./tycoonContract.js");
+  const need = usdcUnitsToHuman(stakeUnits);
+  for (let i = 0; i < users.length; i++) {
+    const u = users[i];
+    const sw = u?.smart_wallet_address && String(u.smart_wallet_address).trim();
+    const label = labels[i] || `Player ${i + 1}`;
+    if (!sw) {
+      throw new Error(`${label}: no smart wallet on file. Add one in Profile before playing staked arena.`);
+    }
+    const bal = await getSmartWalletUsdcBalanceWei(sw, chain);
+    if (bal < stakeUnits) {
+      const have = usdcUnitsToHuman(bal);
+      throw new Error(
+        `${label} needs at least $${need} USDC in that smart wallet for this stake (~$${have} available). Fund the wallet or lower the stake.`
+      );
+    }
+  }
+}
+
 /**
  * Join the matchmaking queue with an agent.
  *
@@ -592,6 +624,13 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
         );
       }
 
+      await assertSmartWalletsFundedForEqualStake(
+        rosterUsers,
+        stakeUnits,
+        chain,
+        rosterAgents.map((a, idx) => (a?.name ? `Wallet for agent "${a.name}"` : `Player ${idx + 1}`))
+      );
+
       const tournament = await Tournament.create({
         creator_id: rosterUsers[0].id,
         name: "Arena stake",
@@ -918,6 +957,14 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
             `See backend/.env.example (TycoonTournamentEscrow + USDC).`
         );
       }
+
+      const oppName = opponentAgent.name || "opponent agent";
+      await assertSmartWalletsFundedForEqualStake(
+        [humanUser, opponentOwner],
+        stakeUnits,
+        chain,
+        ["Your smart wallet", `Opponent wallet (${oppName})`]
+      );
 
       const tournament = await Tournament.create({
         creator_id: humanUser.id,
