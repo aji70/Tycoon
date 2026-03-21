@@ -642,31 +642,7 @@ button.tournamentLinkBtn.tournamentBtnDisabled:hover {
   padding-top: 15px;
 }
 
-/* My agents — quick view intro & wallet caps (desktop arena) */
-.myAgentsQuickIntro {
-  margin-bottom: 18px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: linear-gradient(145deg, rgba(8, 22, 28, 0.92) 0%, rgba(10, 20, 30, 0.82) 100%);
-  border: 1px solid rgba(0, 240, 255, 0.18);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
-}
-
-.myAgentsQuickIntroTitle {
-  margin: 0 0 6px;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #e8fbff;
-  letter-spacing: -0.02em;
-}
-
-.myAgentsQuickIntroText {
-  margin: 0;
-  font-size: 0.8rem;
-  line-height: 1.5;
-  color: #8aa8b0;
-}
-
+/* My agents — quick view wallet caps (desktop arena) */
 .spendChipRow {
   display: flex;
   flex-wrap: wrap;

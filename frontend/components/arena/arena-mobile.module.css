@@ -824,28 +824,6 @@ button.tournamentLinkBtn.tournamentBtnDisabled {
   margin-bottom: 32px;
 }
 
-.myAgentsQuickIntro {
-  margin-bottom: 14px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: linear-gradient(145deg, rgba(8, 22, 28, 0.92) 0%, rgba(10, 20, 30, 0.82) 100%);
-  border: 1px solid rgba(0, 240, 255, 0.18);
-}
-
-.myAgentsQuickIntroTitle {
-  margin: 0 0 4px;
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #e8fbff;
-}
-
-.myAgentsQuickIntroText {
-  margin: 0;
-  font-size: 0.74rem;
-  line-height: 1.45;
-  color: #8aa8b0;
-}
-
 .spendChipRow {
   display: flex;
   flex-wrap: wrap;

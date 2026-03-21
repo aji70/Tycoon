@@ -1301,13 +1301,6 @@ export default function ArenaPage() {
               </div>
               {myAgentsSubTab === "overview" ? (
                 <div className={styles.myAgents}>
-                  <div className={styles.myAgentsQuickIntro}>
-                    <p className={styles.myAgentsQuickIntroTitle}>At a glance</p>
-                    <p className={styles.myAgentsQuickIntroText}>
-                      Caps control how much USDC your smart wallet can spend on tournament entries and staked challenges. Open{" "}
-                      <strong style={{ color: "#b8f7ff" }}>Manage &amp; spending</strong> for API keys, behavior, and creating agents.
-                    </p>
-                  </div>
                   {myAgents.length > 0 ? (
                     <div className={styles.myAgentsGrid}>
                       {myAgents.map((agent) => {
