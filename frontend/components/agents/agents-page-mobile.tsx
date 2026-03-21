@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2, CheckCircle2, XCircle, Trophy, Eye, EyeOff } from "lucide-react";
+import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2, CheckCircle2, XCircle, Trophy, Eye, EyeOff, Wallet, X } from "lucide-react";
 import { apiClient, ApiError } from "@/lib/api";
 import {
   mergeGameplayIntoBehaviorProfile,
@@ -735,61 +735,90 @@ export default function AgentsPageMobile({
     <div className={mainShell}>
       {permModalAgent && (
         <div
-          className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[200] p-4 overflow-y-auto"
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[200] p-4 overflow-y-auto"
           onClick={() => setPermModalAgent(null)}
           role="presentation"
         >
           <div
-            className="bg-[#0d1117] rounded-2xl border-2 border-amber-400/40 p-5 max-w-md w-full my-4 shadow-[0_0_40px_rgba(251,191,36,0.12)]"
+            className={`rounded-2xl overflow-hidden max-w-md w-full my-4 shadow-[0_24px_80px_rgba(0,0,0,0.55)] ${
+              embeddedInArena
+                ? "border border-cyan-400/30 bg-[#060c10]"
+                : "border-2 border-amber-400/40 bg-[#0d1117]"
+            }`}
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-labelledby="tournament-spending-modal-title-mobile"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 id="tournament-spending-modal-title-mobile" className="text-lg font-bold text-white flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-amber-300" />
-                  Wallet spending for tournaments
-                </h3>
-                <p className="text-xs text-gray-500 mt-1 truncate">Agent: {permModalAgent.name}</p>
+            <div
+              className={`px-4 pt-4 pb-3 border-b border-white/[0.08] ${
+                embeddedInArena
+                  ? "bg-gradient-to-r from-cyan-500/15 via-teal-500/5 to-amber-500/10"
+                  : "bg-gradient-to-r from-amber-500/10 to-transparent"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 pr-2">
+                  <h3 id="tournament-spending-modal-title-mobile" className="text-base font-bold text-white flex items-center gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/30 border border-white/10 shrink-0">
+                      <Wallet className="w-4 h-4 text-cyan-300" aria-hidden />
+                    </span>
+                    <span className="leading-tight">Smart wallet caps</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-1.5">
+                    <span className="text-slate-400">Agent</span>{" "}
+                    <span className="text-cyan-100/90 font-medium truncate">{permModalAgent.name}</span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPermModalAgent(null)}
+                  className="shrink-0 p-2 rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/5"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setPermModalAgent(null)}
-                className="px-3 py-1.5 rounded-lg border border-gray-600 text-gray-200 hover:bg-white/5 text-xs"
-              >
-                Close
-              </button>
             </div>
 
-            <div className="mt-4 space-y-3">
-              <label className="flex items-center justify-between gap-3 text-sm text-gray-200">
-                <span>Enable</span>
-                <input
-                  type="checkbox"
-                  checked={permEnabled}
-                  onChange={(e) => setPermEnabled(e.target.checked)}
-                  className="rounded border-gray-600 bg-black/40"
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
                 <div>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Max per match (USDC)</p>
+                  <p className="text-sm font-medium text-slate-200">Allow spending</p>
+                  <p className="text-[10px] text-slate-500">Smart wallet</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={permEnabled}
+                  onClick={() => setPermEnabled(!permEnabled)}
+                  className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                    permEnabled ? "bg-emerald-500" : "bg-slate-600"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 left-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${
+                      permEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Max / match</p>
                   <input
                     value={permMaxFee}
                     onChange={(e) => setPermMaxFee(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
+                    className="w-full px-2.5 py-2 rounded-xl bg-black/50 border border-cyan-500/25 text-white text-sm"
                     placeholder="1"
                   />
-                  <p className="text-[10px] text-gray-500 mt-1">Ceiling for one tournament entry.</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Chain</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Chain</p>
                   <select
                     value={permChain}
                     onChange={(e) => setPermChain(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
+                    className="w-full px-2.5 py-2 rounded-xl bg-black/50 border border-cyan-500/25 text-white text-sm"
                   >
                     <option value="CELO">CELO</option>
                     <option value="BASE">BASE</option>
@@ -798,32 +827,31 @@ export default function AgentsPageMobile({
                 </div>
               </div>
               <div>
-                <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Daily total cap (USDC, optional)</p>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Daily cap (optional)</p>
                 <input
                   value={permDailyCap}
                   onChange={(e) => setPermDailyCap(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
-                  placeholder="e.g. 10 — max spent today"
+                  className="w-full px-2.5 py-2 rounded-xl bg-black/50 border border-cyan-500/25 text-white text-sm"
+                  placeholder="e.g. 10"
                 />
-                <p className="text-[10px] text-gray-500 mt-1">Total per day from your wallet (sum of entries). Empty = no daily total limit.</p>
               </div>
               {permEnabled && (
                 <div>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Withdrawal PIN</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Withdrawal PIN</p>
                   <input
                     type="password"
                     value={permPin}
                     onChange={(e) => setPermPin(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
-                    placeholder="PIN"
+                    className="w-full px-2.5 py-2 rounded-xl bg-black/50 border border-amber-500/30 text-white text-sm"
+                    placeholder="Confirm"
                   />
                 </div>
               )}
-              <div className="flex justify-end gap-2 pt-1">
+              <div className="flex flex-col-reverse gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => setPermModalAgent(null)}
-                  className="px-4 py-2 rounded-lg border border-gray-600 text-gray-200 hover:bg-white/5 text-sm"
+                  className="w-full py-2.5 rounded-xl border border-white/15 text-slate-300 text-sm font-medium"
                 >
                   Cancel
                 </button>
@@ -831,10 +859,10 @@ export default function AgentsPageMobile({
                   type="button"
                   onClick={saveTournamentPerms}
                   disabled={permSaving}
-                  className="px-5 py-2 rounded-lg bg-amber-500/90 hover:bg-amber-400 text-black font-extrabold disabled:opacity-60 flex items-center gap-2 text-sm"
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 text-slate-950 font-bold text-sm disabled:opacity-60 flex items-center justify-center gap-2"
                 >
                   {permSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Save
+                  Save caps
                 </button>
               </div>
             </div>
@@ -855,6 +883,14 @@ export default function AgentsPageMobile({
               MY AGENTS
             </h1>
             <div className="w-14" />
+          </div>
+        )}
+        {embeddedInArena && !loading && (
+          <div className="mb-4 rounded-xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.08] via-transparent to-amber-500/[0.04] px-3 py-3">
+            <p className="text-sm font-semibold text-cyan-50">Agent manager</p>
+            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+              API keys, hosting, and behavior. Wallet panel on each card caps USDC for tournaments and staked games.
+            </p>
           </div>
         )}
         {hostedCredits != null && agents.some((a) => a.use_tycoon_key) && (
@@ -885,7 +921,11 @@ export default function AgentsPageMobile({
                 return (
                 <div
                   key={a.id}
-                  className="bg-gradient-to-b from-slate-900/80 to-black/80 rounded-xl border-2 border-cyan-500/30 p-3 flex flex-col gap-2"
+                  className={
+                    embeddedInArena
+                      ? "bg-gradient-to-br from-[rgba(12,22,30,0.95)] to-[rgba(4,10,16,0.98)] rounded-xl border border-cyan-500/25 p-3 flex flex-col gap-2 shadow-[0_8px_28px_rgba(0,0,0,0.35)]"
+                      : "bg-gradient-to-b from-slate-900/80 to-black/80 rounded-xl border-2 border-cyan-500/30 p-3 flex flex-col gap-2"
+                  }
                 >
                   <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
@@ -919,6 +959,27 @@ export default function AgentsPageMobile({
                     <p className={`text-[10px] mt-0.5 font-medium ${a.is_public ? "text-emerald-400/90" : "text-gray-500"}`}>
                       {a.is_public ? "Listed in Arena Discover" : "Not in Discover"}
                     </p>
+                    {embeddedInArena ? (
+                      <div className="mt-2 rounded-xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.07] to-transparent p-2.5 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <div className="rounded-md p-1.5 bg-cyan-500/15 border border-cyan-400/25 shrink-0">
+                            <Wallet className="w-3.5 h-3.5 text-cyan-200" aria-hidden />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-cyan-200/90">Smart wallet caps</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{capRow.text}</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openTournamentPerms(a)}
+                          className="w-full flex items-center justify-center gap-2 px-2 py-2 rounded-lg border border-cyan-400/35 bg-gradient-to-r from-cyan-500/20 to-amber-500/10 text-cyan-50 font-semibold text-[11px]"
+                        >
+                          <Trophy className="w-3.5 h-3.5 shrink-0 text-amber-200/90" />
+                          {capRow.enabled ? "Edit caps" : "Set up spending"}
+                        </button>
+                      </div>
+                    ) : (
                     <div
                       className={`mt-2 rounded-lg border px-2 py-1.5 text-[11px] leading-snug ${
                         capRow.enabled
@@ -932,8 +993,9 @@ export default function AgentsPageMobile({
                       </p>
                       <p className="font-medium">{capRow.text}</p>
                     </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0 self-start">
+                  <div className="flex items-center gap-1 shrink-0 self-start flex-wrap justify-end max-w-[9rem]">
                     <button
                       type="button"
                       onClick={() => toggleDiscoverVisibility(a)}
@@ -954,6 +1016,7 @@ export default function AgentsPageMobile({
                         <EyeOff className="w-3.5 h-3.5" />
                       )}
                     </button>
+                    {!embeddedInArena && (
                     <button
                       type="button"
                       onClick={() => openTournamentPerms(a)}
@@ -963,6 +1026,7 @@ export default function AgentsPageMobile({
                     >
                       <Trophy className="w-3.5 h-3.5" />
                     </button>
+                    )}
                     {isCelo && (
                       <button
                         type="button"
@@ -996,6 +1060,7 @@ export default function AgentsPageMobile({
                     </button>
                   </div>
                   </div>
+                  {!embeddedInArena && (
                   <button
                     type="button"
                     onClick={() => openTournamentPerms(a)}
@@ -1004,6 +1069,7 @@ export default function AgentsPageMobile({
                     <Trophy className="w-4 h-4 shrink-0" />
                     {capRow.enabled ? "Edit wallet spending caps" : "Set up wallet spending"}
                   </button>
+                  )}
                 </div>
               );
               })}
@@ -1394,11 +1460,13 @@ export default function AgentsPageMobile({
                 Create agent
               </button>
             )}
+            {!embeddedInArena && (
             <p className="text-gray-500 text-xs mt-4">
               <a href="/arena" className="text-cyan-400">Arena</a> — challenge public agents using agents you create here.
               {" · "}
               <a href="/play-ai" className="text-cyan-400">Play vs AI</a> — use your agents when creating a game (coming soon).
             </p>
+            )}
           </>
         )}
       </div>

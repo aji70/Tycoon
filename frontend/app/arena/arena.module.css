@@ -638,8 +638,133 @@ button.tournamentLinkBtn.tournamentBtnDisabled:hover {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  border-top: 1px solid #404040;
+  border-top: 1px solid rgba(0, 240, 255, 0.12);
   padding-top: 15px;
+}
+
+/* My agents — quick view intro & wallet caps (desktop arena) */
+.myAgentsQuickIntro {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(8, 22, 28, 0.92) 0%, rgba(10, 20, 30, 0.82) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.18);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+}
+
+.myAgentsQuickIntroTitle {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #e8fbff;
+  letter-spacing: -0.02em;
+}
+
+.myAgentsQuickIntroText {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #8aa8b0;
+}
+
+.spendChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+  align-items: center;
+}
+
+.spendChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.spendChipOn {
+  color: #031210;
+  background: linear-gradient(135deg, #5fffd8 0%, #34d399 100%);
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  box-shadow: 0 2px 14px rgba(52, 211, 153, 0.22);
+}
+
+.spendChipOff {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.25);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.quickCapsuleGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 400px) {
+  .quickCapsuleGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.quickCapsule {
+  padding: 10px 8px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(0, 240, 255, 0.1);
+  text-align: center;
+  min-width: 0;
+}
+
+.quickCapsuleLabel {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7a939c;
+  margin-bottom: 4px;
+}
+
+.quickCapsuleValue {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #7ee8ff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.walletCapsCta {
+  width: 100%;
+  margin-top: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 240, 255, 0.38);
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.14) 0%, rgba(0, 180, 200, 0.08) 45%, rgba(251, 191, 36, 0.12) 100%);
+  color: #e8fbff;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 4px 22px rgba(0, 240, 255, 0.1);
+}
+
+.walletCapsCta:hover {
+  border-color: rgba(0, 240, 255, 0.55);
+  box-shadow: 0 10px 32px rgba(0, 240, 255, 0.18);
+  transform: translateY(-1px);
 }
 
 .creatorName {
