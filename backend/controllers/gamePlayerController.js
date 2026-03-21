@@ -13,6 +13,7 @@ import logger from "../config/logger.js";
 import { removePlayerFromGame, exitGameByBackend, endAIGameByBackend, isContractConfigured, callContractRead } from "../services/tycoonContract.js";
 import { finishGameByNetWorthAndNotify } from "./gameController.js";
 import { settleStakedArenaForFinishedGame } from "../services/arenaStakeSettlement.js";
+import { onGameFinished as tournamentOnGameFinished } from "../services/tournamentService.js";
 import { getActiveByGameId } from "./auctionController.js";
 import { recordEvent } from "../services/analytics.js";
 import { ACTIVITY_XP, awardActivityXpByGameUser } from "../services/eloService.js";
@@ -1226,6 +1227,14 @@ const gamePlayerController = {
           logger.error(
             { err: err?.message, gameId: game.id },
             "settleStakedArenaForFinishedGame after leave FINISHED failed"
+          );
+        }
+        try {
+          await tournamentOnGameFinished(game.id);
+        } catch (err) {
+          logger.error(
+            { err: err?.message, gameId: game.id },
+            "tournament onGameFinished after leave FINISHED failed"
           );
         }
       }

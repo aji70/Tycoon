@@ -9,6 +9,7 @@ import PlayerSection3D from "./PlayerSection3D";
 import MyEmpire3D from "./MyEmpire3D";
 import ModalErrorBoundary from "./ModalErrorBoundary";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
+import PerksBar from "@/components/game/board3d/PerksBar";
 
 interface Mobile3DGameUIProps {
   game: Game | null;
@@ -97,6 +98,15 @@ export default function Mobile3DGameUI({
 
   return (
     <>
+      {/* Small perk chips (shop art) above bottom nav when wallet holds perk NFTs */}
+      {hasGame && game && (
+        <PerksBar
+          dockAboveNav
+          onOpenModal={() => setShowPerksModal(true)}
+          onUsePerk={onUsePerk}
+        />
+      )}
+
       {/* Bottom bar: Perks, Empire, Trades, Players, optional Chat — all same-style buttons in one row */}
       <div
         className="fixed left-0 right-0 bottom-0 z-[9998] flex items-center justify-between gap-1 sm:gap-2 px-2 sm:px-3 py-2 bg-slate-900/98 backdrop-blur-md border-t-2 border-slate-500/60 min-h-[56px]"

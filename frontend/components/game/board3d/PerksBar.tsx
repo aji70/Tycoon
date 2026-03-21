@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useMemo } from "react";
+import Image from "next/image";
 import { useAccount, useChainId, useReadContracts } from "wagmi";
 import type { Address, Abi } from "viem";
 import { Zap, Crown, Coins, Sparkles, Gem, Shield, Percent, CircleDollarSign, MapPin } from "lucide-react";
 import RewardABI from "@/context/abi/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES } from "@/constants/contracts";
+import { getPerkShopAsset } from "@/lib/perkShopAssets";
 import {
   buildTokenOfOwnerByIndexSlotCalls,
   REWARD_OWNED_SLOT_SCAN_CAP,
@@ -53,9 +55,14 @@ interface PerksBarProps {
   /** When set, clicking a perk activates it (burn + apply) instead of opening the modal. */
   onUsePerk?: (tokenId: bigint, perk: number, strength: number, name: string) => void;
   className?: string;
+  /**
+   * Mobile 3D: render as a fixed strip above the bottom nav. Returns null when the wallet has no perk NFTs
+   * (avoids duplicating the main “Perks” nav button).
+   */
+  dockAboveNav?: boolean;
 }
 
-export default function PerksBar({ onOpenModal, onUsePerk, className = "" }: PerksBarProps) {
+export default function PerksBar({ onOpenModal, onUsePerk, className = "", dockAboveNav = false }: PerksBarProps) {
   const { address } = useAccount();
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
@@ -122,6 +129,7 @@ export default function PerksBar({ onOpenModal, onUsePerk, className = "" }: Per
   }, [perks]);
 
   if (!address || perks.length === 0) {
+    if (dockAboveNav) return null;
     return (
       <button
         type="button"
@@ -135,28 +143,57 @@ export default function PerksBar({ onOpenModal, onUsePerk, className = "" }: Per
     );
   }
 
+  const chips = (
+    <>
+      {perksGrouped.map(({ perk, count, tokenId, strength }) => (
+        <button
+          key={perk}
+          type="button"
+          onClick={() => (onUsePerk ? onUsePerk(tokenId, perk, strength, PERK_NAMES[perk] ?? `Perk ${perk}`) : onOpenModal())}
+          title={`${PERK_NAMES[perk] ?? `Perk ${perk}`}${count > 1 ? ` (×${count})` : ""}`}
+          className="relative flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-md overflow-hidden border border-violet-400/50 bg-gradient-to-br from-violet-600/90 to-fuchsia-600/80 text-white hover:scale-105 hover:border-violet-300/70 active:scale-95 transition-transform shadow-md shrink-0"
+        >
+          {(() => {
+            const asset = getPerkShopAsset(perk);
+            if (asset) {
+              return (
+                <Image
+                  src={asset.image}
+                  alt={PERK_NAMES[perk] ?? asset.name}
+                  fill
+                  className="object-cover"
+                  sizes="32px"
+                />
+              );
+            }
+            return PERK_ICONS[perk] ?? <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
+          })()}
+          {count > 1 && (
+            <span className="absolute -bottom-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-md bg-slate-900/95 border border-violet-400/60 text-[9px] font-bold text-violet-200 flex items-center justify-center">
+              ×{count}
+            </span>
+          )}
+        </button>
+      ))}
+    </>
+  );
+
+  if (dockAboveNav) {
+    return (
+      <div
+        className="fixed left-0 right-0 z-[9997] px-2 py-1 bg-slate-950/95 backdrop-blur-md border-t border-slate-600/40"
+        style={{ bottom: "72px" }}
+      >
+        <div className={`flex flex-nowrap gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:thin] ${className}`} role="region" aria-label="Perks bar">
+          {chips}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={`flex flex-wrap gap-1.5 ${className}`}
-      role="region"
-      aria-label="Perks bar"
-    >
-        {perksGrouped.map(({ perk, count, tokenId, strength }) => (
-          <button
-            key={perk}
-            type="button"
-            onClick={() => (onUsePerk ? onUsePerk(tokenId, perk, strength, PERK_NAMES[perk] ?? `Perk ${perk}`) : onOpenModal())}
-            title={`${PERK_NAMES[perk] ?? `Perk ${perk}`}${count > 1 ? ` (×${count})` : ""}`}
-            className="relative flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-violet-600/90 to-fuchsia-600/80 border border-violet-400/50 text-white hover:scale-105 hover:border-violet-300/70 active:scale-95 transition-transform shadow-md"
-          >
-            {PERK_ICONS[perk] ?? <Sparkles className="w-4 h-4" />}
-            {count > 1 && (
-              <span className="absolute -bottom-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-md bg-slate-900/95 border border-violet-400/60 text-[9px] font-bold text-violet-200 flex items-center justify-center">
-                ×{count}
-              </span>
-            )}
-          </button>
-        ))}
+    <div className={`flex flex-wrap gap-1.5 ${className}`} role="region" aria-label="Perks bar">
+      {chips}
     </div>
   );
 }

@@ -45,6 +45,7 @@ import {
   REWARD_OWNED_SLOT_SCAN_CAP,
   takeTokenIdsUntilFirstFailure,
 } from "@/lib/rewardOwnedEnumerable";
+import { getPerkShopAsset } from "@/lib/perkShopAssets";
 
 const COLLECTIBLE_ID_START = 2_000_000_000;
 
@@ -67,24 +68,23 @@ const perkMetadata: Record<number, {
   name: string;
   icon: React.ReactNode;
   gradient: string;
-  image?: string;
   canBeActivated: boolean;
   fakeDescription?: string;
 }> = {
-  1: { name: "Extra Turn", icon: <Zap className="w-10 h-10" />, gradient: "from-yellow-500 to-amber-600", image: "/game/shop/a.jpeg", canBeActivated: true, fakeDescription: "Use on your turn to take an extra roll after this one." },
-  2: { name: "Jail Free Card", icon: <Crown className="w-10 h-10" />, gradient: "from-purple-600 to-pink-600", image: "/game/shop/b.jpeg", canBeActivated: true, fakeDescription: "Use when in Jail to get out without paying or rolling doubles." },
-  3: { name: "Double Rent", icon: <Coins className="w-10 h-10" />, gradient: "from-green-600 to-emerald-600", image: "/game/shop/c.jpeg", canBeActivated: true, fakeDescription: "When someone lands on your property, charge double the normal rent once." },
-  4: { name: "Roll Boost", icon: <Sparkles className="w-10 h-10" />, gradient: "from-blue-600 to-cyan-600", image: "/game/shop/a.jpeg", canBeActivated: true, fakeDescription: "Add +1 to your next dice roll (capped at 12)." },
-  5: { name: "Instant Cash", icon: <Gem className="w-10 h-10" />, gradient: "from-cyan-600 to-teal-600", image: "/game/shop/b.jpeg", canBeActivated: true, fakeDescription: "Burn to receive TYC based on tier (100–1000)." },
-  6: { name: "Teleport", icon: <Zap className="w-10 h-10" />, gradient: "from-pink-600 to-rose-600", image: "/game/shop/c.jpeg", canBeActivated: true, fakeDescription: "Move your token to any property on the board." },
-  7: { name: "Shield", icon: <Shield className="w-10 h-10" />, gradient: "from-indigo-600 to-blue-600", image: "/game/shop/a.jpeg", canBeActivated: true, fakeDescription: "Block the next rent or fee you would pay (one use)." },
-  8: { name: "Property Discount", icon: <Coins className="w-10 h-10" />, gradient: "from-orange-600 to-red-600", image: "/game/shop/b.jpeg", canBeActivated: true, fakeDescription: "Get 30–50% off the next property you buy (tiered)." },
-  9: { name: "Tax Refund", icon: <Gem className="w-10 h-10" />, gradient: "from-teal-600 to-cyan-600", image: "/game/shop/c.jpeg", canBeActivated: true, fakeDescription: "Receive TYC back when you pay Income or Luxury Tax (tiered)." },
-  10: { name: "Exact Roll", icon: <Sparkles className="w-10 h-10" />, gradient: "from-amber-600 to-yellow-500", image: "/game/shop/a.jpeg", canBeActivated: true, fakeDescription: "Choose your next roll (2–12) instead of rolling the dice." },
-  11: { name: "Rent Cashback", icon: <Percent className="w-10 h-10" />, gradient: "from-emerald-600 to-green-600", image: "/game/shop/a.jpeg", canBeActivated: true, fakeDescription: "Next rent you receive is +25% extra." },
-  12: { name: "Interest", icon: <CircleDollarSign className="w-10 h-10" />, gradient: "from-lime-600 to-green-600", image: "/game/shop/b.jpeg", canBeActivated: true, fakeDescription: "At the start of your next turn, receive $200." },
-  13: { name: "Lucky 7", icon: <Sparkles className="w-10 h-10" />, gradient: "from-yellow-500 to-amber-500", image: "/game/shop/c.jpeg", canBeActivated: true, fakeDescription: "Your next roll will be 7." },
-  14: { name: "Free Parking Bonus", icon: <MapPin className="w-10 h-10" />, gradient: "from-sky-600 to-blue-600", image: "/game/shop/a.jpeg", canBeActivated: true, fakeDescription: "Land on Free Parking to collect $500." },
+  1: { name: "Extra Turn", icon: <Zap className="w-10 h-10" />, gradient: "from-yellow-500 to-amber-600", canBeActivated: true, fakeDescription: "Use on your turn to take an extra roll after this one." },
+  2: { name: "Jail Free Card", icon: <Crown className="w-10 h-10" />, gradient: "from-purple-600 to-pink-600", canBeActivated: true, fakeDescription: "Use when in Jail to get out without paying or rolling doubles." },
+  3: { name: "Double Rent", icon: <Coins className="w-10 h-10" />, gradient: "from-green-600 to-emerald-600", canBeActivated: true, fakeDescription: "When someone lands on your property, charge double the normal rent once." },
+  4: { name: "Roll Boost", icon: <Sparkles className="w-10 h-10" />, gradient: "from-blue-600 to-cyan-600", canBeActivated: true, fakeDescription: "Add +1 to your next dice roll (capped at 12)." },
+  5: { name: "Instant Cash", icon: <Gem className="w-10 h-10" />, gradient: "from-cyan-600 to-teal-600", canBeActivated: true, fakeDescription: "Burn to receive TYC based on tier (100–1000)." },
+  6: { name: "Teleport", icon: <Zap className="w-10 h-10" />, gradient: "from-pink-600 to-rose-600", canBeActivated: true, fakeDescription: "Move your token to any property on the board." },
+  7: { name: "Shield", icon: <Shield className="w-10 h-10" />, gradient: "from-indigo-600 to-blue-600", canBeActivated: true, fakeDescription: "Block the next rent or fee you would pay (one use)." },
+  8: { name: "Property Discount", icon: <Coins className="w-10 h-10" />, gradient: "from-orange-600 to-red-600", canBeActivated: true, fakeDescription: "Get 30–50% off the next property you buy (tiered)." },
+  9: { name: "Tax Refund", icon: <Gem className="w-10 h-10" />, gradient: "from-teal-600 to-cyan-600", canBeActivated: true, fakeDescription: "Receive TYC back when you pay Income or Luxury Tax (tiered)." },
+  10: { name: "Exact Roll", icon: <Sparkles className="w-10 h-10" />, gradient: "from-amber-600 to-yellow-500", canBeActivated: true, fakeDescription: "Choose your next roll (2–12) instead of rolling the dice." },
+  11: { name: "Rent Cashback", icon: <Percent className="w-10 h-10" />, gradient: "from-emerald-600 to-green-600", canBeActivated: true, fakeDescription: "Next rent you receive is +25% extra." },
+  12: { name: "Interest", icon: <CircleDollarSign className="w-10 h-10" />, gradient: "from-lime-600 to-green-600", canBeActivated: true, fakeDescription: "At the start of your next turn, receive $200." },
+  13: { name: "Lucky 7", icon: <Sparkles className="w-10 h-10" />, gradient: "from-yellow-500 to-amber-500", canBeActivated: true, fakeDescription: "Your next roll will be 7." },
+  14: { name: "Free Parking Bonus", icon: <MapPin className="w-10 h-10" />, gradient: "from-sky-600 to-blue-600", canBeActivated: true, fakeDescription: "Land on Free Parking to collect $500." },
 };
 
 interface CollectibleInventoryBarProps {
@@ -267,6 +267,8 @@ export default function CollectibleInventoryBar({
           ? `${meta.name} (Tier ${strength})`
           : meta.name;
 
+        const shopAsset = getPerkShopAsset(perk);
+
         return {
           tokenId: ownedTokenIds[i],
           perk,
@@ -276,6 +278,7 @@ export default function CollectibleInventoryBar({
           canBeActivated: meta.canBeActivated,
           fakeDescription: meta.fakeDescription,
           strength,
+          shopImage: shopAsset?.image,
         };
       })
       .filter((c): c is NonNullable<typeof c> => c !== null);
@@ -345,6 +348,7 @@ export default function CollectibleInventoryBar({
         if (stock === 0) return null;
 
         const meta = perkMetadata[perk] ?? perkMetadata[10];
+        const shopAsset = getPerkShopAsset(perk);
 
         return {
           tokenId: shopTokenIds[i],
@@ -355,7 +359,7 @@ export default function CollectibleInventoryBar({
           name: meta.name,
           icon: meta.icon,
           gradient: meta.gradient,
-          image: meta.image,
+          image: shopAsset?.image ?? "/game/shop/placeholder.jpg",
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
@@ -649,9 +653,21 @@ export default function CollectibleInventoryBar({
               `}
             >
               {item.count > 1 && (
-                <span className="absolute top-2 right-2 rounded-md bg-black/40 px-1.5 py-0.5 text-xs font-bold text-white">
+                <span className="absolute top-2 right-2 z-[1] rounded-md bg-black/40 px-1.5 py-0.5 text-xs font-bold text-white">
                   ×{item.count}
                 </span>
+              )}
+              {item.shopImage && (
+                <div className="relative -mx-3 -mt-3 mb-2 h-14 w-[calc(100%+1.5rem)] overflow-hidden rounded-t-xl">
+                  <Image
+                    src={item.shopImage}
+                    alt={item.name}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 640px) 50vw, 200px"
+                  />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
+                </div>
               )}
               <div className="flex flex-col gap-1.5 min-h-[72px] sm:min-h-0">
                 <div className="flex items-start justify-between gap-2">

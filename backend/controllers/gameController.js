@@ -301,6 +301,12 @@ export async function finishGameByNetWorthAndNotify(io, game) {
   await agentRegistry.cleanupGame(game.id);
 
   try {
+    await settleStakedArenaForFinishedGame(game.id);
+  } catch (err) {
+    logger.error({ err: err?.message, gameId: game.id }, "settleStakedArenaForFinishedGame before tournament onGameFinished failed");
+  }
+
+  try {
     await tournamentOnGameFinished(game.id);
   } catch (err) {
     logger.error({ err: err?.message, gameId: game.id }, "tournament onGameFinished failed");
@@ -368,12 +374,6 @@ export async function finishGameByNetWorthAndNotify(io, game) {
   }
   await invalidateGameById(game.id);
   if (io) emitGameUpdate(io, game.code);
-
-  try {
-    await settleStakedArenaForFinishedGame(game.id);
-  } catch (err) {
-    logger.error({ err: err?.message, gameId: game.id }, "settleStakedArenaForFinishedGame after finishByNetWorth failed");
-  }
 
   return {
     winner_id: result.winner_id,
@@ -631,6 +631,14 @@ const gameController = {
           logger.error(
             { err: err?.message, gameId: req.params.id },
             "settleStakedArenaForFinishedGame on game update FINISHED failed"
+          );
+        }
+        try {
+          await tournamentOnGameFinished(Number(req.params.id));
+        } catch (err) {
+          logger.error(
+            { err: err?.message, gameId: req.params.id },
+            "tournament onGameFinished on game update FINISHED failed"
           );
         }
       }
