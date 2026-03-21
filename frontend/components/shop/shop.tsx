@@ -285,7 +285,7 @@ export default function GameShop() {
     return buildTokenOfOwnerByIndexSlotCalls(contractAddress, RewardABI as Abi, contractAddress, chainId, REWARD_OWNED_SLOT_SCAN_CAP);
   }, [contractAddress, chainId]);
 
-  const { data: contractTokenIdResults } = useReadContracts({
+  const { data: contractTokenIdResults, isPending: contractTokenIdsPending } = useReadContracts({
     contracts: contractTokenIdCalls,
     query: { enabled: !!contractAddress },
   });
@@ -306,7 +306,7 @@ export default function GameShop() {
     [contractAddress, shopTokenIds]
   );
 
-  const { data: shopInfoResults } = useReadContracts({
+  const { data: shopInfoResults, isPending: shopCollectibleInfosPending } = useReadContracts({
     contracts: shopInfoCalls,
     query: { enabled: shopTokenIds.length > 0 && !!contractAddress },
   });
@@ -754,7 +754,9 @@ export default function GameShop() {
   };
 
   const hasVouchers = myVouchers.length > 0;
-  const isLoadingShop = contractTokenCount > 0 && shopItems.length === 0;
+  const isLoadingShop =
+    (!!contractAddress && contractTokenIdsPending) ||
+    (shopTokenIds.length > 0 && shopCollectibleInfosPending);
 
   // Compute available bundles by checking if all component perks are in stock
   const computedBundles = useMemo(() => {
