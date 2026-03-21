@@ -810,6 +810,13 @@ export function useRewardsAdmin() {
     setWithdrawAmount("");
   };
 
+  const handleWithdrawAllUsdcToConnectedWallet = async () => {
+    if (!userAddress || !usdcAddress || usdcBalance.data == null) return;
+    const w = usdcBalance.data as bigint;
+    if (w <= 0n) return;
+    await withdrawHook.withdraw(usdcAddress, userAddress, w);
+  };
+
   const handleSetTycoonMinStake = async () => {
     if (!tycoonMinStake) return;
     const wei = parseUnits(tycoonMinStake, 6);
@@ -1040,6 +1047,7 @@ export function useRewardsAdmin() {
       handleRestock,
       handleUpdatePrices,
       handleWithdraw,
+      handleWithdrawAllUsdcToConnectedWallet,
       handleSetTycoonMinStake,
       handleSetTycoonMinTurnsForPerks,
       handleSetTycoonGameController,

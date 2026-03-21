@@ -147,16 +147,19 @@ Holds USDC for tournament **entry fees** and **prize pools**. Tournament IDs mat
 | `fundPrizePool(tournamentId, amount)` | Anyone | Deposit USDC as prize pool (approve first). |
 | `registerForTournament(tournamentId)` | Anyone | Pay entry fee (USDC); must approve first. Free if `entryFee == 0`. |
 | `lockTournament(tournamentId)` | Backend/Owner | Lock so no more deposits. |
-| `finalizeTournament(tournamentId, recipients[], amounts[])` | Backend/Owner | Send USDC to winners; total must not exceed pool. |
+| `finalizeTournament(tournamentId, recipients[], amounts[])` | Backend/Owner | Send USDC to winners; total must not exceed pool. Records `(pool - sent)` in `pendingResidualUSDC` (house cut), then clears on-chain pool fields. |
 | `cancelTournament(tournamentId)` | Backend/Owner | Refund all entry fees; prize pool refund via `refundPrizeToCreator`. |
 | `refundPrizeToCreator(tournamentId)` | Owner | After cancel, return prize pool to creator. |
+| `sweepTournamentResidualUSDC(tournamentId, to)` | Owner | After finalize, send that tournament’s recorded residual (e.g. to `TycoonRewardSystem`). |
+| `recoverStrandedUSDC(to, amount)` | Owner | Pull USDC from escrow (e.g. mistaken transfer). Sweep residuals first when they apply. |
 
 ### View
 
 - `tournaments(tournamentId)` — entryFee, prizePoolDeposited, totalEntryFees, status, creator.
 - `entryPaid(tournamentId, player)` — amount user paid.
 - `getEntrants(tournamentId)` — list of addresses who registered.
-- `tournamentPool(tournamentId)` — total USDC (entry fees + prize pool).
+- `tournamentPool(tournamentId)` — total USDC (entry fees + prize pool). After finalize, pool fields are zeroed; unswept house cut remains in contract until `sweepTournamentResidualUSDC`.
+- `pendingResidualUSDC(tournamentId)` — wei left after finalize for that tournament (owner sweeps to reward contract).
 
 ### Status Flow
 
@@ -174,7 +177,7 @@ See **TOURNAMENT_ESCROW.md** for deployment and backend integration.
 4. Call `rewardSystem.setBackendMinter(address(tycoon))` so Tycoon can mint on register, AI end, and placement.
 5. Call `tycoon.setBackendGameController(backendWallet)` for vote-out, setTurnCount, and property stats.
 6. (Optional) `tycoon.setMinTurnsForPerks(20)` and `tycoon.setMinStake(...)`.
-7. **Tournament escrow (Celo):** Deploy **TycoonTournamentEscrow**(usdcAddress, owner). Call `setBackend(backendWallet)` where **`backendWallet` is the address of `BACKEND_GAME_CONTROLLER_PRIVATE_KEY`**. From `contract/`, run **`./run-set-tournament-escrow-backend.sh`**: it reads `contract/.env`, `backend/.env`, and `NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW*` from `frontend/.env` for the escrow address. Needs `PRIVATE_KEY` (escrow owner) and `RPC_URL` or `CELO_RPC_URL`. `DRY_RUN=1` prints addresses only.
+7. **Tournament escrow (Celo):** From `contract/`, run **`./run-deploy-tournament-escrow.sh`** (`--verify` with `ETHERSCAN_API_KEY`; **`--write-env`** appends addresses to `contract/.env` next to your upgradeable stack vars). Then **`./run-set-tournament-escrow-backend.sh`**: sets `setBackend` to the wallet derived from `BACKEND_GAME_CONTROLLER_PRIVATE_KEY` (tx signed with escrow owner `PRIVATE_KEY`). Copy the printed **`NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW`** into `frontend/.env`. Alternatively deploy via **`forge script script/DeployOptional.s.sol`** (deploys vault + registry + escrow + NFT together). `DRY_RUN=1` on `run-set-tournament-escrow-backend.sh` prints addresses only.
 8. **TycoonUserRegistry (wallet-first signup):** Deploy and configure the user registry (smart wallets, wallet-first signup, buy/burn-with-auth). From `contract/` run:
    ```bash
    ./run-deploy-user-registry.sh

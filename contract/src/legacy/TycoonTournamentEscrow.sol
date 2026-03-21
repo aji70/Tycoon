@@ -36,6 +36,9 @@ contract TycoonTournamentEscrow is Ownable, ReentrancyGuard {
     mapping(uint256 => address[]) private _entrants;
     mapping(uint256 => mapping(address => bool)) private _entrantIndexed;
 
+    /// @notice USDC left in escrow after finalize (e.g. house cut). Owner sweeps to treasury/reward via sweepTournamentResidualUSDC.
+    mapping(uint256 => uint256) public pendingResidualUSDC;
+
     address public backend;
 
     event TournamentCreated(uint256 indexed tournamentId, uint256 entryFee, address indexed creator);
@@ -47,6 +50,9 @@ contract TycoonTournamentEscrow is Ownable, ReentrancyGuard {
     event Payout(uint256 indexed tournamentId, address indexed to, uint256 amount);
     event Refund(uint256 indexed tournamentId, address indexed to, uint256 amount);
     event BackendUpdated(address indexed previous, address indexed newBackend);
+    event TournamentResidualRecorded(uint256 indexed tournamentId, uint256 residual);
+    event TournamentResidualSwept(uint256 indexed tournamentId, address indexed to, uint256 amount);
+    event StrandedUsdcRecovered(address indexed to, uint256 amount);
 
     error InvalidTournament();
     error InvalidStatus();
@@ -173,8 +179,39 @@ contract TycoonTournamentEscrow is Ownable, ReentrancyGuard {
             }
         }
         require(sent <= total, "Exceeds pool");
+        uint256 residual = total - sent;
+        pendingResidualUSDC[tournamentId] = residual;
+        if (residual > 0) {
+            emit TournamentResidualRecorded(tournamentId, residual);
+        }
+        // Pool accounting cleared so tournamentPool() reflects post-payout state; residual is tracked in pendingResidualUSDC.
+        t.totalEntryFees = 0;
+        t.prizePoolDeposited = 0;
         t.status = TournamentStatus.Finalized;
         emit TournamentFinalized(tournamentId, recipients.length);
+    }
+
+    /**
+     * @notice Send recorded post-finalize residual (house cut) to a recipient, typically the reward contract. Owner only.
+     */
+    function sweepTournamentResidualUSDC(uint256 tournamentId, address to) external onlyOwner nonReentrant {
+        if (to == address(0)) revert InvalidTournament();
+        Tournament storage t = tournaments[tournamentId];
+        if (t.status != TournamentStatus.Finalized) revert InvalidStatus();
+        uint256 amt = pendingResidualUSDC[tournamentId];
+        if (amt == 0) revert InvalidAmount();
+        pendingResidualUSDC[tournamentId] = 0;
+        if (!usdc.transfer(to, amt)) revert TransferFailed();
+        emit TournamentResidualSwept(tournamentId, to, amt);
+    }
+
+    /**
+     * @notice Recover USDC stuck in escrow (mis-sent tokens, legacy balance). Owner only — sweep tournament residuals first when applicable.
+     */
+    function recoverStrandedUSDC(address to, uint256 amount) external onlyOwner nonReentrant {
+        if (to == address(0) || amount == 0) revert InvalidAmount();
+        if (!usdc.transfer(to, amount)) revert TransferFailed();
+        emit StrandedUsdcRecovered(to, amount);
     }
 
     /**

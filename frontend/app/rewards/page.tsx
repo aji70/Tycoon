@@ -305,6 +305,51 @@ export default function RewardAdminPanel() {
 
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <DollarSign className="w-6 h-6 text-emerald-400" /> Reward contract USDC
+              </h3>
+              <p className="text-gray-400 text-sm mb-4">
+                USDC balance on the reward (perk) contract. Sweep house cuts from tournament escrow here, then withdraw to your wallet or treasury as needed.
+              </p>
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Balance</p>
+                  <p className="text-3xl font-bold text-emerald-300 font-mono tabular-nums">
+                    {usdcBalance != null ? formatUnits(BigInt(String(usdcBalance)), 6) : '—'}{' '}
+                    <span className="text-lg font-normal text-gray-400">USDC</span>
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handlers.handleWithdrawAllUsdcToConnectedWallet();
+                    }}
+                    disabled={
+                      anyPending ||
+                      pendingWithdraw ||
+                      usdcBalance == null ||
+                      BigInt(String(usdcBalance)) === 0n
+                    }
+                    className="px-5 py-3 rounded-xl font-semibold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 transition text-white"
+                  >
+                    {pendingWithdraw ? 'Withdrawing…' : 'Withdraw all to wallet'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWithdrawToken('USDC');
+                      setActiveSection('funds');
+                    }}
+                    className="px-5 py-3 rounded-xl font-semibold bg-gray-700 hover:bg-gray-600 text-white transition"
+                  >
+                    Custom amount
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                 <Crown className="w-6 h-6 text-purple-400" /> Platform Statistics
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-lg">

@@ -130,6 +130,38 @@ function usdcStoredToDecimalInput(stored: string | null | undefined): string {
   }
 }
 
+function formatUsdcDisplay(stored: string | null | undefined): string {
+  if (stored == null || String(stored).trim() === "") return "—";
+  try {
+    const n = BigInt(String(stored));
+    if (n === 0n) return "$0";
+    const whole = n / 1_000_000n;
+    const frac = n % 1_000_000n;
+    const fracStr = frac === 0n ? "" : "." + frac.toString().padStart(6, "0").replace(/0+$/, "");
+    return `$${whole}${fracStr}`;
+  } catch {
+    return "—";
+  }
+}
+
+function tournamentSpendSummary(tp: TournamentPermission | undefined): { enabled: boolean; text: string } {
+  if (!tp?.enabled) {
+    return {
+      enabled: false,
+      text: "Challenge wallet spending is off. Tap trophy to set max per entry and optional daily cap.",
+    };
+  }
+  const per = formatUsdcDisplay(tp.max_entry_fee_usdc);
+  const hasDaily = tp.daily_cap_usdc != null && String(tp.daily_cap_usdc).trim() !== "";
+  const dailyPart = hasDaily
+    ? `${formatUsdcDisplay(tp.daily_cap_usdc)} max per day`
+    : "no daily total cap";
+  return {
+    enabled: true,
+    text: `Challenge cap: ${per} per entry · ${dailyPart}`,
+  };
+}
+
 export type AgentsPageMobileProps = {
   embeddedInArena?: boolean;
   onSpendingCapsSaved?: () => void | Promise<void>;
@@ -842,8 +874,26 @@ export default function AgentsPageMobile({ embeddedInArena = false, onSpendingCa
                     <p className={`text-[10px] mt-0.5 font-medium ${a.is_public ? "text-emerald-400/90" : "text-gray-500"}`}>
                       {a.is_public ? "Listed in Arena Discover" : "Not in Discover"}
                     </p>
+                    {(() => {
+                      const cap = tournamentSpendSummary(tournamentPerms[a.id]);
+                      return (
+                        <div
+                          className={`mt-2 rounded-lg border px-2 py-1.5 text-[11px] leading-snug ${
+                            cap.enabled
+                              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+                              : "border-amber-500/45 bg-amber-500/10 text-amber-100"
+                          }`}
+                        >
+                          <p className="font-bold uppercase tracking-wide text-[9px] opacity-90 mb-0.5 flex items-center gap-1">
+                            <Trophy className="w-3 h-3 shrink-0" />
+                            Challenge wallet
+                          </p>
+                          <p className="font-medium">{cap.text}</p>
+                        </div>
+                      );
+                    })()}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1 shrink-0 self-start">
                     <button
                       type="button"
                       onClick={() => toggleDiscoverVisibility(a)}

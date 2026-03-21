@@ -138,6 +138,39 @@ function usdcStoredToDecimalInput(stored: string | null | undefined): string {
   }
 }
 
+/** USDC integer string (6 decimals) → $ display for list summaries. */
+function formatUsdcDisplay(stored: string | null | undefined): string {
+  if (stored == null || String(stored).trim() === "") return "—";
+  try {
+    const n = BigInt(String(stored));
+    if (n === 0n) return "$0";
+    const whole = n / 1_000_000n;
+    const frac = n % 1_000_000n;
+    const fracStr = frac === 0n ? "" : "." + frac.toString().padStart(6, "0").replace(/0+$/, "");
+    return `$${whole}${fracStr}`;
+  } catch {
+    return "—";
+  }
+}
+
+function tournamentSpendSummary(tp: TournamentPermission | undefined): { enabled: boolean; text: string } {
+  if (!tp?.enabled) {
+    return {
+      enabled: false,
+      text: "Challenge wallet spending is off. Use Tournaments to set max per entry (and optional daily cap).",
+    };
+  }
+  const per = formatUsdcDisplay(tp.max_entry_fee_usdc);
+  const hasDaily = tp.daily_cap_usdc != null && String(tp.daily_cap_usdc).trim() !== "";
+  const dailyPart = hasDaily
+    ? `${formatUsdcDisplay(tp.daily_cap_usdc)} max per day`
+    : "no daily total cap";
+  return {
+    enabled: true,
+    text: `Challenge cap: ${per} per entry · ${dailyPart}`,
+  };
+}
+
 const ARENA_MANAGE_AGENTS_PATH = "/arena?tab=my-agents&sub=manage";
 
 export type AgentsPageProps = {
@@ -863,6 +896,24 @@ export default function AgentsPage({ embeddedInArena = false, onSpendingCapsSave
                     {a.has_api_key && !a.callback_url && !a.use_tycoon_key && (
                       <p className="text-xs text-cyan-400/80 mt-0.5">Uses saved key (e.g. Claude)</p>
                     )}
+                    {(() => {
+                      const cap = tournamentSpendSummary(tournamentPerms[a.id]);
+                      return (
+                        <div
+                          className={`mt-2 rounded-lg border px-2.5 py-2 text-xs leading-snug ${
+                            cap.enabled
+                              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+                              : "border-amber-500/45 bg-amber-500/10 text-amber-100"
+                          }`}
+                        >
+                          <p className="font-orbitron font-bold uppercase tracking-wide text-[10px] opacity-90 mb-0.5 flex items-center gap-1.5">
+                            <Trophy className="w-3.5 h-3.5 shrink-0" />
+                            Challenge wallet
+                          </p>
+                          <p className="font-medium">{cap.text}</p>
+                        </div>
+                      );
+                    })()}
                     {a.erc8004_agent_id && (
                       <p className="text-xs text-purple-400 mt-1 flex flex-col gap-0.5">
                         <span className="flex items-center gap-1.5 flex-wrap">
