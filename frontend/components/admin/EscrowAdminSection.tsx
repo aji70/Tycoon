@@ -15,7 +15,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useAccount, useChainId, usePublicClient, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { TOURNAMENT_ESCROW_ADDRESSES } from "@/constants/contracts";
+import { REWARD_CONTRACT_ADDRESSES, TOURNAMENT_ESCROW_ADDRESSES } from "@/constants/contracts";
 import TycoonTournamentEscrowAbi from "@/context/abi/TycoonTournamentEscrow.json";
 
 const ESCROW_READ_FNS = [
@@ -24,6 +24,7 @@ const ESCROW_READ_FNS = [
   { name: "usdc", args: [] },
   { name: "tournaments", args: [{ name: "tournamentId", type: "number" }] },
   { name: "tournamentPool", args: [{ name: "tournamentId", type: "number" }] },
+  { name: "pendingResidualUSDC", args: [{ name: "tournamentId", type: "number" }] },
   { name: "getEntrants", args: [{ name: "tournamentId", type: "number" }] },
   { name: "entryPaid", args: [{ name: "tournamentId", type: "number" }, { name: "address", type: "address" }] },
 ] as const;
@@ -98,6 +99,13 @@ export default function EscrowAdminSection() {
             functionName: "tournamentPool",
             args: [tid],
           });
+        } else if (fn === "pendingResidualUSDC") {
+          result = await publicClient.readContract({
+            address: escrowAddress,
+            abi,
+            functionName: "pendingResidualUSDC",
+            args: [tid],
+          });
         } else if (fn === "getEntrants") {
           result = await publicClient.readContract({
             address: escrowAddress,
@@ -128,7 +136,16 @@ export default function EscrowAdminSection() {
   );
 
   function handleWrite(
-    fn: "createTournament" | "lockTournament" | "cancelTournament" | "setBackend" | "fundPrizePool" | "finalizeTournament" | "refundPrizeToCreator",
+    fn:
+      | "createTournament"
+      | "lockTournament"
+      | "cancelTournament"
+      | "setBackend"
+      | "fundPrizePool"
+      | "finalizeTournament"
+      | "refundPrizeToCreator"
+      | "sweepTournamentResidualUSDC"
+      | "recoverStrandedUSDC",
     ...args: (string | number | bigint | `0x${string}` | string[] | bigint[])[]
   ) {
     setWriteResult(null);
@@ -160,6 +177,8 @@ export default function EscrowAdminSection() {
     "inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm bg-amber-600/90 hover:bg-amber-500 text-white transition disabled:opacity-50 disabled:cursor-not-allowed";
   const btnWrite =
     "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed";
+
+  const rewardAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES];
 
   if (!escrowAddress) {
     return (
@@ -502,6 +521,83 @@ export default function EscrowAdminSection() {
                     className={btnWrite}
                   >
                     Refund to creator
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-700/40 bg-emerald-950/20 p-6">
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-emerald-300 mb-2">
+              <Wallet className="w-4 h-4" />
+              Owner · house cut &amp; stuck USDC
+            </h4>
+            <p className="text-xs text-gray-500 mb-4">
+              After <code className="text-gray-400">finalizeTournament</code>, the escrow records leftover USDC in{" "}
+              <code className="text-gray-400">pendingResidualUSDC</code>. Sweep it to the reward contract, then withdraw from{" "}
+              <code className="text-gray-400">/rewards</code>. Use recover only for truly stuck balances (e.g. wrong-token recovery after you understand escrow state).
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <label className={labelClass}>sweepTournamentResidualUSDC → reward contract</label>
+                <div className="flex flex-wrap gap-2 items-end">
+                  <input
+                    placeholder="Tournament ID"
+                    value={writeParams.sweepResidualId ?? ""}
+                    onChange={(e) => setWriteParams((p) => ({ ...p, sweepResidualId: e.target.value }))}
+                    className="w-28 px-3 py-2 rounded-lg bg-gray-800 border border-gray-600/50 text-white text-sm"
+                  />
+                  <input
+                    placeholder="To 0x... (default: reward contract)"
+                    value={writeParams.sweepResidualTo ?? (rewardAddress ?? "")}
+                    onChange={(e) => setWriteParams((p) => ({ ...p, sweepResidualTo: e.target.value }))}
+                    className="flex-1 min-w-[180px] px-3 py-2 rounded-lg bg-gray-800 border border-gray-600/50 text-white text-sm font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const to = (writeParams.sweepResidualTo?.trim() || rewardAddress || "") as `0x${string}`;
+                      if (!to || !to.startsWith("0x")) {
+                        setWriteResult({ fn: "sweepTournamentResidualUSDC", error: "Set recipient (reward contract address)" });
+                        return;
+                      }
+                      handleWrite("sweepTournamentResidualUSDC", BigInt(writeParams.sweepResidualId || "0"), to);
+                    }}
+                    disabled={!isConnected || isWritePending}
+                    className={btnWrite}
+                  >
+                    Sweep to reward
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <label className={labelClass}>recoverStrandedUSDC (owner only)</label>
+                <div className="flex flex-wrap gap-2 items-end">
+                  <input
+                    placeholder="To 0x..."
+                    value={writeParams.recoverStrandedTo ?? ""}
+                    onChange={(e) => setWriteParams((p) => ({ ...p, recoverStrandedTo: e.target.value }))}
+                    className="flex-1 min-w-[160px] px-3 py-2 rounded-lg bg-gray-800 border border-gray-600/50 text-white text-sm font-mono"
+                  />
+                  <input
+                    placeholder="Amount (USDC wei)"
+                    value={writeParams.recoverStrandedAmount ?? ""}
+                    onChange={(e) => setWriteParams((p) => ({ ...p, recoverStrandedAmount: e.target.value }))}
+                    className="w-36 px-3 py-2 rounded-lg bg-gray-800 border border-gray-600/50 text-white text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleWrite(
+                        "recoverStrandedUSDC",
+                        (writeParams.recoverStrandedTo || "0x") as `0x${string}`,
+                        BigInt(writeParams.recoverStrandedAmount || "0")
+                      )
+                    }
+                    disabled={!isConnected || isWritePending}
+                    className={btnWrite}
+                  >
+                    Recover
                   </button>
                 </div>
               </div>

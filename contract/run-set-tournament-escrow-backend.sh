@@ -4,9 +4,11 @@
 # Signs with PRIVATE_KEY (escrow contract owner). Backend address defaults from
 # BACKEND_GAME_CONTROLLER_PRIVATE_KEY (same wallet as Tycoon setBackendGameController).
 #
-# Escrow address is resolved from (first match):
-#   TOURNAMENT_ESCROW_ADDRESS, TOURNAMENT_ESCROW_ADDRESS_CELO, TOURNAMENT_ESCROW_CELO,
-#   NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW, NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW_ADDRESS
+# Escrow address is resolved from (first match). Chain-specific and frontend vars win before
+# generic TOURNAMENT_ESCROW_ADDRESS (which is easy to leave stale after redeploy).
+#   TOURNAMENT_ESCROW_ADDRESS_CELO, TOURNAMENT_ESCROW_CELO,
+#   NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW, NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW_ADDRESS,
+#   TYCOON_TOURNAMENT_ESCROW_ADDRESS, TOURNAMENT_ESCROW_ADDRESS
 #
 # Loads: contract/.env → ../backend/.env → parses ../frontend/.env and .env.local for NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW*
 # RPC: RPC_URL or CELO_RPC_URL
@@ -73,13 +75,10 @@ if [ -z "${RPC_URL:-}" ] && [ -n "${CELO_RPC_URL:-}" ]; then
 fi
 
 resolve_escrow_address_celo() {
-  if [ -n "${TOURNAMENT_ESCROW_ADDRESS:-}" ]; then
-    printf '%s' "$TOURNAMENT_ESCROW_ADDRESS"
-    return
-  fi
   local n val
   for n in TOURNAMENT_ESCROW_ADDRESS_CELO TOURNAMENT_ESCROW_CELO \
-    NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW_ADDRESS; do
+    NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW_ADDRESS \
+    TYCOON_TOURNAMENT_ESCROW_ADDRESS TOURNAMENT_ESCROW_ADDRESS; do
     val="${!n:-}"
     if [ -n "$val" ]; then
       printf '%s' "$val"

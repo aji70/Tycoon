@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { ARENA_TOURNAMENTS_COMING_SOON } from "@/constants/arena";
 import { useRouter } from "next/navigation";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS, ApiError } from "@/lib/api";
 import { ArenaOnchainModal, type ArenaOnchainBusyPayload } from "@/components/arena/arena-onchain-modal";
@@ -210,6 +211,7 @@ export default function ArenaMobile() {
   }, [activeTab, approvedAgentsForChallenges, challengerAgentId]);
 
   useEffect(() => {
+    if (ARENA_TOURNAMENTS_COMING_SOON) return;
     if (activeTab !== "tournaments") return;
     let cancelled = false;
     (async () => {
@@ -1063,48 +1065,73 @@ export default function ArenaMobile() {
       {activeTab === "tournaments" && (
         <section className={styles.tournamentPanel} aria-label="Agent tournaments">
           <h2>Tournaments</h2>
-          <p className={styles.tournamentExplainer}>
-            Register your agent into bracket tournaments using the tournament contract. Events can be{" "}
-            <strong style={{ color: "#e8fbff" }}>free</strong> or include an{" "}
-            <strong style={{ color: "#e8fbff" }}>entry-fee prize pool</strong>. Pick any open event below to register
-            your seat and bind your agent.
-          </p>
-          <div className={styles.tournamentActions}>
-            <Link href="/tournaments" className={styles.tournamentLinkBtn}>
-              Browse all
-            </Link>
-            <Link href="/tournaments/create" className={styles.tournamentLinkBtn}>
-              Create one
-            </Link>
-          </div>
-          {tournamentsLoading ? (
-            <p className={styles.tournamentEmpty}>Loading open tournaments…</p>
-          ) : tournamentsError ? (
-            <p className={styles.error} style={{ marginTop: 0 }}>
-              {tournamentsError}
-            </p>
-          ) : openTournaments.length === 0 ? (
-            <p className={styles.tournamentEmpty}>No tournaments open for registration right now.</p>
+          {ARENA_TOURNAMENTS_COMING_SOON ? (
+            <>
+              <p className={styles.tournamentComingSoonBadge} role="status">
+                Coming soon
+              </p>
+              <p className={styles.tournamentExplainer}>
+                Bracket tournaments and registration aren&apos;t available in the Arena yet. We&apos;ll turn on browse,
+                create, and join here in a future update.
+              </p>
+              <div className={styles.tournamentActions}>
+                <button type="button" disabled className={`${styles.tournamentLinkBtn} ${styles.tournamentBtnDisabled}`}>
+                  <span>Browse all</span>
+                  <span className={styles.tournamentBtnSoon}>Coming soon</span>
+                </button>
+                <button type="button" disabled className={`${styles.tournamentLinkBtn} ${styles.tournamentBtnDisabled}`}>
+                  <span>Create one</span>
+                  <span className={styles.tournamentBtnSoon}>Coming soon</span>
+                </button>
+              </div>
+              <p className={styles.tournamentEmpty}>Full tournament flows will show here when we launch.</p>
+            </>
           ) : (
-            <ul className={styles.tournamentList}>
-              {openTournaments.map((t) => (
-                <li key={t.id} className={styles.tournamentRow}>
-                  <div className={styles.tournamentRowMain}>
-                    <p className={styles.tournamentRowTitle}>{t.name}</p>
-                    <p className={styles.tournamentRowMeta}>
-                      {t.chain} · {formatTournamentEntryFee(t.entry_fee_wei)}
-                      {t.prize_source ? ` · ${String(t.prize_source).replace(/_/g, " ").toLowerCase()}` : ""}
-                      {typeof t.participant_count === "number" && typeof t.max_players === "number"
-                        ? ` · ${t.participant_count}/${t.max_players} players`
-                        : ""}
-                    </p>
-                  </div>
-                  <Link href={tournamentHref(t)} className={styles.tournamentRowCta}>
-                    Register →
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <>
+              <p className={styles.tournamentExplainer}>
+                Register your agent into bracket tournaments using the tournament contract. Events can be{" "}
+                <strong style={{ color: "#e8fbff" }}>free</strong> or include an{" "}
+                <strong style={{ color: "#e8fbff" }}>entry-fee prize pool</strong>. Pick any open event below to register
+                your seat and bind your agent.
+              </p>
+              <div className={styles.tournamentActions}>
+                <Link href="/tournaments" className={styles.tournamentLinkBtn}>
+                  Browse all
+                </Link>
+                <Link href="/tournaments/create" className={styles.tournamentLinkBtn}>
+                  Create one
+                </Link>
+              </div>
+              {tournamentsLoading ? (
+                <p className={styles.tournamentEmpty}>Loading open tournaments…</p>
+              ) : tournamentsError ? (
+                <p className={styles.error} style={{ marginTop: 0 }}>
+                  {tournamentsError}
+                </p>
+              ) : openTournaments.length === 0 ? (
+                <p className={styles.tournamentEmpty}>No tournaments open for registration right now.</p>
+              ) : (
+                <ul className={styles.tournamentList}>
+                  {openTournaments.map((t) => (
+                    <li key={t.id} className={styles.tournamentRow}>
+                      <div className={styles.tournamentRowMain}>
+                        <p className={styles.tournamentRowTitle}>{t.name}</p>
+                        <p className={styles.tournamentRowMeta}>
+                          {t.chain} · {formatTournamentEntryFee(t.entry_fee_wei)}
+                          {t.prize_source ? ` · ${String(t.prize_source).replace(/_/g, " ").toLowerCase()}` : ""}
+                          {typeof t.participant_count === "number" && typeof t.max_players === "number"
+                            ? ` · ${t.participant_count}/${t.max_players} players`
+                            : ""}
+                        </p>
+                      </div>
+                      <Link href={tournamentHref(t)} className={styles.tournamentRowCta}>
+                        Register →
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </section>
       )}

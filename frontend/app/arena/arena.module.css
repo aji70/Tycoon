@@ -358,6 +358,46 @@ button.heroLink {
   color: #e8fbff;
 }
 
+button.tournamentLinkBtn.tournamentBtnDisabled {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-color: rgba(0, 168, 184, 0.35);
+  color: #7a9a9f;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+button.tournamentLinkBtn.tournamentBtnDisabled:hover {
+  background: rgba(0, 0, 0, 0.22);
+  border-color: rgba(0, 168, 184, 0.35);
+  color: #7a9a9f;
+}
+
+.tournamentBtnSoon {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #c9a227;
+}
+
+.tournamentComingSoonBadge {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #1a1408;
+  background: linear-gradient(90deg, #f0d060, #d4a012);
+  border: 1px solid rgba(255, 220, 120, 0.55);
+  box-shadow: 0 0 16px rgba(240, 200, 80, 0.2);
+}
+
 .tournamentList {
   list-style: none;
   margin: 0;

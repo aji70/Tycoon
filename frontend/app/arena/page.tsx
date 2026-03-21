@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { ARENA_TOURNAMENTS_COMING_SOON } from "@/constants/arena";
 import { useRouter } from "next/navigation";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS, ApiError } from "@/lib/api";
 import { ArenaOnchainModal, type ArenaOnchainBusyPayload } from "@/components/arena/arena-onchain-modal";
@@ -218,6 +219,7 @@ export default function ArenaPage() {
   }, [activeTab, isAuthed]);
 
   useEffect(() => {
+    if (ARENA_TOURNAMENTS_COMING_SOON) return;
     if (activeTab !== "tournaments") return;
     let cancelled = false;
     (async () => {
@@ -1098,46 +1100,71 @@ export default function ArenaPage() {
       {activeTab === "tournaments" && (
         <section className={styles.tournamentPanel} aria-label="Agent tournaments">
           <h2>Tournaments</h2>
-          <p className={styles.tournamentExplainer}>
-            Free or paid entry, bracket play, real games — prizes paid in USDC when the event ends. Open an event below
-            to register and connect your agent.
-          </p>
-          <div className={styles.tournamentActions}>
-            <Link href="/tournaments" className={styles.tournamentLinkBtn}>
-              All tournaments
-            </Link>
-            <Link href="/tournaments/create" className={styles.tournamentLinkBtn}>
-              Create tournament
-            </Link>
-          </div>
-          {tournamentsLoading ? (
-            <p className={styles.tournamentEmpty}>Loading open tournaments…</p>
-          ) : tournamentsError ? (
-            <p className={styles.error} style={{ marginTop: 0 }}>
-              {tournamentsError}
-            </p>
-          ) : openTournaments.length === 0 ? (
-            <p className={styles.tournamentEmpty}>No tournaments in registration right now. Create one or check back later.</p>
+          {ARENA_TOURNAMENTS_COMING_SOON ? (
+            <>
+              <p className={styles.tournamentComingSoonBadge} role="status">
+                Coming soon
+              </p>
+              <p className={styles.tournamentExplainer}>
+                Bracket tournaments, registration, and prize pools are not available in the Arena yet. We&apos;ll enable
+                browsing, creating events, and joining from here in a future release.
+              </p>
+              <div className={styles.tournamentActions}>
+                <button type="button" disabled className={`${styles.tournamentLinkBtn} ${styles.tournamentBtnDisabled}`}>
+                  <span>All tournaments</span>
+                  <span className={styles.tournamentBtnSoon}>Coming soon</span>
+                </button>
+                <button type="button" disabled className={`${styles.tournamentLinkBtn} ${styles.tournamentBtnDisabled}`}>
+                  <span>Create tournament</span>
+                  <span className={styles.tournamentBtnSoon}>Coming soon</span>
+                </button>
+              </div>
+              <p className={styles.tournamentEmpty}>Open registration and full tournament flows will appear here when we launch.</p>
+            </>
           ) : (
-            <ul className={styles.tournamentList}>
-              {openTournaments.map((t) => (
-                <li key={t.id} className={styles.tournamentRow}>
-                  <div className={styles.tournamentRowMain}>
-                    <p className={styles.tournamentRowTitle}>{t.name}</p>
-                    <p className={styles.tournamentRowMeta}>
-                      {t.chain} · {formatTournamentEntryFee(t.entry_fee_wei)}
-                      {t.prize_source ? ` · ${String(t.prize_source).replace(/_/g, " ").toLowerCase()}` : ""}
-                      {typeof t.participant_count === "number" && typeof t.max_players === "number"
-                        ? ` · ${t.participant_count}/${t.max_players} players`
-                        : ""}
-                    </p>
-                  </div>
-                  <Link href={tournamentHref(t)} className={styles.tournamentRowCta}>
-                    Open →
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <>
+              <p className={styles.tournamentExplainer}>
+                Free or paid entry, bracket play, real games — prizes paid in USDC when the event ends. Open an event below
+                to register and connect your agent.
+              </p>
+              <div className={styles.tournamentActions}>
+                <Link href="/tournaments" className={styles.tournamentLinkBtn}>
+                  All tournaments
+                </Link>
+                <Link href="/tournaments/create" className={styles.tournamentLinkBtn}>
+                  Create tournament
+                </Link>
+              </div>
+              {tournamentsLoading ? (
+                <p className={styles.tournamentEmpty}>Loading open tournaments…</p>
+              ) : tournamentsError ? (
+                <p className={styles.error} style={{ marginTop: 0 }}>
+                  {tournamentsError}
+                </p>
+              ) : openTournaments.length === 0 ? (
+                <p className={styles.tournamentEmpty}>No tournaments in registration right now. Create one or check back later.</p>
+              ) : (
+                <ul className={styles.tournamentList}>
+                  {openTournaments.map((t) => (
+                    <li key={t.id} className={styles.tournamentRow}>
+                      <div className={styles.tournamentRowMain}>
+                        <p className={styles.tournamentRowTitle}>{t.name}</p>
+                        <p className={styles.tournamentRowMeta}>
+                          {t.chain} · {formatTournamentEntryFee(t.entry_fee_wei)}
+                          {t.prize_source ? ` · ${String(t.prize_source).replace(/_/g, " ").toLowerCase()}` : ""}
+                          {typeof t.participant_count === "number" && typeof t.max_players === "number"
+                            ? ` · ${t.participant_count}/${t.max_players} players`
+                            : ""}
+                        </p>
+                      </div>
+                      <Link href={tournamentHref(t)} className={styles.tournamentRowCta}>
+                        Open →
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </section>
       )}
