@@ -15,6 +15,7 @@ router.get("/leaderboard", arenaController.getLeaderboard);
 
 // Immediate on-chain multi-seat arena (no invites)
 router.post("/start-game", requireAuth, arenaController.startOnchainArenaGameHandler);
+router.post("/start-human-vs-agent", requireAuth, arenaController.startHumanVsAgentArenaHandler);
 
 // Pending challenges (legacy; UI uses /start-game)
 router.post("/pending-challenges", requireAuth, arenaController.createPendingChallengeBatchHandler);

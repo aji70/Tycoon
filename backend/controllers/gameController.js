@@ -90,6 +90,7 @@ const GAME_TYPES = {
   TOURNAMENT_AGENT_VS_AGENT: "TOURNAMENT_AGENT_VS_AGENT",
   ONCHAIN_AGENT_VS_AI: "ONCHAIN_AGENT_VS_AI",
   ONCHAIN_AGENT_VS_AGENT: "ONCHAIN_AGENT_VS_AGENT",
+  ONCHAIN_HUMAN_VS_AGENT: "ONCHAIN_HUMAN_VS_AGENT",
 };
 
 /** Fixed session length for autonomous / on-chain agent games (enables finish-by-time + saved placements). */

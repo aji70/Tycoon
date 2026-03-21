@@ -124,6 +124,9 @@ export default function ArenaMobile() {
   const [challengerAgentId, setChallengerAgentId] = useState<number | null>(null);
   const [stakeAmountUsdc, setStakeAmountUsdc] = useState("");
   const [arenaStarting, setArenaStarting] = useState(false);
+  const [humanVsOpponentId, setHumanVsOpponentId] = useState<number | null>(null);
+  const [humanVsStakeUsdc, setHumanVsStakeUsdc] = useState("");
+  const [humanVsStarting, setHumanVsStarting] = useState(false);
   const [openTournaments, setOpenTournaments] = useState<ArenaTournamentRow[]>([]);
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
   const [tournamentsError, setTournamentsError] = useState<string | null>(null);
@@ -467,6 +470,37 @@ export default function ArenaMobile() {
     }
   };
 
+  const startHumanVsAgentGame = async () => {
+    if (!isAuthed || !humanVsOpponentId) {
+      alert("Sign in and pick an opponent (You play vs).");
+      return;
+    }
+    setHumanVsStarting(true);
+    try {
+      const stakeNum = humanVsStakeUsdc.trim() ? parseFloat(humanVsStakeUsdc) : 0;
+      const res = await apiClient.post<any>(
+        "/arena/start-human-vs-agent",
+        {
+          opponent_agent_id: humanVsOpponentId,
+          ...(stakeNum > 0 && { stake_amount_usdc: stakeNum }),
+        },
+        { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
+      );
+      const code = res?.data?.game_code as string | undefined;
+      if (code) {
+        setHumanVsOpponentId(null);
+        setHumanVsStakeUsdc("");
+        router.push(`/board-3d-mobile?gameCode=${encodeURIComponent(code)}`);
+      } else {
+        throw new Error("No game code");
+      }
+    } catch (err) {
+      alert(`Error: ${(err as Error).message}`);
+    } finally {
+      setHumanVsStarting(false);
+    }
+  };
+
   const discoverList = agents.filter((a) => !myAgents.some((m) => m.id === a.id));
   const selectedChallenger = myAgents.find((a) => a.id === challengerAgentId) ?? null;
 
@@ -663,6 +697,45 @@ export default function ArenaMobile() {
               Agents approved to spend from your smart wallet: <strong style={{ color: "#e8fbff" }}>max per match</strong> and optional{" "}
               <strong style={{ color: "#e8fbff" }}>daily total</strong>. Opponents here also enabled spending.
             </p>
+            {isAuthed && (
+              <div
+                className={styles.emptyState}
+                style={{
+                  padding: 14,
+                  marginBottom: 12,
+                  border: "1px solid rgba(0, 255, 255, 0.25)",
+                  borderRadius: 12,
+                  background: "rgba(0, 40, 50, 0.35)",
+                }}
+              >
+                <h3 className={styles.challengePanelTitle} style={{ fontSize: "0.95rem", marginBottom: 6 }}>
+                  You vs agent
+                </h3>
+                <p className={styles.challengeHint} style={{ marginBottom: 10 }}>
+                  You play seat 1; the agent auto-plays seat 2. Stake pulls USDC from your smart wallet and theirs (same amount).
+                </p>
+                <label className={styles.challengeFieldLabel}>Stake (USDC)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0 = free"
+                  value={humanVsStakeUsdc}
+                  onChange={(e) => setHumanVsStakeUsdc(e.target.value)}
+                  className={styles.agentSelect}
+                />
+                <div className={styles.challengeActionRow} style={{ marginTop: 10 }}>
+                  <button
+                    type="button"
+                    className={styles.btnSendCompact}
+                    onClick={startHumanVsAgentGame}
+                    disabled={humanVsStarting || humanVsOpponentId == null || challengesLoading}
+                  >
+                    {humanVsStarting ? "On-chain…" : "Start — I play"}
+                  </button>
+                </div>
+              </div>
+            )}
             {challengesLoading ? (
               <p className={styles.challengeHint}>Loading…</p>
             ) : !isAuthed ? (
@@ -726,7 +799,7 @@ export default function ArenaMobile() {
                   className={styles.agentSelect}
                 />
                 <p className={styles.challengeHint} style={{ marginTop: 4 }}>
-                  Staked matches coming soon. Use 0 for free.
+                  Staked 2-player: equal stake from each wallet (5% house). 0 = free.
                 </p>
                 <div className={styles.challengeActionRow}>
                   <button
@@ -765,15 +838,25 @@ export default function ArenaMobile() {
                 </div>
                 <div className={styles.agentDiscoverFooter}>
                   <span className={styles.creatorNameCompact}>by {agent.username}</span>
-                  {isAuthed && approvedAgentsForChallenges.length > 0 && (
-                    <div className={styles.agentDiscoverPick}>
+                  {isAuthed && (
+                    <div className={styles.agentDiscoverPick} style={{ flexDirection: "column", gap: 6, alignItems: "stretch" }}>
+                      {approvedAgentsForChallenges.length > 0 && (
+                        <button
+                          type="button"
+                          className={`${styles.pickBtn} ${selectedOpponents.includes(agent.id) ? styles.pickBtnOn : styles.pickBtnOff}`}
+                          onClick={() => toggleOpponentSelect(agent.id)}
+                          aria-pressed={selectedOpponents.includes(agent.id)}
+                        >
+                          {selectedOpponents.includes(agent.id) ? "✓" : "+ Pick"}
+                        </button>
+                      )}
                       <button
                         type="button"
-                        className={`${styles.pickBtn} ${selectedOpponents.includes(agent.id) ? styles.pickBtnOn : styles.pickBtnOff}`}
-                        onClick={() => toggleOpponentSelect(agent.id)}
-                        aria-pressed={selectedOpponents.includes(agent.id)}
+                        className={`${styles.pickBtn} ${humanVsOpponentId === agent.id ? styles.pickBtnOn : styles.pickBtnOff}`}
+                        onClick={() => setHumanVsOpponentId((id) => (id === agent.id ? null : agent.id))}
+                        aria-pressed={humanVsOpponentId === agent.id}
                       >
-                        {selectedOpponents.includes(agent.id) ? "✓" : "+ Pick"}
+                        {humanVsOpponentId === agent.id ? "✓ You play" : "You play vs"}
                       </button>
                     </div>
                   )}

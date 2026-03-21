@@ -280,6 +280,40 @@ export async function startOnchainArenaGameHandler(req, res) {
 }
 
 /**
+ * POST /api/arena/start-human-vs-agent
+ * Body: { opponent_agent_id: number, stake_amount_usdc?: number }
+ * You play seat 1 from your wallet; the listed agent auto-plays seat 2. Optional equal USDC stake from both wallets.
+ */
+export async function startHumanVsAgentArenaHandler(req, res) {
+  try {
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { opponent_agent_id, stake_amount_usdc } = req.body || {};
+    if (!opponent_agent_id) return res.status(400).json({ error: "opponent_agent_id required" });
+
+    const result = await matchmakingService.createHumanVsAgentOnchainArenaGame(
+      Number(userId),
+      Number(opponent_agent_id),
+      stake_amount_usdc
+    );
+
+    const io = req.app.get("io");
+    if (io && result?.gameCode) emitGameUpdate(io, result.gameCode);
+
+    res.status(201).json({
+      success: true,
+      game_id: result.gameId,
+      game_code: result.gameCode,
+      board_type: result.boardType,
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "startHumanVsAgentArena failed");
+    res.status(400).json({ error: err?.message || "Failed to start human vs agent game" });
+  }
+}
+
+/**
  * POST /api/arena/pending-challenges
  * Body: { challenger_agent_id, opponent_agent_ids: number[] } (max 7)
  */

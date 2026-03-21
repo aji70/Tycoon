@@ -10,6 +10,108 @@ import User from "../models/User.js";
 import logger from "../config/logger.js";
 
 /**
+ * Persist one tournament payout row (same semantics as executePayouts loop).
+ * @param {number} tournamentId
+ * @param {{ user_id: number, user_agent_id?: number|null, amount_wei: number, placement: number }} row
+ */
+async function insertTournamentPayoutRecord(tournamentId, row) {
+  const user = await User.findById(row.user_id);
+  if (!user) {
+    logger.warn({ userId: row.user_id }, "insertTournamentPayoutRecord: user not found");
+    return { ok: false };
+  }
+
+  const smartWalletAddress = user.smart_wallet_address;
+  if (!smartWalletAddress) {
+    await db("tournament_payouts").insert({
+      tournament_id: tournamentId,
+      user_id: user.id,
+      user_agent_id: row.user_agent_id || null,
+      smart_wallet_address: "0x0000000000000000000000000000000000000000",
+      amount_usdc: String(row.amount_wei),
+      placement: row.placement,
+      status: "PENDING",
+      error_reason: "Smart wallet not configured",
+    });
+    logger.warn({ tournamentId, userId: user.id }, "insertTournamentPayoutRecord: no smart wallet");
+    return { ok: false };
+  }
+
+  const [payoutId] = await db("tournament_payouts").insert({
+    tournament_id: tournamentId,
+    user_id: user.id,
+    user_agent_id: row.user_agent_id || null,
+    smart_wallet_address: smartWalletAddress,
+    amount_usdc: String(row.amount_wei),
+    placement: row.placement,
+    status: "SENT",
+    sent_at: new Date(),
+  });
+
+  logger.info(
+    { tournamentId, payoutRecordId: payoutId, userId: user.id, amount: row.amount_wei, placement: row.placement },
+    "Payout record created"
+  );
+  return { ok: true };
+}
+
+/**
+ * Staked arena draw: house keeps 5% of the pool; remaining 95% split equally among all entries.
+ */
+export async function executeDrawRefunds(tournamentId) {
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) throw new Error("Tournament not found");
+  if (tournament.prize_source !== "ENTRY_FEE_POOL") {
+    throw new Error("Draw refunds only apply to entry-fee pool tournaments");
+  }
+
+  const entries = await TournamentEntry.findByTournament(tournamentId);
+  if (!entries?.length) {
+    logger.info({ tournamentId }, "executeDrawRefunds: no entries");
+    return { done: 0, failed: 0, message: "No entries" };
+  }
+
+  const count = entries.length;
+  const pool = (Number(tournament.entry_fee_wei) || 0) * count;
+  if (pool <= 0) {
+    return { done: 0, failed: 0, message: "Zero pool" };
+  }
+
+  const houseWei = Math.floor((pool * 5) / 100);
+  const toPlayers = pool - houseWei;
+  const base = Math.floor(toPlayers / count);
+  let remainder = toPlayers - base * count;
+
+  let done = 0;
+  let failed = 0;
+
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    const amountWei = base + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder -= 1;
+
+    const tea = await db("tournament_entry_agents").where("tournament_entry_id", entry.id).first();
+    const userAgentId = tea?.user_agent_id ?? null;
+
+    const r = await insertTournamentPayoutRecord(tournamentId, {
+      user_id: entry.user_id,
+      user_agent_id: userAgentId,
+      amount_wei: amountWei,
+      placement: 1,
+    });
+    if (r.ok) done++;
+    else failed++;
+  }
+
+  logger.info(
+    { tournamentId, pool, houseWei, toPlayers, count, done, failed },
+    "Draw refunds: 5% house, remainder split equally"
+  );
+
+  return { done, failed, message: `Draw refunds: ${done} sent, ${failed} failed`, houseWei, toPlayers };
+}
+
+/**
  * Compute payout list for a completed tournament: [{ entry_id, rank, amount_wei }].
  * ENTRY_FEE_POOL: pool = entry_fee_wei * participant count. CREATOR_FUNDED: pool from prize_pool_wei.
  */
@@ -78,7 +180,6 @@ export async function executePayouts(tournamentId) {
 
   for (const payout of payouts) {
     try {
-      // Get entry and user
       const entry = await TournamentEntry.findById(payout.entry_id);
       if (!entry) {
         logger.warn({ payoutId: payout.entry_id }, "Entry not found for payout");
@@ -86,64 +187,17 @@ export async function executePayouts(tournamentId) {
         continue;
       }
 
-      const user = await User.findById(entry.user_id);
-      if (!user) {
-        logger.warn({ userId: entry.user_id }, "User not found for payout");
-        failed++;
-        continue;
-      }
+      const tea = await db("tournament_entry_agents").where("tournament_entry_id", entry.id).first();
+      const userAgentId = tea?.user_agent_id ?? null;
 
-      const smartWalletAddress = user.smart_wallet_address;
-      if (!smartWalletAddress) {
-        // Create pending payout record for later claim
-        await db("tournament_payouts").insert({
-          tournament_id: tournamentId,
-          user_id: user.id,
-          user_agent_id: entry.user_agent_id || null,
-          smart_wallet_address: "0x0000000000000000000000000000000000000000",
-          amount_usdc: String(payout.amount_wei),
-          placement: payout.rank,
-          status: "PENDING",
-          error_reason: "Smart wallet not configured",
-        });
-
-        logger.warn(
-          { tournamentId, userId: user.id, rank: payout.rank },
-          "User has no smart wallet; creating pending payout"
-        );
-        failed++;
-        continue;
-      }
-
-      // Create payout record
-      const [payoutId] = await db("tournament_payouts").insert({
-        tournament_id: tournamentId,
-        user_id: user.id,
-        user_agent_id: entry.user_agent_id || null,
-        smart_wallet_address: smartWalletAddress,
-        amount_usdc: String(payout.amount_wei),
+      const r = await insertTournamentPayoutRecord(tournamentId, {
+        user_id: entry.user_id,
+        user_agent_id: userAgentId,
+        amount_wei: payout.amount_wei,
         placement: payout.rank,
-        status: "SENT", // Mark as sent (will be marked CLAIMED when user acknowledges)
-        sent_at: new Date(),
       });
-
-      // NOTE: In production, call actual escrow transfer here
-      // await transferFromEscrowToSmartWallet(tournament.chain, smartWalletAddress, payout.amount_wei);
-      // For now, just log the intent
-
-      logger.info(
-        {
-          tournamentId,
-          payoutRecordId: payoutId,
-          userId: user.id,
-          address: smartWalletAddress,
-          amount: payout.amount_wei,
-          rank: payout.rank,
-        },
-        "Payout transferred to smart wallet"
-      );
-
-      done++;
+      if (r.ok) done++;
+      else failed++;
     } catch (err) {
       logger.error(
         { err: err?.message, tournamentId, payoutId: payout.entry_id },

@@ -138,6 +138,10 @@ export default function ArenaPage() {
   const [challengerAgentId, setChallengerAgentId] = useState<number | null>(null);
   const [stakeAmountUsdc, setStakeAmountUsdc] = useState("");
   const [arenaStarting, setArenaStarting] = useState(false);
+  /** You play seat 1 vs one opponent agent (seat 2 auto-plays). */
+  const [humanVsOpponentId, setHumanVsOpponentId] = useState<number | null>(null);
+  const [humanVsStakeUsdc, setHumanVsStakeUsdc] = useState("");
+  const [humanVsStarting, setHumanVsStarting] = useState(false);
   const [openTournaments, setOpenTournaments] = useState<ArenaTournamentRow[]>([]);
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
   const [tournamentsError, setTournamentsError] = useState<string | null>(null);
@@ -498,6 +502,41 @@ export default function ArenaPage() {
     }
   };
 
+  const startHumanVsAgentGame = async () => {
+    if (!isAuthed) {
+      alert("Please log in first.");
+      return;
+    }
+    if (!humanVsOpponentId) {
+      alert("Pick an opponent agent below.");
+      return;
+    }
+    setHumanVsStarting(true);
+    try {
+      const stakeNum = humanVsStakeUsdc.trim() ? parseFloat(humanVsStakeUsdc) : 0;
+      const res = await apiClient.post<any>(
+        "/arena/start-human-vs-agent",
+        {
+          opponent_agent_id: humanVsOpponentId,
+          ...(stakeNum > 0 && { stake_amount_usdc: stakeNum }),
+        },
+        { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
+      );
+      const code = res?.data?.game_code as string | undefined;
+      if (code) {
+        setHumanVsOpponentId(null);
+        setHumanVsStakeUsdc("");
+        router.push(`/board-3d?gameCode=${encodeURIComponent(code)}`);
+      } else {
+        throw new Error("No game code returned");
+      }
+    } catch (err) {
+      alert(`Error: ${(err as Error).message}`);
+    } finally {
+      setHumanVsStarting(false);
+    }
+  };
+
   if (isMobile) {
     return <ArenaMobile />;
   }
@@ -773,26 +812,121 @@ export default function ArenaPage() {
             <strong style={{ color: "#e8fbff" }}>daily total cap</strong>. Use them to create Arena matches below; opponents listed here have also enabled spending.
           </p>
 
+          {isAuthed && (
+            <div
+              className={styles.emptyDiscover}
+              style={{
+                padding: "18px 16px",
+                marginBottom: 20,
+                border: "1px solid rgba(0, 255, 255, 0.25)",
+                borderRadius: 12,
+                background: "rgba(0, 40, 50, 0.35)",
+              }}
+            >
+              <h3 className={styles.challengePanelTitle} style={{ fontSize: "1.05rem", marginBottom: 8 }}>
+                You vs agent (play yourself)
+              </h3>
+              <p className={styles.challengeHint} style={{ marginBottom: 12 }}>
+                You take <strong style={{ color: "#e8fbff" }}>seat 1</strong> on the board and play from your account. The chosen agent auto-plays seat 2. With a stake, USDC is pulled from{" "}
+                <strong style={{ color: "#e8fbff" }}>your smart wallet</strong> and the opponent owner’s wallet (same amount). You need contract login + smart wallet; the opponent must allow tournament spending for staked games.
+              </p>
+              <div className={styles.challengeField} style={{ marginBottom: 10 }}>
+                <span className={styles.challengeFieldLabel}>Stake (USDC, optional)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0 = free"
+                  value={humanVsStakeUsdc}
+                  onChange={(e) => setHumanVsStakeUsdc(e.target.value)}
+                  className={styles.agentSelect}
+                />
+              </div>
+              <p className={styles.challengeHint} style={{ marginBottom: 8, fontSize: "0.85rem" }}>
+                Pick one opponent from the list below (same pool as agent-vs-agent challenges), then start.
+              </p>
+              <button
+                type="button"
+                className={styles.btnSendCompact}
+                onClick={startHumanVsAgentGame}
+                disabled={humanVsStarting || humanVsOpponentId == null || challengesLoading}
+              >
+                {humanVsStarting ? "On-chain setup…" : "Start — I play"}
+              </button>
+            </div>
+          )}
+
           {challengesLoading ? (
             <p className={styles.challengeHint}>Loading approved agents…</p>
           ) : !isAuthed ? (
             <p className={styles.challengeHint}>Sign in to see your approved agents.</p>
           ) : approvedAgentsForChallenges.length === 0 ? (
-                <div className={styles.emptyDiscover} style={{ padding: "20px 16px" }}>
-                  <strong>No approved agents</strong>
-                  <p style={{ marginTop: 8, fontSize: "0.9rem", color: "rgba(255,255,255,0.7)" }}>
-                    Enable tournament spending in{" "}
-                    <button
-                      type="button"
-                      className={styles.tournamentLinkBtn}
-                      style={{ display: "inline", padding: "2px 8px", margin: 0 }}
-                      onClick={() => { setActiveTab("my-agents"); setMyAgentsSubTab("manage"); }}
-                    >
-                      My agents → Full manager
-                    </button>
-                    {" "}(Tournaments button per agent).
+            <>
+              <div className={styles.emptyDiscover} style={{ padding: "20px 16px" }}>
+                <strong>No approved agents</strong>
+                <p style={{ marginTop: 8, fontSize: "0.9rem", color: "rgba(255,255,255,0.7)" }}>
+                  Enable tournament spending in{" "}
+                  <button
+                    type="button"
+                    className={styles.tournamentLinkBtn}
+                    style={{ display: "inline", padding: "2px 8px", margin: 0 }}
+                    onClick={() => {
+                      setActiveTab("my-agents");
+                      setMyAgentsSubTab("manage");
+                    }}
+                  >
+                    My agents → Full manager
+                  </button>
+                  {" "}(Tournaments button per agent). You can still use <strong style={{ color: "#e8fbff" }}>You vs agent</strong> above if you pick an opponent here.
+                </p>
+              </div>
+              {isAuthed && (
+                <>
+                  <p className={styles.challengeHint} style={{ marginTop: 16 }}>
+                    Opponents (approved to spend) — use <strong style={{ color: "#e8fbff" }}>You play vs</strong> on a card, then <strong style={{ color: "#e8fbff" }}>Start — I play</strong> above.
                   </p>
-                </div>
+                  <div className={styles.agentsGrid} style={{ marginTop: 8 }}>
+                    {discoverList.map((agent) => (
+                      <div key={agent.id} className={`${styles.agentCard} ${styles.agentCardDiscover}`}>
+                        <div className={styles.agentDiscoverTop}>
+                          <h3 title={agent.name}>{agent.name}</h3>
+                          <div
+                            className={styles.tierbadgeCompact}
+                            style={{ backgroundColor: TierColors[agent.tier_color] }}
+                          >
+                            {tierLabelOf(agent)}
+                          </div>
+                        </div>
+                        <div className={styles.agentDiscoverMeta} style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+                          <span>XP <strong>{xpOf(agent)}</strong></span>
+                          <span>Max per match: <strong>{formatUsdcDisplay(agent.max_entry_fee_usdc)}</strong></span>
+                          <span>Daily total cap: <strong>{formatUsdcDisplay(agent.daily_cap_usdc)}</strong></span>
+                          {agent.chain && <span>Chain: {agent.chain}</span>}
+                        </div>
+                        <div className={styles.agentDiscoverFooter}>
+                          <span className={styles.creatorNameCompact}>by {agent.username}</span>
+                          <div className={styles.agentDiscoverPick}>
+                            <button
+                              type="button"
+                              className={`${styles.pickBtn} ${humanVsOpponentId === agent.id ? styles.pickBtnOn : styles.pickBtnOff}`}
+                              onClick={() => setHumanVsOpponentId((id) => (id === agent.id ? null : agent.id))}
+                              aria-pressed={humanVsOpponentId === agent.id}
+                            >
+                              {humanVsOpponentId === agent.id ? "✓ You play" : "You play vs"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {!loading && discoverList.length === 0 && (
+                    <div className={styles.emptyDiscover} style={{ padding: 16 }}>
+                      <strong>No approved opponents yet</strong>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
           ) : (
               <>
                 <div className={styles.agentsGrid} style={{ marginBottom: 20 }}>
@@ -851,7 +985,7 @@ export default function ArenaPage() {
                       className={styles.agentSelect}
                     />
                     <p className={styles.challengeHint} style={{ marginTop: 4 }}>
-                      Staked matches: coming soon. For now use 0 for free matches.
+                      Staked 2-player agent games: equal stake from each side’s smart wallet (5% house). Use 0 for free.
                     </p>
                   </div>
                   <div className={styles.challengeActions}>
@@ -894,7 +1028,7 @@ export default function ArenaPage() {
                       </div>
                       <div className={styles.agentDiscoverFooter}>
                         <span className={styles.creatorNameCompact}>by {agent.username}</span>
-                        <div className={styles.agentDiscoverPick}>
+                        <div className={styles.agentDiscoverPick} style={{ flexDirection: "column", gap: 6, alignItems: "stretch" }}>
                           <button
                             type="button"
                             className={`${styles.pickBtn} ${selectedOpponents.includes(agent.id) ? styles.pickBtnOn : styles.pickBtnOff}`}
@@ -902,6 +1036,14 @@ export default function ArenaPage() {
                             aria-pressed={selectedOpponents.includes(agent.id)}
                           >
                             {selectedOpponents.includes(agent.id) ? "✓" : "+ Pick"}
+                          </button>
+                          <button
+                            type="button"
+                            className={`${styles.pickBtn} ${humanVsOpponentId === agent.id ? styles.pickBtnOn : styles.pickBtnOff}`}
+                            onClick={() => setHumanVsOpponentId((id) => (id === agent.id ? null : agent.id))}
+                            aria-pressed={humanVsOpponentId === agent.id}
+                          >
+                            {humanVsOpponentId === agent.id ? "✓ You play" : "You play vs"}
                           </button>
                         </div>
                       </div>
