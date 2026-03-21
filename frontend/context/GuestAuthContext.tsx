@@ -9,6 +9,8 @@ export type GuestUser = {
   username: string;
   address: string;
   is_guest: boolean;
+  /** Set when this account is linked to Privy (sign out should clear Privy + backend JWT). */
+  privy_did?: string | null;
   linked_wallet_address?: string | null;
   linked_wallet_chain?: string | null;
   email?: string | null;
@@ -84,6 +86,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
           username: d.username as string,
           address: d.address as string,
           is_guest: (d.is_guest ?? true) as boolean,
+          privy_did: (d.privy_did as string | null | undefined) ?? null,
           linked_wallet_address: d.linked_wallet_address as string | null | undefined,
           linked_wallet_chain: d.linked_wallet_chain as string | null | undefined,
           email: d.email as string | null | undefined,
@@ -131,6 +134,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
             username: u.username,
             address: u.address,
             is_guest: u.is_guest ?? false,
+            privy_did: u.privy_did ?? null,
             linked_wallet_address: u.linked_wallet_address ?? null,
             linked_wallet_chain: u.linked_wallet_chain ?? null,
             email: u.email,
@@ -148,6 +152,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
           username: u.username,
           address: u.address,
           is_guest: u.is_guest ?? true,
+          privy_did: u.privy_did ?? null,
           linked_wallet_address: u.linked_wallet_address ?? null,
           linked_wallet_chain: u.linked_wallet_chain ?? null,
           email: u.email,
@@ -174,6 +179,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
           username: data.data.username,
           address: data.data.address,
           is_guest: data.data.is_guest ?? true,
+          privy_did: data.data.privy_did ?? null,
           linked_wallet_address: null,
           linked_wallet_chain: null,
           email: data.data.email,
@@ -199,6 +205,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
             username: data.data.username,
             address: data.data.address,
             is_guest: data.data.is_guest ?? true,
+            privy_did: data.data.privy_did ?? null,
             linked_wallet_address: data.data.linked_wallet_address ?? null,
             linked_wallet_chain: data.data.linked_wallet_chain ?? null,
             email: data.data.email,

@@ -41,6 +41,10 @@ const HeroSectionMobile: React.FC = () => {
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
+  const signOutGuestAndPrivy = () => {
+    guestAuth?.logoutGuest();
+    if (isPrivyAuthed) void logout();
+  };
 
   const [loading, setLoading] = useState(false);
   const [inputUsername, setInputUsername] = useState("");
@@ -750,7 +754,8 @@ const HeroSectionMobile: React.FC = () => {
               </button>
               {(guestUser || isPrivyAuthed) && (
                 <button
-                  onClick={() => (isPrivyAuthed ? logout() : guestAuth?.logoutGuest())}
+                  type="button"
+                  onClick={() => signOutGuestAndPrivy()}
                   className="text-[#869298] hover:text-[#00F0FF] font-dmSans text-xs"
                 >
                   Sign out
