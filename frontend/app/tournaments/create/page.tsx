@@ -609,81 +609,6 @@ export default function CreateTournamentPage() {
               </section>
             )}
 
-            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/95 to-[#011112]/70 p-6 shadow-xl shadow-black/30 ring-1 ring-white/5">
-              <h2 className="text-sm font-semibold text-cyan-200/95 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-cyan-400/90" />
-                Prize source
-              </h2>
-              <p className="text-xs text-white/50 mb-4">How prizes are funded (or none for free play)</p>
-              <div className="space-y-2.5">
-                {PRIZE_SOURCES.map(({ value, label, description }) => (
-                  <label
-                    key={value}
-                    className={`flex flex-col gap-1 p-4 rounded-xl border cursor-pointer transition-all duration-200 ${
-                      prizeSource === value
-                        ? "bg-cyan-500/12 border-cyan-400/50 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]"
-                        : "bg-[#011112]/40 border-[#0E282A] hover:border-white/15 hover:bg-white/[0.02]"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition ${
-                        prizeSource === value ? "border-cyan-400 bg-cyan-400/30" : "border-white/30"
-                      }`}>
-                        {prizeSource === value && <span className="h-2 w-2 rounded-full bg-cyan-300" />}
-                      </span>
-                      <input
-                        type="radio"
-                        name="prize_source"
-                        value={value}
-                        checked={prizeSource === value}
-                        onChange={() => setPrizeSource(value)}
-                        className="sr-only"
-                      />
-                      <span className="font-medium text-white/95">{label}</span>
-                    </div>
-                    <span className="text-xs text-white/55 pl-7 leading-relaxed">{description}</span>
-                  </label>
-                ))}
-              </div>
-              {prizeSource === "ENTRY_FEE_POOL" && (
-                <div className="mt-4 pt-4 border-t border-white/5">
-                  <label htmlFor="entry_fee" className="block text-sm font-medium text-white/90 mb-1.5">
-                    Entry fee (USDC)
-                  </label>
-                  <input
-                    id="entry_fee"
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={entryFeeUsd}
-                    onChange={(e) => setEntryFeeUsd(e.target.value)}
-                    placeholder="e.g. 1 for $1"
-                    className="w-full px-4 py-3 rounded-xl bg-[#010a0b]/80 border border-[#0E282A] text-white placeholder-white/35 focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:ring-offset-0 transition"
-                  />
-                </div>
-              )}
-              {prizeSource === "CREATOR_FUNDED" && (
-                <div className="mt-4 pt-4 border-t border-white/5">
-                  <label htmlFor="prize_pool" className="block text-sm font-medium text-white/90 mb-1.5">
-                    Planned prize pool (USDC)
-                  </label>
-                  <input
-                    id="prize_pool"
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={prizePoolUsd}
-                    onChange={(e) => setPrizePoolUsd(e.target.value)}
-                    placeholder="e.g. 100 — fund same amount on-chain after create"
-                    className="w-full px-4 py-3 rounded-xl bg-[#010a0b]/80 border border-[#0E282A] text-white placeholder-white/35 focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:ring-offset-0 transition"
-                  />
-                  <p className="text-xs text-white/50 mt-2 leading-relaxed">
-                    Default winner split: 50% / 30% / 15% / 5% for 1st–4th. USDC is sent to winners&apos; smart wallets when the tournament completes.
-                  </p>
-                </div>
-              )}
-            </section>
-
               </div>
               {/* Right column */}
               <div className="space-y-6">
@@ -827,6 +752,81 @@ export default function CreateTournamentPage() {
                       Sign in to choose specific agents for quick start.
                     </p>
                   )}
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/95 to-[#011112]/70 p-6 shadow-xl shadow-black/30 ring-1 ring-white/5">
+              <h2 className="text-sm font-semibold text-cyan-200/95 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-cyan-400/90" />
+                Prize source
+              </h2>
+              <p className="text-xs text-white/50 mb-4">How prizes are funded (or none for free play)</p>
+              <div className="space-y-2.5">
+                {PRIZE_SOURCES.map(({ value, label, description }) => (
+                  <label
+                    key={value}
+                    className={`flex flex-col gap-1 p-4 rounded-xl border cursor-pointer transition-all duration-200 ${
+                      prizeSource === value
+                        ? "bg-cyan-500/12 border-cyan-400/50 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]"
+                        : "bg-[#011112]/40 border-[#0E282A] hover:border-white/15 hover:bg-white/[0.02]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition ${
+                        prizeSource === value ? "border-cyan-400 bg-cyan-400/30" : "border-white/30"
+                      }`}>
+                        {prizeSource === value && <span className="h-2 w-2 rounded-full bg-cyan-300" />}
+                      </span>
+                      <input
+                        type="radio"
+                        name="prize_source"
+                        value={value}
+                        checked={prizeSource === value}
+                        onChange={() => setPrizeSource(value)}
+                        className="sr-only"
+                      />
+                      <span className="font-medium text-white/95">{label}</span>
+                    </div>
+                    <span className="text-xs text-white/55 pl-7 leading-relaxed">{description}</span>
+                  </label>
+                ))}
+              </div>
+              {prizeSource === "ENTRY_FEE_POOL" && (
+                <div className="mt-4 pt-4 border-t border-white/5">
+                  <label htmlFor="entry_fee" className="block text-sm font-medium text-white/90 mb-1.5">
+                    Entry fee (USDC)
+                  </label>
+                  <input
+                    id="entry_fee"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={entryFeeUsd}
+                    onChange={(e) => setEntryFeeUsd(e.target.value)}
+                    placeholder="e.g. 1 for $1"
+                    className="w-full px-4 py-3 rounded-xl bg-[#010a0b]/80 border border-[#0E282A] text-white placeholder-white/35 focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:ring-offset-0 transition"
+                  />
+                </div>
+              )}
+              {prizeSource === "CREATOR_FUNDED" && (
+                <div className="mt-4 pt-4 border-t border-white/5">
+                  <label htmlFor="prize_pool" className="block text-sm font-medium text-white/90 mb-1.5">
+                    Planned prize pool (USDC)
+                  </label>
+                  <input
+                    id="prize_pool"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={prizePoolUsd}
+                    onChange={(e) => setPrizePoolUsd(e.target.value)}
+                    placeholder="e.g. 100 — fund same amount on-chain after create"
+                    className="w-full px-4 py-3 rounded-xl bg-[#010a0b]/80 border border-[#0E282A] text-white placeholder-white/35 focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:ring-offset-0 transition"
+                  />
+                  <p className="text-xs text-white/50 mt-2 leading-relaxed">
+                    Default winner split: 50% / 30% / 15% / 5% for 1st–4th. USDC is sent to winners&apos; smart wallets when the tournament completes.
+                  </p>
                 </div>
               )}
             </section>
