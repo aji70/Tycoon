@@ -20,8 +20,11 @@ frontend/.env.*.local
 *.pem
 **/secrets/
 **/.secrets
-ENV_SETUP.md
 
-# Documentation (local / not tracked — do not push to GitHub)
+# Documentation (local — all Markdown except README.md stays untracked)
+**/*.md
+!**/README.md
+!**/readme.md
+!**/Readme.md
 doc/
 docs/
