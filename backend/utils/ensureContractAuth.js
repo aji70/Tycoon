@@ -9,7 +9,14 @@ import crypto from "crypto";
 import { ethers } from "ethers";
 import User from "../models/User.js";
 import logger from "../config/logger.js";
-import { callContractRead, registerPlayerFor, getSmartWalletAddress, isContractConfigured, callContractWrite } from "../services/tycoonContract.js";
+import {
+  callContractRead,
+  registerPlayerFor,
+  getSmartWalletAddress,
+  isContractConfigured,
+  callContractWrite,
+  syncBackendPasswordIfMissingOnChain,
+} from "../services/tycoonContract.js";
 
 function passwordToHash(password) {
   return ethers.keccak256(ethers.toUtf8Bytes(password));
@@ -146,6 +153,14 @@ export async function ensureUserHasContractAuthResult(db, userId, chain = "CELO"
       } else {
         const onChain = await readOnChainUsername(effectiveAddress, normalizedChain);
         if (onChain) usernameForGames = onChain;
+        // registerPlayer() can leave registered=true with _passwordHashOf unset; backend txs need the hash.
+        await syncBackendPasswordIfMissingOnChain(
+          effectiveAddress,
+          user.password_hash,
+          usernameForGames,
+          1500,
+          normalizedChain
+        );
       }
       return { ok: true, address: effectiveAddress, username: usernameForGames, password_hash: user.password_hash };
     }

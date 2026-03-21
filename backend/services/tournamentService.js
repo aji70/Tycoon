@@ -15,6 +15,8 @@ import GamePlayer from "../models/GamePlayer.js";
 import GameSetting from "../models/GameSetting.js";
 import Chat from "../models/Chat.js";
 import { createGameByBackend, joinGameByBackend, isContractConfigured } from "../services/tycoonContract.js";
+import { ensureUserHasContractAuthResult } from "../utils/ensureContractAuth.js";
+import { getOnchainAddressForGuestFlow } from "../utils/onchainUserAddress.js";
 import { createTournamentOnChain, registerForTournamentFor, isEscrowConfigured } from "../services/tournamentEscrow.js";
 import logger from "../config/logger.js";
 import agentRegistry from "./agentRegistry.js";
@@ -25,6 +27,18 @@ import { createTwoPlayerAgentArenaGame } from "./agentArenaGameFactory.js";
 
 const TOURNAMENT_SYMBOLS = ["hat", "car", "dog", "thimble", "wheelbarrow", "battleship", "boot", "iron"];
 const DEFAULT_STARTING_CASH = 1500;
+
+/** Ensure guest/Privy address + DB password match on-chain state (fixes createGameByBackend "No password set"). */
+async function resolveTournamentOnChainPlayer(user, chain) {
+  const normalized = User.normalizeChain(chain);
+  const addrOverride = getOnchainAddressForGuestFlow(user);
+  const r = await ensureUserHasContractAuthResult(db, user.id, normalized, addrOverride);
+  if (!r.ok) {
+    logger.warn({ userId: user.id, reason: r.reason, chain: normalized }, "tournament resolveTournamentOnChainPlayer failed");
+    throw new Error(r.reason || `On-chain setup failed for user ${user.id}`);
+  }
+  return r;
+}
 /** Timed autonomous agent-vs-agent tournament matches (server runner can finish-by-time). */
 const AGENT_TOURNAMENT_MATCH_DURATION_MIN = 30;
 const GAME_READY_WINDOW_SECONDS = 30;
@@ -544,12 +558,15 @@ async function createTwoPlayerMatchGame(tournament, match, entryA, entryB, tourn
     return createLobbyGame(tournament, match, userA, userB, tournamentId, matchId, entryA, entryB);
   }
 
+  const authA = await resolveTournamentOnChainPlayer(userA, chain);
+  const authB = await resolveTournamentOnChainPlayer(userB, chain);
+
   let result;
   try {
     result = await createGameByBackend(
-      userA.address,
-      userA.password_hash,
-      userA.username,
+      authA.address,
+      authA.password_hash,
+      authA.username,
       "PRIVATE",
       symbolA,
       2,
@@ -568,10 +585,10 @@ async function createTwoPlayerMatchGame(tournament, match, entryA, entryB, tourn
 
   try {
     await joinGameByBackend(
-      userB.address,
-      userB.password_hash,
+      authB.address,
+      authB.password_hash,
       contractGameId,
-      userB.username,
+      authB.username,
       symbolB,
       code,
       chain
@@ -610,7 +627,7 @@ async function createTwoPlayerMatchGame(tournament, match, entryA, entryB, tourn
   await GamePlayer.create({
     game_id: game.id,
     user_id: userA.id,
-    address: userA.address,
+    address: authA.address,
     balance: DEFAULT_STARTING_CASH,
     position: 0,
     turn_order: 1,
@@ -621,7 +638,7 @@ async function createTwoPlayerMatchGame(tournament, match, entryA, entryB, tourn
   await GamePlayer.create({
     game_id: game.id,
     user_id: userB.id,
-    address: userB.address,
+    address: authB.address,
     balance: DEFAULT_STARTING_CASH,
     position: 0,
     turn_order: 2,
@@ -659,12 +676,13 @@ async function createTournamentGameOnChainLobby(
   entryB
 ) {
   const chain = User.normalizeChain(tournament.chain);
+  const authA = await resolveTournamentOnChainPlayer(userA, chain);
   let result;
   try {
     result = await createGameByBackend(
-      userA.address,
-      userA.password_hash || "",
-      userA.username,
+      authA.address,
+      authA.password_hash,
+      authA.username,
       "PRIVATE",
       symbolA,
       2,
@@ -706,7 +724,7 @@ async function createTournamentGameOnChainLobby(
   await GamePlayer.create({
     game_id: game.id,
     user_id: userA.id,
-    address: userA.address,
+    address: authA.address,
     balance: DEFAULT_STARTING_CASH,
     position: 0,
     turn_order: 1,
@@ -746,12 +764,13 @@ async function createTournamentGameOnChainLobbyCreatorB(
   entryB
 ) {
   const chain = User.normalizeChain(tournament.chain);
+  const authB = await resolveTournamentOnChainPlayer(userB, chain);
   let result;
   try {
     result = await createGameByBackend(
-      userB.address,
-      userB.password_hash || "",
-      userB.username,
+      authB.address,
+      authB.password_hash,
+      authB.username,
       "PRIVATE",
       symbolB,
       2,
@@ -793,7 +812,7 @@ async function createTournamentGameOnChainLobbyCreatorB(
   await GamePlayer.create({
     game_id: game.id,
     user_id: userB.id,
-    address: userB.address,
+    address: authB.address,
     balance: DEFAULT_STARTING_CASH,
     position: 0,
     turn_order: 1,
@@ -998,12 +1017,13 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
     const firstPwd = users.findIndex((u) => u?.password_hash);
     if (firstPwd >= 0) {
       const u0 = users[firstPwd];
+      const auth0 = await resolveTournamentOnChainPlayer(u0, chain);
       let result;
       try {
         result = await createGameByBackend(
-          u0.address,
-          u0.password_hash || "",
-          u0.username,
+          auth0.address,
+          auth0.password_hash,
+          auth0.username,
           "PRIVATE",
           symbols[firstPwd],
           N,
@@ -1043,7 +1063,7 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
       await GamePlayer.create({
         game_id: game.id,
         user_id: u0.id,
-        address: u0.address,
+        address: auth0.address,
         balance: DEFAULT_STARTING_CASH,
         position: 0,
         turn_order: 1,
@@ -1056,11 +1076,12 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
         const u = users[i];
         if (!u?.password_hash) continue;
         try {
+          const authI = await resolveTournamentOnChainPlayer(u, chain);
           await joinGameByBackend(
-            u.address,
-            u.password_hash,
+            authI.address,
+            authI.password_hash,
             contractGameId,
-            u.username,
+            authI.username,
             symbols[i],
             code,
             chain
@@ -1068,7 +1089,7 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
           await GamePlayer.create({
             game_id: game.id,
             user_id: u.id,
-            address: u.address,
+            address: authI.address,
             balance: DEFAULT_STARTING_CASH,
             position: 0,
             turn_order: i + 1,
@@ -1123,12 +1144,14 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
     return { match: await TournamentMatch.findById(matchId), game };
   }
 
+  const auths = await Promise.all(users.map((u) => resolveTournamentOnChainPlayer(u, chain)));
+
   let result;
   try {
     result = await createGameByBackend(
-      users[0].address,
-      users[0].password_hash,
-      users[0].username,
+      auths[0].address,
+      auths[0].password_hash,
+      auths[0].username,
       "PRIVATE",
       symbols[0],
       N,
@@ -1147,10 +1170,10 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
   for (let i = 1; i < N; i++) {
     try {
       await joinGameByBackend(
-        users[i].address,
-        users[i].password_hash,
+        auths[i].address,
+        auths[i].password_hash,
         contractGameId,
-        users[i].username,
+        auths[i].username,
         symbols[i],
         code,
         chain
@@ -1190,7 +1213,7 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
     await GamePlayer.create({
       game_id: game.id,
       user_id: users[i].id,
-      address: users[i].address,
+      address: auths[i].address,
       balance: DEFAULT_STARTING_CASH,
       position: 0,
       turn_order: i + 1,
