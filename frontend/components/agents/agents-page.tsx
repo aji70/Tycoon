@@ -140,9 +140,19 @@ function usdcStoredToDecimalInput(stored: string | null | undefined): string {
 
 const ARENA_MANAGE_AGENTS_PATH = "/arena?tab=my-agents&sub=manage";
 
-export type AgentsPageProps = { embeddedInArena?: boolean };
+export type AgentsPageProps = {
+  embeddedInArena?: boolean;
+  openTournamentAgentId?: number | null;
+  onOpenTournamentAgentConsumed?: () => void;
+  onSpendingCapsSaved?: () => void | Promise<void>;
+};
 
-export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps) {
+export default function AgentsPage({
+  embeddedInArena = false,
+  openTournamentAgentId = null,
+  onOpenTournamentAgentConsumed,
+  onSpendingCapsSaved,
+}: AgentsPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { address, isConnected } = useAccount();
@@ -268,6 +278,7 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
         toast.success("Tournament permission saved");
         await fetchAgents();
         setPermModalAgent(null);
+        await onSpendingCapsSaved?.();
       } else {
         toast.error("Could not save permission");
       }
@@ -282,6 +293,17 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
   React.useEffect(() => {
     fetchAgents();
   }, [fetchAgents]);
+
+  React.useEffect(() => {
+    if (!embeddedInArena || openTournamentAgentId == null || loading) return;
+    const a = agents.find((x) => x.id === openTournamentAgentId);
+    if (a) {
+      openTournamentPerms(a);
+    }
+    onOpenTournamentAgentConsumed?.();
+    // openTournamentPerms uses tournamentPerms from this render (same as fetchAgents completion).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embeddedInArena, openTournamentAgentId, agents, loading, onOpenTournamentAgentConsumed]);
 
   // Check for NGN redirect (reference from Flutterwave)
   React.useEffect(() => {
@@ -907,7 +929,7 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
                       type="button"
                       onClick={() => openTournamentPerms(a)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/40 text-amber-300 hover:bg-amber-500/10 transition text-sm"
-                      title="Allow this agent to join tournaments automatically (with capped entry fee)."
+                      title="Wallet spending for tournament entries: max per match and optional daily total cap."
                     >
                       <Trophy className="w-3.5 h-3.5" />
                       Tournaments
@@ -1384,7 +1406,7 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
                 <div className="min-w-0">
                   <h3 className="text-xl font-bold text-white flex items-center gap-2">
                     <Trophy className="w-5 h-5 text-amber-300" />
-                    Tournament auto-join
+                    Wallet spending for tournaments
                   </h3>
                   <p className="text-xs text-gray-500 mt-1 truncate">Agent: {permModalAgent.name}</p>
                 </div>
@@ -1410,14 +1432,14 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Max entry fee (USDC)</p>
+                    <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Max per match (USDC)</p>
                     <input
                       value={permMaxFee}
                       onChange={(e) => setPermMaxFee(e.target.value)}
                       className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
                       placeholder="e.g. 1"
                     />
-                    <p className="text-[11px] text-gray-500 mt-1">Per tournament: agent will not join if the fee is above this.</p>
+                    <p className="text-[11px] text-gray-500 mt-1">Ceiling for a single tournament entry (one “game” fee). Example: $1 max per entry.</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Chain</p>
@@ -1434,14 +1456,16 @@ export default function AgentsPage({ embeddedInArena = false }: AgentsPageProps)
                 </div>
 
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Daily spend cap (USDC, optional)</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Daily total cap (USDC, optional)</p>
                   <input
                     value={permDailyCap}
                     onChange={(e) => setPermDailyCap(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
-                    placeholder="e.g. 5 — max from smart wallet per day"
+                    placeholder="e.g. 10 — max spent from wallet today"
                   />
-                  <p className="text-[11px] text-gray-500 mt-1">Leave empty for no daily limit (only max entry fee applies).</p>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Total USDC this agent may spend from your smart wallet per day (sum of entries). Example: $10/day with $1 max per match allows up to ten $1 entries. Leave empty for no daily total limit.
+                  </p>
                 </div>
 
                 {permEnabled && (
