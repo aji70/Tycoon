@@ -1144,6 +1144,26 @@ function getUsdcAddressForBackend(chain) {
   return undefined;
 }
 
+const ERC20_BALANCE_OF_ABI = ["function balanceOf(address account) view returns (uint256)"];
+
+/**
+ * On-chain USDC balance in base units (6 decimals) for an address (e.g. smart wallet).
+ */
+export async function getSmartWalletUsdcBalanceWei(smartWalletAddress, chain = "CELO") {
+  const cfg = getChainConfig(chain);
+  const usdc = getUsdcAddressForBackend(chain);
+  if (!usdc || !cfg.rpcUrl) {
+    throw new Error(`USDC address or RPC not configured for chain ${chain}`);
+  }
+  const addr = String(smartWalletAddress || "").trim();
+  if (!addr) throw new Error("Smart wallet address required");
+  const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+  const network = new Network(networkName, cfg.chainId);
+  const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+  const token = new Contract(usdc, ERC20_BALANCE_OF_ABI, provider);
+  return await token.balanceOf(addr);
+}
+
 /**
  * Ensure USDC allowance from smart wallet to Tycoon (for stake transferFrom). Uses executeCallWithAuth + PIN-gated authority signature.
  * Skips tx if allowance already sufficient.
