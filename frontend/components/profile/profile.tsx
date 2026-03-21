@@ -91,7 +91,7 @@ function formatStakeOrEarned(value: number): string {
 /** Celo chain id for contract reads when wallet is disconnected. */
 const CELO_CHAIN_ID = 42220;
 
-/** Guest/Privy profile when wallet is not connected, or when a connected extension wallet is not the Tycoon-registered address (see notice). */
+/** Guest/Privy profile when wallet is not connected, or when a connected extension wallet is not the Tycoon-registered address (notice only if wallet not registered — smart/linked users see no banner). */
 function GuestProfileView({
   guestUser,
   onRecreateClick,
@@ -101,7 +101,7 @@ function GuestProfileView({
   guestUser: { address: string; username: string; linked_wallet_address?: string | null; smart_wallet_address?: string | null };
   onRecreateClick?: () => void | Promise<void>;
   recreatePending?: boolean;
-  /** Shown when user is connected with an EOA that does not match their on-chain Tycoon profile; perks still load from smart/linked wallet. */
+  /** Shown when the connected extension wallet is not registered for this account yet (prompt to link). Omitted when user already has smart/linked wallet — perks use those silently. */
   connectedWalletMismatchNotice?: string | null;
 }) {
   const username = guestUser.username;
@@ -1203,15 +1203,16 @@ export default function Profile() {
       );
     }
     if (showGuestProfileForConnectedWalletMismatch && guestUser) {
-      const mismatchNotice = guestHasPerkHolderAddresses
-        ? "Your connected browser wallet is not your Tycoon player address. Shop perks are sent to your smart wallet — open My Perks below (they are loaded from your logged-in account, not from the connected extension wallet). Disconnect or link the correct wallet in Account if you want the full connected profile."
-        : "Your connected wallet isn't registered on-chain yet. Link it below to use this account when you connect with that wallet (staked games, same stats).";
       return (
         <GuestProfileView
           guestUser={guestUser}
           onRecreateClick={handleRecreateViaApi}
           recreatePending={recreateApiPending}
-          connectedWalletMismatchNotice={mismatchNotice}
+          connectedWalletMismatchNotice={
+            guestHasPerkHolderAddresses
+              ? undefined
+              : "Your connected wallet isn't registered on-chain yet. Link it below to use this account when you connect with that wallet (staked games, same stats)."
+          }
         />
       );
     }
