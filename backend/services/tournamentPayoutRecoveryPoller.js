@@ -16,6 +16,37 @@ export function startTournamentPayoutRecoveryPoller() {
 
   let timer = null;
 
+  /**
+   * Payout rows in DB but escrow still Open/Locked with USDC (e.g. first run inserted rows without finalize).
+   * executePayouts / executeDrawRefunds idempotent branches now call tryReconcileEscrowFinalize.
+   */
+  const reconcileStuckEscrowWithPayoutRows = async () => {
+    const { executePayouts, executeDrawRefunds } = await import("./tournamentPayoutService.js");
+    const rows = await db("tournament_payouts")
+      .join("tournaments", "tournaments.id", "tournament_payouts.tournament_id")
+      .where("tournaments.status", "COMPLETED")
+      .whereNot("tournaments.prize_source", "NO_POOL")
+      .groupBy("tournaments.id")
+      .select("tournaments.id as tid")
+      .limit(12);
+
+    for (const row of rows) {
+      const tid = Number(row.tid);
+      if (!tid) continue;
+      try {
+        const matches = await db("tournament_matches").where({ tournament_id: tid });
+        const anyWinner = (matches || []).some((m) => m.winner_entry_id != null);
+        if (anyWinner) {
+          await executePayouts(tid);
+        } else {
+          await executeDrawRefunds(tid);
+        }
+      } catch (err) {
+        logger.error({ err: err?.message, tournamentId: tid }, "Recovery: stuck escrow + payout rows reconcile failed");
+      }
+    }
+  };
+
   const repairStakesMarkedByPayoutRows = async () => {
     const collected = await db("arena_match_stakes").where("status", "COLLECTED").select("id", "game_id", "tournament_id").limit(40);
     for (const s of collected) {
@@ -104,6 +135,7 @@ export function startTournamentPayoutRecoveryPoller() {
 
   const tick = async () => {
     try {
+      await reconcileStuckEscrowWithPayoutRows();
       await repairStakesMarkedByPayoutRows();
       await retryStuckArenaStakes();
       await retryCompletedTournamentsWithoutPayoutRows();
