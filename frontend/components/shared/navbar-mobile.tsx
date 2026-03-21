@@ -6,7 +6,7 @@ import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
-import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy, BookOpen, Bot } from 'lucide-react';
+import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy, BookOpen, Bot, MessageCircle } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { useConnect } from 'wagmi';
@@ -30,7 +30,7 @@ interface NavBarMobileProps {
   minimal?: boolean;
 }
 
-const PREFETCH_ROUTES = ['/game-shop', '/profile', '/leaderboard', '/arena'] as const;
+const PREFETCH_ROUTES = ['/game-shop', '/profile', '/leaderboard', '/arena', '/rooms', '/tournaments'] as const;
 
 const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
   const pathname = usePathname();
@@ -259,12 +259,13 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                 Menu
               </p>
 
-              {/* Navigation Links - game menu options */}
+              {/* Navigation — same order as desktop: Agents, Perk Shop, Leaderboard, Profile, Home; then More: Tournaments, Rooms, How to Play */}
               <nav className="space-y-2 mb-6">
                 {hasGameSession && (
                   <Link
                     href="/arena"
                     onClick={closeMobileMenu}
+                    onMouseEnter={() => router.prefetch('/arena')}
                     className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
                   >
                     <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
@@ -273,58 +274,12 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                     Agents
                   </Link>
                 )}
-                <Link
-                  href="/"
-                  onClick={closeMobileMenu}
-                  className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-white font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
-                    <House size={20} />
-                  </div>
-                  Home
-                </Link>
-
-                <Link
-                  href="/how-to-play"
-                  onClick={closeMobileMenu}
-                  className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
-                    <BookOpen size={20} />
-                  </div>
-                  How to Play
-                </Link>
-
-                {hasGameSession && (
-                  <Link
-                    href="/leaderboard"
-                    onClick={closeMobileMenu}
-                    className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-amber-400/90">
-                      <Trophy size={20} />
-                    </div>
-                    Leaderboard
-                  </Link>
-                )}
-
-                {hasGameSession && (
-                  <Link
-                    href="/tournaments"
-                    onClick={closeMobileMenu}
-                    className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
-                      <Trophy size={20} />
-                    </div>
-                    Tournaments
-                  </Link>
-                )}
 
                 {hasGameSession && (
                   <Link
                     href={shopHref}
                     onClick={closeMobileMenu}
+                    onMouseEnter={() => router.prefetch('/game-shop')}
                     className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#0FF0FC] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
                   >
                     <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-emerald-400/90">
@@ -336,8 +291,23 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
 
                 {hasGameSession && (
                   <Link
+                    href="/leaderboard"
+                    onClick={closeMobileMenu}
+                    onMouseEnter={() => router.prefetch('/leaderboard')}
+                    className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-amber-400/90">
+                      <Trophy size={20} />
+                    </div>
+                    Leaderboard
+                  </Link>
+                )}
+
+                {hasGameSession && (
+                  <Link
                     href="/profile"
                     onClick={closeMobileMenu}
+                    onMouseEnter={() => router.prefetch('/profile')}
                     className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
                   >
                     <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
@@ -346,6 +316,56 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                     {fetchedUsername || 'Profile'}
                   </Link>
                 )}
+
+                <Link
+                  href="/"
+                  onClick={closeMobileMenu}
+                  className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-white font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
+                    <House size={20} />
+                  </div>
+                  Home
+                </Link>
+
+                {hasGameSession && (
+                  <Link
+                    href="/tournaments"
+                    onClick={closeMobileMenu}
+                    onMouseEnter={() => router.prefetch('/tournaments')}
+                    className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
+                      <Trophy size={20} />
+                    </div>
+                    Tournaments
+                  </Link>
+                )}
+
+                {hasGameSession && (
+                  <Link
+                    href="/rooms"
+                    onClick={closeMobileMenu}
+                    onMouseEnter={() => router.prefetch('/rooms')}
+                    className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
+                      <MessageCircle size={20} />
+                    </div>
+                    Rooms
+                  </Link>
+                )}
+
+                <Link
+                  href="/how-to-play"
+                  onClick={closeMobileMenu}
+                  className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
+                    <BookOpen size={20} />
+                  </div>
+                  How to Play
+                </Link>
               </nav>
 
               {/* Network - same row style as other nav items */}

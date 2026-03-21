@@ -877,33 +877,29 @@ export default function ArenaMobile() {
                   <div
                     className={styles.emptyState}
                     style={{
-                      padding: 14,
-                      marginBottom: 12,
-                      border: "1px solid rgba(0, 255, 255, 0.25)",
+                      padding: "12px 12px 14px",
+                      marginBottom: 10,
+                      border: "1px solid rgba(0, 255, 255, 0.2)",
                       borderRadius: 12,
-                      background: "rgba(0, 40, 50, 0.35)",
+                      background: "rgba(0, 40, 50, 0.28)",
                     }}
                   >
-                    <h3 className={styles.challengePanelTitle} style={{ fontSize: "0.95rem", marginBottom: 6 }}>
-                      You vs agent (play yourself)
+                    <h3 className={styles.challengePanelTitle} style={{ fontSize: "0.88rem", marginBottom: 6 }}>
+                      You vs agent
                     </h3>
-                    <p className={styles.challengeHint} style={{ marginBottom: 10 }}>
-                      You take <strong style={{ color: "#e8fbff" }}>seat 1</strong>; the agent auto-plays seat 2. With a stake, USDC is pulled from{" "}
-                      <strong style={{ color: "#e8fbff" }}>your smart wallet</strong> and the opponent owner’s (same amount). Contract login + smart wallet; opponent needs tournament spending for staked games.
+                    <p className={styles.challengeHint} style={{ marginBottom: 10, fontSize: "0.78rem", lineHeight: 1.45 }}>
+                      You’re seat 1; the agent is seat 2. Stakes use both smart wallets (your contract login + wallet; opponent must allow spending).
                     </p>
-                    <label className={styles.challengeFieldLabel}>Stake (USDC, optional)</label>
+                    <label className={styles.challengeFieldLabel}>Stake (USDC)</label>
                     <input
                       type="number"
                       min="0"
                       step="0.01"
-                      placeholder="0 = free"
+                      placeholder="0 for free"
                       value={humanVsStakeUsdc}
                       onChange={(e) => setHumanVsStakeUsdc(e.target.value)}
                       className={styles.agentSelect}
                     />
-                    <p className={styles.challengeHint} style={{ marginBottom: 8, fontSize: "0.8rem" }}>
-                      Pick one opponent below, then start.
-                    </p>
                     <div className={styles.challengeActionRow} style={{ marginTop: 10 }}>
                       <button
                         type="button"
@@ -911,7 +907,7 @@ export default function ArenaMobile() {
                         onClick={startHumanVsAgentGame}
                         disabled={humanVsStarting || humanVsOpponentId == null || challengesLoading}
                       >
-                        {humanVsStarting ? "On-chain…" : "Start — I play"}
+                        {humanVsStarting ? "On-chain…" : "Start"}
                       </button>
                     </div>
                   </div>
