@@ -135,7 +135,8 @@ export async function eliminateNegativeBalancePlayersForAgentGames(gameId, app =
   if (!id) return;
 
   const game = await db("games").where({ id }).first();
-  if (!game?.id || game.status !== "RUNNING" || !AGENT_RUNNER_GAME_TYPES.has(String(game.game_type || ""))) {
+  const gameActive = game?.status === "RUNNING" || game?.status === "IN_PROGRESS";
+  if (!game?.id || !gameActive || !AGENT_RUNNER_GAME_TYPES.has(String(game.game_type || ""))) {
     return;
   }
 
@@ -224,7 +225,7 @@ export async function eliminateNegativeBalancePlayersForAgentGames(gameId, app =
     await invalidateGameById(id);
 
     const stillRunning = await db("games").where({ id }).first();
-    if (!stillRunning || stillRunning.status !== "RUNNING") return;
+    if (!stillRunning || (stillRunning.status !== "RUNNING" && stillRunning.status !== "IN_PROGRESS")) return;
   }
 }
 

@@ -87,12 +87,36 @@ export async function upsertArenaLocksForGame(gameId, userAgentIds) {
 
 /**
  * Cancel a stuck arena game (DB + slot assignments + challenge locks).
+ * For on-chain arena games, prefer finishing by net worth + removePlayerFromGame so funds are not left on the contract.
  * @param {object} game - row from games
  * @returns {Promise<boolean>}
  */
 export async function cancelStaleArenaGame(game) {
   const id = Number(game?.id);
   if (!id) return false;
+
+  const fresh = await Game.findById(id);
+  if (!fresh || !ACTIVE_GAME_STATUSES.includes(fresh.status)) return false;
+
+  const gt = String(fresh.game_type || "");
+  const isOnchainArena =
+    fresh.is_ai === false &&
+    (gt === "ONCHAIN_AGENT_VS_AGENT" || gt === "ONCHAIN_HUMAN_VS_AGENT") &&
+    !!(String(fresh.contract_game_id || "").trim() || String(fresh.code || "").trim());
+
+  if (isOnchainArena) {
+    try {
+      const { finishGameByNetWorthAndNotify } = await import("../controllers/gameController.js");
+      const settled = await finishGameByNetWorthAndNotify(null, fresh);
+      if (settled) {
+        await invalidateGameById(id).catch(() => {});
+        logger.info({ gameId: id, code: fresh.code }, "Stale on-chain arena settled (net worth + contract payouts)");
+        return true;
+      }
+    } catch (err) {
+      logger.warn({ err: err?.message, gameId: id }, "Stale arena net-worth settle failed; falling back to CANCELLED");
+    }
+  }
 
   const rowCount = await db("games")
     .where({ id })
@@ -108,7 +132,7 @@ export async function cancelStaleArenaGame(game) {
 
   await invalidateGameById(id).catch(() => {});
   await agentRegistry.cleanupGame(id);
-  logger.info({ gameId: id, code: game.code }, "Arena game auto-cancelled (stale agent lock)");
+  logger.info({ gameId: id, code: game.code }, "Arena game auto-cancelled (stale agent lock, no on-chain settle)");
   return true;
 }
 
