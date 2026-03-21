@@ -448,6 +448,13 @@ async function start() {
     logger.warn({ err: err?.message }, "Timed game finish poller failed to start");
   }
 
+  try {
+    const { startTournamentPayoutRecoveryPoller } = await import("./services/tournamentPayoutRecoveryPoller.js");
+    startTournamentPayoutRecoveryPoller();
+  } catch (err) {
+    logger.warn({ err: err?.message }, "Tournament payout recovery poller failed to start");
+  }
+
   // Step 5: Socket.io Redis adapter (when Redis is available)
   try {
     const adapter = await connectSocketRedis();

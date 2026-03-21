@@ -795,7 +795,7 @@ export default function ArenaMobile() {
                       className={styles.agentSelect}
                     />
                     <p className={styles.challengeHint} style={{ marginTop: 4 }}>
-                      Staked 2-player: equal stake from each wallet (5% house). 0 = free.
+                      Staked 2-player: equal stake. Wins: 95%/5% house. Ties: split after draw house cut (env TOURNAMENT_DRAW_HOUSE_CUT_PERCENT, default 5%). 0 = free.
                     </p>
                     <div className={styles.challengeActionRow}>
                       <button

@@ -172,9 +172,11 @@ export async function eliminateNegativeBalancePlayersForAgentGames(gameId, app =
         removalResult.winner_user_id,
         removalResult.player_user_ids
       ).catch((err) => logger.warn({ err: err?.message, gameId: id }, "recordChainGameResult (bankruptcy) failed"));
-      settleStakedArenaForFinishedGame(id).catch((err) =>
-        logger.warn({ err: err?.message, gameId: id }, "settleStakedArenaForFinishedGame after bankruptcy FINISHED failed")
-      );
+      try {
+        await settleStakedArenaForFinishedGame(id);
+      } catch (err) {
+        logger.error({ err: err?.message, gameId: id }, "settleStakedArenaForFinishedGame after bankruptcy FINISHED failed");
+      }
     }
 
     const chainFor = User.normalizeChain(removalResult.chain || game.chain || "CELO");
@@ -1218,9 +1220,14 @@ const gamePlayerController = {
         await invalidateGameById(game.id);
         const io = req.app.get("io");
         if (io && game.code) emitGameUpdate(io, game.code);
-        settleStakedArenaForFinishedGame(game.id).catch((err) =>
-          logger.warn({ err: err?.message, gameId: game.id }, "settleStakedArenaForFinishedGame after leave FINISHED failed")
-        );
+        try {
+          await settleStakedArenaForFinishedGame(game.id);
+        } catch (err) {
+          logger.error(
+            { err: err?.message, gameId: game.id },
+            "settleStakedArenaForFinishedGame after leave FINISHED failed"
+          );
+        }
       }
 
       return res.status(200).json({
