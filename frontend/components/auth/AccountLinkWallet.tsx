@@ -57,8 +57,13 @@ export default function AccountLinkWallet() {
         message,
         signature,
       });
-      if (res.success) setError(null);
-      else setError(res.message ?? "Link failed");
+      if (res.success) {
+        setError(null);
+        await auth.refetchGuest?.();
+        toast.success("Wallet linked. Your profile will update to show the full connected view.");
+      } else {
+        setError(res.message ?? "Link failed");
+      }
     } catch (e) {
       setError((e as Error)?.message ?? "Failed to sign or link");
     } finally {
