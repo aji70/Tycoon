@@ -6,6 +6,8 @@
  * 8004scan metrics (what we can/cannot populate):
  * - Stars: Use tag1="starred" for positive engagement (AI win, tip followed). Tycoon now submits this.
  * - Avg Feedback Score: From value (0–100). Tycoon submits gameResult and tipFollowed.
+ * - "Overall Score" (UI): Explorer-specific composite; often includes service health (e.g. Web URL checks),
+ *   not the same as average feedback — high feedback + avg score can still show Overall 0 until their formula is satisfied.
  * - Validations: Requires Validation Registry (zkML/TEE). Tycoon has no validation infra.
  * - Chats/Messages: From A2A/MCP protocol interactions. Tycoon is a board game, no chat endpoint.
  * - Watches: Platform-level (users following agent on 8004scan). Not controllable from backend.
@@ -22,6 +24,11 @@ const REPUTATION_REGISTRY_ABI = [
 const CELO_REPUTATION_ADDRESS =
   process.env.ERC8004_REPUTATION_REGISTRY_ADDRESS ||
   "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63";
+
+/** On-chain giveFeedback `endpoint` (recommended by ERC-8004 feedback profile for attribution). */
+const DEFAULT_FEEDBACK_ENDPOINT =
+  process.env.ERC8004_FEEDBACK_ENDPOINT ||
+  "https://base-monopoly-production.up.railway.app/api/agent-registry/decision";
 
 /**
  * Submit one reputation feedback for the Tycoon AI agent on Celo.
@@ -61,6 +68,7 @@ export async function submitErc8004Feedback(agentId, score, tag2 = "gameResult",
   const id = typeof agentId === "bigint" ? agentId : BigInt(agentIdStr);
   const value = Number(score);
   const zeroHash = "0x0000000000000000000000000000000000000000000000000000000000000000";
+  const endpoint = String(DEFAULT_FEEDBACK_ENDPOINT || "").trim();
 
   try {
     const tx = await contract.giveFeedback(
@@ -69,7 +77,7 @@ export async function submitErc8004Feedback(agentId, score, tag2 = "gameResult",
       0,
       tag1,
       tag2,
-      "",
+      endpoint,
       "",
       zeroHash
     );
