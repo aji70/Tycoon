@@ -565,6 +565,37 @@ async function processCompletedArenaMatches() {
         }
         // else: draw (both null)
 
+        // Staked arena: payout from tournament escrow (winner 95%, 5% house)
+        const stakeRow = await db("arena_match_stakes").where("game_id", game.id).where("status", "COLLECTED").first();
+        if (stakeRow?.tournament_id && winnerId != null) {
+          const TournamentMatch = (await import("../models/TournamentMatch.js")).default;
+          const Tournament = (await import("../models/Tournament.js")).default;
+          const match = await TournamentMatch.findByGameId(game.id);
+          if (match?.slot_a_entry_id != null && match?.slot_b_entry_id != null) {
+            const winnerEntryId = winnerId === agentA.id ? match.slot_a_entry_id : match.slot_b_entry_id;
+            await TournamentMatch.update(match.id, { winner_entry_id: winnerEntryId, status: "COMPLETED" });
+            await Tournament.update(stakeRow.tournament_id, { status: "COMPLETED" });
+            try {
+              const { executePayouts } = await import("./tournamentPayoutService.js");
+              await executePayouts(stakeRow.tournament_id);
+              await db("arena_match_stakes").where("id", stakeRow.id).update({
+                status: "PAID_OUT",
+                paid_out_at: db.fn.now(),
+                updated_at: db.fn.now(),
+              });
+              logger.info(
+                { gameId: game.id, tournamentId: stakeRow.tournament_id, winnerEntryId },
+                "Staked arena payout executed"
+              );
+            } catch (payoutErr) {
+              logger.error(
+                { err: payoutErr?.message, gameId: game.id, tournamentId: stakeRow.tournament_id },
+                "Staked arena executePayouts failed"
+              );
+            }
+          }
+        }
+
         // Record ELO result
         await eloService.recordArenaResult(agentA.id, agentB.id, winnerId, game.id);
         logger.info(
