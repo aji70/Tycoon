@@ -2159,35 +2159,11 @@ function Board3DPageContent() {
     setEndGameReason(null);
     setShowBankruptcyModal(false);
     try {
-      const res = await apiClient.post<{
-        success?: boolean;
-        message?: string;
-        data?: { winner_id: number; game?: { players?: Player[] }; valid_win?: boolean };
-      }>(`/games/${game!.id}/finish-by-time`);
-      const data = res?.data?.data;
-      setEndGameReason(res?.data?.message ?? null);
-      const winnerId = data?.winner_id;
-      if (winnerId != null) {
-        const updatedPlayers = data?.game?.players ?? game?.players ?? [];
-        const winnerPlayer = updatedPlayers.find((p: Player) => p.user_id === winnerId) ?? null;
-        setWinner(winnerPlayer);
-        const myPosition = me?.position ?? 0;
-        const myBalance = BigInt(me?.balance ?? 0);
-        const validWin = data?.valid_win !== false;
-        if (winnerId === me?.user_id) {
-          setEndGameCandidate({ winner: me!, position: myPosition, balance: myBalance, validWin });
-        } else {
-          setEndGameCandidate({ winner: null, position: myPosition, balance: myBalance, validWin: true });
-        }
-      }
-      await refetchGame();
+      await fetchUpdatedGame();
     } catch (e) {
-      console.error("Finish by time failed:", e);
-      timeUpHandledRef.current = false;
-      setGameTimeUpLocal(false);
-      setEndGameReason(null);
+      console.error("Refetch after session timer elapsed failed:", e);
     }
-  }, [game?.id, game?.status, game?.players, me, refetchGame]);
+  }, [game?.status, fetchUpdatedGame]);
 
   // Multiplayer game end: backend already settled on-chain when the game ended (finish-by-time or vote). We only sync DB and leave — no wallet signing (same as 2D board).
   const handleFinalizeAndLeave = useCallback(async () => {

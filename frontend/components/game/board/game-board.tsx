@@ -217,16 +217,11 @@ const Board = ({
     timeUpHandledRef.current = true;
     setGameTimeUp(true);
     try {
-      await apiClient.post(`/games/${game.id}/finish-by-time`);
       await onFinishByTime?.();
     } catch (e: any) {
-      console.error("Finish by time failed:", e);
-      timeUpHandledRef.current = false;
-      setGameTimeUp(false);
-      const msg = e?.response?.data?.error || e?.response?.data?.message || e?.message || "Could not end game. Please try again.";
-      toast.error(msg);
+      console.error("Refetch after session timer elapsed failed:", e);
     }
-  }, [game?.id, game?.status, onFinishByTime]);
+  }, [game?.status, onFinishByTime]);
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">

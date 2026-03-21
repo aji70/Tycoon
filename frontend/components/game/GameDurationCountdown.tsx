@@ -72,8 +72,8 @@ export function GameDurationCountdown({ game, className = "", compact, onTimeUp 
       prevRemainingRef.current = remaining;
 
       // Only fire when the countdown actually reaches zero in this session (was positive, now zero).
-      // On a full page refresh, the first tick often sees 0:00 already; firing here spuriously POSTs
-      // /finish-by-time and ends RUNNING games. Backend + agent runner still finish when time truly elapses.
+      // On refresh, the first tick often sees 0:00 already — do not treat that as a new "time up" event.
+      // Timed games are ended by the backend poller (and optional onTimeUp here only refetches / locks UI).
       const crossedIntoZero = prev !== null && prev > 0 && remaining === 0;
       const cb = onTimeUpRef.current;
       if (crossedIntoZero && cb && !timeUpFiredRef.current) {

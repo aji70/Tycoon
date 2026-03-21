@@ -214,17 +214,10 @@ export default function GamePlayPage() {
     }
   }, [game?.id, requestStartLoading, refetchGame]);
 
-  /** Backend finishes game (assigns winner) before modals show; then refetch so UI sees FINISHED. */
+  /** Session timer hit zero: refetch so UI picks up FINISHED once the backend poller (or socket) applies it. */
   const finishGameByTime = useCallback(async () => {
     if (!game?.id || game?.status !== "RUNNING") return;
-    try {
-      await apiClient.post(`/games/${game.id}/finish-by-time`);
-      await refetchGame();
-    } catch (e: any) {
-      console.error("Finish by time failed:", e);
-      const msg = e?.response?.data?.error || e?.response?.data?.message || e?.message || "Could not end game by time. Please try again.";
-      toast.error(msg);
-    }
+    await refetchGame();
   }, [game?.id, game?.status, refetchGame]);
 
   const finishByTimeGuard = usePreventDoubleSubmit();
@@ -299,7 +292,7 @@ export default function GamePlayPage() {
             </div>
           </div>
         )}
-        {/* Persistent countdown so finish-by-time fires even when user is on players/chat tab */}
+        {/* Persistent countdown; when it hits zero we refetch — backend ends timed games on a poll */}
         {game?.duration && Number(game.duration) > 0 && (
           <div className="shrink-0 flex justify-center py-2">
             <GameDurationCountdown game={game} compact onTimeUp={onFinishByTime} />

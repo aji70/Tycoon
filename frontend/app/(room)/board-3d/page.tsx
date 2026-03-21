@@ -846,8 +846,14 @@ function Board3DPageContent() {
         fetchVoteStatus(data.target_user_id);
       }
     };
+    const onGameUpdate = (data: { gameCode?: string }) => {
+      if (!data?.gameCode || data.gameCode.toUpperCase() !== gameCode.toUpperCase()) return;
+      fetchUpdatedGame();
+    };
+    socketService.onGameUpdate(onGameUpdate);
     socketService.onVoteCast(handleVoteCast);
     return () => {
+      socketService.removeListener("game-update", onGameUpdate);
       socketService.removeListener("vote-cast", handleVoteCast);
       socketService.leaveGameRoom(gameCode);
     };
@@ -2454,35 +2460,11 @@ function Board3DPageContent() {
     setEndGameReason(null);
     setShowBankruptcyModal(false);
     try {
-      const res = await apiClient.post<{
-        success?: boolean;
-        message?: string;
-        data?: { winner_id: number; game?: { players?: Player[] }; valid_win?: boolean };
-      }>(`/games/${game!.id}/finish-by-time`);
-      setEndGameReason(res?.data?.message ?? null);
-      const data = res?.data?.data;
-      const winnerId = data?.winner_id;
-      if (winnerId != null) {
-        const updatedPlayers = data?.game?.players ?? game?.players ?? [];
-        const winnerPlayer = updatedPlayers.find((p: Player) => p.user_id === winnerId) ?? null;
-        setWinner(winnerPlayer);
-        const myPosition = me?.position ?? 0;
-        const myBalance = BigInt(me?.balance ?? 0);
-        const validWin = data?.valid_win !== false;
-        if (winnerId === me?.user_id) {
-          setEndGameCandidate({ winner: me!, position: myPosition, balance: myBalance, validWin });
-        } else {
-          setEndGameCandidate({ winner: null, position: myPosition, balance: myBalance, validWin: true });
-        }
-      }
-      await refetchGame();
+      await fetchUpdatedGame();
     } catch (e) {
-      console.error("Finish by time failed:", e);
-      timeUpHandledRef.current = false;
-      setGameTimeUpLocal(false);
-      setEndGameReason(null);
+      console.error("Refetch after session timer elapsed failed:", e);
     }
-  }, [game?.id, game?.status, game?.players, me, refetchGame]);
+  }, [game?.status, fetchUpdatedGame]);
 
   const handleClaimAndGoHome = useCallback(async () => {
     setClaimAndLeaveInProgress(true);

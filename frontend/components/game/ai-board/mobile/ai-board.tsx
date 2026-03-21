@@ -357,37 +357,19 @@ const endTime =
     timeUpHandledRef.current = true;
     setGameTimeUp(true);
     try {
-      // Backend finishes the game (assigns winner) before we show the modal.
-      const res = await apiClient.post<{
-        success?: boolean;
-        data?: { winner_id: number; game?: { players?: Player[] }; valid_win?: boolean; winner_turn_count?: number };
-      }>(`/games/${currentGame.id}/finish-by-time`);
-      const data = res?.data?.data;
-      const winnerId = data?.winner_id;
-      if (winnerId == null) {
-        throw new Error((res?.data as { error?: string })?.error ?? "Could not finish game by time");
-      }
-      const updatedPlayers = data?.game?.players ?? players;
-      const winnerPlayer = updatedPlayers.find((p) => p.user_id === winnerId) ?? null;
-      setWinner(winnerPlayer);
-      const myPosition = me?.position ?? 0;
-      const myBalance = BigInt(me?.balance ?? 0);
-      const validWin = data?.valid_win !== false;
-
-      if (winnerId === me?.user_id) {
-        setEndGameCandidate({ winner: me!, position: myPosition, balance: myBalance, validWin });
-      } else {
-        setEndGameCandidate({ winner: null, position: myPosition, balance: myBalance, validWin: true });
-      }
-      await onFinishGameByTime?.(); // invalidate & refetch so parent has updated game
+      await onFinishGameByTime?.();
     } catch (e) {
-      console.error("Time up / finish-by-time failed:", e);
-      timeUpHandledRef.current = false;
-      setGameTimeUp(false);
+      console.error("Refetch after session timer elapsed failed:", e);
     }
-  }, [currentGame.id, currentGame.status, me, players, onFinishGameByTime]);
+  }, [currentGame.status, onFinishGameByTime]);
 
-  const playerCanRoll = Boolean(isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0 && !gameTimeUp);
+  const playerCanRoll = Boolean(
+    currentGame.status === "RUNNING" &&
+      isMyTurn &&
+      currentPlayer &&
+      (currentPlayer.balance ?? 0) > 0 &&
+      !gameTimeUp
+  );
   // Per-turn roll timer removed: no countdown or auto-end turn.
 
   const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
@@ -940,7 +922,7 @@ const endTime =
                   <RollResult roll={displayRoll} compact />
                 )}
                 {/* Username is playing — on top, above time */}
-                {isAITurn && !gameTimeUp && (
+                {isAITurn && currentGame.status === "RUNNING" && !gameTimeUp && (
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-base font-bold text-cyan-400">
                       {currentPlayer?.username ?? "AI"} is playing…
@@ -951,13 +933,13 @@ const endTime =
                 {currentGame?.duration && Number(currentGame.duration) > 0 && (
                   <GameDurationCountdown game={currentGame} compact onTimeUp={handleGameTimeUp} />
                 )}
-                {gameTimeUp && (
+                {gameTimeUp && currentGame.status === "RUNNING" && (
                   <div className="font-mono font-bold rounded-xl px-6 py-3 bg-amber-500/20 border-2 border-amber-400/60 text-amber-300 text-lg">
                     Time&apos;s Up!
                   </div>
                 )}
                 {/* Untimed: vote to end game by net worth — moved to top-left corner $ button */}
-                {!gameTimeUp && isMyTurn && !turnEndScheduled && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+                {currentGame.status === "RUNNING" && !gameTimeUp && isMyTurn && !turnEndScheduled && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
                   (currentPlayer?.balance ?? 0) < 0 ? (
                     <button
                       onClick={declareBankruptcy}
