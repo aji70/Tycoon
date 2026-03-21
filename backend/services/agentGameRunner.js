@@ -24,6 +24,7 @@ const GAME_TYPES = new Set([
   "AGENT_VS_AI",
   "ONCHAIN_AGENT_VS_AGENT",
   "ONCHAIN_AGENT_VS_AI",
+  "ONCHAIN_HUMAN_VS_AGENT",
   "TOURNAMENT_AGENT_VS_AGENT",
 ]);
 
@@ -357,6 +358,11 @@ async function stepGame(game) {
   if (!gp) return;
   const slot = Math.max(1, Math.min(8, Number(gp.turn_order || 1)));
 
+  // Human plays seat 1; only the opponent agent (seat 2+) is auto-driven.
+  if (String(game.game_type || "") === "ONCHAIN_HUMAN_VS_AGENT" && slot === 1) {
+    return;
+  }
+
   // Pre-roll build phase: agents should build on their turn start when they have monopoly.
   // This mirrors the frontend "pre-roll build" flow and avoids only building on turns
   // where they happen to land on an unowned property.
@@ -510,26 +516,94 @@ async function processCompletedArenaMatches() {
     // Games use FINISHED when a match ends (not COMPLETED)
     const completedGames = await db("games")
       .select("games.id", "games.game_type", "games.status")
-      .whereIn("games.game_type", ["AGENT_VS_AGENT", "ONCHAIN_AGENT_VS_AGENT"])
+      .whereIn("games.game_type", ["AGENT_VS_AGENT", "ONCHAIN_AGENT_VS_AGENT", "ONCHAIN_HUMAN_VS_AGENT"])
       .where("games.status", "FINISHED")
-      .whereNotExists(
-        db("agent_arena_matches")
-          .where("agent_arena_matches.game_id", db.raw("games.id"))
-          .where("agent_arena_matches.status", "COMPLETED")
-      )
+      .where(function humanOrAgentArena() {
+        this.where(function agentVsAgent() {
+          this.whereIn("games.game_type", ["AGENT_VS_AGENT", "ONCHAIN_AGENT_VS_AGENT"]).whereNotExists(
+            db("agent_arena_matches")
+              .where("agent_arena_matches.game_id", db.raw("games.id"))
+              .where("agent_arena_matches.status", "COMPLETED")
+          );
+        }).orWhere(function humanVsAgent() {
+          this.where("games.game_type", "ONCHAIN_HUMAN_VS_AGENT").whereNull("games.arena_completion_at");
+        });
+      })
       .limit(10);
 
     for (const game of completedGames) {
       try {
-        // Get game players to find the agents and winner
-        const players = await db("game_players")
+        const playersRaw = await db("game_players")
           .where("game_id", game.id)
           .select("user_id", "balance", "turn_order");
 
-        if (players.length !== 2) {
-          // Multi-seat on-chain arena: XP is only recorded for 2-player agent games
-          if (players.length > 2) continue;
-          logger.warn({ gameId: game.id, playerCount: players.length }, "Expected 2 players in agent arena game");
+        if (playersRaw.length !== 2) {
+          if (playersRaw.length > 2) continue;
+          logger.warn({ gameId: game.id, playerCount: playersRaw.length }, "Expected 2 players in agent arena game");
+          continue;
+        }
+
+        const players = [...playersRaw].sort((a, b) => Number(a.turn_order || 0) - Number(b.turn_order || 0));
+        const isHumanVsAgent = String(game.game_type || "") === "ONCHAIN_HUMAN_VS_AGENT";
+
+        if (isHumanVsAgent) {
+          const ph = players[0];
+          const po = players[1];
+          let winnerEntryId = null;
+          if (Number(ph.balance) > Number(po.balance)) winnerEntryId = "a";
+          else if (Number(po.balance) > Number(ph.balance)) winnerEntryId = "b";
+
+          const stakeRow = await db("arena_match_stakes").where("game_id", game.id).where("status", "COLLECTED").first();
+          if (stakeRow?.tournament_id) {
+            const TournamentMatch = (await import("../models/TournamentMatch.js")).default;
+            const Tournament = (await import("../models/Tournament.js")).default;
+            const match = await TournamentMatch.findByGameId(game.id);
+            if (match?.slot_a_entry_id != null && match?.slot_b_entry_id != null) {
+              const payoutService = await import("./tournamentPayoutService.js");
+              const winId =
+                winnerEntryId === "a"
+                  ? match.slot_a_entry_id
+                  : winnerEntryId === "b"
+                    ? match.slot_b_entry_id
+                    : null;
+              if (winId != null) {
+                await TournamentMatch.update(match.id, { winner_entry_id: winId, status: "COMPLETED" });
+                await Tournament.update(stakeRow.tournament_id, { status: "COMPLETED" });
+                try {
+                  await payoutService.executePayouts(stakeRow.tournament_id);
+                  await db("arena_match_stakes").where("id", stakeRow.id).update({
+                    status: "PAID_OUT",
+                    paid_out_at: db.fn.now(),
+                    updated_at: db.fn.now(),
+                  });
+                } catch (payoutErr) {
+                  logger.error(
+                    { err: payoutErr?.message, gameId: game.id, tournamentId: stakeRow.tournament_id },
+                    "Human vs agent executePayouts failed"
+                  );
+                }
+              } else {
+                await TournamentMatch.update(match.id, { status: "COMPLETED" });
+                await Tournament.update(stakeRow.tournament_id, { status: "COMPLETED" });
+                try {
+                  await payoutService.executeDrawRefunds(stakeRow.tournament_id);
+                  await db("arena_match_stakes").where("id", stakeRow.id).update({
+                    status: "PAID_OUT",
+                    paid_out_at: db.fn.now(),
+                    updated_at: db.fn.now(),
+                  });
+                } catch (drawErr) {
+                  logger.error(
+                    { err: drawErr?.message, gameId: game.id, tournamentId: stakeRow.tournament_id },
+                    "Human vs agent executeDrawRefunds failed"
+                  );
+                }
+              }
+            }
+          }
+
+          await db("games").where("id", game.id).update({ arena_completion_at: db.fn.now() });
+          logger.info({ gameId: game.id }, "Human vs agent arena post-process done (no ELO)");
           continue;
         }
 
@@ -556,47 +630,65 @@ async function processCompletedArenaMatches() {
           continue;
         }
 
-        // Winner is the player with higher balance
         let winnerId = null;
         if (players[0].balance > players[1].balance) {
           winnerId = agentA.id;
         } else if (players[1].balance > players[0].balance) {
           winnerId = agentB.id;
         }
-        // else: draw (both null)
 
-        // Staked arena: payout from tournament escrow (winner 95%, 5% house)
         const stakeRow = await db("arena_match_stakes").where("game_id", game.id).where("status", "COLLECTED").first();
-        if (stakeRow?.tournament_id && winnerId != null) {
+        if (stakeRow?.tournament_id) {
           const TournamentMatch = (await import("../models/TournamentMatch.js")).default;
           const Tournament = (await import("../models/Tournament.js")).default;
           const match = await TournamentMatch.findByGameId(game.id);
           if (match?.slot_a_entry_id != null && match?.slot_b_entry_id != null) {
-            const winnerEntryId = winnerId === agentA.id ? match.slot_a_entry_id : match.slot_b_entry_id;
-            await TournamentMatch.update(match.id, { winner_entry_id: winnerEntryId, status: "COMPLETED" });
-            await Tournament.update(stakeRow.tournament_id, { status: "COMPLETED" });
-            try {
-              const { executePayouts } = await import("./tournamentPayoutService.js");
-              await executePayouts(stakeRow.tournament_id);
-              await db("arena_match_stakes").where("id", stakeRow.id).update({
-                status: "PAID_OUT",
-                paid_out_at: db.fn.now(),
-                updated_at: db.fn.now(),
-              });
-              logger.info(
-                { gameId: game.id, tournamentId: stakeRow.tournament_id, winnerEntryId },
-                "Staked arena payout executed"
-              );
-            } catch (payoutErr) {
-              logger.error(
-                { err: payoutErr?.message, gameId: game.id, tournamentId: stakeRow.tournament_id },
-                "Staked arena executePayouts failed"
-              );
+            const payoutService = await import("./tournamentPayoutService.js");
+            if (winnerId != null) {
+              const winnerEntryId = winnerId === agentA.id ? match.slot_a_entry_id : match.slot_b_entry_id;
+              await TournamentMatch.update(match.id, { winner_entry_id: winnerEntryId, status: "COMPLETED" });
+              await Tournament.update(stakeRow.tournament_id, { status: "COMPLETED" });
+              try {
+                await payoutService.executePayouts(stakeRow.tournament_id);
+                await db("arena_match_stakes").where("id", stakeRow.id).update({
+                  status: "PAID_OUT",
+                  paid_out_at: db.fn.now(),
+                  updated_at: db.fn.now(),
+                });
+                logger.info(
+                  { gameId: game.id, tournamentId: stakeRow.tournament_id, winnerEntryId },
+                  "Staked arena payout executed"
+                );
+              } catch (payoutErr) {
+                logger.error(
+                  { err: payoutErr?.message, gameId: game.id, tournamentId: stakeRow.tournament_id },
+                  "Staked arena executePayouts failed"
+                );
+              }
+            } else {
+              await TournamentMatch.update(match.id, { status: "COMPLETED" });
+              await Tournament.update(stakeRow.tournament_id, { status: "COMPLETED" });
+              try {
+                await payoutService.executeDrawRefunds(stakeRow.tournament_id);
+                await db("arena_match_stakes").where("id", stakeRow.id).update({
+                  status: "PAID_OUT",
+                  paid_out_at: db.fn.now(),
+                  updated_at: db.fn.now(),
+                });
+                logger.info(
+                  { gameId: game.id, tournamentId: stakeRow.tournament_id },
+                  "Staked arena draw: house 5%, equal refunds"
+                );
+              } catch (drawErr) {
+                logger.error(
+                  { err: drawErr?.message, gameId: game.id, tournamentId: stakeRow.tournament_id },
+                  "Staked arena executeDrawRefunds failed"
+                );
+              }
             }
           }
         }
 
-        // Record ELO result
         await eloService.recordArenaResult(agentA.id, agentB.id, winnerId, game.id);
         logger.info(
           { gameId: game.id, agentAId: agentA.id, agentBId: agentB.id, winnerId },

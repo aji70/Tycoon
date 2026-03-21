@@ -780,3 +780,312 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
     throw err;
   }
 }
+
+/**
+ * Human plays seat 1 on-chain; opponent agent auto-plays seat 2. Optional equal USDC stake from both smart wallets.
+ *
+ * @param {number} userId - Logged-in user (human challenger)
+ * @param {number} opponentAgentId - Another user's agent
+ * @param {number} [stakeAmountUsdc]
+ */
+export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId, stakeAmountUsdc) {
+  const { createGameByBackend, joinGameByBackend } = await import("./tycoonContract.js");
+  const { ensureUserHasContractPassword } = await import("../utils/ensureContractAuth.js");
+  const { getChainConfig } = await import("../config/chains.js");
+  const agentRegistry = (await import("./agentRegistry.js")).default;
+  const User = (await import("../models/User.js")).default;
+  const Game = (await import("../models/Game.js")).default;
+  const GamePlayer = (await import("../models/GamePlayer.js")).default;
+  const GameSetting = (await import("../models/GameSetting.js")).default;
+  const Chat = (await import("../models/Chat.js")).default;
+
+  const uid = Number(userId);
+  const oid = Number(opponentAgentId);
+  if (!uid || !oid) throw new Error("Invalid user or opponent agent");
+
+  try {
+    const opponentAgent = await db("user_agents").where("id", oid).first();
+    if (!opponentAgent) throw new Error("Opponent agent not found");
+    if (Number(opponentAgent.user_id) === uid) {
+      throw new Error("Pick another player's agent — you play yourself here, not your own bot.");
+    }
+
+    const humanUser = await User.findById(uid);
+    const opponentOwner = await User.findById(opponentAgent.user_id);
+    if (!humanUser || !opponentOwner) throw new Error("User not found");
+
+    const chain = User.normalizeChain(humanUser.chain || "base");
+    const chainCfg = getChainConfig(chain);
+    const chainId = chainCfg.chainId || 42220;
+
+    const uc = User.normalizeChain(opponentOwner.chain || "base");
+    if (uc !== chain) throw new Error(`Opponent must be on the same chain as you (${chain}).`);
+
+    const stakeNum = stakeAmountUsdc != null ? Number(stakeAmountUsdc) : 0;
+    const stakeUnits = stakeNum > 0 ? BigInt(Math.floor(stakeNum * 1e6)) : 0n;
+
+    if (stakeUnits > 0n) {
+      const perm = await db("agent_tournament_permissions").where({ user_agent_id: opponentAgent.id }).first();
+      if (!perm?.enabled) {
+        throw new Error(
+          `Opponent agent "${opponentAgent.name}" has not enabled tournament spending. They must approve in My agents → Tournaments.`
+        );
+      }
+      if (perm.chain && User.normalizeChain(perm.chain) !== chain) {
+        throw new Error(`That agent is restricted to chain ${perm.chain}; your match uses ${chain}.`);
+      }
+      const maxUnits = BigInt(perm.max_entry_fee_usdc ?? "0");
+      if (stakeUnits > maxUnits) {
+        throw new Error(
+          `Stake $${stakeNum} exceeds opponent max per match ($${(Number(maxUnits) / 1e6).toFixed(2)}).`
+        );
+      }
+      if (perm.daily_cap_usdc) {
+        const cap = BigInt(perm.daily_cap_usdc);
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        const rows = await db("agent_tournament_spend_log")
+          .where({ user_id: opponentOwner.id, user_agent_id: opponentAgent.id })
+          .andWhere("created_at", ">=", start)
+          .andWhere({ chain })
+          .select("amount_usdc");
+        let spent = 0n;
+        for (const r of rows || []) {
+          try {
+            spent += BigInt(r.amount_usdc ?? "0");
+          } catch {}
+        }
+        if (spent + stakeUnits > cap) {
+          throw new Error("Opponent would exceed their daily spend cap with this stake.");
+        }
+      }
+    }
+
+    const auths = [];
+    for (const u of [humanUser, opponentOwner]) {
+      const auth = await ensureUserHasContractPassword(db, u.id, chain);
+      if (!auth) throw new Error("Failed to ensure contract authentication for a player");
+      auths.push(auth);
+    }
+
+    let arenaStakeTournamentId = null;
+    let arenaStakeMatchId = null;
+
+    if (stakeUnits > 0n) {
+      const Tournament = (await import("../models/Tournament.js")).default;
+      const TournamentEntry = (await import("../models/TournamentEntry.js")).default;
+      const TournamentMatch = (await import("../models/TournamentMatch.js")).default;
+      const { createTournamentOnChain } = await import("./tournamentEscrow.js");
+      const { signWithdrawalAuthUsdc, withdrawFromSmartWalletUsdc } = await import("./tycoonContract.js");
+
+      const cfg = getChainConfig(chain);
+      const escrow = cfg.tournamentEscrowAddress;
+      const usdc = cfg.usdcAddress ?? process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
+      if (!escrow || !usdc) {
+        throw new Error("Tournament escrow or USDC not configured for this chain. Staked matches are unavailable.");
+      }
+
+      const tournament = await Tournament.create({
+        creator_id: humanUser.id,
+        name: "Arena stake (human vs agent)",
+        status: "IN_PROGRESS",
+        prize_source: "ENTRY_FEE_POOL",
+        max_players: 2,
+        min_players: 2,
+        entry_fee_wei: String(stakeUnits),
+        chain,
+        prize_distribution: { 1: 95 },
+      });
+      arenaStakeTournamentId = tournament.id;
+
+      await createTournamentOnChain(tournament.id, stakeUnits, auths[0].address, chain);
+
+      const entries = [];
+
+      for (let i = 0; i < 2; i++) {
+        const u = i === 0 ? humanUser : opponentOwner;
+        const smartWallet = u.smart_wallet_address && String(u.smart_wallet_address).trim();
+        if (!smartWallet) {
+          throw new Error(
+            i === 0
+              ? "You need a smart wallet (Profile) to stake from your account."
+              : "Opponent has no smart wallet; they cannot stake this match."
+          );
+        }
+        const nonce = BigInt("0x" + crypto.randomBytes(8).toString("hex"));
+        const sig = await signWithdrawalAuthUsdc(smartWallet, usdc, escrow, stakeUnits, nonce, chain);
+        const receipt = await withdrawFromSmartWalletUsdc(smartWallet, escrow, stakeUnits, nonce, sig, chain);
+        const paymentTxHash = receipt?.hash ?? null;
+
+        await db("agent_tournament_spend_log").insert({
+          user_id: u.id,
+          user_agent_id: i === 0 ? null : opponentAgent.id,
+          tournament_id: tournament.id,
+          chain,
+          amount_usdc: stakeUnits.toString(),
+          tx_hash: paymentTxHash,
+          status: paymentTxHash ? "SUBMITTED" : "FAILED",
+          error: paymentTxHash ? null : "No tx hash returned",
+          created_at: db.fn.now(),
+          updated_at: db.fn.now(),
+        });
+
+        const entry = await TournamentEntry.create({
+          tournament_id: tournament.id,
+          user_id: u.id,
+          address: u.address || auths[i].address,
+          chain: u.chain || chain,
+          seed_order: i + 1,
+          payment_tx_hash: paymentTxHash,
+          status: "CONFIRMED",
+        });
+        entries.push(entry);
+
+        if (i === 1) {
+          await db("tournament_entry_agents").insert({
+            tournament_entry_id: entry.id,
+            user_agent_id: opponentAgent.id,
+            agent_name: opponentAgent.name || null,
+            created_at: db.fn.now(),
+            updated_at: db.fn.now(),
+          });
+        }
+      }
+
+      const tMatch = await TournamentMatch.create({
+        tournament_id: tournament.id,
+        round_index: 0,
+        match_index: 0,
+        slot_a_type: "ENTRY",
+        slot_a_entry_id: entries[0].id,
+        slot_b_type: "ENTRY",
+        slot_b_entry_id: entries[1].id,
+        game_id: null,
+        status: "PENDING",
+      });
+      arenaStakeMatchId = tMatch.id;
+    }
+
+    let code = generateArenaJoinCode6();
+    for (let attempt = 0; attempt < 24; attempt++) {
+      const exists = await Game.findByCode(code);
+      if (!exists) break;
+      code = generateArenaJoinCode6();
+    }
+
+    const n = 2;
+    const DEFAULT_STARTING_CASH = 1500;
+    const symbols = ARENA_ONCHAIN_SLOT_SYMBOLS.slice(0, n);
+
+    const createResult = await createGameByBackend(
+      auths[0].address,
+      auths[0].password_hash,
+      auths[0].username,
+      "PRIVATE",
+      symbols[0],
+      n,
+      code,
+      DEFAULT_STARTING_CASH,
+      0n,
+      chain
+    );
+
+    const contractGameId = createResult?.gameId;
+    if (!contractGameId) throw new Error("Contract did not return game ID");
+
+    await joinGameByBackend(
+      auths[1].address,
+      auths[1].password_hash,
+      contractGameId,
+      auths[1].username,
+      symbols[1],
+      code,
+      chain
+    );
+
+    const game = await Game.create({
+      code,
+      mode: "PRIVATE",
+      creator_id: humanUser.id,
+      next_player_id: humanUser.id,
+      number_of_players: n,
+      status: "RUNNING",
+      is_minipay: false,
+      is_ai: false,
+      duration: "30",
+      chain,
+      contract_game_id: String(contractGameId),
+      game_type: "ONCHAIN_HUMAN_VS_AGENT",
+      started_at: db.fn.now(),
+    });
+
+    if (arenaStakeTournamentId != null && arenaStakeMatchId != null) {
+      await db("tournament_matches").where("id", arenaStakeMatchId).update({
+        game_id: game.id,
+        contract_game_id: String(contractGameId),
+        status: "IN_PROGRESS",
+        updated_at: db.fn.now(),
+      });
+      await db("arena_match_stakes").insert({
+        game_id: game.id,
+        tournament_id: arenaStakeTournamentId,
+        stake_amount_usdc: String(stakeNum),
+        chain,
+        status: "COLLECTED",
+        collected_at: db.fn.now(),
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+    }
+
+    const rosterUsers = [humanUser, opponentOwner];
+    for (let i = 0; i < n; i++) {
+      await GamePlayer.create({
+        game_id: game.id,
+        user_id: rosterUsers[i].id,
+        address: auths[i].address,
+        balance: DEFAULT_STARTING_CASH,
+        position: 0,
+        turn_order: i + 1,
+        symbol: symbols[i],
+        chance_jail_card: false,
+        community_chest_jail_card: false,
+      });
+    }
+
+    await Chat.create({ game_id: game.id, status: "open" });
+    await GameSetting.create({
+      game_id: game.id,
+      auction: true,
+      rent_in_prison: false,
+      mortgage: true,
+      even_build: true,
+      randomize_play_order: false,
+      starting_cash: DEFAULT_STARTING_CASH,
+    });
+
+    try {
+      await agentRegistry.registerAgent({
+        gameId: game.id,
+        slot: 2,
+        agentId: String(opponentAgent.id),
+        user_agent_id: opponentAgent.id,
+        chainId,
+        name: opponentAgent.name || "Agent",
+      });
+    } catch (agentErr) {
+      logger.warn({ err: agentErr?.message }, "Opponent agent registration failed");
+    }
+
+    awardActivityXpByAgentId(Number(opponentAgent.id), ACTIVITY_XP.GAME_CREATED, "game_created").catch(() => {});
+
+    return {
+      gameId: game.id,
+      gameCode: game.code,
+      boardType: "3d_desktop",
+    };
+  } catch (err) {
+    logger.error({ err: err?.message, userId, opponentAgentId }, "createHumanVsAgentOnchainArenaGame failed");
+    throw err;
+  }
+}

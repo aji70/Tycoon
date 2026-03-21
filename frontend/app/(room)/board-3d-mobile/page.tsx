@@ -222,7 +222,8 @@ function Board3DMobileContent() {
       const g = q.state.data as Game | undefined;
       if (!g?.game_type) return 5000;
       const gt = String(g.game_type).toUpperCase();
-      if (gt.includes("AGENT_VS_") || gt.includes("ONCHAIN_AGENT_VS_")) return 2500;
+      if (gt.includes("AGENT_VS_") || gt.includes("ONCHAIN_AGENT_VS_") || gt.includes("ONCHAIN_HUMAN_VS_AGENT"))
+        return 2500;
       return 5000;
     },
   });
@@ -499,7 +500,11 @@ function Board3DMobileContent() {
   const livePlayersRaw = useMemo(() => game?.players ?? [], [game?.players]);
   const isAgentBattle = useMemo(() => {
     const gt = String((game as any)?.game_type ?? "").toUpperCase();
-    return gt.includes("AGENT_VS_") || gt.includes("ONCHAIN_AGENT_VS_");
+    return (
+      gt.includes("AGENT_VS_") ||
+      gt.includes("ONCHAIN_AGENT_VS_") ||
+      gt.includes("ONCHAIN_HUMAN_VS_AGENT")
+    );
   }, [game]);
 
   const agentNameBySlot = useMemo(() => {
