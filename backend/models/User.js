@@ -1,4 +1,5 @@
 import db from "../config/database.js";
+import { getDefaultAppChain } from "../config/chains.js";
 
 const User = {
   /**
@@ -19,8 +20,9 @@ const User = {
   /**
    * Find by wallet address + chain
    */
-  async findByAddress(address, chain = "BASE") {
-    return await db("users").where({ address, chain }).first();
+  async findByAddress(address, chain) {
+    const normalized = this.normalizeChain(chain);
+    return await db("users").where({ address, chain: normalized }).first();
   },
 
   /**
@@ -236,7 +238,7 @@ const User = {
    * Starknet variants (Starknet Sepolia, STARKNETSEPOLIA, SN_SEPOLIA, etc.) -> STARKNET.
    */
   normalizeChain(chain) {
-    if (chain == null || String(chain).trim() === "") return "BASE";
+    if (chain == null || String(chain).trim() === "") return getDefaultAppChain();
     const s = String(chain).trim().toUpperCase();
     const n = Number(chain);
     if (s === "BASE" || n === 8453 || n === 84531) return "BASE";
