@@ -32,6 +32,7 @@ import {
 } from "../services/starknetContract.js";
 import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
 import { onGameFinished as tournamentOnGameFinished } from "../services/tournamentService.js";
+import { settleStakedArenaForFinishedGame } from "../services/arenaStakeSettlement.js";
 import { submitErc8004Feedback as submitErc8004FeedbackTx } from "../services/erc8004Feedback.js";
 import { getActiveByGameId } from "./auctionController.js";
 import UserAgent from "../models/UserAgent.js";
@@ -365,6 +366,11 @@ export async function finishGameByNetWorthAndNotify(io, game) {
   }
   await invalidateGameById(game.id);
   if (io) emitGameUpdate(io, game.code);
+
+  settleStakedArenaForFinishedGame(game.id).catch((err) =>
+    logger.warn({ err: err?.message, gameId: game.id }, "settleStakedArenaForFinishedGame after finishByNetWorth failed")
+  );
+
   return {
     winner_id: result.winner_id,
     placements,
@@ -615,6 +621,9 @@ const gameController = {
       if (payload.status === "FINISHED") {
         await recordEvent("game_finished", { entityType: "game", entityId: Number(req.params.id), payload: { winner_id: payload.winner_id ?? null } });
         await agentRegistry.cleanupGame(req.params.id);
+        settleStakedArenaForFinishedGame(Number(req.params.id)).catch((err) =>
+          logger.warn({ err: err?.message, gameId: req.params.id }, "settleStakedArenaForFinishedGame on game update FINISHED failed")
+        );
       }
       await invalidateGameById(req.params.id);
       const io = req.app.get("io");

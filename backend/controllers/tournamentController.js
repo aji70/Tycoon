@@ -507,6 +507,32 @@ export async function remove(req, res) {
 }
 
 /**
+ * POST /api/tournaments/:id/admin-resolve
+ * Contract-owner admin panel: complete tournament, set winner or draw, record payouts.
+ * Secured with SHOP_ADMIN_SECRET (x-shop-admin-secret) when that env is set.
+ */
+export async function adminResolve(req, res) {
+  try {
+    const tournament = await Tournament.findByIdOrCode(req.params.id);
+    if (!tournament) return res.status(404).json({ success: false, message: "Tournament not found" });
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const result = await tournamentService.adminResolveTournament(tournament.id, {
+      mode: body.mode,
+      winner_entry_id: body.winner_entry_id != null ? Number(body.winner_entry_id) : undefined,
+      winner_user_id: body.winner_user_id != null ? Number(body.winner_user_id) : undefined,
+      payouts_only: Boolean(body.payouts_only),
+    });
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    if (err?.message?.includes("not found")) {
+      return res.status(404).json({ success: false, message: err.message });
+    }
+    logger.error({ err: err?.message }, "tournament adminResolve failed");
+    return res.status(400).json({ success: false, message: err?.message || "Admin resolve failed" });
+  }
+}
+
+/**
  * GET /api/tournaments/payouts/pending
  * Get user's pending tournament payouts (requires auth).
  */

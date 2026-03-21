@@ -28,6 +28,7 @@ import {
   Loader2,
   BookOpen,
   Copy,
+  X,
 } from 'lucide-react';
 
 import {
@@ -134,10 +135,39 @@ export default function RewardAdminPanel() {
     backendShopBulk,
   } = state;
 
-  const [adminTournaments, setAdminTournaments] = useState<{ id: number; name: string; code?: string; status: string; participant_count?: number; max_players: number }[]>([]);
+  type AdminTournamentRow = {
+    id: number;
+    name: string;
+    code?: string;
+    status: string;
+    prize_source?: string;
+    participant_count?: number;
+    max_players: number;
+  };
+  const [adminTournaments, setAdminTournaments] = useState<AdminTournamentRow[]>([]);
   const [adminTournamentsLoading, setAdminTournamentsLoading] = useState(false);
   const [adminTournamentsError, setAdminTournamentsError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const [resolveOpenId, setResolveOpenId] = useState<number | null>(null);
+  const [resolveDetailLoading, setResolveDetailLoading] = useState(false);
+  const [resolveDetailError, setResolveDetailError] = useState<string | null>(null);
+  const [resolveDetail, setResolveDetail] = useState<{
+    id: number;
+    name?: string;
+    status: string;
+    prize_source?: string;
+    entries?: Array<{ id: number; user_id: number; username?: string; user_address?: string }>;
+  } | null>(null);
+  const [resolveMode, setResolveMode] = useState<'payout' | 'draw'>('payout');
+  const [resolveWinnerEntryId, setResolveWinnerEntryId] = useState('');
+  const [resolvingId, setResolvingId] = useState<number | null>(null);
+  const [retryPayoutsId, setRetryPayoutsId] = useState<number | null>(null);
+
+  const shopAdminHeaders = useCallback((): Record<string, string> => {
+    const secret = process.env.NEXT_PUBLIC_SHOP_ADMIN_SECRET;
+    return secret ? { 'x-shop-admin-secret': secret } : {};
+  }, []);
   const [vaultCopyFeedback, setVaultCopyFeedback] = useState(false);
 
   const fetchAdminTournaments = useCallback(async () => {
@@ -173,6 +203,87 @@ export default function RewardAdminPanel() {
       setDeletingId(null);
     }
   }, []);
+
+  const openResolveModal = useCallback(async (tournamentId: number) => {
+    setResolveOpenId(tournamentId);
+    setResolveDetail(null);
+    setResolveDetailError(null);
+    setResolveMode('payout');
+    setResolveWinnerEntryId('');
+    setResolveDetailLoading(true);
+    try {
+      const wrapped = await apiClient.get<{
+        id: number;
+        name?: string;
+        status: string;
+        prize_source?: string;
+        entries?: Array<{ id: number; user_id: number; username?: string; user_address?: string }>;
+      }>(`tournaments/${tournamentId}`);
+      const body = wrapped.data;
+      if (body && typeof body === 'object' && body.id != null) setResolveDetail(body);
+      else setResolveDetailError('Invalid tournament response');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ??
+        (err as { message?: string })?.message ??
+        'Failed to load tournament';
+      setResolveDetailError(msg);
+    } finally {
+      setResolveDetailLoading(false);
+    }
+  }, []);
+
+  const submitAdminResolve = useCallback(async () => {
+    if (resolveOpenId == null) return;
+    setResolvingId(resolveOpenId);
+    setAdminTournamentsError(null);
+    try {
+      const payload: Record<string, unknown> =
+        resolveMode === 'draw'
+          ? { mode: 'draw' }
+          : {
+              mode: 'payout',
+              ...(resolveWinnerEntryId.trim() !== '' ? { winner_entry_id: Number(resolveWinnerEntryId) } : {}),
+            };
+      await apiClient.post(`tournaments/${resolveOpenId}/admin-resolve`, payload, {
+        headers: shopAdminHeaders(),
+      });
+      setResolveOpenId(null);
+      await fetchAdminTournaments();
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ??
+        (err as { message?: string })?.message ??
+        'Resolve failed';
+      setAdminTournamentsError(msg);
+    } finally {
+      setResolvingId(null);
+    }
+  }, [resolveOpenId, resolveMode, resolveWinnerEntryId, shopAdminHeaders, fetchAdminTournaments]);
+
+  const submitRetryPayouts = useCallback(
+    async (tournamentId: number) => {
+      setRetryPayoutsId(tournamentId);
+      setAdminTournamentsError(null);
+      try {
+        await apiClient.post(
+          `tournaments/${tournamentId}/admin-resolve`,
+          { payouts_only: true },
+          { headers: shopAdminHeaders() }
+        );
+        await fetchAdminTournaments();
+      } catch (err: unknown) {
+        const msg =
+          (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ??
+          (err as { message?: string })?.message ??
+          'Retry payouts failed';
+        setAdminTournamentsError(msg);
+      } finally {
+        setRetryPayoutsId(null);
+      }
+    },
+    [shopAdminHeaders, fetchAdminTournaments]
+  );
 
   const searchParams = useSearchParams();
   useEffect(() => {
@@ -747,7 +858,15 @@ export default function RewardAdminPanel() {
               <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
                 <Swords className="w-8 h-8 text-cyan-400" /> Manage Tournaments
               </h3>
-              <p className="text-gray-400 mb-6">Delete tournaments from the database. This cannot be undone.</p>
+              <p className="text-gray-400 mb-4">
+                Resolve stuck tournaments (set winner or draw split, record payouts / escrow) or delete them. Deleting cannot be undone.
+              </p>
+              <p className="text-xs text-gray-500 mb-6">
+                Resolve uses <code className="text-gray-400">POST /api/tournaments/:id/admin-resolve</code>. When{' '}
+                <code className="text-gray-400">SHOP_ADMIN_SECRET</code> is set on the server, set{' '}
+                <code className="text-gray-400">NEXT_PUBLIC_SHOP_ADMIN_SECRET</code> so the browser sends{' '}
+                <code className="text-gray-400">x-shop-admin-secret</code> (same as shop bulk actions).
+              </p>
               {adminTournamentsLoading && (
                 <div className="flex justify-center py-12">
                   <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
@@ -776,24 +895,158 @@ export default function RewardAdminPanel() {
                           {typeof t.participant_count === "number" && ` · ${t.participant_count}/${t.max_players} players`}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteTournament(t.id)}
-                        disabled={deletingId !== null}
-                        className="shrink-0 px-4 py-2 rounded-lg bg-red-600/80 hover:bg-red-500 text-white font-medium transition disabled:opacity-50 flex items-center gap-2"
-                      >
-                        {deletingId === t.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {t.status !== 'COMPLETED' && (
+                          <button
+                            type="button"
+                            onClick={() => openResolveModal(t.id)}
+                            disabled={resolvingId !== null || deletingId !== null}
+                            className="px-4 py-2 rounded-lg bg-cyan-600/80 hover:bg-cyan-500 text-white font-medium transition disabled:opacity-50"
+                          >
+                            Resolve
+                          </button>
                         )}
-                        Delete
-                      </button>
+                        {t.status === 'COMPLETED' &&
+                          t.prize_source &&
+                          t.prize_source !== 'NO_POOL' && (
+                            <button
+                              type="button"
+                              onClick={() => submitRetryPayouts(t.id)}
+                              disabled={retryPayoutsId !== null || deletingId !== null}
+                              className="px-4 py-2 rounded-lg bg-amber-600/80 hover:bg-amber-500 text-white font-medium transition disabled:opacity-50 flex items-center gap-2"
+                            >
+                              {retryPayoutsId === t.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : null}
+                              Retry payouts
+                            </button>
+                          )}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTournament(t.id)}
+                          disabled={deletingId !== null}
+                          className="px-4 py-2 rounded-lg bg-red-600/80 hover:bg-red-500 text-white font-medium transition disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {deletingId === t.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
+
+            {resolveOpenId != null && (
+              <div
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="resolve-tournament-title"
+              >
+                <div className="w-full max-w-md rounded-2xl border border-gray-600/50 bg-[#0f1419] shadow-xl p-6 relative">
+                  <button
+                    type="button"
+                    onClick={() => setResolveOpenId(null)}
+                    className="absolute top-4 right-4 p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800"
+                    aria-label="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                  <h4 id="resolve-tournament-title" className="text-xl font-bold text-white mb-2 pr-10">
+                    Resolve tournament #{resolveOpenId}
+                  </h4>
+                  {resolveDetailLoading && (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                    </div>
+                  )}
+                  {resolveDetailError && !resolveDetailLoading && (
+                    <p className="text-red-400 text-sm py-4">{resolveDetailError}</p>
+                  )}
+                  {!resolveDetailLoading && !resolveDetailError && resolveDetail && (
+                    <div className="space-y-4 mt-2">
+                      <p className="text-sm text-gray-400">
+                        {resolveDetail.name != null && resolveDetail.name !== '' ? resolveDetail.name : 'Unnamed'} ·{' '}
+                        {String(resolveDetail.prize_source || '—').replace(/_/g, ' ')}
+                      </p>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm">
+                          <input
+                            type="radio"
+                            name="resolveMode"
+                            checked={resolveMode === 'payout'}
+                            onChange={() => setResolveMode('payout')}
+                            className="accent-cyan-500"
+                          />
+                          Declare winner
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer text-sm">
+                          <input
+                            type="radio"
+                            name="resolveMode"
+                            checked={resolveMode === 'draw'}
+                            onChange={() => setResolveMode('draw')}
+                            disabled={resolveDetail.prize_source !== 'ENTRY_FEE_POOL'}
+                            className="accent-cyan-500 disabled:opacity-40"
+                          />
+                          Draw (split pool)
+                        </label>
+                      </div>
+                      {resolveMode === 'payout' && (
+                        <>
+                          <label className="block text-sm text-gray-300">Winner entry</label>
+                          <select
+                            value={resolveWinnerEntryId}
+                            onChange={(e) => setResolveWinnerEntryId(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-600 text-white"
+                          >
+                            <option value="">Auto (if linked game is FINISHED with winner)</option>
+                            {(resolveDetail.entries || []).map((e) => (
+                              <option key={e.id} value={String(e.id)}>
+                                Entry #{e.id}
+                                {e.username ? ` — ${e.username}` : ''}
+                                {e.user_address ? ` (${e.user_address.slice(0, 6)}…${e.user_address.slice(-4)})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-gray-500">
+                            If you leave this on Auto, the match must have a linked board game already marked finished with a winner.
+                          </p>
+                        </>
+                      )}
+                      {resolveMode === 'draw' && (
+                        <p className="text-xs text-gray-500">
+                          Splits the entry-fee pool per backend draw rules (house cut + equal player shares). Match is marked completed without a single winner.
+                        </p>
+                      )}
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setResolveOpenId(null)}
+                          className="flex-1 py-2.5 rounded-xl bg-gray-700 hover:bg-gray-600 font-medium"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => submitAdminResolve()}
+                          disabled={resolvingId != null}
+                          className="flex-1 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {resolvingId != null ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                          Confirm
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
 
