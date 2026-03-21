@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import styles from "./arena-onchain-modal.module.css";
 
 const STATUS_LINES = [
@@ -14,7 +13,6 @@ const STATUS_LINES = [
 
 export type ArenaOnchainBusyPayload = {
   message: string;
-  gameCode: string;
 };
 
 type Props = {
@@ -41,12 +39,6 @@ export function ArenaOnchainModal({ open, busy, isMobile, onClose }: Props) {
 
   if (!open) return null;
 
-  const boardBase = isMobile ? "/board-3d-mobile" : "/board-3d";
-  const watchHref =
-    busy?.gameCode && String(busy.gameCode).trim() !== ""
-      ? `${boardBase}?gameCode=${encodeURIComponent(String(busy.gameCode).trim())}`
-      : null;
-
   return (
     <div className={styles.backdrop} role="dialog" aria-modal="true" aria-labelledby="arena-tx-modal-title">
       <div className={styles.card}>
@@ -63,11 +55,6 @@ export function ArenaOnchainModal({ open, busy, isMobile, onClose }: Props) {
               </h2>
               <p className={styles.busyMessage}>{busy.message}</p>
               <div className={styles.actions}>
-                {watchHref ? (
-                  <Link href={watchHref} className={styles.watchBtn} onClick={onClose}>
-                    Spectate this game
-                  </Link>
-                ) : null}
                 <button type="button" className={styles.closeBtn} onClick={onClose}>
                   Close
                 </button>

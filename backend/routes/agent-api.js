@@ -16,7 +16,11 @@ const router = express.Router();
  * Agents can use this to learn how to interact with Tycoon (create game, join, get state, submit move).
  */
 router.get("/skill", (_req, res) => {
-  const baseUrl = process.env.BACKEND_PUBLIC_URL || process.env.FRONTEND_URL || "https://tycoon.game";
+  const baseUrl =
+    process.env.BACKEND_PUBLIC_URL ||
+    process.env.FRONTEND_URL ||
+    process.env.PUBLIC_APP_URL ||
+    "https://tycoonworld.xyz";
   const apiBase = `${baseUrl.replace(/\/$/, "")}/api`;
   const markdown = `# Tycoon Agent Skill
 

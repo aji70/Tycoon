@@ -52,7 +52,12 @@ router.get("/:id/erc8004-registration", async (req, res) => {
     const identityRegistryAddress = ERC8004_IDENTITY_BY_CHAIN[chainId] || ERC8004_IDENTITY_BY_CHAIN[42220];
     const agentRegistry = `eip155:${chainId}:${identityRegistryAddress.toLowerCase()}`;
     const callbackUrl = UserAgent.getCallbackUrl(agent);
-    const endpoint = callbackUrl || "https://tycoon.game";
+    const defaultPublicApp = (
+      process.env.FRONTEND_URL ||
+      process.env.PUBLIC_APP_URL ||
+      "https://tycoonworld.xyz"
+    ).replace(/\/$/, "");
+    const endpoint = callbackUrl || defaultPublicApp;
     const registration = {
       type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
       name: agent.name || "Tycoon Agent",
@@ -62,7 +67,7 @@ router.get("/:id/erc8004-registration", async (req, res) => {
       endpoints: [{ type: "a2a", url: endpoint }],
       services: callbackUrl
         ? [{ name: "web", endpoint: callbackUrl }]
-        : [{ name: "web", endpoint: "https://tycoon.game" }],
+        : [{ name: "web", endpoint: defaultPublicApp }],
       supportedTrust: ["reputation"],
       owner: preferredOwner ? `eip155:${chainId}:${preferredOwner.toLowerCase()}` : undefined,
       registrations:

@@ -20,6 +20,10 @@ export async function findAgentBusyInActiveArena(userAgentIds) {
     .where("asa.game_id", ">", 0)
     .whereIn("g.game_type", ARENA_GAME_TYPES)
     .whereIn("g.status", ["RUNNING", "PENDING"])
+    // Ignore zombie rows: assignment without seated players breaks the 3D board and should not block new matches.
+    .whereExists(function whereGameHasPlayers() {
+      this.select(db.raw("1")).from("game_players as gp").whereColumn("gp.game_id", "g.id");
+    })
     .select(
       "asa.user_agent_id",
       "ua.name as agent_name",
@@ -42,7 +46,7 @@ export async function assertAgentsFreeForNewArena(userAgentIds) {
   const name = busy.agent_name ? String(busy.agent_name) : `Agent #${busy.user_agent_id}`;
   const code = busy.game_code ? String(busy.game_code) : "";
   const err = new Error(
-    `${name} is already in an active arena game${code ? ` (${code})` : ""}. Open the board to spectate or wait until it finishes.`
+    `${name} is already in an active arena game${code ? ` (code ${code})` : ""}. Wait until that match finishes, or start with a different agent.`
   );
   err.code = "AGENT_BUSY_IN_ARENA";
   err.gameCode = code || null;
