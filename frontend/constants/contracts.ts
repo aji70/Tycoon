@@ -14,8 +14,10 @@ export const TYC_TOKEN_ADDRESS: Record<number, Address | undefined> = {
   [celo.id]: (process.env.NEXT_PUBLIC_CELO_TYC || process.env.NEXT_PUBLIC_CELO_TOKEN) as Address | undefined,
 };
 
+/** USDC: Celo mainnet (42220) and Alfajores (44787). Set NEXT_PUBLIC_ALFAJORES_USDC for testnet. */
 export const USDC_TOKEN_ADDRESS: Record<number, Address | undefined> = {
-  [celo.id]: process.env.NEXT_PUBLIC_CELO_USDC as Address,
+  42220: process.env.NEXT_PUBLIC_CELO_USDC as Address,
+  44787: (process.env.NEXT_PUBLIC_ALFAJORES_USDC || process.env.NEXT_PUBLIC_CELO_USDC) as Address | undefined,
 };
 
 export const AI_AGENT_REGISTRY_ADDRESSES: Record<number, Address | undefined> = {
@@ -49,7 +51,8 @@ export const SWAP_EXECUTOR_ADDRESSES: Record<number, Address | undefined> = {
 
 /** Tournament escrow (entry fees + prize pool). ABI: context/abi/TycoonTournamentEscrow.json */
 export const TOURNAMENT_ESCROW_ADDRESSES: Record<number, Address | undefined> = {
-  [celo.id]: (process.env.NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW || process.env.NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW_ADDRESS) as Address | undefined,
+  42220: (process.env.NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW || process.env.NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW_ADDRESS) as Address | undefined,
+  44787: process.env.NEXT_PUBLIC_ALFAJORES_TOURNAMENT_ESCROW as Address | undefined,
 };
 
 export const MINIPAY_CHAIN_IDS = [42220]; // Celo Mainnet

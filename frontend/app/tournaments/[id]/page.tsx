@@ -28,7 +28,9 @@ import type { ApiResponse } from "@/types/api";
 function formatEntryFee(wei: string | number): string {
   const n = Number(wei);
   if (n === 0) return "Free";
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(2)} USDC`;
+  const usd = n / 1e6;
+  if (usd >= 0.01) return `$${usd.toFixed(2)} USDC`;
+  if (usd > 0) return `$${usd.toFixed(4)} USDC`;
   return `${n} wei`;
 }
 
@@ -136,6 +138,7 @@ export default function TournamentDetailPage() {
   const [selectedStartSymbol, setSelectedStartSymbol] = useState<string>("hat");
   const [creatingRoundIndex, setCreatingRoundIndex] = useState<number | null>(null);
   const [fundPoolUsd, setFundPoolUsd] = useState("");
+  const [fundPoolDepositing, setFundPoolDepositing] = useState(false);
   const [registerAgentId, setRegisterAgentId] = useState<number | null>(null);
   /** Agents the user may register as: invite list (BOT_SELECTION) or all agents (OPEN/INVITE agents-only). */
   const [myRegisterAgents, setMyRegisterAgents] = useState<{ id: number; name: string }[]>([]);
@@ -430,37 +433,44 @@ export default function TournamentDetailPage() {
     );
   const conflictPath = extractTournamentPathFromMessage(actionError);
 
+  const walletChainOk = walletAddress && chainIdToBackendChain(walletChainId) === String(tournament?.chain || "").toUpperCase();
+  const depositDisabled = !fundPoolReady || fundPoolPending || fundPoolDepositing || !walletAddress || !walletChainOk;
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-white">
-      <header className="sticky top-0 z-50 flex items-center justify-between gap-4 px-4 py-4 md:px-8 border-b border-white/10 bg-[#010F10]/90 backdrop-blur-md">
+    <div className="min-h-screen bg-gradient-to-b from-[#010F10] via-[#0a1618] to-[#0E1415] text-white">
+      <header className="sticky top-0 z-50 flex items-center justify-between gap-4 px-4 py-4 md:px-8 border-b border-white/10 bg-[#010F10]/95 backdrop-blur-xl">
         <Link
           href="/tournaments"
-          className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 font-semibold text-sm"
+          className="flex items-center gap-2 text-cyan-400/90 hover:text-cyan-300 font-medium text-sm transition"
         >
           <ChevronLeft className="w-5 h-5" />
-          Tournaments
+          Back
         </Link>
-        <h1 className="text-lg md:text-xl font-bold text-cyan-400 truncate max-w-[50%]">
+        <h1 className="text-lg md:text-xl font-bold text-white truncate max-w-[55%] text-center">
           {tournament.name}
         </h1>
-        <div className="w-24" />
+        <div className="w-16" />
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6 md:py-8 space-y-8">
-        {/* Meta */}
-        <section className="rounded-2xl border border-[#0E282A] bg-[#011112]/80 p-5">
-          <p className={`font-medium ${statusColor(tournament.status)}`}>
-            {tournament.status.replace(/_/g, " ")}
-          </p>
-          <div className="flex flex-wrap gap-4 mt-2 text-sm text-white/70">
-            <span className="flex items-center gap-1">
+      <main className="max-w-3xl mx-auto px-4 py-6 md:py-8 space-y-6">
+        {/* Meta card */}
+        <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/90 to-[#011112]/60 p-6 shadow-lg shadow-black/20">
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <span className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${statusColor(tournament.status)} bg-white/5`}>
+              {tournament.status.replace(/_/g, " ")}
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-sm font-medium">
               <Users className="w-4 h-4" />
               {entryCount} / {tournament.max_players} players
             </span>
-            <span>{formatEntryFee(tournament.entry_fee_wei)}</span>
-            <span>{tournament.chain}</span>
+            <span className="inline-flex px-2.5 py-1 rounded-lg bg-white/5 text-white/80 text-sm">
+              {formatEntryFee(tournament.entry_fee_wei)}
+            </span>
+            <span className="inline-flex px-2.5 py-1 rounded-lg bg-white/5 text-white/80 text-sm">
+              {tournament.chain}
+            </span>
             {tournament.format && (
-              <span className="text-white/55">
+              <span className="text-white/55 text-sm">
                 {String(tournament.format).replace(/_/g, " ")}
               </span>
             )}
@@ -571,35 +581,38 @@ export default function TournamentDetailPage() {
         {tournament.prize_source === "CREATOR_FUNDED" &&
           isCreator &&
           (tournament.status === "REGISTRATION_OPEN" || tournament.status === "BRACKET_LOCKED") && (
-            <section className="rounded-2xl border border-violet-500/35 bg-violet-950/15 p-5 space-y-3">
-              <h2 className="text-base font-semibold text-violet-300 flex items-center gap-2">
-                <Wallet className="w-5 h-5" />
-                Creator: put USDC in the prize pool
+            <section className="rounded-2xl border border-cyan-500/25 bg-gradient-to-b from-cyan-950/20 to-cyan-950/5 p-6 shadow-lg shadow-black/20">
+              <h2 className="text-base font-semibold text-white flex items-center gap-2 mb-2">
+                <Wallet className="w-5 h-5 text-cyan-400" />
+                Fund prize pool
               </h2>
-              <p className="text-sm text-white/65">
-                On <span className="text-cyan-300">{tournament.chain}</span>, approve USDC for the tournament escrow, then
-                call <code className="text-cyan-400/90 text-xs">fundPrizePool(tournamentId, amount)</code>. Amounts use 6
-                decimals (USDC). Your planned pool on file:{" "}
+              <p className="text-sm text-white/70 mb-4">
+                Deposit USDC on <span className="text-cyan-300 font-medium">{tournament.chain}</span>. Planned pool:{" "}
                 <strong className="text-white">
                   {tournament.prize_pool_wei && Number(tournament.prize_pool_wei) > 0
                     ? formatEntryFee(tournament.prize_pool_wei)
-                    : "not set — add when creating or contact support to update DB"}
+                    : "not set"}
                 </strong>
-                . Payout math uses that DB value; deposit at least that much on-chain before the event finishes.
+                — deposit at least this amount before the event finishes.
               </p>
-              <p className="text-xs text-white/50">
-                Winners: default split is 50% / 30% / 15% / 5% for placements 1–4 (see{" "}
-                <code className="text-cyan-500/80">prize_distribution</code> on the tournament). On completion, the backend
-                records payouts toward entrants&apos; smart wallets.
-              </p>
-              {walletAddress && chainIdToBackendChain(walletChainId) !== String(tournament.chain || "").toUpperCase() && (
-                <p className="text-amber-400/90 text-sm">
-                  Switch your wallet to {tournament.chain} before funding.
-                </p>
+              {!walletAddress && (
+                <div className="rounded-xl bg-amber-500/15 border border-amber-500/30 px-4 py-3 mb-4">
+                  <p className="text-amber-200 text-sm">Connect your wallet to deposit.</p>
+                </div>
               )}
-              <div className="flex flex-wrap items-end gap-3">
-                <div>
-                  <label htmlFor="fund_pool_usd" className="block text-xs text-white/60 mb-1">
+              {walletAddress && !walletChainOk && (
+                <div className="rounded-xl bg-amber-500/15 border border-amber-500/30 px-4 py-3 mb-4">
+                  <p className="text-amber-200 text-sm">Switch your wallet to <strong>{tournament.chain}</strong> to deposit.</p>
+                </div>
+              )}
+              {!fundPoolReady && walletAddress && walletChainOk && (
+                <div className="rounded-xl bg-amber-500/15 border border-amber-500/30 px-4 py-3 mb-4">
+                  <p className="text-amber-200 text-sm">Escrow not configured for this network. Check environment settings.</p>
+                </div>
+              )}
+              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                <div className="flex-1 max-w-xs">
+                  <label htmlFor="fund_pool_usd" className="block text-sm font-medium text-white/90 mb-1.5">
                     Amount (USDC)
                   </label>
                   <input
@@ -608,19 +621,17 @@ export default function TournamentDetailPage() {
                     min={0}
                     step={0.01}
                     value={fundPoolUsd}
-                    onChange={(e) => setFundPoolUsd(e.target.value)}
-                    className="w-40 px-3 py-2 rounded-lg bg-[#011112] border border-[#0E282A] text-white text-sm"
-                    placeholder="e.g. 50"
+                    onChange={(e) => {
+                      setFundPoolUsd(e.target.value);
+                      setActionError(null);
+                    }}
+                    className="w-full px-4 py-3 rounded-xl bg-[#010a0b]/80 border border-[#0E282A] text-white placeholder-white/35 focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition"
+                    placeholder="e.g. 1.00"
                   />
                 </div>
                 <button
                   type="button"
-                  disabled={
-                    !fundPoolReady ||
-                    fundPoolPending ||
-                    !walletAddress ||
-                    chainIdToBackendChain(walletChainId) !== String(tournament.chain || "").toUpperCase()
-                  }
+                  disabled={depositDisabled}
                   onClick={async () => {
                     const usd = parseFloat(fundPoolUsd);
                     if (Number.isNaN(usd) || usd <= 0) {
@@ -629,21 +640,35 @@ export default function TournamentDetailPage() {
                     }
                     setActionError(null);
                     setActionSuccess(null);
+                    setFundPoolDepositing(true);
                     try {
                       const wei = BigInt(Math.round(usd * 10 ** USDC_DECIMALS));
                       await fundPrizePoolOnChain(tournament.id, wei);
-                      setActionSuccess("Prize pool deposit submitted. Wait for confirmation, then refresh.");
+                      setActionSuccess("Deposit submitted. Wait for confirmation, then refresh.");
                       setFundPoolUsd("");
                     } catch (e) {
-                      setActionError((e as Error)?.message ?? "Fund failed");
+                      const msg = (e as Error)?.message ?? "Deposit failed";
+                      const short = msg.replace(/^(User denied|User rejected).*$/i, "Transaction cancelled");
+                      setActionError(short);
+                    } finally {
+                      setFundPoolDepositing(false);
                     }
                   }}
-                  className="px-4 py-2 rounded-xl bg-violet-500/25 border border-violet-500/50 text-violet-200 text-sm font-medium hover:bg-violet-500/35 disabled:opacity-50"
+                  className="px-6 py-3 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-200 font-semibold hover:bg-cyan-500/35 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 min-w-[160px]"
                 >
-                  {fundPoolPending ? <Loader2 className="w-4 h-4 animate-spin inline" /> : null}
-                  {fundPoolPending ? " Confirming…" : "Deposit to escrow"}
+                  {(fundPoolPending || fundPoolDepositing) ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      {fundPoolDepositing && !fundPoolPending ? "Approve & deposit…" : "Confirming…"}
+                    </>
+                  ) : (
+                    "Deposit to escrow"
+                  )}
                 </button>
               </div>
+              <p className="text-xs text-white/50 mt-3">
+                Two steps: approve USDC, then deposit. Winners get 50% / 30% / 15% / 5% for 1st–4th.
+              </p>
             </section>
           )}
 
