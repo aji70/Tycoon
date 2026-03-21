@@ -288,6 +288,9 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
       throw new Error("One or both users not found");
     }
 
+    const { assertAgentsFreeForNewArena } = await import("./arenaAgentAvailability.js");
+    await assertAgentsFreeForNewArena([Number(userAgentId), Number(opponentAgentId)]);
+
     const chain = User.normalizeChain(userA.chain || "base");
 
     // Ensure both users have contract passwords (generates if needed)
@@ -403,6 +406,8 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
         chainId: 42220,
         name: opponentAgent.name || "Agent",
       });
+      const { upsertArenaLocksForGame } = await import("./arenaAgentChallengeLocks.js");
+      await upsertArenaLocksForGame(game.id, [Number(userAgentId), Number(opponentAgentId)]);
     } catch (agentErr) {
       logger.warn({ err: agentErr?.message }, "Agent registration failed, game created but agents not bound");
     }
@@ -776,6 +781,11 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
           name: rosterAgents[i].name || "Agent",
         });
       }
+      const { upsertArenaLocksForGame } = await import("./arenaAgentChallengeLocks.js");
+      await upsertArenaLocksForGame(
+        game.id,
+        rosterAgents.map((a) => Number(a.id))
+      );
     } catch (agentErr) {
       logger.warn({ err: agentErr?.message }, "Agent registration failed; game created but agents may not be bound");
     }
@@ -1098,6 +1108,8 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
         chainId,
         name: opponentAgent.name || "Agent",
       });
+      const { upsertArenaLocksForGame } = await import("./arenaAgentChallengeLocks.js");
+      await upsertArenaLocksForGame(game.id, [Number(opponentAgent.id)]);
     } catch (agentErr) {
       logger.warn({ err: agentErr?.message }, "Opponent agent registration failed");
     }
