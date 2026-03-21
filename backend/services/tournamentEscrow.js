@@ -403,6 +403,41 @@ export async function lockAndFinalizeTournamentOnEscrow(tournamentId, chain, pla
     );
   }
 
+  /**
+   * Race: game-start lock tx may still be confirming; or we saw OPEN and lock reverted "Not open" while RPC
+   * still lagged. finalizeTournament requires Locked — wait instead of reverting immediately.
+   */
+  const lockWaitDeadline = Date.now() + 60_000;
+  const lockPollMs = 400;
+  let ledgerForFinalize = await readEscrowTournamentLedger(tournamentId, chain);
+  while (ledgerForFinalize && ledgerForFinalize.status === ESCROW_STATUS.OPEN && Date.now() < lockWaitDeadline) {
+    logger.info(
+      { tournamentId, chain },
+      "Escrow finalize: waiting for on-chain Locked (lock tx pending or RPC catch-up)"
+    );
+    await new Promise((r) => setTimeout(r, lockPollMs));
+    ledgerForFinalize = await readEscrowTournamentLedger(tournamentId, chain);
+  }
+
+  if (!ledgerForFinalize) {
+    throw new Error(`Escrow finalize: cannot read ledger for tournament ${tournamentId} before finalize`);
+  }
+  if (ledgerForFinalize.status === ESCROW_STATUS.FINALIZED || ledgerForFinalize.status === ESCROW_STATUS.CANCELLED) {
+    return { skipped: true, reason: "already_finalized_or_cancelled", lockHash };
+  }
+  if (ledgerForFinalize.status !== ESCROW_STATUS.LOCKED) {
+    throw new Error(
+      `Escrow finalize: tournament ${tournamentId} must be Locked before finalize; status ${ledgerForFinalize.status} after wait`
+    );
+  }
+
+  const poolAtFinalize = ledgerForFinalize.totalEntryFees + ledgerForFinalize.prizePoolDeposited;
+  if (sum > poolAtFinalize) {
+    throw new Error(
+      `Escrow finalize: payout sum ${sum} exceeds on-chain pool ${poolAtFinalize} for tournament ${tournamentId}`
+    );
+  }
+
   const fin = await withEscrowRpcRetries(`finalizeTournament:${tournamentId}`, () =>
     finalizeTournamentOnChain(tournamentId, recipients, amounts, chain)
   );
