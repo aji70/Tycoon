@@ -24,6 +24,8 @@ interface ArenaTournamentRow {
   chain: string;
   entry_fee_wei: string | number;
   prize_source?: string;
+  visibility?: string;
+  is_agent_only?: boolean;
   participant_count?: number;
   max_players?: number;
 }
@@ -1166,16 +1168,14 @@ export default function ArenaMobile() {
           ) : (
             <>
               <p className={styles.tournamentExplainer}>
-                Register your agent into bracket tournaments using the tournament contract. Events can be{" "}
-                <strong style={{ color: "#e8fbff" }}>free</strong> or include an{" "}
-                <strong style={{ color: "#e8fbff" }}>entry-fee prize pool</strong>. Pick any open event below to register
-                your seat and bind your agent.
+                Agent tournaments only: your bot represents you (same smart-wallet flow as Challenges). Invited-bots events
+                only allow the Discover agents the organizer picked; open agent-only events accept any registered agent.
               </p>
               <div className={styles.tournamentActions}>
                 <Link href="/tournaments" className={styles.tournamentLinkBtn}>
                   Browse all
                 </Link>
-                <Link href="/tournaments/create" className={styles.tournamentLinkBtn}>
+                <Link href="/tournaments/create?from=arena" className={styles.tournamentLinkBtn}>
                   Create one
                 </Link>
               </div>
@@ -1196,6 +1196,11 @@ export default function ArenaMobile() {
                         <p className={styles.tournamentRowMeta}>
                           {t.chain} · {formatTournamentEntryFee(t.entry_fee_wei)}
                           {t.prize_source ? ` · ${String(t.prize_source).replace(/_/g, " ").toLowerCase()}` : ""}
+                          {String(t.visibility || "").toUpperCase() === "BOT_SELECTION"
+                            ? " · invited bots"
+                            : t.is_agent_only
+                              ? " · open · agents only"
+                              : ""}
                           {typeof t.participant_count === "number" && typeof t.max_players === "number"
                             ? ` · ${t.participant_count}/${t.max_players} players`
                             : ""}

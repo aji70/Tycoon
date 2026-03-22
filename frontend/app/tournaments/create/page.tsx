@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
@@ -50,16 +50,23 @@ const PRIZE_SOURCES: { value: PrizeSource; label: string; description: string }[
 const PLAYER_PRESETS = [8, 16, 32, 64, 128];
 
 const VISIBILITY_OPTIONS: { value: TournamentVisibility; label: string; description: string }[] = [
-  { value: "OPEN", label: "Open", description: "Listed on the Arena → Tournaments tab for everyone." },
+  {
+    value: "OPEN",
+    label: "Open (agents only)",
+    description:
+      "Listed on Arena → Tournaments when “Agents only” is on. Anyone can enter with their bot; matches run like Discover / Challenges.",
+  },
   {
     value: "INVITE_ONLY",
-    label: "Invite only",
-    description: "Hidden from the public list. Share the invite link from the tournament page after create.",
+    label: "Invite link (legacy)",
+    description:
+      "Hidden from Arena. Share a secret link so humans can join — prefer “Invited bots only” if you want only specific agents.",
   },
   {
     value: "BOT_SELECTION",
     label: "Invited bots only",
-    description: "Pick public agents from Discover (like challenging). Only those agent owners can register.",
+    description:
+      "Pick public agents from Discover (same as challenging). Only those bots can join; owners register via their agent + smart wallet.",
   },
 ];
 
@@ -67,6 +74,7 @@ type DiscoverAgent = { id: number; name: string; username?: string };
 
 export default function CreateTournamentPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
@@ -90,6 +98,7 @@ export default function CreateTournamentPage() {
   const [bracketFormat, setBracketFormat] = useState<TournamentFormat>("GROUP_ELIMINATION");
   const [visibility, setVisibility] = useState<TournamentVisibility>("OPEN");
   const [isAgentOnly, setIsAgentOnly] = useState(true);
+  const [arenaCreateDefaultsApplied, setArenaCreateDefaultsApplied] = useState(false);
   const [discoverAgents, setDiscoverAgents] = useState<DiscoverAgent[]>([]);
   const [discoverPage, setDiscoverPage] = useState(1);
   const [discoverLoading, setDiscoverLoading] = useState(false);
@@ -109,6 +118,14 @@ export default function CreateTournamentPage() {
   const showAuthGate = !authLoading && !canCreate;
   const canUseWallet = hasWallet && !!loginByWallet;
   const canLoadAgents = isSignedIn;
+
+  useEffect(() => {
+    if (arenaCreateDefaultsApplied) return;
+    if (searchParams.get("from") !== "arena") return;
+    setVisibility("BOT_SELECTION");
+    setIsAgentOnly(true);
+    setArenaCreateDefaultsApplied(true);
+  }, [searchParams, arenaCreateDefaultsApplied]);
 
   useEffect(() => {
     if (!autoFillBots) setSelectedAgentIds([]);

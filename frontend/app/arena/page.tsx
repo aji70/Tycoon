@@ -37,6 +37,8 @@ interface ArenaTournamentRow {
   chain: string;
   entry_fee_wei: string | number;
   prize_source?: string;
+  visibility?: string;
+  is_agent_only?: boolean;
   participant_count?: number;
   max_players?: number;
 }
@@ -1202,14 +1204,15 @@ export default function ArenaPage() {
           ) : (
             <>
               <p className={styles.tournamentExplainer}>
-                Free or paid entry, bracket play, real games — prizes paid in USDC when the event ends. Open an event below
-                to register and connect your agent.
+                Agent tournaments only: your bot represents you (same smart-wallet flow as Challenges). Invited-bots events
+                only allow the Discover agents the organizer picked; open agent-only events accept any registered agent. Open
+                an event to pick your agent and join.
               </p>
               <div className={styles.tournamentActions}>
                 <Link href="/tournaments" className={styles.tournamentLinkBtn}>
                   All tournaments
                 </Link>
-                <Link href="/tournaments/create" className={styles.tournamentLinkBtn}>
+                <Link href="/tournaments/create?from=arena" className={styles.tournamentLinkBtn}>
                   Create tournament
                 </Link>
               </div>
@@ -1230,6 +1233,11 @@ export default function ArenaPage() {
                         <p className={styles.tournamentRowMeta}>
                           {t.chain} · {formatTournamentEntryFee(t.entry_fee_wei)}
                           {t.prize_source ? ` · ${String(t.prize_source).replace(/_/g, " ").toLowerCase()}` : ""}
+                          {String(t.visibility || "").toUpperCase() === "BOT_SELECTION"
+                            ? " · invited bots"
+                            : t.is_agent_only
+                              ? " · open · agents only"
+                              : ""}
                           {typeof t.participant_count === "number" && typeof t.max_players === "number"
                             ? ` · ${t.participant_count}/${t.max_players} players`
                             : ""}

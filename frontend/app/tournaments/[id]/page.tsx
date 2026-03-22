@@ -257,11 +257,22 @@ export default function TournamentDetailPage() {
   const isBotSelection = vis === "BOT_SELECTION";
   const needsAgentChoice =
     Boolean(tournament?.is_agent_only) || isBotSelection;
+  const userSmartWalletForAutoJoin = useMemo(() => {
+    const sw = guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim();
+    if (!sw || /^0x0{40}$/i.test(sw)) return false;
+    return true;
+  }, [guestUser?.smart_wallet_address]);
+  const agentRegisterSelected = registerAgentId != null && registerAgentId > 0;
+  const useAgentAutoJoinRegister = Boolean(needsAgentChoice && agentRegisterSelected);
   const canRegister =
     tournament?.status === "REGISTRATION_OPEN" &&
     !isRegistered(tournament.id) &&
-    (isPaidTournament ? walletAddress != null : walletAddress != null || guestUser != null) &&
-    (!needsAgentChoice || (registerAgentId != null && registerAgentId > 0));
+    (!needsAgentChoice || agentRegisterSelected) &&
+    (useAgentAutoJoinRegister
+      ? guestUser != null && userSmartWalletForAutoJoin
+      : isPaidTournament
+        ? walletAddress != null
+        : walletAddress != null || guestUser != null);
 
   useEffect(() => {
     if (!id) return;
@@ -339,20 +350,29 @@ export default function TournamentDetailPage() {
 
     const entryFeeWei = Math.max(0, Math.floor(Number(tournament.entry_fee_wei) || 0));
     const isPaid = tournament.prize_source === "ENTRY_FEE_POOL" && entryFeeWei > 0;
-
-    // Paid tournaments require wallet for on-chain payment (contract registerForTournament)
-    if (isPaid && !walletAddress) {
-      setActionError("Connect your wallet to pay the entry fee");
-      return;
-    }
+    const agentJoin = needsAgentChoice && registerAgentId != null && registerAgentId > 0;
 
     setRegistering(true);
     setActionError(null);
     setActionSuccess(null);
     try {
+      if (agentJoin) {
+        await apiClient.post(`/agents/${registerAgentId}/auto-join-tournament`, {
+          tournament_id: tournament.id,
+          ...(inviteQuery ? { invite_token: inviteQuery } : {}),
+        });
+        setActionSuccess("Registered! Your agent is in the event.");
+        fetchTournament(id, inviteParams);
+        return;
+      }
+
+      if (isPaid && !walletAddress) {
+        setActionError("Connect your wallet to pay the entry fee");
+        return;
+      }
+
       let registrationTxHash: string | null = null;
 
-      // On-chain: only for PAID tournaments (contract registerForTournament). Free tournaments use backend registerForTournamentFor.
       if (walletAddress && isPaid) {
         const hash = await registerOnChain(tournament.id, entryFeeWei);
         if (!hash) {
@@ -367,7 +387,6 @@ export default function TournamentDetailPage() {
         chain: tournament.chain,
         payment_tx_hash: registrationTxHash ?? undefined,
         ...(inviteQuery ? { invite_token: inviteQuery } : {}),
-        ...(needsAgentChoice && registerAgentId ? { user_agent_id: registerAgentId } : {}),
       });
       if (res.success) {
         setActionSuccess("Registered!");
@@ -376,7 +395,11 @@ export default function TournamentDetailPage() {
         setActionError(res.message ?? "Registration failed");
       }
     } catch (e) {
-      setActionError((e as Error)?.message ?? "Registration failed");
+      const msg =
+        (e as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ||
+        (e as Error)?.message ||
+        "Registration failed";
+      setActionError(msg);
     } finally {
       setRegistering(false);
     }
@@ -548,7 +571,8 @@ export default function TournamentDetailPage() {
             isCreator &&
             tournament.invite_token && (
               <p className="mt-3 text-xs text-white/60 break-all">
-                Invite link (share privately):{" "}
+                Secret link for human registration (not shown on Arena). To invite specific bots, use an &quot;Invited bots
+                only&quot; tournament next time. Link:{" "}
                 <span className="text-cyan-300">
                   {typeof window !== "undefined"
                     ? `${window.location.origin}/tournaments/${tournament.code ?? tournament.id}?invite=${encodeURIComponent(tournament.invite_token)}`
@@ -588,6 +612,24 @@ export default function TournamentDetailPage() {
                 : "Create an agent in My agents before registering for this agents-only tournament."}
             </p>
           )}
+          {tournament.status === "REGISTRATION_OPEN" &&
+            needsAgentChoice &&
+            !isRegistered(tournament.id) &&
+            guestUser &&
+            !userSmartWalletForAutoJoin && (
+              <p className="mt-3 text-sm text-amber-400/90">
+                Add a smart wallet in Profile (same as Arena Challenges) so your agent can join and pay entry fees from your
+                capped tournament permission.
+              </p>
+            )}
+          {tournament.status === "REGISTRATION_OPEN" &&
+            needsAgentChoice &&
+            !isRegistered(tournament.id) &&
+            !guestUser && (
+              <p className="mt-3 text-sm text-amber-400/90">
+                Sign in to register an agent for this tournament.
+              </p>
+            )}
 
           {/* Actions */}
           <div className="flex flex-wrap gap-3 mt-4">
@@ -603,7 +645,7 @@ export default function TournamentDetailPage() {
                 ) : (
                   <UserPlus className="w-4 h-4" />
                 )}
-                Register
+                {needsAgentChoice ? "Register with agent" : "Register"}
               </button>
             )}
             {tournament.status === "REGISTRATION_OPEN" && isCreator && (
