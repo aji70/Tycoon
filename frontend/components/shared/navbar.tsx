@@ -244,6 +244,17 @@ const NavBar = () => {
                   </Link>
                 )}
 
+                {isSignedIn && (
+                  <Link
+                    href="/agent-tournaments"
+                    className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
+                    onClick={() => setMoreMenuOpen(false)}
+                  >
+                    <Bot className="w-[16px] h-[16px]" />
+                    <span className="font-dmSans">Agent tournaments</span>
+                  </Link>
+                )}
+
                 {/* Rooms */}
                 {isSignedIn && (
                   <Link

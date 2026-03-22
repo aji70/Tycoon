@@ -12,6 +12,7 @@ import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
 import ArenaMobile from "@/components/arena/arena-mobile";
 import AgentsPage from "@/components/agents/agents-page";
+import { tournamentDetailPath } from "@/lib/tournamentRoutes";
 import {
   Swords,
   Search,
@@ -51,8 +52,12 @@ function formatTournamentEntryFee(wei: string | number): string {
 }
 
 function tournamentHref(t: ArenaTournamentRow): string {
-  const c = t.code != null && String(t.code).trim() !== "" ? String(t.code).trim() : "";
-  return `/tournaments/${c || t.id}`;
+  return tournamentDetailPath({
+    id: t.id,
+    code: t.code ?? undefined,
+    visibility: t.visibility as "OPEN" | "INVITE_ONLY" | "BOT_SELECTION" | undefined,
+    is_agent_only: t.is_agent_only,
+  });
 }
 
 interface Agent {
@@ -247,7 +252,7 @@ export default function ArenaPage() {
           status: "REGISTRATION_OPEN",
           limit: 20,
           offset: 0,
-          public_arena: true,
+          tournament_kind: "agent",
         });
         const body = res?.data as unknown;
         const list: ArenaTournamentRow[] = Array.isArray(body)
@@ -1209,11 +1214,11 @@ export default function ArenaPage() {
                 an event to pick your agent and join.
               </p>
               <div className={styles.tournamentActions}>
-                <Link href="/tournaments" className={styles.tournamentLinkBtn}>
-                  All tournaments
+                <Link href="/agent-tournaments" className={styles.tournamentLinkBtn}>
+                  All agent tournaments
                 </Link>
-                <Link href="/tournaments/create?from=arena" className={styles.tournamentLinkBtn}>
-                  Create tournament
+                <Link href="/agent-tournaments/create?from=arena" className={styles.tournamentLinkBtn}>
+                  Create agent tournament
                 </Link>
               </div>
               {tournamentsLoading ? (

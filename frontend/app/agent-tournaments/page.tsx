@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useTournament } from "@/context/TournamentContext";
 import type { Tournament as TournamentType } from "@/types/tournament";
 import {
-  AGENT_TOURNAMENTS_BASE,
+  HUMAN_TOURNAMENTS_BASE,
   tournamentCreatePath,
   tournamentDetailPath,
 } from "@/lib/tournamentRoutes";
-import { Swords, ChevronRight, Loader2, Users, Trophy, ChevronLeft } from "lucide-react";
+import { Bot, ChevronLeft, ChevronRight, Loader2, Trophy, Users } from "lucide-react";
 
 function formatEntryFee(wei: string | number): string {
   const n = Number(wei);
@@ -70,16 +70,11 @@ function TournamentCard({ t }: { t: TournamentType }) {
   );
 }
 
-export default function TournamentsPage() {
-  const {
-    tournaments,
-    listLoading,
-    listError,
-    fetchTournaments,
-  } = useTournament();
+export default function AgentTournamentsListPage() {
+  const { tournaments, listLoading, listError, fetchTournaments } = useTournament();
 
   useEffect(() => {
-    fetchTournaments({ limit: 50, tournament_kind: "human" });
+    fetchTournaments({ limit: 50, tournament_kind: "agent" });
   }, [fetchTournaments]);
 
   return (
@@ -93,18 +88,18 @@ export default function TournamentsPage() {
           Back
         </Link>
         <h1 className="text-xl md:text-2xl font-bold text-cyan-400 flex items-center gap-2">
-          <Swords className="w-6 h-6 text-cyan-400" />
-          Tournaments
+          <Bot className="w-6 h-6 text-cyan-400" />
+          Agent tournaments
         </h1>
         <div className="flex items-center gap-2 shrink-0">
           <Link
-            href={AGENT_TOURNAMENTS_BASE}
+            href={HUMAN_TOURNAMENTS_BASE}
             className="hidden sm:inline px-3 py-2 rounded-xl border border-white/15 text-white/80 text-xs font-medium hover:bg-white/5 transition"
           >
-            Agent tournaments
+            Player tournaments
           </Link>
           <Link
-            href={tournamentCreatePath("human")}
+            href={tournamentCreatePath("agent")}
             className="px-4 py-2 rounded-xl bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 text-sm font-medium hover:bg-cyan-500/30 transition shrink-0"
           >
             Create
@@ -114,9 +109,9 @@ export default function TournamentsPage() {
 
       <main className="max-w-3xl mx-auto px-4 py-6 md:py-8 pb-24 md:pb-8">
         <p className="text-sm text-white/55 mb-6">
-          Player brackets (wallet or guest registration). For bot-only events, see{" "}
-          <Link href={AGENT_TOURNAMENTS_BASE} className="text-cyan-400 hover:text-cyan-300 underline-offset-2 hover:underline">
-            Agent tournaments
+          Bot-only and invited-agent events (Arena). For classic player brackets, see{" "}
+          <Link href={HUMAN_TOURNAMENTS_BASE} className="text-cyan-400 hover:text-cyan-300 underline-offset-2 hover:underline">
+            Tournaments
           </Link>
           .
         </p>
@@ -125,11 +120,9 @@ export default function TournamentsPage() {
             <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
           </div>
         )}
-        {listError && (
-          <p className="text-center text-red-400 py-6">{listError}</p>
-        )}
+        {listError && <p className="text-center text-red-400 py-6">{listError}</p>}
         {!listLoading && !listError && tournaments.length === 0 && (
-          <p className="text-center text-white/60 py-12">No tournaments yet. Create one to get started.</p>
+          <p className="text-center text-white/60 py-12">No agent tournaments yet.</p>
         )}
         {!listLoading && !listError && tournaments.length > 0 && (
           <div className="space-y-4">

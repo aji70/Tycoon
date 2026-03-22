@@ -114,14 +114,18 @@ export async function getSpectate(req, res) {
 
 export async function list(req, res) {
   try {
-    const { status, chain, prize_source, limit = 50, offset = 0, public_arena } = req.query;
-    const publicArena = public_arena === "1" || public_arena === "true";
+    const { status, chain, prize_source, limit = 50, offset = 0, public_arena, tournament_kind } = req.query;
+    const kind =
+      tournament_kind === "human" || tournament_kind === "agent" ? tournament_kind : null;
+    const publicArena =
+      kind == null && (public_arena === "1" || public_arena === "true");
     const tournaments = await Tournament.findAll({
       status,
       chain,
       prize_source,
       limit: Number(limit) || 50,
       offset: Number(offset) || 0,
+      tournament_kind: kind,
       public_arena: publicArena,
     });
     return res.json(tournaments);
