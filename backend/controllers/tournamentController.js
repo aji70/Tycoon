@@ -90,6 +90,45 @@ function standingsForBracketMatch(match, game, entryMap, displayName) {
 }
 
 /**
+ * Bracket standings use entry.user_id for placement keys; agent tournament games store placements by AI seat user_id.
+ * Rewrite places when we have agent_slot_assignments + tournament_entry_agents for this game.
+ */
+async function enrichAgentTournamentBracketStandings(game, standings) {
+  if (!game?.id || !Array.isArray(standings) || standings.length === 0) return standings;
+  if (standings.every((r) => Number(r.place) < 900)) return standings;
+  if (String(game.game_type || "").toUpperCase() !== "TOURNAMENT_AGENT_VS_AGENT") return standings;
+
+  let placements = {};
+  if (game.placements != null) {
+    let raw = game.placements;
+    if (typeof raw === "string") {
+      try {
+        raw = JSON.parse(raw);
+      } catch {
+        raw = {};
+      }
+    }
+    if (raw && typeof raw === "object") placements = raw;
+  }
+  if (!Object.keys(placements).length) return standings;
+
+  const map = await tournamentService.mapTournamentEntryIdsToSeatUserIds(
+    game.id,
+    standings.map((r) => r.entry_id)
+  );
+  for (const row of standings) {
+    const uid = map.get(Number(row.entry_id));
+    if (uid == null) continue;
+    let place = 999;
+    if (Object.prototype.hasOwnProperty.call(placements, uid)) place = Number(placements[uid]);
+    else if (Object.prototype.hasOwnProperty.call(placements, String(uid))) place = Number(placements[String(uid)]);
+    if (Number.isFinite(place) && place < 900) row.place = place;
+  }
+  standings.sort((a, b) => a.place - b.place || Number(a.entry_id) - Number(b.entry_id));
+  return standings;
+}
+
+/**
  * GET /api/tournaments/spectate/:token — resolve tournament match spectator link to board URL.
  */
 export async function getSpectate(req, res) {
@@ -490,7 +529,7 @@ export async function getBracket(req, res) {
       matchGameTypeById = Object.fromEntries((gRows || []).map((r) => [r.id, r.game_type]));
       gameById = Object.fromEntries((gRows || []).map((r) => [r.id, r]));
     }
-    const mapMatch = (m) => {
+    const mapMatch = async (m) => {
       let participant_entry_ids = null;
       try {
         const raw = m.participant_entry_ids;
@@ -502,7 +541,10 @@ export async function getBracket(req, res) {
       }
       const spec = m.spectator_token ? `/spectate/${m.spectator_token}` : null;
       const game = m.game_id ? gameById[m.game_id] : null;
-      const standings = standingsForBracketMatch(m, game, entryMap, entryDisplayName);
+      let standings = standingsForBracketMatch(m, game, entryMap, entryDisplayName);
+      if (standings && game) {
+        standings = await enrichAgentTournamentBracketStandings(game, standings);
+      }
       const runnerUp =
         standings && standings.length >= 2 ? standings.find((s) => s.place === 2)?.entry_id ?? null : null;
       return {
@@ -532,12 +574,14 @@ export async function getBracket(req, res) {
         fourth_entry_id: standings?.[3]?.entry_id ?? null,
       };
     };
-    const roundsPayload = rounds.map((r) => ({
-      round_index: r.round_index,
-      status: r.status,
-      scheduled_start_at: r.scheduled_start_at ?? null,
-      matches: matches.filter((m) => m.round_index === r.round_index).map(mapMatch),
-    }));
+    const roundsPayload = await Promise.all(
+      rounds.map(async (r) => ({
+        round_index: r.round_index,
+        status: r.status,
+        scheduled_start_at: r.scheduled_start_at ?? null,
+        matches: await Promise.all(matches.filter((m) => m.round_index === r.round_index).map(mapMatch)),
+      }))
+    );
     const round_results = roundsPayload.map((r) => ({
       round_index: r.round_index,
       status: r.status,
