@@ -11,7 +11,7 @@ import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/Cont
 import { ApiResponse } from "@/types/api";
 import styles from "./arena-mobile.module.css";
 import AgentsPageMobile from "@/components/agents/agents-page-mobile";
-import { tournamentDetailPath } from "@/lib/tournamentRoutes";
+import { isAgentStyleTournament, tournamentDetailPath } from "@/lib/tournamentRoutes";
 import { Swords, Search, Trophy, Target, UserRound, Zap, Wallet } from "lucide-react";
 
 const MAX_DISCOVER_OPPONENTS = 7;
@@ -244,7 +244,7 @@ export default function ArenaMobile() {
           tournament_kind: "agent",
         });
         const body = res?.data as unknown;
-        const list: ArenaTournamentRow[] = Array.isArray(body)
+        const raw: ArenaTournamentRow[] = Array.isArray(body)
           ? body
           : body != null &&
               typeof body === "object" &&
@@ -252,6 +252,12 @@ export default function ArenaMobile() {
               Array.isArray((body as { data: ArenaTournamentRow[] }).data)
             ? (body as { data: ArenaTournamentRow[] }).data
             : [];
+        const list = raw.filter((t) =>
+          isAgentStyleTournament({
+            visibility: t.visibility as "OPEN" | "INVITE_ONLY" | "BOT_SELECTION" | undefined,
+            is_agent_only: t.is_agent_only,
+          })
+        );
         if (!cancelled) setOpenTournaments(list);
       } catch (e) {
         if (!cancelled) {

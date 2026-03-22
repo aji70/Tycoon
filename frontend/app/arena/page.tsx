@@ -12,7 +12,7 @@ import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
 import ArenaMobile from "@/components/arena/arena-mobile";
 import AgentsPage from "@/components/agents/agents-page";
-import { tournamentDetailPath } from "@/lib/tournamentRoutes";
+import { isAgentStyleTournament, tournamentDetailPath } from "@/lib/tournamentRoutes";
 import {
   Swords,
   Search,
@@ -255,11 +255,18 @@ export default function ArenaPage() {
           tournament_kind: "agent",
         });
         const body = res?.data as unknown;
-        const list: ArenaTournamentRow[] = Array.isArray(body)
+        const raw: ArenaTournamentRow[] = Array.isArray(body)
           ? body
           : body != null && typeof body === "object" && "data" in body && Array.isArray((body as { data: ArenaTournamentRow[] }).data)
             ? (body as { data: ArenaTournamentRow[] }).data
             : [];
+        // Arena tab: bot/agent events only (never show human brackets, even if API omits tournament_kind).
+        const list = raw.filter((t) =>
+          isAgentStyleTournament({
+            visibility: t.visibility as "OPEN" | "INVITE_ONLY" | "BOT_SELECTION" | undefined,
+            is_agent_only: t.is_agent_only,
+          })
+        );
         if (!cancelled) setOpenTournaments(list);
       } catch (e) {
         if (!cancelled) {

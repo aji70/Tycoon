@@ -297,7 +297,7 @@ button.heroLink {
   padding: 0 8px;
 }
 
-/* Tournaments tab (links to full /tournaments UX) */
+/* Tournaments tab (agent / bot events only; links to /agent-tournaments) */
 .tournamentPanel {
   background: linear-gradient(145deg, rgba(12, 28, 36, 0.75) 0%, rgba(8, 20, 28, 0.85) 100%);
   border: 1px solid rgba(0, 240, 255, 0.16);
