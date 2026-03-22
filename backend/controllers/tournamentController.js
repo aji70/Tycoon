@@ -21,6 +21,35 @@ import { parseParticipantEntryIds } from "../services/tournamentGroupHelpers.js"
  * Ordered 1st / 2nd / 3rd … for a bracket match (from game.placements or 2p winner/loser).
  */
 function standingsForBracketMatch(match, game, entryMap, displayName) {
+  const fsRaw = match?.finish_standings;
+  if (fsRaw != null) {
+    let arr = fsRaw;
+    if (typeof fsRaw === "string") {
+      try {
+        arr = JSON.parse(fsRaw);
+      } catch {
+        arr = null;
+      }
+    }
+    if (Array.isArray(arr) && arr.length > 0) {
+      const rows = arr
+        .map((r) => {
+          const eid = Number(r.entry_id);
+          const place = Number(r.place);
+          return {
+            entry_id: eid,
+            place,
+            username: displayName(entryMap[eid]) ?? (r.username != null ? String(r.username) : null),
+          };
+        })
+        .filter((r) => Number.isInteger(r.entry_id) && r.entry_id > 0);
+      if (rows.length && rows.every((r) => Number.isFinite(r.place) && r.place < 900)) {
+        rows.sort((a, b) => a.place - b.place || a.entry_id - b.entry_id);
+        return rows;
+      }
+    }
+  }
+
   const st = String(match.status || "").toUpperCase();
   const gameDone = String(game?.status || "").toUpperCase() === "FINISHED";
   if (st === "BYE" && match.winner_entry_id) {

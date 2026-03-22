@@ -132,6 +132,69 @@ export async function mapTournamentEntryIdsToSeatUserIds(
   return merged.size >= order.length ? merged : positional;
 }
 
+/**
+ * Snapshot for bracket lobby: entry_id + place + display name (JSON on tournament_matches.finish_standings).
+ * Written when the table game finishes so Results do not depend on agent_slot_assignments surviving.
+ */
+async function buildFinishStandingsForMatch(game, match, entries, winnerEntry) {
+  const entryMap = new Map((entries || []).map((e) => [Number(e.id), e]));
+  const entryDisplay = (e) =>
+    (e?.agent_name && String(e.agent_name).trim()) || e?.username || e?.user_address || null;
+
+  let participantIds = parseParticipantEntryIds(match);
+  if (!participantIds.length) {
+    participantIds = [match.slot_a_entry_id, match.slot_b_entry_id].filter(Boolean).map(Number);
+  }
+  participantIds = [...new Set(participantIds.filter((id) => Number.isInteger(id) && id > 0))];
+  if (participantIds.length < 2) return null;
+
+  let placements = {};
+  if (game?.placements != null) {
+    try {
+      const raw = typeof game.placements === "string" ? JSON.parse(game.placements) : game.placements;
+      if (raw && typeof raw === "object") placements = raw;
+    } catch {
+      placements = {};
+    }
+  }
+
+  const gtUpper = String(game.game_type || "").toUpperCase();
+  const allowPos = gtUpper === "TOURNAMENT_AGENT_VS_AGENT";
+  const seatMap = await mapTournamentEntryIdsToSeatUserIds(
+    game.id,
+    participantIds,
+    participantIds,
+    allowPos
+  );
+
+  const rows = participantIds.map((eid) => {
+    const e = entryMap.get(Number(eid));
+    const seatUid = seatMap.get(Number(eid));
+    const uid = seatUid != null ? seatUid : e?.user_id != null ? Number(e.user_id) : null;
+    let place = 999;
+    if (uid != null) {
+      if (Object.prototype.hasOwnProperty.call(placements, uid)) place = Number(placements[uid]);
+      else if (Object.prototype.hasOwnProperty.call(placements, String(uid))) place = Number(placements[String(uid)]);
+    }
+    return { entry_id: Number(eid), place, username: entryDisplay(e) };
+  });
+
+  let allBad = rows.length > 0 && rows.every((r) => r.place >= 900);
+  if (allBad && participantIds.length === 2 && winnerEntry) {
+    const wid = Number(winnerEntry.id);
+    if (participantIds.includes(wid)) {
+      rows.forEach((r) => {
+        r.place = r.entry_id === wid ? 1 : 2;
+      });
+      allBad = false;
+    }
+  }
+
+  rows.sort((a, b) => a.place - b.place || a.entry_id - b.entry_id);
+  if (rows.some((r) => r.place >= 900)) return null;
+  return rows;
+}
+
 function getMatchEntryIds(match) {
   const parsed = parseParticipantEntryIds(match);
   if (parsed.length >= 2) return parsed;
@@ -670,6 +733,7 @@ async function createTwoPlayerMatchGame(tournament, match, entryA, entryB, tourn
       });
       await TournamentMatch.update(matchId, {
         game_id: game.id,
+        game_code: tCode,
         contract_game_id: null,
         status: "IN_PROGRESS",
         spectator_token: match.spectator_token || newSpectatorToken(),
@@ -1138,6 +1202,7 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
         const specTok = match.spectator_token || newSpectatorToken();
         await TournamentMatch.update(matchId, {
           game_id: game.id,
+          game_code: code,
           contract_game_id: null,
           status: "IN_PROGRESS",
           spectator_token: specTok,
@@ -1657,7 +1722,7 @@ export async function onGameFinished(gameId) {
     }
   }
 
-  const entries = await TournamentEntry.findByTournament(match.tournament_id);
+  const entries = await TournamentEntry.findByTournament(match.tournament_id, { withUser: true });
   const formatEarly = tournamentRowEarly?.format || "SINGLE_ELIMINATION";
   const winnerUserId = game.winner_id;
   const gt = String(game.game_type || "");
@@ -1709,7 +1774,23 @@ export async function onGameFinished(gameId) {
 
   const entryIdsXp = getMatchEntryIds(match);
 
+  let finishStandingsRows = null;
+  try {
+    finishStandingsRows = await buildFinishStandingsForMatch(game, match, entries, winnerEntry);
+  } catch (err) {
+    logger.warn(
+      { err: err?.message, gameId, matchId: match.id },
+      "buildFinishStandingsForMatch failed; bracket will derive standings if possible"
+    );
+  }
+
   const matchUpdate = { winner_entry_id: winnerEntry.id, status: "COMPLETED" };
+  if (game?.code != null && String(game.code).trim()) {
+    matchUpdate.game_code = String(game.code).trim();
+  }
+  if (finishStandingsRows?.length) {
+    matchUpdate.finish_standings = finishStandingsRows;
+  }
   if (advancingEntryIdsForDb != null && advancingEntryIdsForDb.length > 0) {
     matchUpdate.advancing_entry_ids = advancingEntryIdsForDb;
   }

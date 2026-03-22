@@ -13,6 +13,9 @@ function normalizeMatchInsertRow(row) {
   if (Array.isArray(out.advancing_entry_ids)) {
     out.advancing_entry_ids = JSON.stringify(out.advancing_entry_ids);
   }
+  if (Array.isArray(out.finish_standings)) {
+    out.finish_standings = JSON.stringify(out.finish_standings);
+  }
   return out;
 }
 
