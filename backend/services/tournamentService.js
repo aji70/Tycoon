@@ -42,10 +42,6 @@ async function resolveTournamentOnChainPlayer(user, chain) {
 /** Timed autonomous agent-vs-agent tournament matches (server runner can finish-by-time). */
 const AGENT_TOURNAMENT_MATCH_DURATION_MIN = 30;
 const GAME_READY_WINDOW_SECONDS = 30;
-const ACTIVE_MATCH_STATUSES = ["IN_PROGRESS", "AWAITING_PLAYERS"];
-const ACTIVE_GAME_STATUSES = ["PENDING", "RUNNING", "IN_PROGRESS"];
-/** Do not treat players as "busy" from tournaments that are already done (avoids stale RUNNING games after arena/settlement). */
-const BLOCKING_TOURNAMENT_STATUSES = ["REGISTRATION_OPEN", "BRACKET_LOCKED", "IN_PROGRESS"];
 
 function getMatchEntryIds(match) {
   const parsed = parseParticipantEntryIds(match);
@@ -66,68 +62,9 @@ function isTournamentGameCode(code) {
   return code && /^T\d+-R\d+-M\d+$/i.test(String(code).trim());
 }
 
-async function assertNoCrossTournamentConflict(tournamentId, entryList) {
-  // Set TOURNAMENT_SKIP_CROSS_ACTIVE_CHECK=true in .env to allow parallel tournament games while testing.
-  const skip =
-    process.env.TOURNAMENT_SKIP_CROSS_ACTIVE_CHECK === "true" ||
-    process.env.TOURNAMENT_SKIP_CROSS_ACTIVE_CHECK === "1";
-  if (skip) return;
-
-  const entries = Array.isArray(entryList) ? entryList.filter(Boolean) : [entryList].filter(Boolean);
-  const userIds = entries
-    .map((e) => Number(e?.user_id))
-    .filter((v) => Number.isInteger(v) && v > 0);
-  if (userIds.length === 0) return;
-
-  const activeUserConflict = await db("tournament_matches as tm")
-    .join("games as g", "g.id", "tm.game_id")
-    .join("tournaments as t", "t.id", "tm.tournament_id")
-    .join("tournament_entries as te", function joinEntries() {
-      this.on("te.id", "=", "tm.slot_a_entry_id").orOn("te.id", "=", "tm.slot_b_entry_id");
-    })
-    .whereIn("tm.status", ACTIVE_MATCH_STATUSES)
-    .whereIn("g.status", ACTIVE_GAME_STATUSES)
-    .whereIn("t.status", BLOCKING_TOURNAMENT_STATUSES)
-    .whereIn("te.user_id", userIds)
-    .whereNot("tm.tournament_id", Number(tournamentId))
-    .select("tm.tournament_id", "te.user_id")
-    .first();
-
-  if (activeUserConflict) {
-    throw new Error("A player is already active in Tycoon. Finish that board first.");
-  }
-
-  const entryIds = entries.map((e) => Number(e?.id)).filter((v) => Number.isInteger(v) && v > 0);
-  if (entryIds.length === 0) return;
-
-  const entryAgentRows = await db("tournament_entry_agents")
-    .whereIn("tournament_entry_id", entryIds)
-    .whereNotNull("user_agent_id")
-    .select("user_agent_id");
-  const agentIds = [...new Set((entryAgentRows || []).map((r) => Number(r.user_agent_id)).filter((v) => v > 0))];
-  if (agentIds.length === 0) return;
-
-  const activeAgentConflict = await db("tournament_matches as tm")
-    .join("games as g", "g.id", "tm.game_id")
-    .join("tournaments as t", "t.id", "tm.tournament_id")
-    .join("tournament_entry_agents as tea", function joinAgents() {
-      this.on("tea.tournament_entry_id", "=", "tm.slot_a_entry_id").orOn(
-        "tea.tournament_entry_id",
-        "=",
-        "tm.slot_b_entry_id"
-      );
-    })
-    .whereIn("tm.status", ACTIVE_MATCH_STATUSES)
-    .whereIn("g.status", ACTIVE_GAME_STATUSES)
-    .whereIn("t.status", BLOCKING_TOURNAMENT_STATUSES)
-    .whereIn("tea.user_agent_id", agentIds)
-    .whereNot("tm.tournament_id", Number(tournamentId))
-    .select("tm.tournament_id", "tea.user_agent_id")
-    .first();
-
-  if (activeAgentConflict) {
-    throw new Error("An agent is already active in Tycoon. Finish that board first.");
-  }
+/** Cross-tournament “already on a board” guard removed so multiple tournament games can run in parallel. */
+async function assertNoCrossTournamentConflict(_tournamentId, _entryList) {
+  return;
 }
 
 /**
