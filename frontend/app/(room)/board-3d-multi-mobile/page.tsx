@@ -44,7 +44,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, HeartHandshake, X, LayoutDashboard, Bot } from "lucide-react";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
 import { applyAgentBattleDisplayNamesToHistory } from "@/lib/agentBattleHistoryNames";
-import { isTournamentBoardGame } from "@/lib/tournamentBoardGame";
+import { getTournamentBracketExitHref, isTournamentBoardGame } from "@/lib/tournamentBoardGame";
 import { MyAgentToggle } from "@/components/game/MyAgentToggle";
 import { useAgentBindings } from "@/hooks/useAgentBindings";
 import { getStoredAgentApiKey, setStoredAgentApiKey } from "@/lib/agentApiKeySession";
@@ -2214,7 +2214,7 @@ function Board3DMobilePageContent() {
         { id: toastId, duration: 5000 }
       );
       setTimeout(() => {
-        window.location.href = "/";
+        window.location.href = getTournamentBracketExitHref(gameCode ?? game?.code, game);
       }, 1500);
     } catch (err: unknown) {
       hotToastContractError(err, "Something went wrong. Try again or refresh the page.", {
@@ -2223,7 +2223,18 @@ function Board3DMobilePageContent() {
       });
       setClaimAndLeaveInProgress(false);
     }
-  }, [game?.id, game?.winner_id, winner?.user_id, me?.user_id, claimAndLeaveInProgress]);
+  }, [
+    game,
+    game?.id,
+    game?.winner_id,
+    game?.code,
+    game?.tournament_id,
+    game?.tournament_code,
+    gameCode,
+    winner?.user_id,
+    me?.user_id,
+    claimAndLeaveInProgress,
+  ]);
 
   const historyToShow = useMemo(() => {
     const raw = isLiveGame && game?.history?.length ? game.history : [];
@@ -2240,13 +2251,24 @@ function Board3DMobilePageContent() {
   const players = isLiveGame ? livePlayers : [];
   const emptyPlayers = useMemo(() => [], []);
 
+  const bracketExitHref = getTournamentBracketExitHref(gameCode ?? game?.code, game);
+  const bracketExitLabel = bracketExitHref !== "/" ? "Back to tournament lobby" : "Go home";
+
   const gameEnded = gameError && (gameQueryError as Error)?.message === "Game ended";
   if (gameEnded) {
     return (
       <div className="w-full min-h-screen bg-[#010F10] flex flex-col items-center justify-center text-center px-8">
         <h2 className="text-2xl font-bold text-cyan-400 mb-2">Game over</h2>
         <p className="text-gray-400 mb-6">This game has ended.</p>
-        <button onClick={() => router.push("/")} className="px-8 py-4 bg-[#00F0FF] text-[#010F10] font-bold rounded-lg hover:bg-[#00F0FF]/80 transition-all">Go home</button>
+        <button
+          type="button"
+          onClick={() => {
+            window.location.href = bracketExitHref;
+          }}
+          className="px-8 py-4 bg-[#00F0FF] text-[#010F10] font-bold rounded-lg hover:bg-[#00F0FF]/80 transition-all"
+        >
+          {bracketExitLabel}
+        </button>
       </div>
     );
   }
@@ -2937,15 +2959,24 @@ function Board3DMobilePageContent() {
                   <span className="text-amber-400">wins</span>
                 </p>
                 {endGameReason ? <p className="text-slate-400 mb-4 text-sm">{endGameReason}</p> : null}
-                <p className="text-slate-400 text-sm mb-6">
+                <p className="text-slate-400 text-sm mb-2">
                   You were watching as a spectator — no finalize or payout step from your account.
                 </p>
+                {bracketExitHref !== "/" ? (
+                  <p className="text-slate-500 text-xs mb-6">
+                    Return to the tournament to see the bracket update and the next round when it&apos;s ready.
+                  </p>
+                ) : (
+                  <div className="mb-6" />
+                )}
                 <button
                   type="button"
-                  onClick={() => router.push("/")}
+                  onClick={() => {
+                    window.location.href = bracketExitHref;
+                  }}
                   className="w-full py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold"
                 >
-                  Leave
+                  {bracketExitLabel}
                 </button>
               </motion.div>
             ) : winner.user_id === me?.user_id ? (
@@ -3000,7 +3031,9 @@ function Board3DMobilePageContent() {
       <BankruptcyModal
         isOpen={showBankruptcyModal && !gameTimeUpLocal}
         onClose={() => setShowBankruptcyModal(false)}
-        onReturnHome={() => (window.location.href = "/")}
+        onReturnHome={() => {
+          window.location.href = bracketExitHref;
+        }}
         tokensAwarded={0.5}
       />
 
@@ -3045,11 +3078,11 @@ function Board3DMobilePageContent() {
                       return;
                     }
                     setShowVotedOutModal(false);
-                    router.push("/");
+                    window.location.href = bracketExitHref;
                   }}
                   className="block w-full py-3 rounded-xl border border-slate-500 text-slate-300 hover:bg-slate-700/50 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Leave
+                  {bracketExitLabel}
                 </button>
               </div>
             </motion.div>

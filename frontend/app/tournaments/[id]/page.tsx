@@ -20,8 +20,13 @@ import {
   AlertCircle,
   Wallet,
   WalletMinimal,
+  CheckCircle2,
+  CircleDashed,
+  Eye,
+  Sparkles,
+  Radio,
 } from "lucide-react";
-import type { Bracket, BracketRound, TournamentDetail } from "@/types/tournament";
+import type { Bracket, BracketRound, TournamentDetail, TournamentEntry } from "@/types/tournament";
 import { symbols as symbolOptions } from "@/lib/types/symbol";
 import { apiClient } from "@/lib/api";
 import { useUserRegistryWallet } from "@/context/ContractProvider";
@@ -118,6 +123,48 @@ function buildBracketFromTournament(t: TournamentDetail | null): Bracket | null 
       };
     });
   return { tournament: { id: t.id, name: t.name, status: t.status }, rounds };
+}
+
+type BracketMatchRow = BracketRound["matches"][number];
+
+function bracketMatchParticipantIds(m: BracketMatchRow): number[] {
+  if (m.participant_entry_ids && m.participant_entry_ids.length >= 2) {
+    return m.participant_entry_ids;
+  }
+  return [m.slot_a_entry_id, m.slot_b_entry_id].filter((x): x is number => x != null);
+}
+
+/** Match is fully decided — no spectate / play links. */
+function isBracketMatchTerminal(m: BracketMatchRow): boolean {
+  if (m.status === "BYE") return true;
+  if (m.status === "COMPLETED") return true;
+  if (m.winner_entry_id != null) return true;
+  return false;
+}
+
+/** Active table: game exists and match not finished (avoids stale Spectate after finals). */
+function bracketMatchIsLiveBoard(m: BracketMatchRow): boolean {
+  if (m.game_id == null || isBracketMatchTerminal(m)) return false;
+  return m.status === "IN_PROGRESS" || m.status === "AWAITING_PLAYERS";
+}
+
+/** Both sides known, not live, not terminal — “next” on the bracket. */
+function isUpcomingBracketMatch(m: BracketMatchRow): boolean {
+  if (isBracketMatchTerminal(m) || bracketMatchIsLiveBoard(m)) return false;
+  return bracketMatchParticipantIds(m).length >= 2;
+}
+
+function labelsForMatchParticipants(m: BracketMatchRow, entries: TournamentEntry[] | undefined): string[] {
+  const pids = bracketMatchParticipantIds(m);
+  return pids.map((pid) => {
+    const un =
+      m.slot_a_entry_id === pid
+        ? m.slot_a_username
+        : m.slot_b_entry_id === pid
+          ? m.slot_b_username
+          : tournamentEntryDisplay(entries?.find((e) => e.id === pid));
+    return un || `#${pid}`;
+  });
 }
 
 export default function TournamentDetailPage() {
@@ -362,6 +409,30 @@ export default function TournamentDetailPage() {
     return () => clearInterval(interval);
   }, [id, tournament?.id, tournament?.status, fetchBracket, fetchLeaderboard, inviteQuery]);
 
+  // Coming back from a bracket board tab: refresh so the next round / completed matches show without waiting for the poll.
+  useEffect(() => {
+    if (!id) return;
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      void fetchTournament(id, inviteParams);
+      void fetchBracket(id, inviteParams);
+      const st = tournament?.status;
+      if (st === "COMPLETED") {
+        void fetchLeaderboard(id, "final", inviteParams);
+      } else {
+        void fetchLeaderboard(id, "live", inviteParams);
+      }
+    };
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("pageshow", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("pageshow", refresh);
+    };
+  }, [id, inviteQuery, tournament?.status, fetchTournament, fetchBracket, fetchLeaderboard]);
+
   const handleRegister = async () => {
     if (!id || !canRegister || !tournament) return;
 
@@ -509,16 +580,18 @@ export default function TournamentDetailPage() {
   }
 
   const entryCount = tournament.entries?.length ?? 0;
-  const displayBracket = bracket ?? buildBracketFromTournament(tournament);
+  const displayBracket = useMemo(
+    () => bracket ?? buildBracketFromTournament(tournament),
+    [bracket, tournament]
+  );
   const nextRoundToStart =
     displayBracket?.rounds?.find(
       (r) => r.status === "PENDING" && r.matches?.some((m) => m.status === "PENDING" || m.status === "AWAITING_PLAYERS")
     );
 
-  const ongoingMatches = (() => {
-    type MatchRow = BracketRound["matches"][number];
+  const ongoingMatches = useMemo(() => {
     const out: Array<{
-      m: MatchRow;
+      m: BracketMatchRow;
       round_index: number;
       labels: string[];
       gameCodeForMatch: string;
@@ -528,21 +601,8 @@ export default function TournamentDetailPage() {
     if (!rounds?.length) return out;
     for (const r of rounds) {
       for (const m of r.matches ?? []) {
-        if (m.status === "BYE" || m.winner_entry_id != null) continue;
-        if (m.game_id == null) continue;
-        const participantIds =
-          m.participant_entry_ids && m.participant_entry_ids.length >= 2
-            ? m.participant_entry_ids
-            : [m.slot_a_entry_id, m.slot_b_entry_id].filter((x): x is number => x != null);
-        const labels = participantIds.map((pid) => {
-          const un =
-            m.slot_a_entry_id === pid
-              ? m.slot_a_username
-              : m.slot_b_entry_id === pid
-                ? m.slot_b_username
-                : tournamentEntryDisplay(tournament.entries?.find((e) => e.id === pid));
-          return un || `#${pid}`;
-        });
+        if (!bracketMatchIsLiveBoard(m)) continue;
+        const labels = labelsForMatchParticipants(m, tournament.entries);
         const agentVsAgent = String(m.match_game_type || "") === "TOURNAMENT_AGENT_VS_AGENT";
         out.push({
           m,
@@ -554,7 +614,25 @@ export default function TournamentDetailPage() {
       }
     }
     return out;
-  })();
+  }, [displayBracket, tournament.entries, tournament.id, tournament.is_agent_only]);
+
+  const upcomingPairings = useMemo(() => {
+    const out: Array<{ m: BracketMatchRow; round_index: number; labels: string[] }> = [];
+    const rounds = displayBracket?.rounds;
+    if (!rounds?.length) return out;
+    const sorted = [...rounds].sort((a, b) => (a.round_index ?? 0) - (b.round_index ?? 0));
+    for (const r of sorted) {
+      for (const m of r.matches ?? []) {
+        if (!isUpcomingBracketMatch(m)) continue;
+        out.push({
+          m,
+          round_index: r.round_index,
+          labels: labelsForMatchParticipants(m, tournament.entries),
+        });
+      }
+    }
+    return out;
+  }, [displayBracket, tournament.entries]);
 
   const conflictPath = extractTournamentPathFromMessage(actionError);
 
@@ -569,8 +647,16 @@ export default function TournamentDetailPage() {
     (useSmartWalletForDeposit && !smartWalletAddress);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#010F10] via-[#0a1618] to-[#0E1415] text-white">
-      <header className="sticky top-0 z-50 flex items-center justify-between gap-4 px-4 py-4 md:px-8 border-b border-white/10 bg-[#010F10]/95 backdrop-blur-xl">
+    <div className="min-h-screen bg-[#030a0c] text-white relative overflow-x-hidden">
+      <div
+        className="pointer-events-none fixed inset-0 opacity-40"
+        aria-hidden
+        style={{
+          background:
+            "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(34, 211, 238, 0.12), transparent 50%), radial-gradient(ellipse 60% 40% at 100% 50%, rgba(167, 139, 250, 0.08), transparent 45%), radial-gradient(ellipse 50% 30% at 0% 80%, rgba(52, 211, 153, 0.06), transparent 40%)",
+        }}
+      />
+      <header className="sticky top-0 z-50 flex items-center justify-between gap-4 px-4 py-4 md:px-8 border-b border-white/[0.08] bg-[#010F10]/90 backdrop-blur-xl supports-[backdrop-filter]:bg-[#010F10]/75">
         <Link
           href="/tournaments"
           className="flex items-center gap-2 text-cyan-400/90 hover:text-cyan-300 font-medium text-sm transition"
@@ -578,15 +664,15 @@ export default function TournamentDetailPage() {
           <ChevronLeft className="w-5 h-5" />
           Back
         </Link>
-        <h1 className="text-lg md:text-xl font-bold text-white truncate max-w-[55%] text-center">
+        <h1 className="text-base sm:text-lg md:text-xl font-bold text-white truncate max-w-[55%] text-center bg-gradient-to-r from-white via-cyan-100 to-white/90 bg-clip-text text-transparent">
           {tournament.name}
         </h1>
         <div className="w-16" />
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-6 md:py-8 space-y-6">
+      <main className="relative max-w-5xl mx-auto px-4 py-6 md:py-10 space-y-8">
         {/* Meta card */}
-        <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#011112]/90 to-[#011112]/60 p-6 shadow-lg shadow-black/20">
+        <section className="rounded-3xl border border-white/[0.08] bg-gradient-to-b from-[#061a1d]/95 to-[#030f12]/90 p-6 md:p-8 shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset] backdrop-blur-sm">
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <span className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${statusColor(tournament.status)} bg-white/5`}>
               {tournament.status.replace(/_/g, " ")}
@@ -870,31 +956,35 @@ export default function TournamentDetailPage() {
           )}
 
         {(tournament.status === "IN_PROGRESS" || tournament.status === "BRACKET_LOCKED") && displayBracket && (
-          <section className="rounded-2xl border border-emerald-500/25 bg-[#011112]/80 p-5 shadow-lg shadow-black/20">
-            <h2 className="text-lg font-semibold text-emerald-300 flex items-center gap-2 mb-3">
-              <Play className="w-5 h-5" />
-              Ongoing matches
+          <section className="rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950/40 via-[#051215] to-[#030a0c] p-6 md:p-7 shadow-xl shadow-emerald-950/20">
+            <h2 className="text-lg font-bold text-emerald-200 flex items-center gap-2.5 mb-1">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/20 border border-emerald-400/30">
+                <Radio className="w-4 h-4 text-emerald-300 animate-pulse" />
+              </span>
+              Live tables
             </h2>
+            <p className="text-sm text-white/45 mb-4">Games in progress — spectate or open the board. Finished matches stay in the bracket below without watch links.</p>
             {ongoingMatches.length === 0 ? (
-              <p className="text-sm text-white/50">
-                No live table games right now. When a round starts, active matches appear here with a Spectate link.
+              <p className="text-sm text-white/50 rounded-xl border border-white/5 bg-black/20 px-4 py-3">
+                No live tables right now. When a match starts, it appears here.
               </p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {ongoingMatches.map(({ m, round_index, labels, gameCodeForMatch, isAutonomous }) => (
                   <li
                     key={m.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm"
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/20 bg-black/35 px-4 py-3.5 text-sm backdrop-blur-sm"
                   >
-                    <span className="text-white/85 min-w-0">
-                      <span className="text-white/50">Round {round_index + 1}</span>
-                      {" · "}
-                      <span className="break-words">{labels.join(" · ")}</span>
+                    <span className="text-white/90 min-w-0">
+                      <span className="text-emerald-400/90 font-semibold">Round {round_index + 1}</span>
+                      <span className="text-white/35 mx-2">·</span>
+                      <span className="break-words font-medium">{labels.join(" vs ")}</span>
                     </span>
                     <Link
                       href={`/board-3d-multi?gameCode=${encodeURIComponent(gameCodeForMatch)}${isAutonomous ? "&spectate=1" : ""}`}
-                      className="inline-flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/25 border border-cyan-500/50 text-cyan-200 text-sm font-medium hover:bg-cyan-500/35 transition-colors"
+                      className="inline-flex shrink-0 items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 text-sm font-semibold hover:bg-emerald-500/30 transition-colors"
                     >
+                      {isAutonomous ? <Eye className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                       {isAutonomous ? "Spectate" : "Open board"}
                     </Link>
                   </li>
@@ -904,14 +994,58 @@ export default function TournamentDetailPage() {
           </section>
         )}
 
+        {(tournament.status === "BRACKET_LOCKED" ||
+          tournament.status === "IN_PROGRESS" ||
+          tournament.status === "COMPLETED") &&
+          upcomingPairings.length > 0 && (
+            <section className="rounded-3xl border border-amber-500/25 bg-gradient-to-br from-amber-950/25 via-[#0a1214] to-transparent p-6 md:p-7">
+              <h2 className="text-lg font-bold text-amber-100 flex items-center gap-2.5 mb-1">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/15 border border-amber-400/25">
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                </span>
+                Next pairings
+              </h2>
+              <p className="text-sm text-white/45 mb-4">Scheduled after earlier rounds finish — both sides are set.</p>
+              <ul className="grid gap-3 sm:grid-cols-2">
+                {upcomingPairings.map(({ m, round_index, labels }) => (
+                  <li
+                    key={m.id}
+                    className="rounded-2xl border border-amber-500/15 bg-black/30 px-4 py-3.5 text-sm"
+                  >
+                    <p className="text-[11px] uppercase tracking-wider text-amber-400/80 font-semibold mb-1">
+                      Round {round_index + 1}
+                    </p>
+                    <p className="text-white font-medium leading-snug">
+                      {labels.length === 2 ? (
+                        <>
+                          <span className="text-cyan-200/95">{labels[0]}</span>
+                          <span className="text-white/35 mx-2 font-normal">vs</span>
+                          <span className="text-cyan-200/95">{labels[1]}</span>
+                        </>
+                      ) : (
+                        <span className="text-cyan-200/95">{labels.join(" · ")}</span>
+                      )}
+                    </p>
+                    <p className="text-xs text-white/40 mt-2 flex items-center gap-1.5">
+                      <CircleDashed className="w-3.5 h-3.5 shrink-0" />
+                      Waiting for round / creator start
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
         {/* Bracket */}
         {(tournament.status === "BRACKET_LOCKED" ||
           tournament.status === "IN_PROGRESS" ||
           tournament.status === "COMPLETED") && (
           <section>
-            <h2 className="text-lg font-semibold text-cyan-400 flex items-center gap-2 mb-4">
-              <Swords className="w-5 h-5" />
-              Bracket
+            <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 to-violet-200 flex items-center gap-3 mb-6">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/15 border border-cyan-400/25 text-cyan-300">
+                <Swords className="w-5 h-5" />
+              </span>
+              Bracket & results
             </h2>
             {bracketLoading && !displayBracket && (
               <div className="flex justify-center py-8">
@@ -919,8 +1053,11 @@ export default function TournamentDetailPage() {
               </div>
             )}
             {displayBracket && (
-              <div className="space-y-6">
-                {displayBracket.rounds.map((r: BracketRound) => {
+              <div className="space-y-5">
+                {[...displayBracket.rounds]
+                  .slice()
+                  .sort((a, b) => (a.round_index ?? 0) - (b.round_index ?? 0))
+                  .map((r: BracketRound) => {
                   const scheduledAt = r.scheduled_start_at
                     ? new Date(r.scheduled_start_at).toLocaleString(undefined, {
                         weekday: "short",
@@ -933,42 +1070,67 @@ export default function TournamentDetailPage() {
                   const canStartNow =
                     r.scheduled_start_at &&
                     isInStartWindow(r.scheduled_start_at);
+                  const roundMatches = r.matches ?? [];
+                  const roundComplete =
+                    roundMatches.length > 0 && roundMatches.every((m) => isBracketMatchTerminal(m));
+                  const roundHasLive = roundMatches.some((m) => bracketMatchIsLiveBoard(m));
                   return (
                     <div
                       key={r.round_index}
-                      className="rounded-xl border border-[#0E282A] bg-[#011112]/60 p-4"
+                      className={`rounded-2xl border p-5 md:p-6 transition-shadow ${
+                        roundHasLive
+                          ? "border-emerald-500/35 bg-gradient-to-br from-emerald-950/30 to-[#050f12]/90 shadow-lg shadow-emerald-950/10"
+                          : roundComplete
+                            ? "border-white/[0.07] bg-[#040d10]/80"
+                            : "border-cyan-500/20 bg-[#051216]/70"
+                      }`}
                     >
-                      <p className="text-sm font-medium text-white/70 mb-1">
-                        Round {r.round_index + 1} — {r.status}
-                      </p>
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <div>
+                          <p className="text-base font-bold text-white tracking-tight">
+                            Round {r.round_index + 1}
+                          </p>
+                          <p className="text-xs text-white/45 mt-0.5">
+                            {r.status.replace(/_/g, " ")}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {roundComplete ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-400/25">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Complete
+                            </span>
+                          ) : roundHasLive ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-200 border border-emerald-400/35">
+                              <Radio className="w-3.5 h-3.5" />
+                              Live
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/12 text-amber-200/90 border border-amber-400/20">
+                              <CircleDashed className="w-3.5 h-3.5" />
+                              Upcoming
+                            </span>
+                          )}
+                        </div>
+                      </div>
                       {scheduledAt && (
-                        <p className="text-xs text-cyan-400/80 mb-3">
+                        <p className="text-xs text-cyan-400/85 mb-4 flex items-center gap-1.5">
+                          <Play className="w-3.5 h-3.5 shrink-0" />
                           Start window: {scheduledAt} (5 min)
                         </p>
                       )}
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {r.matches?.map((m) => {
                           const showStartNow =
                             canStartNow &&
                             !m.game_id &&
                             m.status !== "BYE" &&
                             isInMatch(m);
-                          const hasGameForBoard = !!m.game_id;
-                          const participantIds =
-                            m.participant_entry_ids && m.participant_entry_ids.length >= 2
-                              ? m.participant_entry_ids
-                              : [m.slot_a_entry_id, m.slot_b_entry_id].filter(
-                                  (x): x is number => x != null
-                                );
-                          const tableNames = participantIds.map((pid) => {
-                            const un =
-                              m.slot_a_entry_id === pid
-                                ? m.slot_a_username
-                                : m.slot_b_entry_id === pid
-                                  ? m.slot_b_username
-                                  : tournamentEntryDisplay(tournament.entries?.find((e) => e.id === pid));
-                            return un || `#${pid}`;
-                          });
+                          const matchLive = bracketMatchIsLiveBoard(m);
+                          const participantIds = bracketMatchParticipantIds(m);
+                          const tableNames = labelsForMatchParticipants(m, tournament.entries);
+                          const done = isBracketMatchTerminal(m);
+                          const winnerId = m.winner_entry_id;
                           const needsGameCreated =
                             !m.game_id &&
                             m.status !== "BYE" &&
@@ -983,41 +1145,86 @@ export default function TournamentDetailPage() {
                           return (
                             <div
                               key={m.id}
-                              className="py-2 px-3 rounded-lg bg-black/20 text-sm space-y-2"
+                              className={`rounded-xl px-4 py-3.5 text-sm space-y-3 border ${
+                                done
+                                  ? "border-white/[0.06] bg-black/25"
+                                  : matchLive
+                                    ? "border-emerald-500/25 bg-emerald-950/15"
+                                    : "border-white/[0.08] bg-black/35"
+                              }`}
                             >
-                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <p className="text-white/90 text-sm min-w-0 break-words">
-                                  {tableNames.join(" · ")}
+                              {m.status === "BYE" ? (
+                                <p className="text-white/70">
+                                  <span className="text-white/45">Bye</span>
+                                  {tableNames[0] ? ` — ${tableNames[0]}` : ""}
                                 </p>
-                                {m.winner_username && (
-                                  <span className="text-cyan-400 text-xs shrink-0">
-                                    Winner: {m.winner_username}
-                                  </span>
-                                )}
-                              </div>
-                              {m.spectator_url && (
-                                <p className="text-xs text-white/45 break-all">
-                                  Watch link:{" "}
-                                  <Link href={m.spectator_url} className="text-cyan-400/90 hover:underline">
-                                    {m.spectator_url}
+                              ) : tableNames.length === 2 ? (
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+                                    <span
+                                      className={`font-medium min-w-0 break-words ${
+                                        winnerId != null && participantIds[0] === winnerId
+                                          ? "text-amber-300"
+                                          : winnerId != null
+                                            ? "text-white/40 line-through decoration-white/20"
+                                            : "text-cyan-100/95"
+                                      }`}
+                                    >
+                                      {tableNames[0]}
+                                    </span>
+                                    <span className="text-white/25 text-xs font-semibold uppercase tracking-wider">vs</span>
+                                    <span
+                                      className={`font-medium min-w-0 break-words ${
+                                        winnerId != null && participantIds[1] === winnerId
+                                          ? "text-amber-300"
+                                          : winnerId != null
+                                            ? "text-white/40 line-through decoration-white/20"
+                                            : "text-cyan-100/95"
+                                      }`}
+                                    >
+                                      {tableNames[1]}
+                                    </span>
+                                  </div>
+                                  {done && m.winner_username && (
+                                    <span className="inline-flex items-center gap-1.5 shrink-0 text-amber-300/95 text-xs font-semibold">
+                                      <Trophy className="w-3.5 h-3.5" />
+                                      {m.winner_username}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                  <p className="text-white/90 text-sm min-w-0 break-words">{tableNames.join(" · ")}</p>
+                                  {done && m.winner_username && (
+                                    <span className="text-amber-300 text-xs font-semibold shrink-0 flex items-center gap-1">
+                                      <Trophy className="w-3.5 h-3.5" />
+                                      {m.winner_username}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              {matchLive && m.spectator_url && (
+                                <p className="text-xs text-white/40">
+                                  <Link href={m.spectator_url} className="text-violet-300/90 hover:text-violet-200 underline-offset-2 hover:underline">
+                                    Share spectator link
                                   </Link>
                                 </p>
                               )}
-                              {(hasGameForBoard || showStartNow || canCreateGame || needsGameCreated) && (
-                                <div className="flex flex-wrap justify-end gap-2">
-                                  {hasGameForBoard ? (
+                              {(matchLive || showStartNow || canCreateGame || needsGameCreated) && (
+                                <div className="flex flex-wrap justify-end gap-2 pt-1">
+                                  {matchLive ? (
                                     <>
                                       <Link
                                         href={`/board-3d-multi?gameCode=${encodeURIComponent(gameCodeForMatch)}${isAutonomousAgentMatch ? "&spectate=1" : ""}`}
-                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500/25 border border-cyan-500/60 text-cyan-300 font-medium hover:bg-cyan-500/35 transition-colors"
+                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/20 border border-cyan-400/45 text-cyan-100 font-semibold text-sm hover:bg-cyan-500/30 transition-colors"
                                       >
-                                        <Play className="w-4 h-4" />
+                                        {isAutonomousAgentMatch ? <Eye className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                                         {isAutonomousAgentMatch ? "Spectate" : "Play (board)"}
                                       </Link>
                                       {!isAutonomousAgentMatch ? (
                                         <Link
                                           href={`/game-waiting?gameCode=${encodeURIComponent(gameCodeForMatch)}`}
-                                          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-white/15 text-white/85 font-medium hover:bg-white/10 transition-colors"
+                                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/12 text-white/88 font-medium text-sm hover:bg-white/10 transition-colors"
                                         >
                                           Lobby
                                         </Link>
@@ -1025,8 +1232,9 @@ export default function TournamentDetailPage() {
                                       {m.spectator_url ? (
                                         <Link
                                           href={m.spectator_url}
-                                          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-500/15 border border-violet-500/40 text-violet-200 font-medium hover:bg-violet-500/25 transition-colors"
+                                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-500/15 border border-violet-400/35 text-violet-200 font-medium text-sm hover:bg-violet-500/25 transition-colors"
                                         >
+                                          <Eye className="w-4 h-4" />
                                           Spectate
                                         </Link>
                                       ) : null}
@@ -1091,9 +1299,11 @@ export default function TournamentDetailPage() {
         {/* Leaderboard */}
         {(tournament.status === "IN_PROGRESS" || tournament.status === "COMPLETED") && (
           <section>
-            <h2 className="text-lg font-semibold text-cyan-400 flex items-center gap-2 mb-4">
-              <Trophy className="w-5 h-5" />
-              Leaderboard
+            <h2 className="text-xl font-bold text-cyan-200 flex items-center gap-3 mb-5">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 border border-amber-400/25 text-amber-300">
+                <Trophy className="w-5 h-5" />
+              </span>
+              Standings
             </h2>
             {leaderboardLoading && (
               <div className="flex justify-center py-8">
@@ -1101,41 +1311,65 @@ export default function TournamentDetailPage() {
               </div>
             )}
             {!leaderboardLoading && leaderboard && (
-              <div className="rounded-xl border border-[#0E282A] bg-[#011112]/60 overflow-hidden">
+              <div className="rounded-2xl border border-white/[0.08] bg-[#040d10]/90 overflow-hidden shadow-xl shadow-black/20">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-white/10 text-white/70">
-                      <th className="p-3">#</th>
-                      <th className="p-3">Player</th>
-                      <th className="p-3">Eliminated</th>
-                      <th className="p-3">Payout</th>
+                    <tr className="border-b border-white/10 text-white/55 text-xs uppercase tracking-wider">
+                      <th className="p-4 font-semibold">#</th>
+                      <th className="p-4 font-semibold">Player</th>
+                      <th className="p-4 font-semibold">Out</th>
+                      <th className="p-4 font-semibold">Payout</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {leaderboard.entries?.map((e) => (
-                      <tr
-                        key={e.entry_id}
-                        className="border-b border-white/5 hover:bg-white/5"
-                      >
-                        <td className="p-3">{e.rank}</td>
-                        <td className="p-3 font-medium">
-                          {e.username}
-                          {e.is_winner && (
-                            <span className="ml-2 text-amber-400">Winner</span>
-                          )}
-                        </td>
-                        <td className="p-3 text-white/60">
-                          {e.eliminated_in_round != null
-                            ? `Round ${e.eliminated_in_round + 1}`
-                            : "—"}
-                        </td>
-                        <td className="p-3 text-white/60">
-                          {e.payout_wei
-                            ? `$${(Number(e.payout_wei) / 1e6).toFixed(2)}`
-                            : "—"}
-                        </td>
-                      </tr>
-                    ))}
+                    {leaderboard.entries?.map((e) => {
+                      const rankBadge =
+                        e.rank === 1
+                          ? "bg-amber-500/15 text-amber-200 border border-amber-400/35"
+                          : e.rank === 2
+                            ? "bg-slate-400/10 text-slate-200 border border-slate-400/30"
+                            : e.rank === 3
+                              ? "bg-orange-800/25 text-orange-200 border border-orange-500/30"
+                              : "bg-white/5 text-white/80 border border-white/10";
+                      const rowAccent =
+                        e.rank === 1
+                          ? "border-l-2 border-amber-400/45"
+                          : e.rank === 2
+                            ? "border-l-2 border-slate-400/35"
+                            : e.rank === 3
+                              ? "border-l-2 border-orange-500/35"
+                              : "";
+                      return (
+                        <tr
+                          key={e.entry_id}
+                          className={`border-b border-white/[0.04] transition-colors hover:bg-white/[0.03] ${rowAccent}`}
+                        >
+                          <td className="p-4">
+                            <span
+                              className={`inline-flex h-8 min-w-[2rem] items-center justify-center rounded-lg text-sm font-bold ${rankBadge}`}
+                            >
+                              {e.rank}
+                            </span>
+                          </td>
+                          <td className="p-4 font-medium text-white/95">
+                            {e.username}
+                            {e.is_winner && (
+                              <span className="ml-2 text-amber-400 font-semibold">Champion</span>
+                            )}
+                          </td>
+                          <td className="p-4 text-white/55">
+                            {e.eliminated_in_round != null
+                              ? `R${e.eliminated_in_round + 1}`
+                              : "—"}
+                          </td>
+                          <td className="p-4 text-emerald-200/90 font-medium">
+                            {e.payout_wei
+                              ? `$${(Number(e.payout_wei) / 1e6).toFixed(2)}`
+                              : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
