@@ -113,6 +113,7 @@ function buildBracketFromTournament(t: TournamentDetail | null): Bracket | null 
           winner_username: m.winner_entry_id
             ? tournamentEntryDisplay(entryMap.get(m.winner_entry_id)) || null
             : null,
+          match_game_type: m.match_game_type ?? null,
         })),
       };
     });
@@ -513,6 +514,48 @@ export default function TournamentDetailPage() {
     displayBracket?.rounds?.find(
       (r) => r.status === "PENDING" && r.matches?.some((m) => m.status === "PENDING" || m.status === "AWAITING_PLAYERS")
     );
+
+  const ongoingMatches = (() => {
+    type MatchRow = BracketRound["matches"][number];
+    const out: Array<{
+      m: MatchRow;
+      round_index: number;
+      labels: string[];
+      gameCodeForMatch: string;
+      isAutonomous: boolean;
+    }> = [];
+    const rounds = displayBracket?.rounds;
+    if (!rounds?.length) return out;
+    for (const r of rounds) {
+      for (const m of r.matches ?? []) {
+        if (m.status === "BYE" || m.winner_entry_id != null) continue;
+        if (m.game_id == null) continue;
+        const participantIds =
+          m.participant_entry_ids && m.participant_entry_ids.length >= 2
+            ? m.participant_entry_ids
+            : [m.slot_a_entry_id, m.slot_b_entry_id].filter((x): x is number => x != null);
+        const labels = participantIds.map((pid) => {
+          const un =
+            m.slot_a_entry_id === pid
+              ? m.slot_a_username
+              : m.slot_b_entry_id === pid
+                ? m.slot_b_username
+                : tournamentEntryDisplay(tournament.entries?.find((e) => e.id === pid));
+          return un || `#${pid}`;
+        });
+        const agentVsAgent = String(m.match_game_type || "") === "TOURNAMENT_AGENT_VS_AGENT";
+        out.push({
+          m,
+          round_index: r.round_index,
+          labels,
+          gameCodeForMatch: `T${tournament.id}-R${r.round_index}-M${m.match_index}`.toUpperCase(),
+          isAutonomous: agentVsAgent || Boolean(tournament.is_agent_only),
+        });
+      }
+    }
+    return out;
+  })();
+
   const conflictPath = extractTournamentPathFromMessage(actionError);
 
   const walletChainOk = walletAddress && chainIdToBackendChain(walletChainId) === String(tournament?.chain || "").toUpperCase();
@@ -826,6 +869,41 @@ export default function TournamentDetailPage() {
             </section>
           )}
 
+        {(tournament.status === "IN_PROGRESS" || tournament.status === "BRACKET_LOCKED") && displayBracket && (
+          <section className="rounded-2xl border border-emerald-500/25 bg-[#011112]/80 p-5 shadow-lg shadow-black/20">
+            <h2 className="text-lg font-semibold text-emerald-300 flex items-center gap-2 mb-3">
+              <Play className="w-5 h-5" />
+              Ongoing matches
+            </h2>
+            {ongoingMatches.length === 0 ? (
+              <p className="text-sm text-white/50">
+                No live table games right now. When a round starts, active matches appear here with a Spectate link.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {ongoingMatches.map(({ m, round_index, labels, gameCodeForMatch, isAutonomous }) => (
+                  <li
+                    key={m.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm"
+                  >
+                    <span className="text-white/85 min-w-0">
+                      <span className="text-white/50">Round {round_index + 1}</span>
+                      {" · "}
+                      <span className="break-words">{labels.join(" · ")}</span>
+                    </span>
+                    <Link
+                      href={`/board-3d-multi?gameCode=${encodeURIComponent(gameCodeForMatch)}${isAutonomous ? "&spectate=1" : ""}`}
+                      className="inline-flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/25 border border-cyan-500/50 text-cyan-200 text-sm font-medium hover:bg-cyan-500/35 transition-colors"
+                    >
+                      {isAutonomous ? "Spectate" : "Open board"}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+
         {/* Bracket */}
         {(tournament.status === "BRACKET_LOCKED" ||
           tournament.status === "IN_PROGRESS" ||
@@ -900,7 +978,8 @@ export default function TournamentDetailPage() {
                           // Use numeric tournament.id so game code matches backend (e.g. T24-R0-M0), not URL slug (e.g. 9OJXTLE4)
                           const gameCodeForMatch = `T${tournament?.id ?? id}-R${r.round_index}-M${m.match_index}`.toUpperCase();
                           const isAutonomousAgentMatch =
-                            String(m.match_game_type || "") === "TOURNAMENT_AGENT_VS_AGENT";
+                            String(m.match_game_type || "") === "TOURNAMENT_AGENT_VS_AGENT" ||
+                            Boolean(tournament.is_agent_only);
                           return (
                             <div
                               key={m.id}
@@ -933,7 +1012,7 @@ export default function TournamentDetailPage() {
                                         className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500/25 border border-cyan-500/60 text-cyan-300 font-medium hover:bg-cyan-500/35 transition-colors"
                                       >
                                         <Play className="w-4 h-4" />
-                                        {isAutonomousAgentMatch ? "Watch (AI board)" : "Play (board)"}
+                                        {isAutonomousAgentMatch ? "Spectate" : "Play (board)"}
                                       </Link>
                                       {!isAutonomousAgentMatch ? (
                                         <Link

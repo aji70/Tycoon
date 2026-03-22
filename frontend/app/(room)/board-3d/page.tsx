@@ -58,6 +58,8 @@ import { getStoredAgentApiKey, setStoredAgentApiKey } from "@/lib/agentApiKeySes
 import PerksBar from "@/components/game/board3d/PerksBar";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
 import { gameHasRankedPlacements, isOnchainHumanVsAgentGame } from "@/lib/utils/games";
+import { applyAgentBattleDisplayNamesToHistory } from "@/lib/agentBattleHistoryNames";
+import { isTournamentBoardGame } from "@/lib/tournamentBoardGame";
 
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 
@@ -268,6 +270,7 @@ function Board3DPageContent() {
   });
 
   const isLiveGame = !!gameCode && !!game;
+  const hideTournamentChat = isTournamentBoardGame(game ?? null, gameCode);
 
   const me = useMemo<Player | null>(() => {
     const addrs = [
@@ -2494,7 +2497,10 @@ function Board3DPageContent() {
     }
   }, [winner?.user_id, me?.user_id, game?.id, refetchGame]);
 
-  const historyToShow = isLiveGame && game?.history?.length ? game.history : demoHistory;
+  const historyToShow = useMemo(() => {
+    const raw = isLiveGame && game?.history?.length ? game.history : demoHistory;
+    return applyAgentBattleDisplayNamesToHistory(raw, isAgentBattle, livePlayers);
+  }, [isLiveGame, game?.history, isAgentBattle, livePlayers]);
   // Live game: only show actual dice we rolled (never reconstruct from history — backend only has total, so we'd show wrong e.g. 3+3=6)
   const lastRollResultToShow = isLiveGame ? lastRollResultLive : lastRollResult;
 
@@ -3232,8 +3238,8 @@ function Board3DPageContent() {
         )}
       </div>
 
-      {/* Multiplayer: Tavern chat sidebar (desktop only) */}
-      {isLiveGame && game && game.is_ai === false && gameCode && (
+      {/* Multiplayer: Tavern chat sidebar (desktop only) — hidden for tournament bracket games */}
+      {isLiveGame && game && game.is_ai === false && gameCode && !hideTournamentChat && (
         <aside className="hidden lg:flex flex-col w-80 xl:w-[22rem] flex-shrink-0 min-h-0 h-full border-l border-amber-500/20 bg-gradient-to-b from-[#0a1214] to-[#061012] overflow-hidden">
           <div className="flex-1 min-h-0 p-2">
             <GameyChatRoom gameId={gameCode} me={me} isMobile={false} showHeader={true} />

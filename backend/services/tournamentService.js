@@ -52,6 +52,103 @@ function getMatchEntryIds(match) {
   return [...new Set(ids)];
 }
 
+/** Advancers from a completed match row (GROUP_ELIMINATION: advancing_entry_ids or winner only). */
+function parseAdvancingEntryIdsFromMatchRow(m) {
+  if (!m) return [];
+  if (String(m.status).toUpperCase() === "BYE" && m.winner_entry_id) {
+    const id = Number(m.winner_entry_id);
+    return Number.isInteger(id) && id > 0 ? [id] : [];
+  }
+  let raw = m.advancing_entry_ids;
+  if (raw != null && typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      raw = null;
+    }
+  }
+  if (Array.isArray(raw) && raw.length > 0) {
+    return [...new Set(raw.map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0))];
+  }
+  if (m.winner_entry_id) {
+    const id = Number(m.winner_entry_id);
+    return Number.isInteger(id) && id > 0 ? [id] : [];
+  }
+  return [];
+}
+
+/**
+ * GROUP_ELIMINATION: top 2 advance from 3–4 player pods (by net-worth placements).
+ * Single match in round with 4 entrants = championship (final four) → winner only advances.
+ */
+async function computeGroupEliminationAdvancingAndWinner(game, match, tournamentEntries) {
+  const participantEntryIds = getMatchEntryIds(match);
+  const n = participantEntryIds.length;
+  if (n < 1) return null;
+
+  const roundMatches = await TournamentMatch.findByTournamentAndRound(match.tournament_id, match.round_index);
+  const matchesInRound = (roundMatches || []).filter((mm) => String(mm.status).toUpperCase() !== "CANCELLED").length;
+  const isFinalFourChampionship = matchesInRound === 1 && n === 4;
+
+  let placementsObj = {};
+  if (game.placements != null) {
+    try {
+      placementsObj = typeof game.placements === "string" ? JSON.parse(game.placements) : game.placements;
+    } catch {
+      placementsObj = {};
+    }
+  }
+
+  const entryById = new Map((tournamentEntries || []).map((e) => [Number(e.id), e]));
+
+  const placementForUser = (uid) => {
+    if (uid == null) return 999;
+    const u = Number(uid);
+    if (Number.isFinite(u) && Object.prototype.hasOwnProperty.call(placementsObj, u)) return Number(placementsObj[u]);
+    if (Object.prototype.hasOwnProperty.call(placementsObj, String(u))) return Number(placementsObj[String(u)]);
+    return 999;
+  };
+
+  const ranked = participantEntryIds
+    .map((eid) => {
+      const entry = entryById.get(Number(eid));
+      const uid = entry?.user_id != null ? Number(entry.user_id) : null;
+      return { entry, eid: Number(eid), pos: placementForUser(uid) };
+    })
+    .filter((x) => x.entry)
+    .sort((a, b) => a.pos - b.pos);
+
+  const gt = String(game.game_type || "");
+  const hasGoodPlacements = ranked.length >= n && ranked[0].pos < 900;
+
+  if (n === 2 && !hasGoodPlacements) {
+    if (gt === "TOURNAMENT_AGENT_VS_AGENT") {
+      const winnerUserId = game.winner_id;
+      const wgp = await db("game_players")
+        .where({ game_id: game.id, user_id: winnerUserId })
+        .select("turn_order")
+        .first();
+      const ord = Number(wgp?.turn_order || 0);
+      const winEntryId = ord === 1 ? match.slot_a_entry_id : ord === 2 ? match.slot_b_entry_id : null;
+      let we =
+        tournamentEntries.find((e) => Number(e.id) === Number(winEntryId)) ||
+        (winEntryId ? await TournamentEntry.findById(winEntryId) : null);
+      if (we) return { advancingEntryIds: [we.id], winnerEntry: we };
+    }
+    const we = tournamentEntries.find((e) => e.user_id === game.winner_id);
+    if (we) return { advancingEntryIds: [we.id], winnerEntry: we };
+    return null;
+  }
+
+  if (!hasGoodPlacements) return null;
+
+  const takeCount = n <= 2 || isFinalFourChampionship ? 1 : Math.min(2, ranked.length);
+  const advancingEntryIds = ranked.slice(0, takeCount).map((x) => x.eid);
+  const winnerEntry = ranked[0]?.entry || null;
+  if (!winnerEntry) return null;
+  return { advancingEntryIds, winnerEntry };
+}
+
 function tournamentBoardRedirectUrl(code) {
   const c = code ? String(code).trim() : "";
   return `/board-3d-multi?gameCode=${encodeURIComponent(c)}`;
@@ -1272,18 +1369,21 @@ export async function startRound(tournamentId, roundIndex) {
     if (match.slot_a_type === "BYE" || match.slot_b_type === "BYE") {
       const winnerId = match.slot_a_entry_id || match.slot_b_entry_id;
       await TournamentMatch.update(match.id, { winner_entry_id: winnerId, status: "COMPLETED" });
-      continue;
-    }
-
-    const startIds = getMatchEntryIds(match);
-    if (startIds.length >= 2) {
-      try {
-        await createMatchGame(tournamentId, match.id);
-      } catch (err) {
-        logger.error({ err: err?.message, matchId: match.id }, "startRound createMatchGame failed");
-      }
     }
   }
+
+  const matchesAfterBye = await TournamentMatch.findByTournamentAndRound(tournamentId, Number(roundIndex));
+  const matchIdsToStart = matchesAfterBye
+    .filter((m) => m.status !== "BYE" && m.status !== "COMPLETED" && !m.game_id)
+    .filter((m) => getMatchEntryIds(m).length >= 2)
+    .map((m) => m.id);
+
+  const settled = await Promise.allSettled(matchIdsToStart.map((matchId) => createMatchGame(tournamentId, matchId)));
+  settled.forEach((r, i) => {
+    if (r.status === "rejected") {
+      logger.error({ err: r.reason?.message, matchId: matchIdsToStart[i] }, "startRound createMatchGame failed");
+    }
+  });
 
   const round = await TournamentRound.findByTournamentAndIndex(tournamentId, roundIndex);
   if (round) await TournamentRound.update(round.id, { status: "IN_PROGRESS", started_at: db.fn.now() });
@@ -1319,7 +1419,7 @@ async function maybeCompleteGroupEliminationTournament(tournamentId, winnerEntry
   }
 }
 
-async function handleGroupEliminationAfterMatchResolved(match, winnerEntry) {
+async function handleGroupEliminationAfterMatchResolved(match, _winnerEntry) {
   const roundMatches = await TournamentMatch.findByTournamentAndRound(match.tournament_id, match.round_index);
   const allDone = roundMatches.every((m) => m.status === "COMPLETED" || m.status === "BYE");
   if (!allDone) {
@@ -1329,9 +1429,18 @@ async function handleGroupEliminationAfterMatchResolved(match, winnerEntry) {
   const roundRow = await TournamentRound.findByTournamentAndIndex(match.tournament_id, match.round_index);
   if (roundRow) await TournamentRound.update(roundRow.id, { status: "COMPLETED", completed_at: db.fn.now() });
 
-  const winners = roundMatches.map((m) => m.winner_entry_id).filter(Boolean);
+  const advancerIds = new Set();
+  for (const m of roundMatches) {
+    if (m.status === "COMPLETED" || m.status === "BYE") {
+      for (const id of parseAdvancingEntryIdsFromMatchRow(m)) {
+        advancerIds.add(id);
+      }
+    }
+  }
+  const winners = [...advancerIds];
   if (winners.length === 1) {
-    await maybeCompleteGroupEliminationTournament(match.tournament_id, winnerEntry);
+    const champion = await TournamentEntry.findById(winners[0]);
+    if (champion) await maybeCompleteGroupEliminationTournament(match.tournament_id, champion);
     return { tournamentCompleted: true };
   }
 
@@ -1393,28 +1502,51 @@ export async function onGameFinished(gameId) {
     }
   }
 
-  const winnerUserId = game.winner_id;
   const entries = await TournamentEntry.findByTournament(match.tournament_id);
+  const formatEarly = tournamentRowEarly?.format || "SINGLE_ELIMINATION";
+  const winnerUserId = game.winner_id;
   const gt = String(game.game_type || "");
   let winnerEntry = null;
-  if (gt === "TOURNAMENT_AGENT_VS_AGENT") {
-    const wgp = await db("game_players")
-      .where({ game_id: gameId, user_id: winnerUserId })
-      .select("turn_order")
-      .first();
-    const ord = Number(wgp?.turn_order || 0);
-    const winEntryId = ord === 1 ? match.slot_a_entry_id : ord === 2 ? match.slot_b_entry_id : null;
-    if (!winEntryId) {
-      logger.warn(
-        { gameId, winnerUserId, ord, matchId: match.id },
-        "Tournament agent game: could not map winning seat to bracket entry"
+  let advancingEntryIdsForDb = null;
+
+  if (String(formatEarly).toUpperCase() === "GROUP_ELIMINATION") {
+    const comp = await computeGroupEliminationAdvancingAndWinner(game, match, entries);
+    if (comp) {
+      winnerEntry = comp.winnerEntry;
+      advancingEntryIdsForDb = comp.advancingEntryIds;
+    }
+  }
+
+  if (!winnerEntry) {
+    const nParts = getMatchEntryIds(match).length;
+    if (String(formatEarly).toUpperCase() === "GROUP_ELIMINATION" && nParts >= 3) {
+      logger.error(
+        { gameId, tournamentId: match.tournament_id, matchId: match.id },
+        "GROUP_ELIMINATION: could not resolve winner/advancers from placements"
       );
       return null;
     }
-    winnerEntry = entries.find((e) => Number(e.id) === Number(winEntryId)) || (await TournamentEntry.findById(winEntryId));
-  } else {
-    winnerEntry = entries.find((e) => e.user_id === winnerUserId);
+
+    if (gt === "TOURNAMENT_AGENT_VS_AGENT") {
+      const wgp = await db("game_players")
+        .where({ game_id: gameId, user_id: winnerUserId })
+        .select("turn_order")
+        .first();
+      const ord = Number(wgp?.turn_order || 0);
+      const winEntryId = ord === 1 ? match.slot_a_entry_id : ord === 2 ? match.slot_b_entry_id : null;
+      if (!winEntryId) {
+        logger.warn(
+          { gameId, winnerUserId, ord, matchId: match.id },
+          "Tournament agent game: could not map winning seat to bracket entry"
+        );
+        return null;
+      }
+      winnerEntry = entries.find((e) => Number(e.id) === Number(winEntryId)) || (await TournamentEntry.findById(winEntryId));
+    } else {
+      winnerEntry = entries.find((e) => e.user_id === winnerUserId);
+    }
   }
+
   if (!winnerEntry) {
     logger.warn({ gameId, winnerUserId, tournamentId: match.tournament_id, gameType: gt }, "Tournament: winner not in entries");
     return null;
@@ -1422,7 +1554,11 @@ export async function onGameFinished(gameId) {
 
   const entryIdsXp = getMatchEntryIds(match);
 
-  await TournamentMatch.update(match.id, { winner_entry_id: winnerEntry.id, status: "COMPLETED" });
+  const matchUpdate = { winner_entry_id: winnerEntry.id, status: "COMPLETED" };
+  if (advancingEntryIdsForDb != null && advancingEntryIdsForDb.length > 0) {
+    matchUpdate.advancing_entry_ids = advancingEntryIdsForDb;
+  }
+  await TournamentMatch.update(match.id, matchUpdate);
 
   try {
     const entryAgentRows = await db("tournament_entry_agents")

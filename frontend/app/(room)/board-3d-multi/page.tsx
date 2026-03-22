@@ -41,6 +41,8 @@ import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 import PlayerSection3D from "@/components/game/board3d/PlayerSection3D";
 import PerksBar from "@/components/game/board3d/PerksBar";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
+import { applyAgentBattleDisplayNamesToHistory } from "@/lib/agentBattleHistoryNames";
+import { isTournamentBoardGame } from "@/lib/tournamentBoardGame";
 import { isOnchainHumanVsAgentGame } from "@/lib/utils/games";
 import { MyAgentToggle } from "@/components/game/MyAgentToggle";
 import { useAgentBindings } from "@/hooks/useAgentBindings";
@@ -256,6 +258,7 @@ function Board3DPageContent() {
 
   const isLiveGame = !!gameCode && !!game;
   const isMultiplayer = !!game && game.is_ai === false;
+  const hideTournamentChat = isTournamentBoardGame(game ?? null, gameCode);
 
   useEffect(() => {
     if (!gameCode || !SOCKET_URL || !game || game.is_ai !== false) return;
@@ -2196,7 +2199,10 @@ function Board3DPageContent() {
     }
   }, [game?.id, game?.winner_id, winner?.user_id, me?.user_id, claimAndLeaveInProgress]);
 
-  const historyToShow = isLiveGame && game?.history?.length ? game.history : demoHistory;
+  const historyToShow = useMemo(() => {
+    const raw = isLiveGame && game?.history?.length ? game.history : demoHistory;
+    return applyAgentBattleDisplayNamesToHistory(raw, isAgentBattle, livePlayers);
+  }, [isLiveGame, game?.history, isAgentBattle, livePlayers]);
   // Live game: show last visible roll for all players (roller sets it locally; opponents get it via socket "player-rolled")
   const lastRollResultToShow = isLiveGame
     ? (lastVisibleRoll ? { die1: lastVisibleRoll.die1, die2: lastVisibleRoll.die2, total: lastVisibleRoll.total } : null)
@@ -2992,23 +2998,26 @@ function Board3DPageContent() {
         )}
       </div>
 
-      {/* Spacer so board doesn't sit under fixed chat sidebar */}
-      <div className="hidden lg:block w-96 flex-shrink-0" aria-hidden="true" />
+      {/* Spacer + tavern chat hidden for tournament bracket games */}
+      {!hideTournamentChat && (
+        <div className="hidden lg:block w-96 flex-shrink-0" aria-hidden="true" />
+      )}
 
-      {/* Tavern (game) chat only — general chat is in Rooms from nav */}
-      <aside className="hidden lg:flex flex-col w-96 fixed right-4 top-[60px] z-20 h-[calc(100vh-60px-1rem)] max-h-[calc(100vh-60px-1rem)] border border-amber-500/20 rounded-xl bg-gradient-to-b from-[#0a1214] to-[#061012] overflow-hidden shadow-xl">
-        <div className="flex-1 min-h-0 p-2 flex flex-col overflow-hidden">
-          <GameyChatRoom
-            gameId={gameCode ?? game?.code ?? ""}
-            me={me}
-            isMobile={false}
-            showHeader={true}
-            disableSend={hasLeftGame}
-            fallbackAddress={guestUser?.address ?? address ?? undefined}
-            fallbackUserId={me?.user_id ?? undefined}
-          />
-        </div>
-      </aside>
+      {!hideTournamentChat && (
+        <aside className="hidden lg:flex flex-col w-96 fixed right-4 top-[60px] z-20 h-[calc(100vh-60px-1rem)] max-h-[calc(100vh-60px-1rem)] border border-amber-500/20 rounded-xl bg-gradient-to-b from-[#0a1214] to-[#061012] overflow-hidden shadow-xl">
+          <div className="flex-1 min-h-0 p-2 flex flex-col overflow-hidden">
+            <GameyChatRoom
+              gameId={gameCode ?? game?.code ?? ""}
+              me={me}
+              isMobile={false}
+              showHeader={true}
+              disableSend={hasLeftGame}
+              fallbackAddress={guestUser?.address ?? address ?? undefined}
+              fallbackUserId={me?.user_id ?? undefined}
+            />
+          </div>
+        </aside>
+      )}
       </div>
 
       <Toaster position="top-center" />

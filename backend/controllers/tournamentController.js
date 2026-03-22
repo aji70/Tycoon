@@ -74,6 +74,16 @@ export async function getById(req, res) {
     const entries = await TournamentEntry.findByTournament(req.params.id, { withUser: true });
     const rounds = await TournamentRound.findByTournament(req.params.id);
     const matches = await TournamentMatch.findByTournament(req.params.id);
+    const gameIds = [...new Set((matches || []).map((m) => m.game_id).filter(Boolean))];
+    let matchGameTypeById = {};
+    if (gameIds.length) {
+      const gRows = await db("games").whereIn("id", gameIds).select("id", "game_type");
+      matchGameTypeById = Object.fromEntries((gRows || []).map((r) => [r.id, r.game_type]));
+    }
+    const matchesWithGameType = (matches || []).map((m) => ({
+      ...m,
+      match_game_type: m.game_id ? matchGameTypeById[m.game_id] ?? null : null,
+    }));
     const creator = tournament.creator_id ? await User.findById(tournament.creator_id) : null;
     const creator_address =
       creator?.address ||
@@ -104,7 +114,7 @@ export async function getById(req, res) {
       is_creator: Boolean(isCreator),
       entries,
       rounds,
-      matches,
+      matches: matchesWithGameType,
     });
   } catch (err) {
     logger.error({ err: err?.message }, "tournament getById failed");

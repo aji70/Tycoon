@@ -10,6 +10,9 @@ function normalizeMatchInsertRow(row) {
   if (Array.isArray(out.participant_entry_ids)) {
     out.participant_entry_ids = JSON.stringify(out.participant_entry_ids);
   }
+  if (Array.isArray(out.advancing_entry_ids)) {
+    out.advancing_entry_ids = JSON.stringify(out.advancing_entry_ids);
+  }
   return out;
 }
 
@@ -47,7 +50,8 @@ const TournamentMatch = {
   },
 
   async update(id, data) {
-    await db("tournament_matches").where({ id }).update({ ...data, updated_at: db.fn.now() });
+    const row = normalizeMatchInsertRow({ ...data });
+    await db("tournament_matches").where({ id }).update({ ...row, updated_at: db.fn.now() });
     return this.findById(id);
   },
 };

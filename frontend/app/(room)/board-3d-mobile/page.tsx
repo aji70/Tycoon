@@ -55,6 +55,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, HeartHandshake, MessageCircle, X, Bot } from "lucide-react";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
 import { gameHasRankedPlacements, isOnchainHumanVsAgentGame } from "@/lib/utils/games";
+import { applyAgentBattleDisplayNamesToHistory } from "@/lib/agentBattleHistoryNames";
+import { isTournamentBoardGame } from "@/lib/tournamentBoardGame";
 
 const Canvas = dynamic(
   () => import("@react-three/fiber").then((m) => m.Canvas),
@@ -336,6 +338,10 @@ function Board3DMobileContent() {
   const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const hideTournamentChat = isTournamentBoardGame(game ?? null, gameCode);
+  useEffect(() => {
+    if (hideTournamentChat && chatOpen) setChatOpen(false);
+  }, [hideTournamentChat, chatOpen]);
   const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
   const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
   const [showVotedOutModal, setShowVotedOutModal] = useState(false);
@@ -2515,7 +2521,10 @@ function Board3DMobileContent() {
     }
   }, [winner?.user_id, me?.user_id, game?.id, refetchGame]);
 
-  const historyToShow = isLiveGame && game?.history?.length ? game.history : [];
+  const historyToShow = useMemo(() => {
+    const raw = isLiveGame && game?.history?.length ? game.history : [];
+    return applyAgentBattleDisplayNamesToHistory(raw, isAgentBattle, livePlayers);
+  }, [isLiveGame, game?.history, isAgentBattle, livePlayers]);
   const lastRollResultToShow = lastRollResultLive;
   const showRollUi = !isLiveGame || (playerCanRoll && !(meInJail && !jailChoiceRequired));
 
@@ -2630,7 +2639,7 @@ function Board3DMobileContent() {
             </button>
           </div>
         )}
-        {isLiveGame && isMultiplayer && gameCode && (
+        {isLiveGame && isMultiplayer && gameCode && !hideTournamentChat && (
           <button
             type="button"
             onClick={() => setChatOpen(true)}
@@ -3280,7 +3289,7 @@ function Board3DMobileContent() {
 
       {/* Multiplayer: Tavern chat slide-up panel (mobile) */}
       <AnimatePresence>
-        {chatOpen && isLiveGame && isMultiplayer && gameCode && (
+        {chatOpen && isLiveGame && isMultiplayer && gameCode && !hideTournamentChat && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

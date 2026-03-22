@@ -54,6 +54,8 @@ export interface Game {
   /** On-chain Tycoon game id (bigint as string). Used for endAIGame / setTurnCount / removePlayerFromGame. */
   contract_game_id?: string | null;
   is_ai?: boolean;
+  /** e.g. TOURNAMENT_AGENT_VS_AGENT — used for UI (tournament board, hide chat). */
+  game_type?: string | null;
   /** When game ends by time: { user_id: position } where 1 = winner. */
   placements?: Record<number, number>;
   settings: GameSettings;
