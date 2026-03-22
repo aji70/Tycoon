@@ -23,6 +23,7 @@ import agentRegistry from "./agentRegistry.js";
 import * as bracketEngine from "./tournamentBracketEngine.js";
 import { parseParticipantEntryIds, newSpectatorToken } from "./tournamentGroupHelpers.js";
 import { ACTIVITY_XP, awardActivityXpByAgentId } from "./eloService.js";
+import { computeNetWorthResultForGameId, placementsFromNetWorths } from "./gameNetWorthCompute.js";
 import { createTwoPlayerAgentArenaGame, createMultiPlayerAgentArenaGame } from "./agentArenaGameFactory.js";
 
 const TOURNAMENT_SYMBOLS = ["hat", "car", "dog", "thimble", "wheelbarrow", "battleship", "boot", "iron"];
@@ -109,17 +110,53 @@ async function computeGroupEliminationAdvancingAndWinner(game, match, tournament
     return 999;
   };
 
-  const ranked = participantEntryIds
-    .map((eid) => {
-      const entry = entryById.get(Number(eid));
-      const uid = entry?.user_id != null ? Number(entry.user_id) : null;
-      return { entry, eid: Number(eid), pos: placementForUser(uid) };
-    })
-    .filter((x) => x.entry)
-    .sort((a, b) => a.pos - b.pos);
+  const buildRanked = () =>
+    participantEntryIds
+      .map((eid) => {
+        const entry = entryById.get(Number(eid));
+        const uid = entry?.user_id != null ? Number(entry.user_id) : null;
+        return { entry, eid: Number(eid), pos: placementForUser(uid) };
+      })
+      .filter((x) => x.entry)
+      .sort((a, b) => a.pos - b.pos);
+
+  let ranked = buildRanked();
+  let hasGoodPlacements = ranked.length >= n && ranked[0].pos < 900;
+
+  /** 3–4 player pods often finish without game.placements (client PATCH FINISHED only). Derive from net worth. */
+  if (!hasGoodPlacements && n >= 3) {
+    const nw = await computeNetWorthResultForGameId(game.id);
+    if (nw?.net_worths?.length) {
+      const allowedUids = new Set(
+        participantEntryIds
+          .map((eid) => entryById.get(Number(eid))?.user_id)
+          .filter((uid) => uid != null)
+          .map((uid) => Number(uid))
+      );
+      const subset = nw.net_worths.filter((row) => allowedUids.has(Number(row.user_id)));
+      const source = subset.length >= n ? subset : nw.net_worths.length >= n ? nw.net_worths : null;
+      if (source) {
+        placementsObj = placementsFromNetWorths(source);
+        ranked = buildRanked();
+        hasGoodPlacements = ranked.length >= n && ranked[0].pos < 900;
+        if (hasGoodPlacements) {
+          try {
+            await db("games").where({ id: game.id }).update({
+              placements: JSON.stringify(placementsObj),
+              updated_at: db.fn.now(),
+            });
+          } catch (err) {
+            logger.warn(
+              { err: err?.message, gameId: game.id },
+              "Could not persist derived placements for tournament game"
+            );
+          }
+        }
+      }
+    }
+  }
 
   const gt = String(game.game_type || "");
-  const hasGoodPlacements = ranked.length >= n && ranked[0].pos < 900;
 
   if (n === 2 && !hasGoodPlacements) {
     if (gt === "TOURNAMENT_AGENT_VS_AGENT") {

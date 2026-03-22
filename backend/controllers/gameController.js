@@ -33,6 +33,10 @@ import {
 } from "../services/starknetContract.js";
 import { ensureUserHasContractPassword, ensureGuestContractPlayReady } from "../utils/ensureContractAuth.js";
 import { onGameFinished as tournamentOnGameFinished } from "../services/tournamentService.js";
+import {
+  computeNetWorthResultForGameId,
+  placementsFromNetWorths,
+} from "../services/gameNetWorthCompute.js";
 import { settleStakedArenaForFinishedGame } from "../services/arenaStakeSettlement.js";
 import { submitErc8004Feedback as submitErc8004FeedbackTx } from "../services/erc8004Feedback.js";
 import { getActiveByGameId } from "./auctionController.js";
@@ -157,14 +161,6 @@ function buildAiDifficultyPayload(aiDiff, aiDiffMode, aiCount, isAi) {
   return payload;
 }
 
-const PROPERTY_TYPES = {
-  RAILWAY: [5, 15, 25, 35],
-  UTILITY: [12, 28],
-};
-const RAILWAY_RENT = { 1: 25, 2: 50, 3: 100, 4: 200 };
-const UTILITY_MULTIPLIER = { 1: 4, 2: 10 };
-const AVERAGE_DICE_ROLL = 7;
-
 /**
  * Compute winner by net worth: cash + property values (incl. mortgage) + building resale value + one-turn rent potential.
  * Does not modify DB.
@@ -172,88 +168,7 @@ const AVERAGE_DICE_ROLL = 7;
  */
 async function computeWinnerByNetWorth(game) {
   if (!game || game?.status !== "RUNNING") return null;
-  const players = await db("game_players").where({ game_id: game.id }).select("id", "user_id", "balance", "turn_count");
-  if (players.length === 0) return null;
-
-  const rows = await db("game_properties as gp")
-    .join("properties as p", "gp.property_id", "p.id")
-    .where("gp.game_id", game.id)
-    .whereNotNull("gp.player_id")
-    .select(
-      "gp.player_id",
-      "gp.property_id",
-      "gp.development",
-      "gp.mortgaged",
-      "p.price",
-      "p.cost_of_house",
-      "p.rent_site_only",
-      "p.rent_one_house",
-      "p.rent_two_houses",
-      "p.rent_three_houses",
-      "p.rent_four_houses",
-      "p.rent_hotel"
-    );
-
-  const byPlayerId = new Map();
-  for (const row of rows) byPlayerId.set(row.player_id, [...(byPlayerId.get(row.player_id) || []), row]);
-
-  function oneTurnRent(gp, ownedByThisPlayer) {
-    if (Number(gp.mortgaged)) return 0;
-    if (PROPERTY_TYPES.RAILWAY.includes(gp.property_id)) {
-      const count = ownedByThisPlayer.filter((o) => PROPERTY_TYPES.RAILWAY.includes(o.property_id)).length;
-      return RAILWAY_RENT[count] || 0;
-    }
-    if (PROPERTY_TYPES.UTILITY.includes(gp.property_id)) {
-      const count = ownedByThisPlayer.filter((o) => PROPERTY_TYPES.UTILITY.includes(o.property_id)).length;
-      return AVERAGE_DICE_ROLL * (UTILITY_MULTIPLIER[count] || 0);
-    }
-    const dev = Math.min(5, Math.max(0, Number(gp.development || 0)));
-    const rents = [
-      gp.rent_site_only,
-      gp.rent_one_house,
-      gp.rent_two_houses,
-      gp.rent_three_houses,
-      gp.rent_four_houses,
-      gp.rent_hotel,
-    ];
-    return Number(rents[dev] || 0);
-  }
-
-  const net_worths = [];
-  let best = { user_id: null, net_worth: -1 };
-  for (const player of players) {
-    const cash = Number(player.balance) || 0;
-    const owned = byPlayerId.get(player.id) || [];
-    let propertyValue = 0;
-    let buildingValue = 0;
-    let rentTotal = 0;
-    for (const gp of owned) {
-      const price = Number(gp.price) || 0;
-      propertyValue += Number(gp.mortgaged) ? Math.floor(price / 2) : price;
-      // Building resale value (half cost when sold back to bank); development 0–5 = 0–4 houses or hotel
-      const dev = Math.min(5, Math.max(0, Number(gp.development || 0)));
-      const costOfHouse = Number(gp.cost_of_house) || 0;
-      buildingValue += Math.floor(dev * costOfHouse / 2);
-      rentTotal += oneTurnRent(gp, owned);
-    }
-    const net_worth = cash + propertyValue + buildingValue + rentTotal;
-    net_worths.push({ user_id: player.user_id, net_worth });
-    if (net_worth > best.net_worth) {
-      const winnerTurnCount = Number(player.turn_count || 0);
-      best = { 
-        user_id: player.user_id, 
-        net_worth,
-        turn_count: winnerTurnCount,
-        valid_win: winnerTurnCount >= 20 // Valid win requires >= 20 turns
-      };
-    }
-  }
-  return { 
-    winner_id: best.user_id, 
-    net_worths,
-    winner_turn_count: best.turn_count || 0,
-    valid_win: best.valid_win !== false // Default to true if not set
-  };
+  return computeNetWorthResultForGameId(game.id);
 }
 
 /** DB statuses that allow finishing a live multiplayer / on-chain session (not PENDING lobby). */
@@ -271,12 +186,7 @@ export async function finishGameByNetWorthAndNotify(io, game) {
   const result = await computeWinnerByNetWorth(game);
   if (!result || result.winner_id == null) return null;
 
-  const sortedByNetWorth = [...(result.net_worths || [])].sort((a, b) => (a.net_worth ?? 0) - (b.net_worth ?? 0));
-  const placements = {};
-  for (let i = 0; i < sortedByNetWorth.length; i++) {
-    const position = sortedByNetWorth.length - i;
-    placements[sortedByNetWorth[i].user_id] = position;
-  }
+  const placements = placementsFromNetWorths(result.net_worths);
 
   const updatePayload = { status: "FINISHED", winner_id: result.winner_id, placements: JSON.stringify(placements) };
   const rowCount = await db("games")
