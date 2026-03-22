@@ -14,7 +14,7 @@ const AVERAGE_DICE_ROLL = 7;
 
 /**
  * @param {number} gameId
- * @returns {Promise<{ winner_id: number|null, net_worths: { user_id: number, net_worth: number }[], winner_turn_count: number, valid_win: boolean } | null>}
+ * @returns {Promise<{ winner_id: number|null, net_worths: { user_id: number, net_worth: number, balance?: number }[], winner_turn_count: number, valid_win: boolean } | null>}
  */
 export async function computeNetWorthResultForGameId(gameId) {
   const gid = Number(gameId);
@@ -84,7 +84,7 @@ export async function computeNetWorthResultForGameId(gameId) {
       rentTotal += oneTurnRent(gp, owned);
     }
     const net_worth = cash + propertyValue + buildingValue + rentTotal;
-    net_worths.push({ user_id: player.user_id, net_worth });
+    net_worths.push({ user_id: player.user_id, net_worth, balance: cash });
     const winnerTurnCount = Number(player.turn_count || 0);
     if (net_worth > best.net_worth) {
       best = {
@@ -103,12 +103,60 @@ export async function computeNetWorthResultForGameId(gameId) {
   };
 }
 
-/** Placement 1 = best (highest net worth), same scheme as finishGameByNetWorthAndNotify. */
+/**
+ * Placement 1 = best (highest net worth). Tie-break: higher cash balance, then lower user_id (stable).
+ * Eliminated tournament seats are appended with net_worth -1e18 so they place last.
+ */
 export function placementsFromNetWorths(netWorths) {
-  const sorted = [...(netWorths || [])].sort((a, b) => (a.net_worth ?? 0) - (b.net_worth ?? 0));
+  const sorted = [...(netWorths || [])].sort((a, b) => {
+    const nw = (a.net_worth ?? 0) - (b.net_worth ?? 0);
+    if (nw !== 0) return nw;
+    const ba = Number(a.balance ?? 0);
+    const bb = Number(b.balance ?? 0);
+    const bc = ba - bb;
+    if (bc !== 0) return bc;
+    return Number(a.user_id) - Number(b.user_id);
+  });
   const placements = {};
   for (let i = 0; i < sorted.length; i++) {
     placements[sorted[i].user_id] = sorted.length - i;
   }
   return placements;
+}
+
+/**
+ * Bankrupt players are deleted from game_players; timed finish would otherwise rank only survivors and can tie them wrongly.
+ * Re-inject each tournament seat's user_id that is missing from net_worths with worst wealth so placements are 1..N.
+ * Dynamic import avoids load-time cycle with tournamentService.
+ */
+export async function augmentNetWorthsWithEliminatedTournamentSeats(gameId, gameType, netWorths) {
+  if (String(gameType || "").toUpperCase() !== "TOURNAMENT_AGENT_VS_AGENT") return netWorths || [];
+  const gid = Number(gameId);
+  if (!Number.isInteger(gid) || gid <= 0) return netWorths || [];
+
+  const match = await db("tournament_matches").where({ game_id: gid }).first();
+  if (!match) return netWorths || [];
+
+  const { parseParticipantEntryIds } = await import("./tournamentGroupHelpers.js");
+  const { mapTournamentEntryIdsToSeatUserIds } = await import("./tournamentService.js");
+
+  let pids = parseParticipantEntryIds(match);
+  if (!pids.length) {
+    pids = [match.slot_a_entry_id, match.slot_b_entry_id].filter(Boolean).map(Number);
+  }
+  pids = [...new Set(pids.filter((id) => Number.isInteger(id) && id > 0))];
+  if (pids.length < 2) return netWorths || [];
+
+  const map = await mapTournamentEntryIdsToSeatUserIds(gid, pids, pids, true);
+  const seen = new Set((netWorths || []).map((n) => Number(n.user_id)));
+  const out = [...(netWorths || [])];
+  for (const eid of pids) {
+    const uid = map.get(Number(eid));
+    if (uid == null || !Number.isFinite(uid)) continue;
+    if (!seen.has(uid)) {
+      out.push({ user_id: uid, net_worth: -1e18, balance: -1e18 });
+      seen.add(uid);
+    }
+  }
+  return out;
 }
