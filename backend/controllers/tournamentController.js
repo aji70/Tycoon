@@ -15,6 +15,70 @@ import crypto from "crypto";
 import { signWithdrawalAuthUsdc, withdrawFromSmartWalletUsdc } from "../services/tycoonContract.js";
 import { ACTIVITY_XP, awardActivityXpByAgentId } from "../services/eloService.js";
 import { listAgentSmartWalletCandidates } from "../services/agentTournamentFreeAgents.js";
+import { parseParticipantEntryIds } from "../services/tournamentGroupHelpers.js";
+
+/**
+ * Ordered 1st / 2nd / 3rd … for a bracket match (from game.placements or 2p winner/loser).
+ */
+function standingsForBracketMatch(match, game, entryMap, displayName) {
+  const st = String(match.status || "").toUpperCase();
+  if (st === "BYE" && match.winner_entry_id) {
+    const eid = Number(match.winner_entry_id);
+    return [
+      {
+        place: 1,
+        entry_id: eid,
+        username: displayName(entryMap[eid]),
+      },
+    ];
+  }
+  if (st !== "COMPLETED") return null;
+
+  let entryIds = parseParticipantEntryIds(match);
+  if (!entryIds.length) {
+    entryIds = [match.slot_a_entry_id, match.slot_b_entry_id].filter(Boolean).map(Number);
+  }
+  const unique = [...new Set(entryIds.filter((id) => Number.isInteger(id) && id > 0))];
+
+  let placements = {};
+  if (game?.placements != null) {
+    let raw = game.placements;
+    if (typeof raw === "string") {
+      try {
+        raw = JSON.parse(raw);
+      } catch {
+        raw = {};
+      }
+    }
+    if (raw && typeof raw === "object") placements = raw;
+  }
+
+  const rows = unique.map((eid) => {
+    const e = entryMap[eid];
+    const uid = e?.user_id != null ? Number(e.user_id) : null;
+    let place = 999;
+    if (uid != null) {
+      if (Object.prototype.hasOwnProperty.call(placements, uid)) place = Number(placements[uid]);
+      else if (Object.prototype.hasOwnProperty.call(placements, String(uid))) place = Number(placements[String(uid)]);
+    }
+    return {
+      entry_id: eid,
+      place,
+      username: displayName(e),
+    };
+  });
+
+  const allBad = rows.length > 0 && rows.every((r) => r.place >= 900);
+  if (allBad && unique.length === 2 && match.winner_entry_id) {
+    const wid = Number(match.winner_entry_id);
+    rows.forEach((r) => {
+      r.place = r.entry_id === wid ? 1 : 2;
+    });
+  }
+
+  rows.sort((a, b) => a.place - b.place || a.entry_id - b.entry_id);
+  return rows;
+}
 
 /**
  * GET /api/tournaments/spectate/:token — resolve tournament match spectator link to board URL.
@@ -405,50 +469,80 @@ export async function getBracket(req, res) {
       (e?.agent_name && String(e.agent_name).trim()) || e?.username || e?.user_address || null;
     const gameIds = [...new Set((matches || []).map((m) => m.game_id).filter(Boolean))];
     let matchGameTypeById = {};
+    let gameById = {};
     if (gameIds.length) {
-      const gRows = await db("games").whereIn("id", gameIds).select("id", "game_type");
+      const gRows = await db("games").whereIn("id", gameIds).select("id", "game_type", "placements", "winner_id");
       matchGameTypeById = Object.fromEntries((gRows || []).map((r) => [r.id, r.game_type]));
+      gameById = Object.fromEntries((gRows || []).map((r) => [r.id, r]));
     }
-    const bracket = {
-      tournament: { id: tournament.id, name: tournament.name, status: tournament.status },
-      rounds: rounds.map((r) => ({
-        round_index: r.round_index,
-        status: r.status,
-        scheduled_start_at: r.scheduled_start_at ?? null,
-        matches: matches
-          .filter((m) => m.round_index === r.round_index)
-          .map((m) => {
-            let participant_entry_ids = null;
-            try {
-              const raw = m.participant_entry_ids;
-              if (raw != null) {
-                participant_entry_ids = typeof raw === "string" ? JSON.parse(raw) : raw;
-              }
-            } catch {
-              participant_entry_ids = null;
-            }
-            const spec = m.spectator_token ? `/spectate/${m.spectator_token}` : null;
-            return {
-              id: m.id,
-              match_index: m.match_index,
-              slot_a_entry_id: m.slot_a_entry_id,
-              slot_b_entry_id: m.slot_b_entry_id,
-              participant_entry_ids,
-              slot_a_type: m.slot_a_type,
-              slot_b_type: m.slot_b_type,
-              winner_entry_id: m.winner_entry_id,
-              game_id: m.game_id,
-              contract_game_id: m.contract_game_id,
-              status: m.status,
-              spectator_token: m.spectator_token ?? null,
-              spectator_url: spec,
-              slot_a_username: m.slot_a_entry_id ? entryDisplayName(entryMap[m.slot_a_entry_id]) : null,
-              slot_b_username: m.slot_b_entry_id ? entryDisplayName(entryMap[m.slot_b_entry_id]) : null,
-              winner_username: m.winner_entry_id ? entryDisplayName(entryMap[m.winner_entry_id]) : null,
-              match_game_type: m.game_id ? matchGameTypeById[m.game_id] ?? null : null,
-            };
-          }),
+    const mapMatch = (m) => {
+      let participant_entry_ids = null;
+      try {
+        const raw = m.participant_entry_ids;
+        if (raw != null) {
+          participant_entry_ids = typeof raw === "string" ? JSON.parse(raw) : raw;
+        }
+      } catch {
+        participant_entry_ids = null;
+      }
+      const spec = m.spectator_token ? `/spectate/${m.spectator_token}` : null;
+      const game = m.game_id ? gameById[m.game_id] : null;
+      const standings = standingsForBracketMatch(m, game, entryMap, entryDisplayName);
+      const runnerUp =
+        standings && standings.length >= 2 ? standings.find((s) => s.place === 2)?.entry_id ?? null : null;
+      return {
+        id: m.id,
+        match_index: m.match_index,
+        slot_a_entry_id: m.slot_a_entry_id,
+        slot_b_entry_id: m.slot_b_entry_id,
+        participant_entry_ids,
+        slot_a_type: m.slot_a_type,
+        slot_b_type: m.slot_b_type,
+        winner_entry_id: m.winner_entry_id,
+        runner_up_entry_id: runnerUp,
+        game_id: m.game_id,
+        contract_game_id: m.contract_game_id,
+        status: m.status,
+        spectator_token: m.spectator_token ?? null,
+        spectator_url: spec,
+        slot_a_username: m.slot_a_entry_id ? entryDisplayName(entryMap[m.slot_a_entry_id]) : null,
+        slot_b_username: m.slot_b_entry_id ? entryDisplayName(entryMap[m.slot_b_entry_id]) : null,
+        winner_username: m.winner_entry_id ? entryDisplayName(entryMap[m.winner_entry_id]) : null,
+        match_game_type: m.game_id ? matchGameTypeById[m.game_id] ?? null : null,
+        standings,
+        first_entry_id: standings?.[0]?.entry_id ?? null,
+        second_entry_id: standings?.[1]?.entry_id ?? null,
+        third_entry_id: standings?.[2]?.entry_id ?? null,
+      };
+    };
+    const roundsPayload = rounds.map((r) => ({
+      round_index: r.round_index,
+      status: r.status,
+      scheduled_start_at: r.scheduled_start_at ?? null,
+      matches: matches.filter((m) => m.round_index === r.round_index).map(mapMatch),
+    }));
+    const round_results = roundsPayload.map((r) => ({
+      round_index: r.round_index,
+      status: r.status,
+      matches: r.matches.map((mm) => ({
+        match_id: mm.id,
+        match_index: mm.match_index,
+        status: mm.status,
+        first_entry_id: mm.first_entry_id,
+        second_entry_id: mm.second_entry_id,
+        third_entry_id: mm.third_entry_id,
+        standings: mm.standings,
       })),
+    }));
+    const bracket = {
+      tournament: {
+        id: tournament.id,
+        name: tournament.name,
+        status: tournament.status,
+        format: tournament.format ?? null,
+      },
+      rounds: roundsPayload,
+      round_results,
     };
     return res.json(bracket);
   } catch (err) {

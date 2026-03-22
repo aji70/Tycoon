@@ -16,6 +16,91 @@ import logger from "../config/logger.js";
 import { splitIntoBalancedGroups, splitIntoAgentArenaGroups } from "./tournamentGroupHelpers.js";
 
 /**
+ * How many bracket rounds and how many matches per round for group elimination,
+ * using the same advance rules as computeGroupEliminationAdvancingAndWinner in tournamentService.
+ * @returns {{ matchCount: number }[]} one entry per round_index (0..R-1)
+ */
+export function projectGroupEliminationSchedule(initialN, isAgentOnly) {
+  const schedule = [];
+  let n = initialN;
+  while (n > 1) {
+    let groupSizes;
+    let byeCount = 0;
+    if (isAgentOnly) {
+      const split = splitIntoAgentArenaGroups(Array.from({ length: n }, (_, i) => i + 1));
+      groupSizes = split.groups.map((g) => g.length);
+      byeCount = split.byes.length;
+    } else {
+      const gr = splitIntoBalancedGroups(Array.from({ length: n }, (_, i) => i + 1), 2, 4);
+      groupSizes = gr.map((g) => g.length);
+    }
+    const matchesInRound = groupSizes.length + byeCount;
+    schedule.push({ matchCount: matchesInRound });
+    let nextN = 0;
+    for (const sz of groupSizes) {
+      const isFinalFourChampionship = matchesInRound === 1 && sz === 4;
+      const take = sz <= 2 || isFinalFourChampionship ? 1 : Math.min(2, sz);
+      nextN += take;
+    }
+    nextN += byeCount;
+    n = nextN;
+  }
+  return schedule;
+}
+
+function buildGroupEliminationMatchRows(tournamentId, roundIndex, groups, byeEntryIds) {
+  const matchRows = [];
+  let matchIndex = 0;
+  for (const groupIds of groups) {
+    const [a, b] = groupIds;
+    matchRows.push({
+      tournament_id: tournamentId,
+      round_index: roundIndex,
+      match_index: matchIndex++,
+      slot_a_type: "ENTRY",
+      slot_a_entry_id: a,
+      slot_b_type: "ENTRY",
+      slot_b_entry_id: b ?? null,
+      participant_entry_ids: groupIds,
+      status: "PENDING",
+    });
+  }
+  for (const byeId of byeEntryIds) {
+    matchRows.push({
+      tournament_id: tournamentId,
+      round_index: roundIndex,
+      match_index: matchIndex++,
+      slot_a_type: "ENTRY",
+      slot_a_entry_id: byeId,
+      slot_b_type: "BYE",
+      slot_b_entry_id: null,
+      participant_entry_ids: [byeId],
+      status: "BYE",
+      winner_entry_id: byeId,
+    });
+  }
+  return matchRows;
+}
+
+function buildPlaceholderGroupMatches(tournamentId, roundIndex, matchCount) {
+  const rows = [];
+  for (let m = 0; m < matchCount; m++) {
+    rows.push({
+      tournament_id: tournamentId,
+      round_index: roundIndex,
+      match_index: m,
+      slot_a_type: "ENTRY",
+      slot_a_entry_id: null,
+      slot_b_type: "ENTRY",
+      slot_b_entry_id: null,
+      participant_entry_ids: [],
+      status: "PENDING",
+    });
+  }
+  return rows;
+}
+
+/**
  * Generate round-robin bracket.
  * Every entry plays every other entry once.
  * Score: 3 pts win, 1 pt draw, 0 pts loss.
@@ -339,13 +424,16 @@ async function getAdvancers(tournamentId, roundIndex) {
  * Dispatch bracket generation based on tournament format.
  */
 /**
- * Multi-table elimination: 2–4 players per match, rounds generated until one champion.
- * Only round 0 is created here; later rounds are inserted when the previous round completes.
+ * Multi-table elimination: 2–4 players per match. All tournament_rounds and match *slots*
+ * are created up front; later rounds are filled when the previous round completes.
  */
 export async function generateGroupEliminationBracket(tournamentId, entries, options = {}) {
   const n = entries.length;
   if (n < 2) throw new Error("Need at least 2 entries");
   const isAgentOnly = Boolean(options.isAgentOnly);
+  const schedule = projectGroupEliminationSchedule(n, isAgentOnly);
+  if (!schedule.length) throw new Error("Could not project group elimination schedule");
+
   let groups;
   let byeEntryIds = [];
   if (isAgentOnly) {
@@ -362,70 +450,55 @@ export async function generateGroupEliminationBracket(tournamentId, entries, opt
 
   await Tournament.update(tournamentId, { status: "BRACKET_LOCKED" });
 
-  const scheduledStartAt = options.first_round_start_at
-    ? new Date(options.first_round_start_at)
-    : null;
-
-  await TournamentRound.create({
+  const roundRows = schedule.map((_, r) => ({
     tournament_id: tournamentId,
-    round_index: 0,
+    round_index: r,
     status: "PENDING",
-    scheduled_start_at: scheduledStartAt,
-  });
+    scheduled_start_at: options.first_round_start_at
+      ? new Date(new Date(options.first_round_start_at).getTime() + r * 24 * 60 * 60 * 1000)
+      : null,
+  }));
+  await TournamentRound.bulkCreate(roundRows);
 
-  const matchRows = [];
-  let matchIndex = 0;
-  for (const groupIds of groups) {
-    const [a, b] = groupIds;
-    matchRows.push({
-      tournament_id: tournamentId,
-      round_index: 0,
-      match_index: matchIndex++,
-      slot_a_type: "ENTRY",
-      slot_a_entry_id: a,
-      slot_b_type: "ENTRY",
-      slot_b_entry_id: b ?? null,
-      participant_entry_ids: groupIds,
-      status: "PENDING",
-    });
+  const round0Rows = buildGroupEliminationMatchRows(tournamentId, 0, groups, byeEntryIds);
+  await TournamentMatch.bulkCreate(round0Rows);
+
+  const placeholderRows = [];
+  for (let r = 1; r < schedule.length; r++) {
+    placeholderRows.push(...buildPlaceholderGroupMatches(tournamentId, r, schedule[r].matchCount));
   }
-  for (const byeId of byeEntryIds) {
-    matchRows.push({
-      tournament_id: tournamentId,
-      round_index: 0,
-      match_index: matchIndex++,
-      slot_a_type: "ENTRY",
-      slot_a_entry_id: byeId,
-      slot_b_type: "BYE",
-      slot_b_entry_id: null,
-      participant_entry_ids: [byeId],
-      status: "BYE",
-      winner_entry_id: byeId,
-    });
+  if (placeholderRows.length) {
+    await TournamentMatch.bulkCreate(placeholderRows);
   }
-  await TournamentMatch.bulkCreate(matchRows);
 
   logger.info(
-    { tournamentId, format: "GROUP_ELIMINATION", entries: n, matches: matchRows.length },
-    "Generated group elimination round 0"
+    {
+      tournamentId,
+      format: "GROUP_ELIMINATION",
+      entries: n,
+      rounds: schedule.length,
+      round0Matches: round0Rows.length,
+      placeholders: placeholderRows.length,
+    },
+    "Generated full group elimination bracket"
   );
 
   return {
     entries: n,
-    matches: matchRows.length,
+    matches: round0Rows.length + placeholderRows.length,
     format: "GROUP_ELIMINATION",
-    round_count: "dynamic",
+    round_count: schedule.length,
   };
 }
 
 /**
- * Create a subsequent group round (after all matches in the previous round finished).
+ * Fill a group round that was pre-created as placeholders, or insert matches if missing (legacy brackets).
  * @param {number} tournamentId
  * @param {number} roundIndex
- * @param {{ id: number }[]} entryRows - winner entries (full objects or { id })
- * @param {{ scheduled_start_at?: Date | string | null }} options
+ * @param {{ id: number }[]} entryRows - advancers from the previous round
+ * @param {{ scheduled_start_at?: Date | string | null, isAgentOnly?: boolean }} options
  */
-export async function createGroupEliminationRound(tournamentId, roundIndex, entryRows, options = {}) {
+export async function fillGroupEliminationRound(tournamentId, roundIndex, entryRows, options = {}) {
   const ids = entryRows.map((e) => e.id);
   const isAgentOnly = Boolean(options.isAgentOnly);
   let groups;
@@ -440,51 +513,69 @@ export async function createGroupEliminationRound(tournamentId, roundIndex, entr
 
   const scheduledStartAt = options.scheduled_start_at != null ? new Date(options.scheduled_start_at) : null;
 
-  await TournamentRound.create({
-    tournament_id: tournamentId,
-    round_index: roundIndex,
-    status: "PENDING",
-    scheduled_start_at: scheduledStartAt,
-  });
-
-  const matchRows = [];
-  let matchIndex = 0;
-  for (const groupIds of groups) {
-    const [a, b] = groupIds;
-    matchRows.push({
+  let roundRow = await TournamentRound.findByTournamentAndIndex(tournamentId, roundIndex);
+  if (!roundRow) {
+    roundRow = await TournamentRound.create({
       tournament_id: tournamentId,
       round_index: roundIndex,
-      match_index: matchIndex++,
-      slot_a_type: "ENTRY",
-      slot_a_entry_id: a,
-      slot_b_type: "ENTRY",
-      slot_b_entry_id: b ?? null,
-      participant_entry_ids: groupIds,
       status: "PENDING",
+      scheduled_start_at: scheduledStartAt,
     });
   }
-  for (const byeId of byeEntryIds) {
-    matchRows.push({
-      tournament_id: tournamentId,
-      round_index: roundIndex,
-      match_index: matchIndex++,
-      slot_a_type: "ENTRY",
-      slot_a_entry_id: byeId,
-      slot_b_type: "BYE",
-      slot_b_entry_id: null,
-      participant_entry_ids: [byeId],
-      status: "BYE",
-      winner_entry_id: byeId,
+
+  const built = buildGroupEliminationMatchRows(tournamentId, roundIndex, groups, byeEntryIds);
+  const existing = await TournamentMatch.findByTournamentAndRound(tournamentId, roundIndex);
+
+  if (!existing.length) {
+    await TournamentMatch.bulkCreate(built);
+    logger.info(
+      { tournamentId, format: "GROUP_ELIMINATION", roundIndex, matches: built.length },
+      "Created group elimination round (no placeholders)"
+    );
+    return { roundIndex, matches: built.length };
+  }
+
+  if (existing.length !== built.length) {
+    logger.warn(
+      { tournamentId, roundIndex, existing: existing.length, expected: built.length },
+      "Group round match count mismatch; replacing round matches"
+    );
+    await db("tournament_matches").where({ tournament_id: tournamentId, round_index: roundIndex }).del();
+    await TournamentMatch.bulkCreate(built);
+    logger.info(
+      { tournamentId, format: "GROUP_ELIMINATION", roundIndex, matches: built.length },
+      "Rebuilt group elimination round matches"
+    );
+    return { roundIndex, matches: built.length };
+  }
+
+  const sorted = [...existing].sort((a, b) => Number(a.match_index) - Number(b.match_index));
+  for (let i = 0; i < built.length; i++) {
+    const row = built[i];
+    const id = sorted[i].id;
+    await TournamentMatch.update(id, {
+      slot_a_type: row.slot_a_type,
+      slot_a_entry_id: row.slot_a_entry_id,
+      slot_b_type: row.slot_b_type,
+      slot_b_entry_id: row.slot_b_entry_id,
+      participant_entry_ids: row.participant_entry_ids,
+      status: row.status,
+      winner_entry_id: row.winner_entry_id ?? null,
+      advancing_entry_ids: null,
     });
   }
-  await TournamentMatch.bulkCreate(matchRows);
 
   logger.info(
-    { tournamentId, format: "GROUP_ELIMINATION", roundIndex, matches: matchRows.length },
-    "Created group elimination round"
+    { tournamentId, format: "GROUP_ELIMINATION", roundIndex, matches: built.length },
+    "Filled group elimination round from placeholders"
   );
 
-  return { roundIndex, matches: matchRows.length };
+  return { roundIndex, matches: built.length };
+}
+
+/** @deprecated Use fillGroupEliminationRound */
+export async function createGroupEliminationRound(tournamentId, roundIndex, entryRows, options = {}) {
+  return fillGroupEliminationRound(tournamentId, roundIndex, entryRows, options);
 }
 
 export async function generateBracketByFormat(tournamentId, format, entries, options = {}) {

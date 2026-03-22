@@ -1447,7 +1447,7 @@ async function handleGroupEliminationAfterMatchResolved(match, _winnerEntry) {
   const winnerEntries = await Promise.all(winners.map((id) => TournamentEntry.findById(id)));
   const nextRoundIndex = match.round_index + 1;
   const t = await Tournament.findById(match.tournament_id);
-  await bracketEngine.createGroupEliminationRound(
+  await bracketEngine.fillGroupEliminationRound(
     match.tournament_id,
     nextRoundIndex,
     winnerEntries.filter(Boolean),
