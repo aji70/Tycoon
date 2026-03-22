@@ -1457,6 +1457,24 @@ async function handleGroupEliminationAfterMatchResolved(match, _winnerEntry) {
 }
 
 /**
+ * Set each tournament_round to COMPLETED when every match in that round is COMPLETED or BYE.
+ * Improves lobby accuracy after each result (round badges / “next round” clarity).
+ */
+async function markSingleEliminationRoundsCompletedIfAllMatchesDone(tournamentId) {
+  const rounds = await TournamentRound.findByTournament(tournamentId);
+  const matches = await TournamentMatch.findByTournament(tournamentId);
+  if (!rounds?.length || !matches?.length) return;
+  for (const r of rounds) {
+    const rm = matches.filter((m) => Number(m.round_index) === Number(r.round_index));
+    if (!rm.length) continue;
+    const allDone = rm.every((m) => m.status === "COMPLETED" || m.status === "BYE");
+    if (allDone && String(r.status) !== "COMPLETED") {
+      await TournamentRound.update(r.id, { status: "COMPLETED", completed_at: db.fn.now() });
+    }
+  }
+}
+
+/**
  * Called when a game finishes. Updates match winner, advances bracket, optionally creates next round game.
  */
 export async function onGameFinished(gameId) {
@@ -1602,13 +1620,19 @@ export async function onGameFinished(gameId) {
     if (updated) {
       const refreshed = await TournamentMatch.findById(next.id);
       const nextRound = await TournamentRound.findByTournamentAndIndex(match.tournament_id, refreshed.round_index);
-      const useScheduledStart = nextRound?.scheduled_start_at != null;
+      const scheduledAtMs = nextRound?.scheduled_start_at
+        ? new Date(nextRound.scheduled_start_at).getTime()
+        : null;
+      const scheduleBlocksAutoCreate =
+        scheduledAtMs != null &&
+        !Number.isNaN(scheduledAtMs) &&
+        Date.now() < scheduledAtMs;
       if (
         refreshed.slot_a_entry_id &&
         refreshed.slot_b_entry_id &&
         refreshed.status === "PENDING" &&
         !refreshed.game_id &&
-        !useScheduledStart
+        !scheduleBlocksAutoCreate
       ) {
         try {
           await createMatchGame(match.tournament_id, refreshed.id);
@@ -1617,6 +1641,12 @@ export async function onGameFinished(gameId) {
         }
       }
     }
+  }
+
+  try {
+    await markSingleEliminationRoundsCompletedIfAllMatchesDone(match.tournament_id);
+  } catch (err) {
+    logger.warn({ err: err?.message, tournamentId: match.tournament_id }, "markSingleEliminationRoundsCompletedIfAllMatchesDone failed");
   }
 
   const allMatches = await TournamentMatch.findByTournament(match.tournament_id);
