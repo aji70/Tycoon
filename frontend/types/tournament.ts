@@ -72,6 +72,9 @@ export interface TournamentEntry {
   payment_tx_hash: string | null;
   status: EntryStatus;
   username?: string;
+  /** Bound agent display name (invited-bot / agents-only events). */
+  agent_name?: string | null;
+  user_agent_id?: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -156,6 +159,7 @@ export interface LeaderboardEntry {
   entry_id: number;
   user_id: number;
   username: string;
+  agent_name?: string | null;
   address: string | null;
   eliminated_in_round: number | null;
   is_winner: boolean;

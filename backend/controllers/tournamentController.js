@@ -261,7 +261,6 @@ export async function autoFillAgents(req, res) {
       };
 
       const preferredOrdered = [];
-      const preferredUsers = new Set();
 
       if (entryFeeUnits > 0n) {
         const permByAgentId = new Map();
@@ -275,16 +274,12 @@ export async function autoFillAgents(req, res) {
           const p = permByAgentId.get(aid);
           if (!p || Number(p.user_id) !== ownerId) continue;
           if (BigInt(p.max_entry_fee_usdc ?? "0") < entryFeeUnits) continue;
-          if (preferredUsers.has(ownerId)) continue;
-          preferredUsers.add(ownerId);
           preferredOrdered.push(p);
         }
       } else {
         for (const aid of preferredAgentIds) {
           if (!isPreferredAgentAllowed(aid)) continue;
           const ownerId = ownerByAgentId.get(aid);
-          if (preferredUsers.has(ownerId)) continue;
-          preferredUsers.add(ownerId);
           preferredOrdered.push({
             user_id: ownerId,
             user_agent_id: aid,
@@ -293,8 +288,14 @@ export async function autoFillAgents(req, res) {
           });
         }
       }
-      const rest = candidates.filter((p) => !preferredUsers.has(Number(p.user_id)));
-      candidates = [...preferredOrdered, ...rest];
+
+      if (vis === "BOT_SELECTION" && preferredAgentIds.length > 0) {
+        candidates = preferredOrdered;
+      } else if (preferredAgentIds.length > 0) {
+        const preferredOwnerIds = new Set(preferredOrdered.map((x) => Number(x.user_id)));
+        const rest = candidates.filter((p) => !preferredOwnerIds.has(Number(p.user_id)));
+        candidates = [...preferredOrdered, ...rest];
+      }
     }
 
     let added = 0;
@@ -302,13 +303,20 @@ export async function autoFillAgents(req, res) {
     const escrow = cfg.tournamentEscrowAddress;
     const usdc = cfg.usdcAddress ?? process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
 
+    const agentMultiEvent = vis === "BOT_SELECTION" || Boolean(Number(tournament.is_agent_only ?? 0));
+
     for (const p of candidates) {
       if (added >= remaining) break;
       try {
         const userId = Number(p.user_id);
-        // skip if already entered
-        const exists = await db("tournament_entries").where({ tournament_id: tournamentId, user_id: userId }).first();
-        if (exists) continue;
+        const fillAgentId = Number(p.user_agent_id);
+        if (Number.isInteger(fillAgentId) && fillAgentId > 0) {
+          if (await TournamentEntry.hasAgentEntry(tournamentId, fillAgentId)) continue;
+        }
+        if (!agentMultiEvent) {
+          const exists = await db("tournament_entries").where({ tournament_id: tournamentId, user_id: userId }).first();
+          if (exists) continue;
+        }
 
         const user = await User.findById(userId);
         if (!user?.smart_wallet_address) continue;
@@ -383,6 +391,8 @@ export async function getBracket(req, res) {
     const matches = await TournamentMatch.findByTournament(req.params.id);
     const entries = await TournamentEntry.findByTournament(req.params.id, { withUser: true });
     const entryMap = Object.fromEntries((entries || []).map((e) => [e.id, e]));
+    const entryDisplayName = (e) =>
+      (e?.agent_name && String(e.agent_name).trim()) || e?.username || e?.user_address || null;
     const gameIds = [...new Set((matches || []).map((m) => m.game_id).filter(Boolean))];
     let matchGameTypeById = {};
     if (gameIds.length) {
@@ -422,9 +432,9 @@ export async function getBracket(req, res) {
               status: m.status,
               spectator_token: m.spectator_token ?? null,
               spectator_url: spec,
-              slot_a_username: m.slot_a_entry_id ? entryMap[m.slot_a_entry_id]?.username : null,
-              slot_b_username: m.slot_b_entry_id ? entryMap[m.slot_b_entry_id]?.username : null,
-              winner_username: m.winner_entry_id ? entryMap[m.winner_entry_id]?.username : null,
+              slot_a_username: m.slot_a_entry_id ? entryDisplayName(entryMap[m.slot_a_entry_id]) : null,
+              slot_b_username: m.slot_b_entry_id ? entryDisplayName(entryMap[m.slot_b_entry_id]) : null,
+              winner_username: m.winner_entry_id ? entryDisplayName(entryMap[m.winner_entry_id]) : null,
               match_game_type: m.game_id ? matchGameTypeById[m.game_id] ?? null : null,
             };
           }),
