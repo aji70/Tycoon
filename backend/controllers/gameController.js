@@ -200,8 +200,6 @@ export async function finishGameByNetWorthAndNotify(io, game) {
 
   if (rowCount === 0) return null;
 
-  await agentRegistry.cleanupGame(game.id);
-
   try {
     await settleStakedArenaForFinishedGame(game.id);
   } catch (err) {
@@ -213,6 +211,8 @@ export async function finishGameByNetWorthAndNotify(io, game) {
   } catch (err) {
     logger.error({ err: err?.message, gameId: game.id }, "tournament onGameFinished failed");
   }
+
+  await agentRegistry.cleanupGame(game.id);
 
   const playerUserIds = (result.net_worths || []).map((n) => n.user_id).filter(Boolean);
   User.recordChainGameResult(game.chain || "BASE", result.winner_id, playerUserIds).catch((err) =>
@@ -526,7 +526,6 @@ const gameController = {
       }
       if (payload.status === "FINISHED") {
         await recordEvent("game_finished", { entityType: "game", entityId: Number(req.params.id), payload: { winner_id: payload.winner_id ?? null } });
-        await agentRegistry.cleanupGame(req.params.id);
         try {
           await settleStakedArenaForFinishedGame(Number(req.params.id));
         } catch (err) {
@@ -543,6 +542,7 @@ const gameController = {
             "tournament onGameFinished on game update FINISHED failed"
           );
         }
+        await agentRegistry.cleanupGame(req.params.id);
       }
       await invalidateGameById(req.params.id);
       const io = req.app.get("io");
