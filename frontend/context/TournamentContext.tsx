@@ -82,6 +82,14 @@ type TournamentContextValue = {
       forfeit_win?: boolean;
     };
   }>;
+  createMatchGame: (
+    tournamentId: string,
+    matchId: string
+  ) => Promise<{
+    success: boolean;
+    message?: string;
+    data?: { code?: string; redirect_url?: string };
+  }>;
 
   // Helpers
   isRegistered: (tournamentId: number) => boolean;
@@ -354,6 +362,36 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const createMatchGame = useCallback(
+    async (
+      tournamentId: string,
+      matchId: string
+    ): Promise<{
+      success: boolean;
+      message?: string;
+      data?: { code?: string; redirect_url?: string };
+    }> => {
+      try {
+        const res = await apiClient.post<{
+          success: boolean;
+          data?: { code?: string; redirect_url?: string };
+        }>(`${TOURNAMENTS_BASE}/${tournamentId}/matches/${matchId}/create-game`, {});
+        return {
+          success: true,
+          data: res?.data?.data,
+        };
+      } catch (err: unknown) {
+        const message =
+          (err as { response?: { data?: { message?: string } }; message?: string })?.response
+            ?.data?.message ||
+          (err as { message?: string })?.message ||
+          "Create game failed";
+        return { success: false, message };
+      }
+    },
+    []
+  );
+
   const isRegistered = useCallback(
     (tid: number): boolean => {
       if (!tournament || tournament.id !== tid || !tournament.entries?.length) return false;
@@ -392,6 +430,7 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
       closeRegistration,
       startRound,
       requestMatchStart,
+      createMatchGame,
       isRegistered,
     }),
     [
@@ -417,6 +456,7 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
       closeRegistration,
       startRound,
       requestMatchStart,
+      createMatchGame,
       isRegistered,
     ]
   );

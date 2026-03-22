@@ -18,6 +18,7 @@ router.post("/:id/auto-fill-agents", requireAuth, resolveTournament, tournamentC
 router.post("/:id/close-registration", optionalAuth, resolveTournament, tournamentController.closeRegistration);
 router.post("/:id/start-round/:roundIndex", optionalAuth, resolveTournament, tournamentController.startRound);
 router.post("/:id/matches/:matchId/start-now", resolveTournament, requireAuth, tournamentController.requestMatchStart);
+router.post("/:id/matches/:matchId/create-game", resolveTournament, requireAuth, tournamentController.createMatchGame);
 router.get("/payouts/pending", requireAuth, tournamentController.getUserPendingPayouts);
 router.post("/:id/claim-payout/:payoutId", requireAuth, tournamentController.claimPayout);
 router.post("/:id/admin-resolve", requireShopAdminSecret, tournamentController.adminResolve);

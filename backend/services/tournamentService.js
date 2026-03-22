@@ -23,7 +23,7 @@ import agentRegistry from "./agentRegistry.js";
 import * as bracketEngine from "./tournamentBracketEngine.js";
 import { parseParticipantEntryIds, newSpectatorToken } from "./tournamentGroupHelpers.js";
 import { ACTIVITY_XP, awardActivityXpByAgentId } from "./eloService.js";
-import { createTwoPlayerAgentArenaGame } from "./agentArenaGameFactory.js";
+import { createTwoPlayerAgentArenaGame, createMultiPlayerAgentArenaGame } from "./agentArenaGameFactory.js";
 
 const TOURNAMENT_SYMBOLS = ["hat", "car", "dog", "thimble", "wheelbarrow", "battleship", "boot", "iron"];
 const DEFAULT_STARTING_CASH = 1500;
@@ -937,6 +937,40 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
   const users = await Promise.all(orderedEntries.map((e) => User.findById(e.user_id)));
   if (users.some((u) => !u)) return null;
 
+  const vis = String(tournament.visibility || "").toUpperCase();
+  const useAutonomousAgents = vis === "BOT_SELECTION" || Boolean(Number(tournament.is_agent_only ?? 0));
+  if (useAutonomousAgents) {
+    const entryAgentRows = await db("tournament_entry_agents")
+      .whereIn("tournament_entry_id", orderedEntries.map((e) => e.id))
+      .select("tournament_entry_id", "user_agent_id", "agent_name");
+    const byEntryId = new Map(entryAgentRows.map((r) => [Number(r.tournament_entry_id), r]));
+    const orderedAgents = orderedEntries.map((e) => byEntryId.get(Number(e.id))).filter(Boolean);
+    if (orderedAgents.length === N && orderedAgents.every((a) => a?.user_agent_id)) {
+      try {
+        const code = `T${tournamentId}-R${match.round_index}-M${match.match_index}`.toUpperCase();
+        const game = await createMultiPlayerAgentArenaGame({
+          forcedCode: code,
+          orderedAgents: orderedAgents.map((a) => ({ user_agent_id: a.user_agent_id, agent_name: a.agent_name })),
+          creatorUserId: users[0]?.id ?? orderedEntries[0]?.user_id,
+          chain: tournament.chain,
+          settings: { duration: AGENT_TOURNAMENT_MATCH_DURATION_MIN, starting_cash: DEFAULT_STARTING_CASH },
+        });
+        const specTok = match.spectator_token || newSpectatorToken();
+        await TournamentMatch.update(matchId, {
+          game_id: game.id,
+          contract_game_id: null,
+          status: "IN_PROGRESS",
+          spectator_token: specTok,
+        });
+        logger.info({ tournamentId, matchId, code, N }, "Tournament multi agent arena game created");
+        return { match: await TournamentMatch.findById(matchId), game };
+      } catch (err) {
+        logger.error({ err: err?.message, tournamentId, matchId }, "createMultiPlayerAgentArenaGame failed");
+        throw err;
+      }
+    }
+  }
+
   const code = `T${tournamentId}-R${match.round_index}-M${match.match_index}`.toUpperCase();
   const startRequests = await db("tournament_match_start_requests").where({ match_id: matchId }).select("entry_id", "preferred_symbol");
   const prefByEntry = Object.fromEntries((startRequests || []).map((r) => [r.entry_id, r.preferred_symbol]));
@@ -1233,6 +1267,46 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
   });
 
   return { match: await TournamentMatch.findById(matchId), game };
+}
+
+/**
+ * Creator convenience: create game for a single match and return redirect URL.
+ * Used when "Create game" is clicked on a specific bracket match.
+ */
+export async function createMatchGameForCreator(tournamentId, matchId, creatorUserId) {
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) throw new Error("Tournament not found");
+  if (Number(tournament.creator_id) !== Number(creatorUserId)) {
+    throw new Error("Only the tournament creator can create games for matches");
+  }
+  const match = await TournamentMatch.findById(matchId);
+  if (!match || match.tournament_id !== Number(tournamentId)) throw new Error("Match not found");
+  if (match.status === "BYE") throw new Error("Cannot create game for BYE match");
+  if (match.status === "COMPLETED") throw new Error("Match already completed");
+
+  const vis = String(tournament.visibility || "").toUpperCase();
+  const isAgentMatch = vis === "BOT_SELECTION" || Boolean(Number(tournament.is_agent_only ?? 0));
+
+  if (match.game_id) {
+    const game = await Game.findById(match.game_id);
+    let url = tournamentBoardRedirectUrl(game?.code);
+    if (isAgentMatch && url) url += (url.includes("?") ? "&" : "?") + "spectate=1";
+    return { code: game?.code, redirect_url: url, already_exists: true, spectate: isAgentMatch };
+  }
+
+  const result = await createMatchGame(tournamentId, matchId);
+  if (!result?.game) throw new Error("Failed to create game");
+  const round = await TournamentRound.findByTournamentAndIndex(tournamentId, match.round_index);
+  if (round) await TournamentRound.update(round.id, { status: "IN_PROGRESS", started_at: db.fn.now() });
+  if (tournament.status === "BRACKET_LOCKED") await Tournament.update(tournamentId, { status: "IN_PROGRESS" });
+
+  let url = tournamentBoardRedirectUrl(result.game.code);
+  if (isAgentMatch && url) url += (url.includes("?") ? "&" : "?") + "spectate=1";
+  return {
+    code: result.game.code,
+    redirect_url: url,
+    spectate: isAgentMatch,
+  };
 }
 
 /**
