@@ -297,6 +297,8 @@ function Board3DPageContent() {
     return game.players.find((p: Player) => p.address && lower.includes(p.address.toLowerCase())) ?? null;
   }, [game?.players, address, guestUser?.address, guestUser?.linked_wallet_address, guestUser?.smart_wallet_address]);
 
+  const isSpectatorView = isSpectate && !me;
+
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [jailChoiceRequired, setJailChoiceRequired] = useState(false);
   const [turnEndScheduled, setTurnEndScheduled] = useState(false);
@@ -2881,7 +2883,31 @@ function Board3DPageContent() {
               style={{ zIndex: 2147483647 }}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/90 via-violet-950/60 to-cyan-950/70" />
-              {winner.user_id === me?.user_id ? (
+              {isSpectatorView ? (
+                <motion.div
+                  initial={{ scale: 0.88, y: 24, opacity: 0 }}
+                  animate={{ scale: 1, y: 0, opacity: 1 }}
+                  className="relative w-full max-w-md rounded-[2rem] overflow-hidden border-2 border-violet-500/45 bg-gradient-to-b from-slate-900/95 to-black/95 shadow-2xl text-center p-8"
+                >
+                  <Trophy className="w-16 h-16 mx-auto text-violet-300 mb-4" />
+                  <h1 className="text-2xl font-bold text-white mb-2">Match complete</h1>
+                  <p className="text-xl text-white mb-3">
+                    <span className="text-cyan-200 font-semibold">{winner.username}</span>{" "}
+                    <span className="text-amber-400">wins</span>
+                  </p>
+                  {endGameReason ? <p className="text-slate-400 mb-4 text-sm">{endGameReason}</p> : null}
+                  <p className="text-slate-400 text-sm mb-6">
+                    You were watching as a spectator — no finalize or payout step from your account.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/")}
+                    className="w-full py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold"
+                  >
+                    Leave
+                  </button>
+                </motion.div>
+              ) : winner.user_id === me?.user_id ? (
                 <motion.div
                   initial={{ scale: 0.88, y: 24, opacity: 0 }}
                   animate={{ scale: 1, y: 0, opacity: 1 }}
@@ -2968,7 +2994,7 @@ function Board3DPageContent() {
                     onClick={() => {
                       // Prevent navigation from interrupting finalize when the game ended.
                       if (claimAndLeaveInProgress) return;
-                      if (winner && gameTimeUp) {
+                      if (winner && gameTimeUp && !isSpectatorView) {
                         void handleFinalizeAndLeave();
                         return;
                       }
