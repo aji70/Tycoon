@@ -40,48 +40,96 @@ async function resolveTournamentOnChainPlayer(user, chain) {
   }
   return r;
 }
-/** Timed autonomous agent-vs-agent tournament matches (server runner can finish-by-time). */
-const AGENT_TOURNAMENT_MATCH_DURATION_MIN = 30;
+/** Timed autonomous agent-vs-agent tournament matches (server runner can finish-by-time). Override for tests: e.g. AGENT_TOURNAMENT_MATCH_DURATION_MIN=5 */
+const AGENT_TOURNAMENT_MATCH_DURATION_MIN = (() => {
+  const raw = Number(process.env.AGENT_TOURNAMENT_MATCH_DURATION_MIN);
+  if (Number.isFinite(raw) && raw >= 1 && raw <= 240) return Math.floor(raw);
+  return 30;
+})();
 const GAME_READY_WINDOW_SECONDS = 30;
 
 /**
  * TOURNAMENT_AGENT_VS_AGENT games use synthetic AI rows in game_players; `games.placements` keys are those user_ids.
  * Tournament entries use the human owner's `user_id`. Map tournament entry id → seat `user_id` for placement lookup.
+ * When `agent_slot_assignments` rows are missing (e.g. cleaned up), optional positional fallback aligns
+ * `orderedEntryIdsForFallback` index i with `game_players` sorted by turn_order (factory creation order).
  * @param {number} gameId
  * @param {number[]} entryIds
+ * @param {number[]|null} [orderedEntryIdsForFallback]
+ * @param {boolean} [allowPositionalFallback]
  * @returns {Promise<Map<number, number>>}
  */
-export async function mapTournamentEntryIdsToSeatUserIds(gameId, entryIds) {
+export async function mapTournamentEntryIdsToSeatUserIds(
+  gameId,
+  entryIds,
+  orderedEntryIdsForFallback = null,
+  allowPositionalFallback = false
+) {
   const gId = Number(gameId);
   const eids = [...new Set((entryIds || []).map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0))];
   if (!Number.isInteger(gId) || gId <= 0 || !eids.length) return new Map();
+
+  const gps = await db("game_players")
+    .where({ game_id: gId })
+    .orderBy("turn_order", "asc")
+    .select("user_id", "turn_order");
+  if (!gps?.length) return new Map();
+
+  const order =
+    orderedEntryIdsForFallback?.length > 0
+      ? [...new Set(orderedEntryIdsForFallback.map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0))]
+      : [...eids];
+
+  const buildPositionalMap = () => {
+    const m = new Map();
+    const n = Math.min(order.length, gps.length);
+    for (let i = 0; i < n; i++) {
+      const uid = Number(gps[i].user_id);
+      if (Number.isFinite(uid)) m.set(order[i], uid);
+    }
+    return m;
+  };
 
   const slotRows = await db("agent_slot_assignments")
     .where({ game_id: gId })
     .whereNotNull("user_agent_id")
     .select("slot", "user_agent_id");
-  if (!slotRows?.length) return new Map();
+
+  if (!slotRows?.length) {
+    return allowPositionalFallback ? buildPositionalMap() : new Map();
+  }
 
   const teas = await db("tournament_entry_agents")
     .whereIn("tournament_entry_id", eids)
     .select("tournament_entry_id", "user_agent_id");
   const teaByEid = new Map((teas || []).map((t) => [Number(t.tournament_entry_id), Number(t.user_agent_id)]));
-
   const slotByAgent = new Map((slotRows || []).map((s) => [Number(s.user_agent_id), Number(s.slot)]));
-
-  const gps = await db("game_players").where({ game_id: gId }).select("user_id", "turn_order");
   const uidBySlot = new Map((gps || []).map((g) => [Number(g.turn_order), Number(g.user_id)]));
 
-  const out = new Map();
+  const assignmentMap = new Map();
   for (const eid of eids) {
     const aid = teaByEid.get(eid);
     if (!aid) continue;
     const slot = slotByAgent.get(aid);
     if (slot == null || !Number.isFinite(slot)) continue;
     const uid = uidBySlot.get(slot);
-    if (uid != null && Number.isFinite(uid)) out.set(eid, uid);
+    if (uid != null && Number.isFinite(uid)) assignmentMap.set(eid, uid);
   }
-  return out;
+
+  if (assignmentMap.size >= order.length) return assignmentMap;
+
+  if (assignmentMap.size === 0) {
+    return allowPositionalFallback ? buildPositionalMap() : new Map();
+  }
+
+  if (!allowPositionalFallback) return assignmentMap;
+
+  const positional = buildPositionalMap();
+  const merged = new Map(assignmentMap);
+  for (const eid of order) {
+    if (!merged.has(eid) && positional.has(eid)) merged.set(eid, positional.get(eid));
+  }
+  return merged.size >= order.length ? merged : positional;
 }
 
 function getMatchEntryIds(match) {
@@ -153,7 +201,7 @@ async function computeGroupEliminationAdvancingAndWinner(game, match, tournament
   const gtUpper = String(game.game_type || "").toUpperCase();
   const entrySeatUid =
     gtUpper === "TOURNAMENT_AGENT_VS_AGENT"
-      ? await mapTournamentEntryIdsToSeatUserIds(game.id, participantEntryIds)
+      ? await mapTournamentEntryIdsToSeatUserIds(game.id, participantEntryIds, participantEntryIds, true)
       : new Map();
   const uidForPlacement = (eid) => {
     const seat = entrySeatUid.get(Number(eid));
@@ -1817,7 +1865,7 @@ async function trySinglePodPlacementOrderFromGame(tournament, entries, matches) 
   const gtUpper = String(game.game_type || "").toUpperCase();
   const entrySeatUid =
     gtUpper === "TOURNAMENT_AGENT_VS_AGENT"
-      ? await mapTournamentEntryIdsToSeatUserIds(game.id, participantIds)
+      ? await mapTournamentEntryIdsToSeatUserIds(game.id, participantIds, participantIds, true)
       : new Map();
   const uidForPlacement = (eid) => {
     const seat = entrySeatUid.get(Number(eid));

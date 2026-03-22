@@ -91,12 +91,11 @@ function standingsForBracketMatch(match, game, entryMap, displayName) {
 
 /**
  * Bracket standings use entry.user_id for placement keys; agent tournament games store placements by AI seat user_id.
- * Rewrite places when we have agent_slot_assignments + tournament_entry_agents for this game.
+ * Resolve via agent_slot_assignments + tournament_entry_agents, or positional order when slot rows are missing.
  */
-async function enrichAgentTournamentBracketStandings(game, standings) {
+async function enrichAgentTournamentBracketStandings(match, game, standings) {
   if (!game?.id || !Array.isArray(standings) || standings.length === 0) return standings;
   if (standings.every((r) => Number(r.place) < 900)) return standings;
-  if (String(game.game_type || "").toUpperCase() !== "TOURNAMENT_AGENT_VS_AGENT") return standings;
 
   let placements = {};
   if (game.placements != null) {
@@ -112,9 +111,20 @@ async function enrichAgentTournamentBracketStandings(game, standings) {
   }
   if (!Object.keys(placements).length) return standings;
 
+  const fromStandings = standings.map((r) => Number(r.entry_id));
+  const ordered = parseParticipantEntryIds(match);
+  const fallbackOrder =
+    ordered.length > 0
+      ? [...ordered, ...fromStandings.filter((id) => !ordered.includes(id))]
+      : fromStandings;
+
+  const allowPositional = String(game.game_type || "").toUpperCase() === "TOURNAMENT_AGENT_VS_AGENT";
+
   const map = await tournamentService.mapTournamentEntryIdsToSeatUserIds(
     game.id,
-    standings.map((r) => r.entry_id)
+    fromStandings,
+    fallbackOrder,
+    allowPositional
   );
   for (const row of standings) {
     const uid = map.get(Number(row.entry_id));
@@ -516,18 +526,24 @@ export async function getBracket(req, res) {
     const rounds = await TournamentRound.findByTournament(req.params.id);
     const matches = await TournamentMatch.findByTournament(req.params.id);
     const entries = await TournamentEntry.findByTournament(req.params.id, { withUser: true });
-    const entryMap = Object.fromEntries((entries || []).map((e) => [e.id, e]));
+    const entryMap = Object.fromEntries((entries || []).map((e) => [Number(e.id), e]));
     const entryDisplayName = (e) =>
       (e?.agent_name && String(e.agent_name).trim()) || e?.username || e?.user_address || null;
-    const gameIds = [...new Set((matches || []).map((m) => m.game_id).filter(Boolean))];
+    const gameIds = [
+      ...new Set(
+        (matches || [])
+          .map((m) => Number(m.game_id))
+          .filter((id) => Number.isInteger(id) && id > 0)
+      ),
+    ];
     let matchGameTypeById = {};
     let gameById = {};
     if (gameIds.length) {
       const gRows = await db("games")
         .whereIn("id", gameIds)
         .select("id", "game_type", "placements", "winner_id", "status");
-      matchGameTypeById = Object.fromEntries((gRows || []).map((r) => [r.id, r.game_type]));
-      gameById = Object.fromEntries((gRows || []).map((r) => [r.id, r]));
+      matchGameTypeById = Object.fromEntries((gRows || []).map((r) => [Number(r.id), r.game_type]));
+      gameById = Object.fromEntries((gRows || []).map((r) => [Number(r.id), r]));
     }
     const mapMatch = async (m) => {
       let participant_entry_ids = null;
@@ -540,10 +556,23 @@ export async function getBracket(req, res) {
         participant_entry_ids = null;
       }
       const spec = m.spectator_token ? `/spectate/${m.spectator_token}` : null;
-      const game = m.game_id ? gameById[m.game_id] : null;
+      const gid = m.game_id != null ? Number(m.game_id) : null;
+      let game =
+        gid != null && Number.isInteger(gid) && gid > 0 ? gameById[gid] ?? null : null;
+      if (!game && gid != null && Number.isInteger(gid) && gid > 0) {
+        const row = await db("games")
+          .where({ id: gid })
+          .select("id", "game_type", "placements", "winner_id", "status")
+          .first();
+        if (row) {
+          game = row;
+          gameById[gid] = row;
+          matchGameTypeById[gid] = row.game_type;
+        }
+      }
       let standings = standingsForBracketMatch(m, game, entryMap, entryDisplayName);
       if (standings && game) {
-        standings = await enrichAgentTournamentBracketStandings(game, standings);
+        standings = await enrichAgentTournamentBracketStandings(m, game, standings);
       }
       const runnerUp =
         standings && standings.length >= 2 ? standings.find((s) => s.place === 2)?.entry_id ?? null : null;
@@ -566,7 +595,7 @@ export async function getBracket(req, res) {
         slot_a_username: m.slot_a_entry_id ? entryDisplayName(entryMap[m.slot_a_entry_id]) : null,
         slot_b_username: m.slot_b_entry_id ? entryDisplayName(entryMap[m.slot_b_entry_id]) : null,
         winner_username: m.winner_entry_id ? entryDisplayName(entryMap[m.winner_entry_id]) : null,
-        match_game_type: m.game_id ? matchGameTypeById[m.game_id] ?? null : null,
+        match_game_type: gid ? matchGameTypeById[gid] ?? null : null,
         standings,
         first_entry_id: standings?.[0]?.entry_id ?? null,
         second_entry_id: standings?.[1]?.entry_id ?? null,
