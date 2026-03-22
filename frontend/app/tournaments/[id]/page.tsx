@@ -412,11 +412,12 @@ export default function TournamentDetailPage() {
       return;
     }
     const interval = setInterval(() => {
-      fetchBracket(id, inviteParams);
-      fetchLeaderboard(id, "live", inviteParams);
+      void fetchTournament(id, inviteParams);
+      void fetchBracket(id, inviteParams);
+      void fetchLeaderboard(id, "live", inviteParams);
     }, 5000);
     return () => clearInterval(interval);
-  }, [id, tournament, fetchBracket, fetchLeaderboard, inviteQuery]);
+  }, [id, tournament, fetchTournament, fetchBracket, fetchLeaderboard, inviteQuery]);
 
   // Coming back from a bracket board tab: refresh so the next round / completed matches show without waiting for the poll.
   useEffect(() => {
@@ -565,10 +566,11 @@ export default function TournamentDetailPage() {
   const displayBracket = useMemo(() => {
     if (!tournament || !slugMatches) return null;
     const fromDetail = buildBracketFromTournament(tournament);
-    // After a match ends, GET /tournaments/:id includes updated winners/slots immediately; GET …/bracket can
-    // still return a stale snapshot if it wins the race. Prefer detail-derived bracket whenever we have rounds.
+    // Poll refreshes GET …/bracket but not tournament detail. Prefer bracket when present so completed rounds,
+    // filled next-round slots, and tournament_round status stay in sync after games finish.
+    if (bracket?.rounds?.length) return bracket;
     if (fromDetail?.rounds?.length) return fromDetail;
-    return bracket;
+    return null;
   }, [bracket, tournament, slugMatches]);
 
   const nextRoundToStart = useMemo(() => {
@@ -579,34 +581,6 @@ export default function TournamentDetailPage() {
         r.matches?.some((m) => m.status === "PENDING" || m.status === "AWAITING_PLAYERS")
     );
   }, [displayBracket]);
-
-  const ongoingMatches = useMemo(() => {
-    const out: Array<{
-      m: BracketMatchRow;
-      round_index: number;
-      labels: string[];
-      gameCodeForMatch: string;
-      isAutonomous: boolean;
-    }> = [];
-    if (!tournament || !slugMatches) return out;
-    const rounds = displayBracket?.rounds;
-    if (!rounds?.length) return out;
-    for (const r of rounds) {
-      for (const m of r.matches ?? []) {
-        if (!bracketMatchIsLiveBoard(m)) continue;
-        const labels = labelsForMatchParticipants(m, tournament.entries);
-        const agentVsAgent = String(m.match_game_type || "") === "TOURNAMENT_AGENT_VS_AGENT";
-        out.push({
-          m,
-          round_index: r.round_index,
-          labels,
-          gameCodeForMatch: `T${tournament.id}-R${r.round_index}-M${m.match_index}`.toUpperCase(),
-          isAutonomous: agentVsAgent || Boolean(tournament.is_agent_only),
-        });
-      }
-    }
-    return out;
-  }, [displayBracket, tournament, slugMatches]);
 
   const upcomingPairings = useMemo(() => {
     const out: Array<{ m: BracketMatchRow; round_index: number; labels: string[] }> = [];
@@ -973,45 +947,6 @@ export default function TournamentDetailPage() {
             </section>
           )}
 
-        {(tournament.status === "IN_PROGRESS" || tournament.status === "BRACKET_LOCKED") && displayBracket && (
-          <section className="rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950/40 via-[#051215] to-[#030a0c] p-6 md:p-7 shadow-xl shadow-emerald-950/20">
-            <h2 className="text-lg font-bold text-emerald-200 flex items-center gap-2.5 mb-1">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/20 border border-emerald-400/30">
-                <Radio className="w-4 h-4 text-emerald-300 animate-pulse" />
-              </span>
-              Live tables
-            </h2>
-            <p className="text-sm text-white/45 mb-4">Games in progress — spectate or open the board. Finished matches stay in the bracket below without watch links.</p>
-            {ongoingMatches.length === 0 ? (
-              <p className="text-sm text-white/50 rounded-xl border border-white/5 bg-black/20 px-4 py-3">
-                No live tables right now. When a match starts, it appears here.
-              </p>
-            ) : (
-              <ul className="space-y-3">
-                {ongoingMatches.map(({ m, round_index, labels, gameCodeForMatch, isAutonomous }) => (
-                  <li
-                    key={m.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/20 bg-black/35 px-4 py-3.5 text-sm backdrop-blur-sm"
-                  >
-                    <span className="text-white/90 min-w-0">
-                      <span className="text-emerald-400/90 font-semibold">Round {round_index + 1}</span>
-                      <span className="text-white/35 mx-2">·</span>
-                      <span className="break-words font-medium">{labels.join(" vs ")}</span>
-                    </span>
-                    <Link
-                      href={`/board-3d-multi?gameCode=${encodeURIComponent(gameCodeForMatch)}${isAutonomous ? "&spectate=1" : ""}`}
-                      className="inline-flex shrink-0 items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 text-sm font-semibold hover:bg-emerald-500/30 transition-colors"
-                    >
-                      {isAutonomous ? <Eye className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                      {isAutonomous ? "Spectate" : "Open board"}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        )}
-
         {(tournament.status === "BRACKET_LOCKED" ||
           tournament.status === "IN_PROGRESS" ||
           tournament.status === "COMPLETED") &&
@@ -1059,12 +994,15 @@ export default function TournamentDetailPage() {
           tournament.status === "IN_PROGRESS" ||
           tournament.status === "COMPLETED") && (
           <section>
-            <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 to-violet-200 flex items-center gap-3 mb-6">
+            <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 to-violet-200 flex items-center gap-3 mb-2">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/15 border border-cyan-400/25 text-cyan-300">
                 <Swords className="w-5 h-5" />
               </span>
               Bracket & results
             </h2>
+            <p className="text-sm text-white/45 mb-6 max-w-2xl">
+              In-progress matches show a <span className="text-emerald-300/90">Live</span> badge with Spectate / Open board. Completed rows show winners only — no watch links.
+            </p>
             {bracketLoading && !displayBracket && (
               <div className="flex justify-center py-8">
                 <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
