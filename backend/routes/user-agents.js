@@ -65,10 +65,24 @@ router.get("/:id/erc8004-registration", async (req, res) => {
       services.push({ name: "Decision API", endpoint: decisionEndpoint, version: "v1" });
     }
     const defaultImage = `${defaultPublicApp}/footerLogo.svg`;
+    const apiPublicBase = String(
+      process.env.BACKEND_PUBLIC_URL || process.env.PUBLIC_API_URL || ""
+    )
+      .trim()
+      .replace(/\/$/, "");
+    const registrationX402 =
+      String(process.env.ERC8004_REGISTRATION_X402_SUPPORT || "").toLowerCase() === "true";
+    if (registrationX402 && apiPublicBase) {
+      services.push({
+        name: "Decision API (x402)",
+        version: "v1",
+        endpoint: `${apiPublicBase}/api/agent-registry/decision-paid`,
+      });
+    }
     const registration = {
       type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
       name: agent.name || "Tycoon Agent",
-      description: `Monopoly-style on-chain game agent on Celo. ${agent.name || "This agent"} plays in Tycoon arena and classic matches. Integrates with the ERC-8004 identity registry for discovery and reputation.`,
+      description: `Monopoly-style on-chain game agent on Celo. ${agent.name || "This agent"} plays in Tycoon arena and classic matches. Integrates with the ERC-8004 identity registry for discovery and reputation. Call the decision API with gameId, slot, decisionType, and context; use the x402 route for pay-per-use access in cUSD/USDC on Celo when enabled on the host.`,
       image: defaultImage,
       active: agent.status !== "draft" && agent.status !== "error",
       services,
@@ -77,7 +91,7 @@ router.get("/:id/erc8004-registration", async (req, res) => {
         agent.erc8004_agent_id != null && String(agent.erc8004_agent_id) !== ""
           ? [{ agentId: Number(agent.erc8004_agent_id), agentRegistry }]
           : [],
-      x402Support: false,
+      x402Support: registrationX402 && Boolean(apiPublicBase),
     };
     const primaryEndpoint = decisionEndpoint || webEndpoint;
     if (preferredOwner) {
