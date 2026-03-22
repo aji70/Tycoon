@@ -6,9 +6,11 @@ import React, {
   useContext,
   useState,
   useMemo,
+  useRef,
   type ReactNode,
 } from "react";
 import { useAccount } from "wagmi";
+import axios from "axios";
 import { apiClient } from "@/lib/api";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import type {
@@ -119,6 +121,9 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
 
+  const tournamentFetchAbortRef = useRef<AbortController | null>(null);
+  const bracketFetchAbortRef = useRef<AbortController | null>(null);
+
   const fetchTournaments = useCallback(
     async (params?: {
       status?: string;
@@ -167,25 +172,41 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
   );
 
   const fetchTournament = useCallback(async (id: string, query?: Record<string, string>) => {
+    tournamentFetchAbortRef.current?.abort();
+    const ac = new AbortController();
+    tournamentFetchAbortRef.current = ac;
     setDetailLoading(true);
     setDetailError(null);
     try {
-      const res = await apiClient.get<TournamentDetail>(`${TOURNAMENTS_BASE}/${id}`, query);
+      const res = await apiClient.get<TournamentDetail>(`${TOURNAMENTS_BASE}/${id}`, query, {
+        signal: ac.signal,
+      });
+      if (ac.signal.aborted) return;
       setTournament(res?.data ?? null);
     } catch (err: unknown) {
+      if (axios.isCancel(err)) return;
       const message =
         (err as { response?: { data?: { message?: string } }; message?: string })?.response
           ?.data?.message ||
         (err as { message?: string })?.message ||
         "Failed to load tournament";
-      setDetailError(message);
-      setTournament(null);
+      setTournament((prev) => {
+        if (prev != null) {
+          return prev;
+        }
+        setDetailError(message);
+        return null;
+      });
     } finally {
-      setDetailLoading(false);
+      if (!ac.signal.aborted) {
+        setDetailLoading(false);
+      }
     }
   }, []);
 
   const clearTournament = useCallback(() => {
+    tournamentFetchAbortRef.current?.abort();
+    bracketFetchAbortRef.current?.abort();
     setTournament(null);
     setDetailError(null);
     setBracket(null);
@@ -195,27 +216,40 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchBracket = useCallback(async (id: string, query?: Record<string, string>) => {
+    bracketFetchAbortRef.current?.abort();
+    const ac = new AbortController();
+    bracketFetchAbortRef.current = ac;
     setBracketLoading(true);
     setBracketError(null);
     try {
-      const res = await apiClient.get<Bracket>(`${TOURNAMENTS_BASE}/${id}/bracket`, query);
+      const res = await apiClient.get<Bracket>(`${TOURNAMENTS_BASE}/${id}/bracket`, query, {
+        signal: ac.signal,
+      });
+      if (ac.signal.aborted) return;
       const data = res?.data;
       const ok =
         data != null &&
         typeof data === "object" &&
         "rounds" in data &&
         Array.isArray((data as Bracket).rounds);
-      setBracket(ok ? (data as Bracket) : null);
+      if (ok) {
+        setBracket(data as Bracket);
+      } else {
+        setBracketError("Invalid bracket response");
+        // Keep last good bracket so polling glitches do not revert the UI to stale tournament-only data.
+      }
     } catch (err: unknown) {
+      if (axios.isCancel(err)) return;
       const message =
         (err as { response?: { data?: { message?: string } }; message?: string })?.response
           ?.data?.message ||
         (err as { message?: string })?.message ||
         "Failed to load bracket";
       setBracketError(message);
-      setBracket(null);
     } finally {
-      setBracketLoading(false);
+      if (!ac.signal.aborted) {
+        setBracketLoading(false);
+      }
     }
   }, []);
 
