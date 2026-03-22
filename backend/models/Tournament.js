@@ -60,7 +60,14 @@ const Tournament = {
     if (status) query.where("tournaments.status", status);
     if (chain) query.where("tournaments.chain", chain);
     if (prize_source) query.where("tournaments.prize_source", prize_source);
-    if (public_arena) query.where("tournaments.visibility", "OPEN");
+    // Arena tab: bot/agent events only — invited-bot brackets or open registration where agents represent humans.
+    if (public_arena) {
+      query.where(function arenaBotTournaments() {
+        this.where("tournaments.visibility", "BOT_SELECTION").orWhere(function openAgentOnly() {
+          this.where("tournaments.visibility", "OPEN").where("tournaments.is_agent_only", true);
+        });
+      });
+    }
     const rows = await query;
     return rows.map((r) => ({
       ...r,
