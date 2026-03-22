@@ -59,7 +59,7 @@ import PerksBar from "@/components/game/board3d/PerksBar";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
 import { gameHasRankedPlacements, isOnchainHumanVsAgentGame } from "@/lib/utils/games";
 import { applyAgentBattleDisplayNamesToHistory } from "@/lib/agentBattleHistoryNames";
-import { isTournamentBoardGame } from "@/lib/tournamentBoardGame";
+import { getTournamentBracketExitHref, isTournamentBoardGame } from "@/lib/tournamentBoardGame";
 
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 
@@ -2491,14 +2491,24 @@ function Board3DPageContent() {
       } catch (_) {
         /* best-effort */
       }
-      window.location.href = "/";
+      window.location.href = getTournamentBracketExitHref(gameCode ?? game?.code, game);
     } catch (err) {
       hotToastContractError(err as Error, "Something went wrong. Try again or refresh the page.");
       setClaimAndLeaveInProgress(false);
     } finally {
       setClaimAndLeaveInProgress(false);
     }
-  }, [winner?.user_id, me?.user_id, game?.id, refetchGame]);
+  }, [
+    winner?.user_id,
+    me?.user_id,
+    game,
+    game?.id,
+    game?.code,
+    game?.tournament_id,
+    game?.tournament_code,
+    gameCode,
+    refetchGame,
+  ]);
 
   const historyToShow = useMemo(() => {
     const raw = isLiveGame && game?.history?.length ? game.history : demoHistory;
@@ -2507,13 +2517,24 @@ function Board3DPageContent() {
   // Live game: only show actual dice we rolled (never reconstruct from history — backend only has total, so we'd show wrong e.g. 3+3=6)
   const lastRollResultToShow = isLiveGame ? lastRollResultLive : lastRollResult;
 
+  const bracketExitHref = getTournamentBracketExitHref(gameCode ?? game?.code, game);
+  const bracketExitLabel = bracketExitHref !== "/" ? "Back to tournament lobby" : "Go home";
+
   const gameEnded = gameError && (gameQueryError as Error)?.message === "Game ended";
   if (gameEnded) {
     return (
       <div className="w-full min-h-screen bg-[#010F10] flex flex-col items-center justify-center text-center px-8">
         <h2 className="text-2xl font-bold text-cyan-400 mb-2">Game over</h2>
         <p className="text-gray-400 mb-6">This game has ended.</p>
-        <button onClick={() => router.push("/")} className="px-8 py-4 bg-[#00F0FF] text-[#010F10] font-bold rounded-lg hover:bg-[#00F0FF]/80 transition-all">Go home</button>
+        <button
+          type="button"
+          onClick={() => {
+            window.location.href = bracketExitHref;
+          }}
+          className="px-8 py-4 bg-[#00F0FF] text-[#010F10] font-bold rounded-lg hover:bg-[#00F0FF]/80 transition-all"
+        >
+          {bracketExitLabel}
+        </button>
       </div>
     );
   }
@@ -3124,10 +3145,12 @@ function Board3DPageContent() {
                   </p>
                   <button
                     type="button"
-                    onClick={() => router.push("/")}
+                    onClick={() => {
+                      window.location.href = bracketExitHref;
+                    }}
                     className="w-full py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold"
                   >
-                    Leave
+                    {bracketExitLabel}
                   </button>
                 </motion.div>
               ) : winner.user_id === me?.user_id ? (
@@ -3154,9 +3177,15 @@ function Board3DPageContent() {
                       {claimAndLeaveInProgress ? "Finalizing…" : "Finalize & go home"}
                     </button>
                   ) : (
-                    <Link href="/" className="inline-block w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold">
-                      Go home
-                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.href = bracketExitHref;
+                      }}
+                      className="w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold"
+                    >
+                      {bracketExitLabel}
+                    </button>
                   )}
                 </motion.div>
               ) : (
@@ -3183,9 +3212,15 @@ function Board3DPageContent() {
                       {claimAndLeaveInProgress ? "Finalizing…" : "Finalize & go home"}
                     </button>
                   ) : (
-                    <Link href="/" className="inline-block w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold">
-                      Go home
-                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.href = bracketExitHref;
+                      }}
+                      className="w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold"
+                    >
+                      {bracketExitLabel}
+                    </button>
                   )}
                 </motion.div>
               )}
@@ -3196,7 +3231,9 @@ function Board3DPageContent() {
         <BankruptcyModal
           isOpen={showBankruptcyModal && !gameTimeUpLocal}
           onClose={() => setShowBankruptcyModal(false)}
-          onReturnHome={() => (window.location.href = "/")}
+          onReturnHome={() => {
+            window.location.href = bracketExitHref;
+          }}
           tokensAwarded={0.5}
         />
 
@@ -3240,11 +3277,11 @@ function Board3DPageContent() {
                         return;
                       }
                       setShowVotedOutModal(false);
-                      router.push("/");
+                      window.location.href = bracketExitHref;
                     }}
                     className="block w-full py-3 rounded-xl border border-slate-500 text-slate-300 hover:bg-slate-700/50 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Leave
+                    {bracketExitLabel}
                   </button>
                 </div>
               </motion.div>

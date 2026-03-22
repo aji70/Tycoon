@@ -37,6 +37,8 @@ import { settleStakedArenaForFinishedGame } from "../services/arenaStakeSettleme
 import { submitErc8004Feedback as submitErc8004FeedbackTx } from "../services/erc8004Feedback.js";
 import { getActiveByGameId } from "./auctionController.js";
 import UserAgent from "../models/UserAgent.js";
+import Tournament from "../models/Tournament.js";
+import TournamentMatch from "../models/TournamentMatch.js";
 import agentRegistry from "../services/agentRegistry.js";
 import crypto from "crypto";
 import bcrypt from "bcrypt";
@@ -77,6 +79,27 @@ function generateJoinCode6() {
 function normalizeJoinCode(code) {
   const c = code != null ? String(code).trim().toUpperCase() : "";
   return c;
+}
+
+/** Bracket / agent tournament tables use codes like T24-R0-M1. */
+function gamePayloadLooksLikeTournamentTable(payload) {
+  if (!payload || typeof payload !== "object") return false;
+  const c = String(payload.code ?? "").trim().toUpperCase();
+  if (/^T\d+-R\d+-M\d+$/.test(c)) return true;
+  const gt = String(payload.game_type ?? "").toUpperCase();
+  return gt.includes("TOURNAMENT");
+}
+
+async function enrichGamePayloadWithTournamentLobbyMeta(payload) {
+  if (!payload?.id) return payload;
+  const match = await TournamentMatch.findByGameId(payload.id);
+  if (!match) return payload;
+  const tournament = await Tournament.findById(match.tournament_id);
+  return {
+    ...payload,
+    tournament_id: tournament?.id ?? match.tournament_id,
+    tournament_code: tournament?.code ?? null,
+  };
 }
 
 // AI bot addresses (must match frontend) — used to create DB players for guest AI games so we have 2+ players from the start.
@@ -899,10 +922,15 @@ const gameController = {
       if (!code) return res.status(404).json({ error: "Game not found" });
       const cached = await getCachedGameByCode(code);
       if (cached) {
+        let data = cached;
+        if (gamePayloadLooksLikeTournamentTable(data)) {
+          data = await enrichGamePayloadWithTournamentLobbyMeta(data);
+          await setCachedGameByCode(code, data);
+        }
         return res.json({
           success: true,
           message: "successful",
-          data: cached,
+          data,
         });
       }
 
@@ -971,7 +999,10 @@ const gameController = {
       const players = await GamePlayer.findByGameId(game.id);
       const history = await GamePlayHistory.findByGameId(game.id);
       const active_auction = await getActiveByGameId(game.id);
-      const data = { ...game, settings, players, history, active_auction: active_auction || undefined };
+      let data = { ...game, settings, players, history, active_auction: active_auction || undefined };
+      if (gamePayloadLooksLikeTournamentTable(data)) {
+        data = await enrichGamePayloadWithTournamentLobbyMeta(data);
+      }
       await setCachedGameByCode(code, data);
 
       res.json({
