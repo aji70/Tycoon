@@ -91,6 +91,23 @@ function formatStakeOrEarned(value: number): string {
 /** Celo chain id for contract reads when wallet is disconnected. */
 const CELO_CHAIN_ID = 42220;
 
+/** Map chainId to backend chain name. */
+function chainIdToLeaderboardChain(chainId: number): string {
+  switch (chainId) {
+    case 137:
+    case 80001:
+      return 'POLYGON';
+    case 42220:
+    case 44787:
+      return 'CELO';
+    case 8453:
+    case 84531:
+      return 'BASE';
+    default:
+      return 'CELO';
+  }
+}
+
 /** Guest/Privy profile when wallet is not connected, or when a connected extension wallet is not the Tycoon-registered address (notice only if wallet not registered — smart/linked users see no banner). */
 function GuestProfileView({
   guestUser,
@@ -170,6 +187,67 @@ function GuestProfileView({
     if (!playerData || !onChainUsername) return null;
     return parseUserFromContract(playerData, onChainUsername as string, guestOnChainAddress ?? undefined);
   }, [playerData, onChainUsername, guestOnChainAddress]);
+
+  const { data: offChainUserData } = useQuery({
+    queryKey: ['off-chain-user', guestUser?.address, guestUser?.linked_wallet_address],
+    queryFn: async () => {
+      try {
+        const addr = guestUser!.linked_wallet_address || guestUser!.address;
+        const res = await apiClient.get(`/users/by-address/${addr}`, { params: { chain: 'CELO' } });
+        return res.data;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!(guestUser?.address || guestUser?.linked_wallet_address),
+  });
+
+  const displayStats = React.useMemo(() => {
+    const offChain = offChainUserData as {
+      id?: number; games_played?: number; game_won?: number; game_lost?: number;
+      celo_games_played?: number; celo_games_won?: number;
+      total_staked?: number; total_earned?: number; total_withdrawn?: number; username?: string; created_at?: string;
+    } | undefined;
+    const gpBackend = Number(offChain?.celo_games_played) > 0 ? Number(offChain.celo_games_played) : Number(offChain?.games_played) ?? 0;
+    const backendHasStats = offChain?.id && (gpBackend > 0 || Number(offChain.total_earned) > 0);
+    const contractEmpty = userData && userData.gamesPlayed === 0 && userData.totalStaked === 0 && userData.totalEarned === 0;
+    if (contractEmpty && backendHasStats) {
+      const gw = Number(offChain.celo_games_won) > 0 ? Number(offChain.celo_games_won) : Number(offChain.game_won) || 0;
+      const gp = gpBackend;
+      const gl = Number(offChain.game_lost) || 0;
+      return {
+        ...userData!,
+        gamesPlayed: gp,
+        gamesWon: gw,
+        gamesLost: gl,
+        winRate: gp > 0 ? ((gw / gp) * 100).toFixed(1) + '%' : '0%',
+        totalStaked: Number(offChain.total_staked) || 0,
+        totalEarned: Number(offChain.total_earned) || 0,
+        totalWithdrawn: Number(offChain.total_withdrawn) || 0,
+      };
+    }
+    if (userData) return userData;
+    if (backendHasStats) {
+      const gp = gpBackend;
+      const gw = Number(offChain!.celo_games_won) > 0 ? Number(offChain!.celo_games_won) : Number(offChain!.game_won) || 0;
+      const gl = Number(offChain!.game_lost) || 0;
+      return {
+        username: offChain!.username || guestUser!.username,
+        shortAddress: guestUser!.address ? `${guestUser!.address.slice(0, 6)}...${guestUser!.address.slice(-4)}` : '',
+        gamesPlayed: gp,
+        gamesWon: gw,
+        gamesLost: gl,
+        winRate: gp > 0 ? ((gw / gp) * 100).toFixed(1) + '%' : '0%',
+        totalStaked: Number(offChain!.total_staked) || 0,
+        totalEarned: Number(offChain!.total_earned) || 0,
+        totalWithdrawn: Number(offChain!.total_withdrawn) || 0,
+        propertiesBought: 0,
+        propertiesSold: 0,
+        registeredAt: offChain!.created_at ? new Date(offChain!.created_at).getTime() / 1000 : 0,
+      };
+    }
+    return null;
+  }, [userData, offChainUserData, guestUser]);
 
   const { data: tycTokenAddress } = useReadContract({
     address: rewardAddress,
@@ -563,7 +641,7 @@ function GuestProfileView({
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[260px] max-h-[60vh] overflow-y-auto">
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
-                {!userData ? (
+                {!displayStats ? (
                   <EmptyState
                     icon={<BarChart2 className="w-14 h-14 text-cyan-400/70" />}
                     title="No on-chain stats yet"
@@ -574,7 +652,7 @@ function GuestProfileView({
                 ) : (
                   <>
                     {(() => {
-                      const levelInfo = getLevelFromActivity({ gamesPlayed: userData.gamesPlayed, gamesWon: userData.gamesWon });
+                      const levelInfo = getLevelFromActivity({ gamesPlayed: displayStats.gamesPlayed, gamesWon: displayStats.gamesWon });
                       return (
                         <div className="mb-4 p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-2">
                           <div className="flex items-center justify-between gap-2">
@@ -592,10 +670,10 @@ function GuestProfileView({
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                       {[
-                        { icon: BarChart2, label: 'Games played', value: String(userData.gamesPlayed), accent: 'cyan' },
-                        { icon: Crown, label: 'Wins', value: String(userData.gamesWon), accent: 'amber', valueClass: 'text-amber-300' },
-                        { icon: Coins, label: 'Losses', value: String(userData.gamesLost), accent: 'slate', valueClass: 'text-slate-300' },
-                        { icon: BarChart2, label: 'Win rate', value: userData.winRate, accent: 'emerald', valueClass: 'text-emerald-300' },
+                        { icon: BarChart2, label: 'Games played', value: String(displayStats.gamesPlayed), accent: 'cyan' },
+                        { icon: Crown, label: 'Wins', value: String(displayStats.gamesWon), accent: 'amber', valueClass: 'text-amber-300' },
+                        { icon: Coins, label: 'Losses', value: String(displayStats.gamesLost), accent: 'slate', valueClass: 'text-slate-300' },
+                        { icon: BarChart2, label: 'Win rate', value: displayStats.winRate, accent: 'emerald', valueClass: 'text-emerald-300' },
                       ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
                         <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
                           <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
@@ -609,9 +687,9 @@ function GuestProfileView({
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
                       {[
-                        { icon: Wallet, label: 'Total staked', value: formatStakeOrEarned(userData.totalStaked) + ' BLOCK', accent: 'cyan' },
-                        { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(userData.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
-                        { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(userData.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
+                        { icon: Wallet, label: 'Total staked', value: formatStakeOrEarned(displayStats.totalStaked) + ' BLOCK', accent: 'cyan' },
+                        { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(displayStats.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
+                        { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(displayStats.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
                       ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
                         <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
                           <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
@@ -625,8 +703,8 @@ function GuestProfileView({
 
                     <div className="grid grid-cols-2 gap-3">
                       {[
-                        { icon: BarChart2, label: 'Properties bought', value: String(userData.propertiesBought), accent: 'cyan' },
-                        { icon: BarChart2, label: 'Properties sold', value: String(userData.propertiesSold), accent: 'amber', valueClass: 'text-amber-300' },
+                        { icon: BarChart2, label: 'Properties bought', value: String(displayStats.propertiesBought ?? 0), accent: 'cyan' },
+                        { icon: BarChart2, label: 'Properties sold', value: String(displayStats.propertiesSold ?? 0), accent: 'amber', valueClass: 'text-amber-300' },
                       ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
                         <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
                           <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
@@ -948,6 +1026,18 @@ export default function Profile() {
     query: { enabled: !!username && !!tycoonAddress },
   });
 
+  const chainParam = chainIdToLeaderboardChain(chainId as number);
+  const { data: backendUser } = useQuery({
+    queryKey: ['user-by-address', gameLookupAddress ?? walletAddress, chainParam],
+    queryFn: async () => {
+      const addr = gameLookupAddress ?? walletAddress;
+      if (!addr) return null;
+      const res = await apiClient.get(`/users/by-address/${addr}`, { params: { chain: chainParam } });
+      return res.data;
+    },
+    enabled: !!isConnected && !!(gameLookupAddress ?? walletAddress),
+  });
+
   const {
     ownedCollectibles: mergedCollectibleRows,
     myVouchers,
@@ -1033,6 +1123,37 @@ export default function Profile() {
     playerDataLoading,
     playerDataReadError,
   ]);
+
+  // When contract returns all zeros but backend has stats (leaderboard source), use backend to populate profile stats.
+  const effectiveUserData = useMemo(() => {
+    if (!userData) return null;
+    const contractEmpty =
+      userData.gamesPlayed === 0 && userData.totalStaked === 0 && userData.totalEarned === 0;
+    const backend = backendUser as {
+      games_played?: number; game_won?: number; game_lost?: number;
+      celo_games_played?: number; celo_games_won?: number;
+      base_games_played?: number; base_games_won?: number;
+      total_staked?: number; total_earned?: number; total_withdrawn?: number;
+    } | undefined;
+    const isCelo = chainParam === 'CELO';
+    const gp = isCelo && Number(backend?.celo_games_played) > 0 ? Number(backend.celo_games_played) : Number(backend?.games_played) ?? 0;
+    const gw = isCelo && Number(backend?.celo_games_won) > 0 ? Number(backend.celo_games_won) : Number(backend?.game_won) ?? 0;
+    const hasBackendStats = backend && (gp > 0 || Number(backend.total_earned) > 0);
+    if (contractEmpty && hasBackendStats) {
+      const gl = Number(backend.game_lost) ?? 0;
+      return {
+        ...userData,
+        gamesPlayed: gp,
+        gamesWon: gw,
+        gamesLost: gl,
+        winRate: gp > 0 ? ((gw / gp) * 100).toFixed(1) + '%' : '0%',
+        totalStaked: Number(backend.total_staked) ?? 0,
+        totalEarned: Number(backend.total_earned) ?? 0,
+        totalWithdrawn: Number(backend.total_withdrawn) ?? 0,
+      };
+    }
+    return userData;
+  }, [userData, backendUser, chainParam]);
 
   const handleSend = (tokenId: bigint, fromAddress: Address) => {
     if (!rewardAddress) return toast.error("Wallet or contract not available");
@@ -1296,20 +1417,20 @@ export default function Profile() {
 
               <div className="flex-1 w-full text-center sm:text-left min-w-0">
                 <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight drop-shadow-sm">
-                  {userData.username}
+                  {effectiveUserData?.username}
                 </h2>
                 {displayName && (
                   <p className="text-cyan-300/80 text-sm mt-1">"{displayName}"</p>
                 )}
-                {userData.registeredAt > 0 && (
+                {effectiveUserData && effectiveUserData.registeredAt > 0 && (
                   <p className="text-slate-500 text-xs mt-1">
-                    Member since {new Date(userData.registeredAt * 1000).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                    Member since {new Date(effectiveUserData.registeredAt * 1000).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
                   </p>
                 )}
                 <div className="flex flex-col gap-1 mt-4">
                   <span className="text-slate-500 text-xs">Connected wallet</span>
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                    <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{userData.shortAddress || walletAddress}</span>
+                    <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{effectiveUserData?.shortAddress || walletAddress}</span>
                     <button
                     type="button"
                     onClick={copyAddress}
@@ -1486,8 +1607,8 @@ export default function Profile() {
                     }
                   />
                 </div>
-                {userData && (() => {
-                  const levelInfo = getLevelFromActivity({ gamesPlayed: userData.gamesPlayed, gamesWon: userData.gamesWon });
+                {effectiveUserData && (() => {
+                  const levelInfo = getLevelFromActivity({ gamesPlayed: effectiveUserData.gamesPlayed, gamesWon: effectiveUserData.gamesWon });
                   return (
                     <div className="mb-4 p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-2">
                       <div className="flex items-center justify-between gap-2">
@@ -1507,10 +1628,10 @@ export default function Profile() {
                 })()}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                   {[
-                    { icon: BarChart2, label: 'Games played', value: String(userData.gamesPlayed), accent: 'cyan' },
-                    { icon: Crown, label: 'Wins', value: String(userData.gamesWon), accent: 'amber', valueClass: 'text-amber-300' },
-                    { icon: Coins, label: 'Losses', value: String(userData.gamesLost), accent: 'slate', valueClass: 'text-slate-300' },
-                    { icon: BarChart2, label: 'Win rate', value: userData.winRate, accent: 'emerald', valueClass: 'text-emerald-300' },
+                    { icon: BarChart2, label: 'Games played', value: String(effectiveUserData?.gamesPlayed ?? 0), accent: 'cyan' },
+                    { icon: Crown, label: 'Wins', value: String(effectiveUserData?.gamesWon ?? 0), accent: 'amber', valueClass: 'text-amber-300' },
+                    { icon: Coins, label: 'Losses', value: String(effectiveUserData?.gamesLost ?? 0), accent: 'slate', valueClass: 'text-slate-300' },
+                    { icon: BarChart2, label: 'Win rate', value: effectiveUserData?.winRate ?? '0%', accent: 'emerald', valueClass: 'text-emerald-300' },
                   ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
                     <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
@@ -1525,9 +1646,9 @@ export default function Profile() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
                   {[
-                    { icon: Wallet, label: 'Total staked', value: formatStakeOrEarned(userData.totalStaked) + ' BLOCK', accent: 'cyan' },
-                    { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(userData.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
-                    { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(userData.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
+                    { icon: Wallet, label: 'Total staked', value: formatStakeOrEarned(effectiveUserData?.totalStaked ?? 0) + ' BLOCK', accent: 'cyan' },
+                    { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(effectiveUserData?.totalEarned ?? 0) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
+                    { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(effectiveUserData?.totalWithdrawn ?? 0) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
                   ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
                     <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
@@ -1542,8 +1663,8 @@ export default function Profile() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { icon: BarChart2, label: 'Properties bought', value: String(userData.propertiesBought), accent: 'cyan' },
-                    { icon: BarChart2, label: 'Properties sold', value: String(userData.propertiesSold), accent: 'amber', valueClass: 'text-amber-300' },
+                    { icon: BarChart2, label: 'Properties bought', value: String(effectiveUserData?.propertiesBought ?? 0), accent: 'cyan' },
+                    { icon: BarChart2, label: 'Properties sold', value: String(effectiveUserData?.propertiesSold ?? 0), accent: 'amber', valueClass: 'text-amber-300' },
                   ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
                     <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">

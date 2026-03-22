@@ -481,6 +481,22 @@ export async function requestMatchStart(req, res) {
   }
 }
 
+export async function createMatchGame(req, res) {
+  try {
+    const tournamentId = req.params.id;
+    const matchId = req.params.matchId;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, message: "Authentication required" });
+    const result = await tournamentService.createMatchGameForCreator(tournamentId, matchId, userId);
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    if (err?.message?.includes("not found")) return res.status(404).json({ success: false, message: err.message });
+    if (err?.message?.includes("Only the tournament creator")) return res.status(403).json({ success: false, message: err.message });
+    logger.error({ err: err?.message }, "tournament createMatchGame failed");
+    return res.status(400).json({ success: false, message: err?.message || "Create game failed" });
+  }
+}
+
 export async function startRound(req, res) {
   try {
     const roundIndex = Number(req.params.roundIndex);

@@ -260,24 +260,49 @@ function GuestProfileViewMobile({
   }, [playerData, onChainUsername, guestOnChainAddress]);
 
   const { data: offChainUserData } = useQuery({
-    queryKey: ['off-chain-user', guestUser?.address],
+    queryKey: ['off-chain-user', guestUser?.address, guestUser?.linked_wallet_address],
     queryFn: async () => {
       try {
-        const res = await apiClient.get(`/users/by-address/${guestUser!.address}`);
+        const addr = guestUser!.linked_wallet_address || guestUser!.address;
+        const res = await apiClient.get(`/users/by-address/${addr}`, { params: { chain: 'CELO' } });
         return res.data;
       } catch (e) {
         return null;
       }
     },
-    enabled: !!guestUser?.address,
+    enabled: !!(guestUser?.address || guestUser?.linked_wallet_address),
   });
 
   const displayStats = React.useMemo(() => {
+    const offChain = offChainUserData as {
+      id?: number; games_played?: number; game_won?: number; game_lost?: number;
+      celo_games_played?: number; celo_games_won?: number;
+      total_staked?: number; total_earned?: number; total_withdrawn?: number;
+    } | undefined;
+    const gpBackend = Number(offChain?.celo_games_played) > 0 ? Number(offChain.celo_games_played) : Number(offChain?.games_played) ?? 0;
+    const backendHasStats = offChain?.id && (gpBackend > 0 || Number(offChain.total_earned) > 0);
+    const contractEmpty = userData && userData.gamesPlayed === 0 && userData.totalStaked === 0 && userData.totalEarned === 0;
+    // When contract returns all zeros but backend has stats (leaderboard source), prefer backend.
+    if (contractEmpty && backendHasStats) {
+      const gp = gpBackend;
+      const gw = Number(offChain.celo_games_won) > 0 ? Number(offChain.celo_games_won) : Number(offChain.game_won) || 0;
+      const gl = Number(offChain.game_lost) || 0;
+      return {
+         ...userData!,
+         gamesPlayed: gp,
+         gamesWon: gw,
+         gamesLost: gl,
+         winRate: gp > 0 ? ((gw / gp) * 100).toFixed(1) + '%' : '0%',
+         totalStaked: Number(offChain.total_staked) || 0,
+         totalEarned: Number(offChain.total_earned) || 0,
+         totalWithdrawn: Number(offChain.total_withdrawn) || 0,
+         isOnChain: false,
+      };
+    }
     if (userData) return { ...userData, isOnChain: true };
-    const offChain = offChainUserData as any;
-    if (offChain && offChain.id && (offChain.games_played > 0 || offChain.total_earned > 0)) {
-      const gp = Number(offChain.games_played) || 0;
-      const gw = Number(offChain.game_won) || 0;
+    if (backendHasStats) {
+      const gp = gpBackend;
+      const gw = Number(offChain!.celo_games_won) > 0 ? Number(offChain!.celo_games_won) : Number(offChain!.game_won) || 0;
       const gl = Number(offChain.game_lost) || 0;
       return {
          username: offChain.username || guestUser!.username,

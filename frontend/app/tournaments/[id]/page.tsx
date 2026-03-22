@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAccount, useChainId } from "wagmi";
 import { useFundPrizePool } from "@/hooks/useFundPrizePool";
@@ -106,6 +106,7 @@ function buildBracketFromTournament(t: TournamentDetail | null): Bracket | null 
 export default function TournamentDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const id = String(params?.id ?? "");
   const inviteQuery = searchParams.get("invite")?.trim() ?? "";
   const inviteParams = inviteQuery ? { invite: inviteQuery } : undefined;
@@ -144,6 +145,7 @@ export default function TournamentDetailPage() {
     closeRegistration,
     startRound,
     requestMatchStart,
+    createMatchGame,
     isRegistered,
   } = useTournament();
 
@@ -151,6 +153,7 @@ export default function TournamentDetailPage() {
   const [startNowModalMatchId, setStartNowModalMatchId] = useState<number | null>(null);
   const [selectedStartSymbol, setSelectedStartSymbol] = useState<string>("hat");
   const [creatingRoundIndex, setCreatingRoundIndex] = useState<number | null>(null);
+  const [creatingMatchId, setCreatingMatchId] = useState<number | null>(null);
   const [fundPoolUsd, setFundPoolUsd] = useState("");
   const [fundPoolDepositing, setFundPoolDepositing] = useState(false);
   const [fundFromSmartWallet, setFundFromSmartWallet] = useState(true);
@@ -409,6 +412,31 @@ export default function TournamentDetailPage() {
       }
     } finally {
       setCreatingRoundIndex(null);
+    }
+  };
+
+  const handleCreateMatchGame = async (matchId: number) => {
+    if (!id || !isCreator) return;
+    setActionError(null);
+    setActionSuccess(null);
+    setCreatingMatchId(matchId);
+    try {
+      const res = await createMatchGame(id, String(matchId));
+      if (res.success && res.data?.redirect_url) {
+        fetchTournament(id, inviteParams);
+        fetchBracket(id, inviteParams);
+        router.push(res.data.redirect_url);
+        return;
+      }
+      if (res.success) {
+        setActionSuccess("Game created.");
+        fetchTournament(id, inviteParams);
+        fetchBracket(id, inviteParams);
+      } else {
+        setActionError(res.message ?? "Failed");
+      }
+    } finally {
+      setCreatingMatchId(null);
     }
   };
 
@@ -888,11 +916,11 @@ export default function TournamentDetailPage() {
                                   ) : canCreateGame ? (
                                     <button
                                       type="button"
-                                      onClick={() => handleStartRound(r.round_index)}
-                                      disabled={creatingRoundIndex != null}
+                                      onClick={() => handleCreateMatchGame(m.id)}
+                                      disabled={creatingMatchId != null}
                                       className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500/25 border border-cyan-500/60 text-cyan-300 font-medium hover:bg-cyan-500/35 disabled:opacity-50 transition-colors"
                                     >
-                                      {creatingRoundIndex === r.round_index ? (
+                                      {creatingMatchId === m.id ? (
                                         <>
                                           <Loader2 className="w-4 h-4 animate-spin" />
                                           Creating...
