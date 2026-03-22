@@ -823,6 +823,11 @@ function Board3DMobilePageContent() {
   const TURN_ROLL_SECONDS = 90;
   const hasRolled = isMyTurn && lastRollResultLive != null;
   useEffect(() => {
+    if (isAgentBattle) {
+      setTurnTimeLeft(null);
+      timeLeftFrozenAtRollRef.current = null;
+      return;
+    }
     if (!isLiveGame || !currentPlayer?.turn_start) {
       setTurnTimeLeft(null);
       timeLeftFrozenAtRollRef.current = null;
@@ -855,7 +860,16 @@ function Board3DMobilePageContent() {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [isLiveGame, currentPlayer?.turn_start, currentPlayer?.user_id, me?.user_id, game?.id, END_TURN, hasRolled]);
+  }, [
+    isAgentBattle,
+    isLiveGame,
+    currentPlayer?.turn_start,
+    currentPlayer?.user_id,
+    me?.user_id,
+    game?.id,
+    END_TURN,
+    hasRolled,
+  ]);
 
   const runMovementAnimation = useCallback(
     async (playerId: number, currentPos: number, totalSteps: number) => {
@@ -2312,7 +2326,7 @@ function Board3DMobilePageContent() {
         {isLiveGame && game && !isUntimed && game.duration && game.status === "RUNNING" && (
           <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} compact className="text-slate-200 text-xs shrink-0" />
         )}
-        {isLiveGame && turnTimeLeft != null && game?.status === "RUNNING" && (
+        {isLiveGame && !isAgentBattle && turnTimeLeft != null && game?.status === "RUNNING" && (
           <div
             className={`font-mono text-xs font-bold rounded-md px-2 py-1 bg-black/80 shrink-0 ${(turnTimeLeft ?? 120) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}
             title={isMyTurn ? "Your turn: roll or complete actions" : `${currentPlayer?.username ?? "Player"} has 2 min to roll`}

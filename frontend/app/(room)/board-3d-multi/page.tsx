@@ -973,6 +973,11 @@ function Board3DPageContent() {
   const TURN_ROLL_SECONDS = 90;
   const hasRolled = isMyTurn && lastRollResultLive != null;
   useEffect(() => {
+    if (isAgentBattle) {
+      setTurnTimeLeft(null);
+      timeLeftFrozenAtRollRef.current = null;
+      return;
+    }
     if (!isLiveGame || !currentPlayer?.turn_start) {
       setTurnTimeLeft(null);
       timeLeftFrozenAtRollRef.current = null;
@@ -1005,7 +1010,16 @@ function Board3DPageContent() {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [isLiveGame, currentPlayer?.turn_start, currentPlayer?.user_id, me?.user_id, game?.id, END_TURN, hasRolled]);
+  }, [
+    isAgentBattle,
+    isLiveGame,
+    currentPlayer?.turn_start,
+    currentPlayer?.user_id,
+    me?.user_id,
+    game?.id,
+    END_TURN,
+    hasRolled,
+  ]);
 
   const triggerLandingLogic = useCallback(
     (newPosition: number, isSpecial = false) => {
@@ -2426,7 +2440,7 @@ function Board3DPageContent() {
         )}
 
         {/* 2-min turn timer — same as 2D board */}
-        {isLiveGame && turnTimeLeft != null && game?.status === "RUNNING" && (
+        {isLiveGame && !isAgentBattle && turnTimeLeft != null && game?.status === "RUNNING" && (
           <div
             className={`absolute top-3 right-3 z-[100] px-4 py-2 rounded-xl bg-slate-800/95 border border-cyan-500/50 font-mono font-bold shadow-lg ${(turnTimeLeft ?? 120) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-200"}`}
             style={{ zIndex: 2147483646 }}
