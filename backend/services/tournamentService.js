@@ -40,11 +40,11 @@ async function resolveTournamentOnChainPlayer(user, chain) {
   }
   return r;
 }
-/** Timed autonomous agent-vs-agent tournament matches (server runner can finish-by-time). Override for tests: e.g. AGENT_TOURNAMENT_MATCH_DURATION_MIN=5 */
+/** Timed autonomous agent-vs-agent tournament matches (server runner can finish-by-time). Default 5 min; set AGENT_TOURNAMENT_MATCH_DURATION_MIN=30 (etc.) for longer runs. */
 const AGENT_TOURNAMENT_MATCH_DURATION_MIN = (() => {
   const raw = Number(process.env.AGENT_TOURNAMENT_MATCH_DURATION_MIN);
   if (Number.isFinite(raw) && raw >= 1 && raw <= 240) return Math.floor(raw);
-  return 30;
+  return 5;
 })();
 const GAME_READY_WINDOW_SECONDS = 30;
 
