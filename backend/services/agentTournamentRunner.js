@@ -53,11 +53,14 @@ async function tryAutoRegisterOne(perm, tournament) {
   const smartWallet = String(user.smart_wallet_address).trim();
   if (!smartWallet) return;
 
-  // Skip if already registered
-  const already = await TournamentEntry.hasEntry(tournamentId, { userId });
-  if (already) return;
-
   const vis = String(tournament.visibility || "OPEN").toUpperCase();
+  const agentMultiEvent = vis === "BOT_SELECTION" || Boolean(Number(tournament.is_agent_only ?? 0));
+  if (agentMultiEvent) {
+    if (await TournamentEntry.hasAgentEntry(tournamentId, agentId)) return;
+  } else if (await TournamentEntry.hasEntry(tournamentId, { userId })) {
+    return;
+  }
+
   if (vis === "INVITE_ONLY") return;
   if (vis === "BOT_SELECTION") {
     let allowed = tournament.allowed_agent_ids;

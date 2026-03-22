@@ -67,6 +67,12 @@ function isTournamentGameCode(code) {
 }
 
 async function assertNoCrossTournamentConflict(tournamentId, entryList) {
+  // Set TOURNAMENT_SKIP_CROSS_ACTIVE_CHECK=true in .env to allow parallel tournament games while testing.
+  const skip =
+    process.env.TOURNAMENT_SKIP_CROSS_ACTIVE_CHECK === "true" ||
+    process.env.TOURNAMENT_SKIP_CROSS_ACTIVE_CHECK === "1";
+  if (skip) return;
+
   const entries = Array.isArray(entryList) ? entryList.filter(Boolean) : [entryList].filter(Boolean);
   const userIds = entries
     .map((e) => Number(e?.user_id))
@@ -88,12 +94,7 @@ async function assertNoCrossTournamentConflict(tournamentId, entryList) {
     .first();
 
   if (activeUserConflict) {
-    const blockingTournament = await Tournament.findById(activeUserConflict.tournament_id);
-    const blockingSlug = blockingTournament?.code || blockingTournament?.id || activeUserConflict.tournament_id;
-    const blockingName = blockingTournament?.name || `Tournament ${activeUserConflict.tournament_id}`;
-    throw new Error(
-      `A player is already active in ${blockingName}. Finish that board first: /tournaments/${blockingSlug}`
-    );
+    throw new Error("A player is already active in Tycoon. Finish that board first.");
   }
 
   const entryIds = entries.map((e) => Number(e?.id)).filter((v) => Number.isInteger(v) && v > 0);
@@ -125,12 +126,7 @@ async function assertNoCrossTournamentConflict(tournamentId, entryList) {
     .first();
 
   if (activeAgentConflict) {
-    const blockingTournament = await Tournament.findById(activeAgentConflict.tournament_id);
-    const blockingSlug = blockingTournament?.code || blockingTournament?.id || activeAgentConflict.tournament_id;
-    const blockingName = blockingTournament?.name || `Tournament ${activeAgentConflict.tournament_id}`;
-    throw new Error(
-      `An agent is already active in ${blockingName}. Finish that board first: /tournaments/${blockingSlug}`
-    );
+    throw new Error("An agent is already active in Tycoon. Finish that board first.");
   }
 }
 
@@ -268,7 +264,8 @@ export async function createTournament(data) {
 
 /**
  * Register a player for a tournament (off-chain only).
- * Rejects if user_id or address already has an entry (dual presence).
+ * Human events: one entry per user (and linked-wallet dedupe).
+ * Invited-bot / agents-only: one entry per user_agent_id; same human may have multiple agents in the same event.
  * @param {{ invite_token?: string, user_agent_id?: number }} meta
  */
 export async function registerPlayer(tournamentId, { userId, address, chain }, paymentTxHash = null, meta = {}) {
@@ -345,11 +342,23 @@ export async function registerPlayer(tournamentId, { userId, address, chain }, p
     }
   }
 
-  const already = await TournamentEntry.hasEntry(tournamentId, { userId: user.id, address: user.address });
-  if (already) throw new Error("Already registered for this tournament");
-  if (user.linked_wallet_address) {
-    const byLinked = await TournamentEntry.findByTournamentAndAddress(tournamentId, user.linked_wallet_address);
-    if (byLinked) throw new Error("This wallet is already registered");
+  const regAgentIdForDup = Number(meta.user_agent_id);
+  const allowMultiEntriesSameUser =
+    (vis === "BOT_SELECTION" || agentOnlyEvent) &&
+    Number.isInteger(regAgentIdForDup) &&
+    regAgentIdForDup > 0;
+
+  if (allowMultiEntriesSameUser) {
+    if (await TournamentEntry.hasAgentEntry(tournamentId, regAgentIdForDup)) {
+      throw new Error("This agent is already registered for this tournament");
+    }
+  } else {
+    const already = await TournamentEntry.hasEntry(tournamentId, { userId: user.id, address: user.address });
+    if (already) throw new Error("Already registered for this tournament");
+    if (user.linked_wallet_address) {
+      const byLinked = await TournamentEntry.findByTournamentAndAddress(tournamentId, user.linked_wallet_address);
+      if (byLinked) throw new Error("This wallet is already registered");
+    }
   }
 
   const count = await TournamentEntry.countByTournament(tournamentId);
@@ -1625,10 +1634,12 @@ export async function getLeaderboard(tournamentId, phase = "live") {
 
   const rows = entries.map((e) => {
     const placement = tournament.status === "COMPLETED" && phase === "final" ? placementOrder.indexOf(e.id) + 1 || null : null;
+    const displayName = (e.agent_name && String(e.agent_name).trim()) || e.username || e.user_address;
     return {
       entry_id: e.id,
       user_id: e.user_id,
-      username: e.username || e.user_address,
+      username: displayName,
+      agent_name: e.agent_name ?? null,
       address: e.address,
       match_wins: entryIdToWins[e.id] || 0,
       round_eliminated: entryIdToRoundEliminated[e.id],
@@ -1724,8 +1735,13 @@ export async function requestMatchStart(tournamentId, matchId, userId, preferred
   }
 
   const entryIds = getMatchEntryIds(match);
-  const entry = await TournamentEntry.findByTournamentAndUser(tournamentId, userId);
-  if (!entry || !entryIds.map(Number).includes(Number(entry.id))) throw new Error("You are not in this match");
+  const numericEntryIds = entryIds.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  const userEntries = await db("tournament_entries")
+    .where({ tournament_id: Number(tournamentId), user_id: Number(userId) })
+    .select("id");
+  const entryRow = (userEntries || []).find((e) => numericEntryIds.includes(Number(e.id)));
+  const entry = entryRow ? await TournamentEntry.findById(entryRow.id) : null;
+  if (!entry || !numericEntryIds.includes(Number(entry.id))) throw new Error("You are not in this match");
 
   const round = await TournamentRound.findByTournamentAndIndex(tournamentId, match.round_index);
   if (!round) throw new Error("Round not found");

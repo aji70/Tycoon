@@ -61,6 +61,16 @@ function statusColor(status: string): string {
   }
 }
 
+function tournamentEntryDisplay(e: {
+  agent_name?: string | null;
+  username?: string | null;
+  address?: string | null;
+} | null | undefined): string {
+  if (!e) return "";
+  const n = e.agent_name != null && String(e.agent_name).trim() !== "" ? String(e.agent_name).trim() : "";
+  return n || (e.username ?? "") || (e.address ?? "") || "";
+}
+
 function extractTournamentPathFromMessage(message: string | null): string | null {
   if (!message) return null;
   const match = message.match(/(\/tournaments\/[A-Za-z0-9_-]+)/);
@@ -94,9 +104,15 @@ function buildBracketFromTournament(t: TournamentDetail | null): Bracket | null 
           status: m.status,
           spectator_token: m.spectator_token ?? null,
           spectator_url: m.spectator_url ?? null,
-          slot_a_username: m.slot_a_entry_id ? (entryMap.get(m.slot_a_entry_id)?.username ?? null) : null,
-          slot_b_username: m.slot_b_entry_id ? (entryMap.get(m.slot_b_entry_id)?.username ?? null) : null,
-          winner_username: m.winner_entry_id ? (entryMap.get(m.winner_entry_id)?.username ?? null) : null,
+          slot_a_username: m.slot_a_entry_id
+            ? tournamentEntryDisplay(entryMap.get(m.slot_a_entry_id)) || null
+            : null,
+          slot_b_username: m.slot_b_entry_id
+            ? tournamentEntryDisplay(entryMap.get(m.slot_b_entry_id)) || null
+            : null,
+          winner_username: m.winner_entry_id
+            ? tournamentEntryDisplay(entryMap.get(m.winner_entry_id)) || null
+            : null,
         })),
       };
     });
@@ -872,8 +888,8 @@ export default function TournamentDetailPage() {
                                 ? m.slot_a_username
                                 : m.slot_b_entry_id === pid
                                   ? m.slot_b_username
-                                  : tournament.entries?.find((e) => e.id === pid)?.username;
-                            return un ?? `#${pid}`;
+                                  : tournamentEntryDisplay(tournament.entries?.find((e) => e.id === pid));
+                            return un || `#${pid}`;
                           });
                           const needsGameCreated =
                             !m.game_id &&
@@ -1058,7 +1074,7 @@ export default function TournamentDetailPage() {
             <ul className="rounded-xl border border-[#0E282A] bg-[#011112]/60 divide-y divide-white/5">
               {tournament.entries.map((e) => (
                 <li key={e.id} className="px-4 py-3 text-sm">
-                  {e.username ?? e.address ?? `Entry #${e.id}`}
+                  {tournamentEntryDisplay(e) || `Entry #${e.id}`}
                 </li>
               ))}
             </ul>

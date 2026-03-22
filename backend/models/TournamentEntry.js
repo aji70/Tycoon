@@ -13,9 +13,30 @@ const TournamentEntry = {
   async findByTournament(tournamentId, { withUser = false } = {}) {
     const query = db("tournament_entries").where({ tournament_id: tournamentId }).orderBy("seed_order", "asc").orderBy("id", "asc");
     if (withUser) {
-      return query.select("tournament_entries.*", "users.username", "users.address as user_address").join("users", "tournament_entries.user_id", "users.id");
+      return query
+        .select(
+          "tournament_entries.*",
+          "users.username",
+          "users.address as user_address",
+          "tea.user_agent_id",
+          "tea.agent_name"
+        )
+        .join("users", "tournament_entries.user_id", "users.id")
+        .leftJoin("tournament_entry_agents as tea", "tea.tournament_entry_id", "tournament_entries.id");
     }
     return query;
+  },
+
+  /** True if this user_agent_id already has a seat in this tournament. */
+  async hasAgentEntry(tournamentId, userAgentId) {
+    const aid = Number(userAgentId);
+    if (!tournamentId || !Number.isInteger(aid) || aid <= 0) return false;
+    const row = await db("tournament_entry_agents as tea")
+      .join("tournament_entries as te", "tea.tournament_entry_id", "te.id")
+      .where("te.tournament_id", Number(tournamentId))
+      .where("tea.user_agent_id", aid)
+      .first();
+    return Boolean(row);
   },
 
   async findByTournamentAndUser(tournamentId, userId) {
