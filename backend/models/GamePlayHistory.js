@@ -22,11 +22,16 @@ const GamePlayHistory = {
       .leftJoin("games as g", "h.game_id", "g.id")
       .leftJoin("game_players as gp", "h.game_player_id", "gp.id")
       .leftJoin("users as u", "gp.user_id", "u.id")
+      .leftJoin("agent_slot_assignments as asa", function linkAsa() {
+        this.on("asa.game_id", "=", "h.game_id").andOn("asa.slot", "=", "gp.turn_order");
+      })
       .select(
         "h.*",
         "g.code as game_code",
         "gp.symbol as player_symbol",
-        "u.username as player_name"
+        db.raw(
+          "COALESCE(NULLIF(TRIM(asa.name), ''), u.username) as player_name"
+        )
       )
       .where("h.id", id)
       .first();
@@ -37,11 +42,16 @@ const GamePlayHistory = {
       .leftJoin("games as g", "h.game_id", "g.id")
       .leftJoin("game_players as gp", "h.game_player_id", "gp.id")
       .leftJoin("users as u", "gp.user_id", "u.id")
+      .leftJoin("agent_slot_assignments as asa", function linkAsa() {
+        this.on("asa.game_id", "=", "h.game_id").andOn("asa.slot", "=", "gp.turn_order");
+      })
       .select(
         "h.*",
         "g.code as game_code",
         "gp.symbol as player_symbol",
-        "u.username as player_name"
+        db.raw(
+          "COALESCE(NULLIF(TRIM(asa.name), ''), u.username) as player_name"
+        )
       )
       .limit(limit)
       .offset(offset)
@@ -52,7 +62,16 @@ const GamePlayHistory = {
     return db("game_play_history as h")
       .leftJoin("game_players as gp", "h.game_player_id", "gp.id")
       .leftJoin("users as u", "gp.user_id", "u.id")
-      .select("h.*", "gp.symbol as player_symbol", "u.username as player_name")
+      .leftJoin("agent_slot_assignments as asa", function linkAsa() {
+        this.on("asa.game_id", "=", "h.game_id").andOn("asa.slot", "=", "gp.turn_order");
+      })
+      .select(
+        "h.*",
+        "gp.symbol as player_symbol",
+        db.raw(
+          "COALESCE(NULLIF(TRIM(asa.name), ''), u.username) as player_name"
+        )
+      )
       .where("h.game_id", gameId)
       .limit(limit)
       .offset(offset)
@@ -63,7 +82,16 @@ const GamePlayHistory = {
     return db("game_play_history as h")
       .leftJoin("game_players as gp", "h.game_player_id", "gp.id")
       .leftJoin("users as u", "gp.user_id", "u.id")
-      .select("h.*", "gp.symbol as player_symbol", "u.username as player_name")
+      .leftJoin("agent_slot_assignments as asa", function linkAsa() {
+        this.on("asa.game_id", "=", "h.game_id").andOn("asa.slot", "=", "gp.turn_order");
+      })
+      .select(
+        "h.*",
+        "gp.symbol as player_symbol",
+        db.raw(
+          "COALESCE(NULLIF(TRIM(asa.name), ''), u.username) as player_name"
+        )
+      )
       .where("h.game_player_id", gamePlayerId)
       .limit(limit)
       .offset(offset)

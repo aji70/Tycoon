@@ -43,6 +43,8 @@ import ActionLog from "@/components/game/ai-board/action-log";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, HeartHandshake, X, LayoutDashboard, Bot } from "lucide-react";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
+import { applyAgentBattleDisplayNamesToHistory } from "@/lib/agentBattleHistoryNames";
+import { isTournamentBoardGame } from "@/lib/tournamentBoardGame";
 import { MyAgentToggle } from "@/components/game/MyAgentToggle";
 import { useAgentBindings } from "@/hooks/useAgentBindings";
 import { getStoredAgentApiKey, setStoredAgentApiKey } from "@/lib/agentApiKeySession";
@@ -211,6 +213,7 @@ function Board3DMobilePageContent() {
 
   const isLiveGame = !!gameCode && !!game;
   const isMultiplayer = !!game && game.is_ai === false;
+  const hideTournamentChat = isTournamentBoardGame(game ?? null, gameCode);
 
   // Multiplayer: socket for live updates
   useEffect(() => {
@@ -313,6 +316,11 @@ function Board3DMobilePageContent() {
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [lastReadTavernCount, setLastReadTavernCount] = useState(0);
+
+  useEffect(() => {
+    if (hideTournamentChat && chatOpen) setChatOpen(false);
+  }, [hideTournamentChat, chatOpen]);
+
   const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
   const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
   const [showVotedOutModal, setShowVotedOutModal] = useState(false);
@@ -351,7 +359,7 @@ function Board3DMobilePageContent() {
       const list = payload?.data ?? payload;
       return Array.isArray(list) ? list : [];
     },
-    enabled: !!gameChatId,
+    enabled: !!gameChatId && !hideTournamentChat,
     refetchInterval: 8000,
     staleTime: 5000,
   });
@@ -2214,7 +2222,10 @@ function Board3DMobilePageContent() {
     }
   }, [game?.id, game?.winner_id, winner?.user_id, me?.user_id, claimAndLeaveInProgress]);
 
-  const historyToShow = isLiveGame && game?.history?.length ? game.history : [];
+  const historyToShow = useMemo(() => {
+    const raw = isLiveGame && game?.history?.length ? game.history : [];
+    return applyAgentBattleDisplayNamesToHistory(raw, isAgentBattle, livePlayers);
+  }, [isLiveGame, game?.history, isAgentBattle, livePlayers]);
   const lastRollResultToShow = isLiveGame && lastVisibleRoll
     ? { die1: lastVisibleRoll.die1, die2: lastVisibleRoll.die2, total: lastVisibleRoll.total }
     : lastRollResultLive;
@@ -2541,8 +2552,8 @@ function Board3DMobilePageContent() {
         onEndTurn={END_TURN}
         triggerSpecialLanding={triggerLandingLogic}
         endTurnAfterSpecial={endTurnAfterSpecialMove}
-        onOpenChat={() => setChatOpen(true)}
-        chatUnreadCount={chatUnreadCount}
+        onOpenChat={hideTournamentChat ? undefined : () => setChatOpen(true)}
+        chatUnreadCount={hideTournamentChat ? 0 : chatUnreadCount}
         onPlayersModalOpen={() => {
           refetchGame();
           refetchGameProperties();
@@ -3019,9 +3030,9 @@ function Board3DMobilePageContent() {
         )}
       </AnimatePresence>
 
-      {/* Tavern chat slide-up panel — opened from bottom bar Chat button; z above navbar and game bar so close/Board are tappable */}
+      {/* Tavern chat slide-up panel — hidden for tournament bracket games */}
       <AnimatePresence>
-        {chatOpen && (
+        {chatOpen && !hideTournamentChat && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

@@ -113,6 +113,8 @@ export interface TournamentMatch {
   slot_a_username?: string | null;
   slot_b_username?: string | null;
   winner_username?: string | null;
+  /** Joined from games row when present (GET tournament detail). */
+  match_game_type?: string | null;
   created_at?: string;
   updated_at?: string;
 }
