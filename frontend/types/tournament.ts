@@ -158,6 +158,8 @@ export interface Bracket {
 
 export interface LeaderboardEntry {
   rank: number;
+  /** Final finish order when tournament completed (1 = best). */
+  placement?: number | null;
   entry_id: number;
   user_id: number;
   username: string;

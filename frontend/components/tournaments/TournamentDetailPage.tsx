@@ -77,6 +77,18 @@ function tournamentEntryDisplay(e: {
   return n || (e.username ?? "") || (e.address ?? "") || "";
 }
 
+/** e.g. 1 → "1st" for final standings (small multi-player pods). */
+function ordinalRank(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  const k = Math.floor(Number(n));
+  const j = k % 10;
+  const h = k % 100;
+  if (j === 1 && h !== 11) return `${k}st`;
+  if (j === 2 && h !== 12) return `${k}nd`;
+  if (j === 3 && h !== 13) return `${k}rd`;
+  return `${k}th`;
+}
+
 function extractTournamentPathFromMessage(message: string | null): string | null {
   if (!message) return null;
   const match = message.match(/(\/(?:tournaments|agent-tournaments)\/[A-Za-z0-9_-]+)/);
@@ -1295,7 +1307,9 @@ export function TournamentDetailPage({
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-white/10 text-white/55 text-xs uppercase tracking-wider">
-                      <th className="p-4 font-semibold">#</th>
+                      <th className="p-4 font-semibold">
+                        {tournament.status === "COMPLETED" ? "Place" : "#"}
+                      </th>
                       <th className="p-4 font-semibold">Player</th>
                       <th className="p-4 font-semibold">Out</th>
                       <th className="p-4 font-semibold">Payout</th>
@@ -1326,9 +1340,9 @@ export function TournamentDetailPage({
                         >
                           <td className="p-4">
                             <span
-                              className={`inline-flex h-8 min-w-[2rem] items-center justify-center rounded-lg text-sm font-bold ${rankBadge}`}
+                              className={`inline-flex h-8 min-w-[2.5rem] px-1.5 items-center justify-center rounded-lg text-sm font-bold ${rankBadge}`}
                             >
-                              {e.rank}
+                              {tournament.status === "COMPLETED" ? ordinalRank(e.rank ?? e.placement ?? null) : e.rank}
                             </span>
                           </td>
                           <td className="p-4 font-medium text-white/95">

@@ -1718,6 +1718,92 @@ export async function onGameFinished(gameId) {
 }
 
 /**
+ * Small GROUP_ELIMINATION events (≤4 entrants) are often a single multi-player table.
+ * Final standings must follow game placements (1st–4th), not only slot_a/slot_b winner+loser.
+ * @returns {Promise<number[]|null>} entry ids in finish order (best first)
+ */
+async function trySinglePodPlacementOrderFromGame(tournament, entries, matches) {
+  if (!tournament || !entries?.length || !matches?.length) return null;
+  if (String(tournament.format || "").toUpperCase() !== "GROUP_ELIMINATION") return null;
+  const nEnt = entries.length;
+  if (nEnt < 2 || nEnt > 4) return null;
+
+  const completedGameMatches = matches.filter(
+    (m) => String(m.status || "").toUpperCase() === "COMPLETED" && m.game_id != null
+  );
+  if (completedGameMatches.length !== 1) return null;
+
+  const m = completedGameMatches[0];
+  let participantIds = parseParticipantEntryIds(m);
+  if (!participantIds.length) participantIds = getMatchEntryIds(m);
+  participantIds = [...new Set(participantIds.map(Number))].filter((id) => Number.isInteger(id) && id > 0);
+  const entryIdSet = new Set(entries.map((e) => Number(e.id)));
+  if (participantIds.length !== nEnt) return null;
+  if (!participantIds.every((id) => entryIdSet.has(id))) return null;
+
+  const game = await Game.findById(m.game_id);
+  if (!game) return null;
+
+  let placementsObj = {};
+  if (game.placements != null) {
+    try {
+      placementsObj = typeof game.placements === "string" ? JSON.parse(game.placements) : game.placements;
+    } catch {
+      placementsObj = {};
+    }
+  }
+
+  const entryById = new Map(entries.map((e) => [Number(e.id), e]));
+  const placementForUser = (uid) => {
+    if (uid == null) return 999;
+    const u = Number(uid);
+    if (Number.isFinite(u) && Object.prototype.hasOwnProperty.call(placementsObj, u)) return Number(placementsObj[u]);
+    if (Object.prototype.hasOwnProperty.call(placementsObj, String(u))) return Number(placementsObj[String(u)]);
+    return 999;
+  };
+
+  const buildRanked = () =>
+    participantIds
+      .map((eid) => {
+        const entry = entryById.get(Number(eid));
+        const uid = entry?.user_id != null ? Number(entry.user_id) : null;
+        return { eid: Number(eid), pos: placementForUser(uid) };
+      })
+      .sort((a, b) => a.pos - b.pos);
+
+  let ranked = buildRanked();
+  let hasGood = ranked.length === nEnt && ranked[0].pos < 900;
+
+  if (!hasGood) {
+    const nw = await computeNetWorthResultForGameId(game.id);
+    if (nw?.net_worths?.length) {
+      const allowedUids = new Set(
+        participantIds
+          .map((eid) => entryById.get(Number(eid))?.user_id)
+          .filter((uid) => uid != null)
+          .map((uid) => Number(uid))
+      );
+      const subset = nw.net_worths.filter((row) => allowedUids.has(Number(row.user_id)));
+      const source = subset.length >= nEnt ? subset : nw.net_worths.length >= nEnt ? nw.net_worths : null;
+      if (source) {
+        placementsObj = placementsFromNetWorths(source);
+        ranked = buildRanked();
+        hasGood = ranked.length === nEnt && ranked[0].pos < 900;
+      }
+    }
+  }
+
+  if (hasGood) return ranked.map((r) => r.eid);
+
+  const w = m.winner_entry_id != null ? Number(m.winner_entry_id) : null;
+  if (w && entryIdSet.has(w)) {
+    const rest = participantIds.filter((id) => Number(id) !== w);
+    return [w, ...rest];
+  }
+  return null;
+}
+
+/**
  * Get leaderboard for a tournament (during or final). Entries with placement, round_eliminated, match_wins.
  */
 export async function getLeaderboard(tournamentId, phase = "live") {
@@ -1744,19 +1830,29 @@ export async function getLeaderboard(tournamentId, phase = "live") {
   }
 
   const placementOrder = [];
+  let usedPodStandings = false;
   if (tournament.status === "COMPLETED" && phase === "final") {
-    const finalMatch = matches.filter((m) => m.round_index === rounds[rounds.length - 1])[0];
-    if (finalMatch?.winner_entry_id) placementOrder.push(finalMatch.winner_entry_id);
-    if (finalMatch) {
-      const loserId = finalMatch.slot_a_entry_id === finalMatch.winner_entry_id ? finalMatch.slot_b_entry_id : finalMatch.slot_a_entry_id;
-      if (loserId) placementOrder.push(loserId);
-    }
-    for (let r = rounds.length - 2; r >= 0; r--) {
-      const roundMatches = matches.filter((m) => m.round_index === r);
-      for (const m of roundMatches) {
-        if (m.winner_entry_id && !placementOrder.includes(m.winner_entry_id)) placementOrder.push(m.winner_entry_id);
-        const other = m.slot_a_entry_id === m.winner_entry_id ? m.slot_b_entry_id : m.slot_a_entry_id;
-        if (other && !placementOrder.includes(other)) placementOrder.push(other);
+    const podOrder = await trySinglePodPlacementOrderFromGame(tournament, entries, matches);
+    if (podOrder != null && podOrder.length >= 2) {
+      placementOrder.push(...podOrder);
+      usedPodStandings = true;
+    } else {
+      const finalMatch = matches.filter((m) => m.round_index === rounds[rounds.length - 1])[0];
+      if (finalMatch?.winner_entry_id) placementOrder.push(finalMatch.winner_entry_id);
+      if (finalMatch) {
+        const loserId =
+          finalMatch.slot_a_entry_id === finalMatch.winner_entry_id
+            ? finalMatch.slot_b_entry_id
+            : finalMatch.slot_a_entry_id;
+        if (loserId) placementOrder.push(loserId);
+      }
+      for (let r = rounds.length - 2; r >= 0; r--) {
+        const roundMatches = matches.filter((m) => m.round_index === r);
+        for (const m of roundMatches) {
+          if (m.winner_entry_id && !placementOrder.includes(m.winner_entry_id)) placementOrder.push(m.winner_entry_id);
+          const other = m.slot_a_entry_id === m.winner_entry_id ? m.slot_b_entry_id : m.slot_a_entry_id;
+          if (other && !placementOrder.includes(other)) placementOrder.push(other);
+        }
       }
     }
   }
@@ -1773,8 +1869,11 @@ export async function getLeaderboard(tournamentId, phase = "live") {
   }
 
   const rows = entries.map((e) => {
-    const placement = tournament.status === "COMPLETED" && phase === "final" ? placementOrder.indexOf(e.id) + 1 || null : null;
+    const idx = placementOrder.indexOf(Number(e.id));
+    const placement =
+      tournament.status === "COMPLETED" && phase === "final" && idx >= 0 ? idx + 1 : null;
     const displayName = (e.agent_name && String(e.agent_name).trim()) || e.username || e.user_address;
+    const elimRound = usedPodStandings ? null : entryIdToRoundEliminated[e.id];
     return {
       entry_id: e.id,
       user_id: e.user_id,
@@ -1782,8 +1881,8 @@ export async function getLeaderboard(tournamentId, phase = "live") {
       agent_name: e.agent_name ?? null,
       address: e.address,
       match_wins: entryIdToWins[e.id] || 0,
-      round_eliminated: entryIdToRoundEliminated[e.id],
-      eliminated_in_round: entryIdToRoundEliminated[e.id] ?? null,
+      round_eliminated: elimRound,
+      eliminated_in_round: elimRound ?? null,
       placement,
       rank: placement ?? null,
       is_winner: placement === 1,
