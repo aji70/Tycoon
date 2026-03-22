@@ -77,10 +77,8 @@ function tournamentEntryDisplay(e: {
   return n || (e.username ?? "") || (e.address ?? "") || "";
 }
 
-/** e.g. 1 → "1st" for final standings (small multi-player pods). */
-function ordinalRank(n: number | null | undefined): string {
-  if (n == null || !Number.isFinite(n)) return "—";
-  const k = Math.floor(Number(n));
+function ordinalPlace(n: number): string {
+  const k = Math.floor(n);
   const j = k % 10;
   const h = k % 100;
   if (j === 1 && h !== 11) return `${k}st`;
@@ -164,15 +162,18 @@ function isBracketMatchTerminal(m: BracketMatchRow): boolean {
   return false;
 }
 
-/** Active table: game exists and match not finished (avoids stale Spectate after finals). */
+/** Active table: game exists, linked game not finished, match not decided (avoids stale Spectate after the board ends). */
 function bracketMatchIsLiveBoard(m: BracketMatchRow): boolean {
   if (m.game_id == null || isBracketMatchTerminal(m)) return false;
+  const gs = String(m.game_status ?? "").toUpperCase();
+  if (gs === "FINISHED") return false;
   return m.status === "IN_PROGRESS" || m.status === "AWAITING_PLAYERS";
 }
 
 /** Both sides known, not live, not terminal — “next” on the bracket. */
 function isUpcomingBracketMatch(m: BracketMatchRow): boolean {
   if (isBracketMatchTerminal(m) || bracketMatchIsLiveBoard(m)) return false;
+  if (String(m.game_status ?? "").toUpperCase() === "FINISHED") return false;
   return bracketMatchParticipantIds(m).length >= 2;
 }
 
@@ -225,14 +226,11 @@ export function TournamentDetailPage({
   const {
     tournament,
     bracket,
-    leaderboard,
     detailLoading,
     detailError,
     bracketLoading,
-    leaderboardLoading,
     fetchTournament,
     fetchBracket,
-    fetchLeaderboard,
     registerForTournament,
     closeRegistration,
     startRound,
@@ -431,9 +429,8 @@ export function TournamentDetailPage({
       tournament.status === "COMPLETED"
     ) {
       fetchBracket(id, inviteParams);
-      fetchLeaderboard(id, tournament.status === "COMPLETED" ? "final" : "live", inviteParams);
     }
-  }, [id, tournament, fetchBracket, fetchLeaderboard, inviteQuery]);
+  }, [id, tournament, fetchBracket, inviteQuery]);
 
   // Poll bracket so the other player sees "Go to board" when the game is created (e.g. after both click "Start now")
   useEffect(() => {
@@ -448,10 +445,9 @@ export function TournamentDetailPage({
     const interval = setInterval(() => {
       void fetchTournament(id, inviteParams);
       void fetchBracket(id, inviteParams);
-      void fetchLeaderboard(id, "live", inviteParams);
     }, 5000);
     return () => clearInterval(interval);
-  }, [id, tournament, fetchTournament, fetchBracket, fetchLeaderboard, inviteQuery]);
+  }, [id, tournament, fetchTournament, fetchBracket, inviteQuery]);
 
   // Coming back from a bracket board tab: refresh so the next round / completed matches show without waiting for the poll.
   useEffect(() => {
@@ -460,12 +456,6 @@ export function TournamentDetailPage({
       if (document.visibilityState !== "visible") return;
       void fetchTournament(id, inviteParams);
       void fetchBracket(id, inviteParams);
-      const st = tournament?.status;
-      if (st === "COMPLETED") {
-        void fetchLeaderboard(id, "final", inviteParams);
-      } else {
-        void fetchLeaderboard(id, "live", inviteParams);
-      }
     };
     document.addEventListener("visibilitychange", refresh);
     window.addEventListener("focus", refresh);
@@ -475,7 +465,7 @@ export function TournamentDetailPage({
       window.removeEventListener("focus", refresh);
       window.removeEventListener("pageshow", refresh);
     };
-  }, [id, inviteQuery, tournament?.status, fetchTournament, fetchBracket, fetchLeaderboard]);
+  }, [id, inviteQuery, tournament?.status, fetchTournament, fetchBracket]);
 
   const handleRegister = async () => {
     if (!id || !canRegister || !tournament) return;
@@ -1037,7 +1027,8 @@ export function TournamentDetailPage({
               Bracket & results
             </h2>
             <p className="text-sm text-white/45 mb-6 max-w-2xl">
-              In-progress matches show a <span className="text-emerald-300/90">Live</span> badge with Spectate / Open board. Completed rows show winners only — no watch links.
+              Live tables show Spectate / Open board. When the game finishes, that switches to{" "}
+              <span className="text-cyan-300/90">See results</span> with 1st–4th order from the final board.
             </p>
             {bracketLoading && !displayBracket && (
               <div className="flex justify-center py-8">
@@ -1119,6 +1110,9 @@ export function TournamentDetailPage({
                             m.status !== "BYE" &&
                             isInMatch(m);
                           const matchLive = bracketMatchIsLiveBoard(m);
+                          const standings =
+                            Array.isArray(m.standings) && m.standings.length > 0 ? m.standings : null;
+                          const showMatchResults = !matchLive && standings != null;
                           const participantIds = bracketMatchParticipantIds(m);
                           const tableNames = labelsForMatchParticipants(m, tournament.entries);
                           const done = isBracketMatchTerminal(m);
@@ -1202,6 +1196,38 @@ export function TournamentDetailPage({
                                   </Link>
                                 </p>
                               )}
+                              {showMatchResults && (
+                                <div className="rounded-lg border border-cyan-500/25 bg-cyan-950/20 px-3 py-3 space-y-2">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300/90 flex items-center gap-2">
+                                    <Trophy className="w-3.5 h-3.5" />
+                                    Results
+                                  </p>
+                                  <ol className="space-y-1.5 text-sm text-white/90 list-none pl-0">
+                                    {standings.map((row) => (
+                                      <li
+                                        key={row.entry_id}
+                                        className="flex items-center justify-between gap-2 border-b border-white/[0.06] last:border-0 pb-1.5 last:pb-0"
+                                      >
+                                        <span className="text-cyan-200/80 font-medium tabular-nums shrink-0">
+                                          {ordinalPlace(row.place)}
+                                        </span>
+                                        <span className="min-w-0 text-right break-words">
+                                          {row.username ?? `Entry #${row.entry_id}`}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ol>
+                                  {isAutonomousAgentMatch ? (
+                                    <Link
+                                      href={`/board-3d-multi?gameCode=${encodeURIComponent(gameCodeForMatch)}&spectate=1`}
+                                      className="inline-flex items-center gap-1.5 text-xs text-white/50 hover:text-cyan-300/90 transition-colors"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" />
+                                      View final board
+                                    </Link>
+                                  ) : null}
+                                </div>
+                              )}
                               {(matchLive || showStartNow || canCreateGame || needsGameCreated) && (
                                 <div className="flex flex-wrap justify-end gap-2 pt-1">
                                   {matchLive ? (
@@ -1283,89 +1309,6 @@ export function TournamentDetailPage({
                     </div>
                   );
                 })}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* Leaderboard */}
-        {(tournament.status === "IN_PROGRESS" || tournament.status === "COMPLETED") && (
-          <section>
-            <h2 className="text-xl font-bold text-cyan-200 flex items-center gap-3 mb-5">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 border border-amber-400/25 text-amber-300">
-                <Trophy className="w-5 h-5" />
-              </span>
-              Standings
-            </h2>
-            {leaderboardLoading && (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
-              </div>
-            )}
-            {!leaderboardLoading && leaderboard && (
-              <div className="rounded-2xl border border-white/[0.08] bg-[#040d10]/90 overflow-hidden shadow-xl shadow-black/20">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-white/10 text-white/55 text-xs uppercase tracking-wider">
-                      <th className="p-4 font-semibold">
-                        {tournament.status === "COMPLETED" ? "Place" : "#"}
-                      </th>
-                      <th className="p-4 font-semibold">Player</th>
-                      <th className="p-4 font-semibold">Out</th>
-                      <th className="p-4 font-semibold">Payout</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(Array.isArray(leaderboard.entries) ? leaderboard.entries : []).map((e) => {
-                      const rankBadge =
-                        e.rank === 1
-                          ? "bg-amber-500/15 text-amber-200 border border-amber-400/35"
-                          : e.rank === 2
-                            ? "bg-slate-400/10 text-slate-200 border border-slate-400/30"
-                            : e.rank === 3
-                              ? "bg-orange-800/25 text-orange-200 border border-orange-500/30"
-                              : "bg-white/5 text-white/80 border border-white/10";
-                      const rowAccent =
-                        e.rank === 1
-                          ? "border-l-2 border-amber-400/45"
-                          : e.rank === 2
-                            ? "border-l-2 border-slate-400/35"
-                            : e.rank === 3
-                              ? "border-l-2 border-orange-500/35"
-                              : "";
-                      return (
-                        <tr
-                          key={e.entry_id}
-                          className={`border-b border-white/[0.04] transition-colors hover:bg-white/[0.03] ${rowAccent}`}
-                        >
-                          <td className="p-4">
-                            <span
-                              className={`inline-flex h-8 min-w-[2.5rem] px-1.5 items-center justify-center rounded-lg text-sm font-bold ${rankBadge}`}
-                            >
-                              {tournament.status === "COMPLETED" ? ordinalRank(e.rank ?? e.placement ?? null) : e.rank}
-                            </span>
-                          </td>
-                          <td className="p-4 font-medium text-white/95">
-                            {e.username}
-                            {e.is_winner && (
-                              <span className="ml-2 text-amber-400 font-semibold">Champion</span>
-                            )}
-                          </td>
-                          <td className="p-4 text-white/55">
-                            {e.eliminated_in_round != null
-                              ? `R${e.eliminated_in_round + 1}`
-                              : "—"}
-                          </td>
-                          <td className="p-4 text-emerald-200/90 font-medium">
-                            {e.payout_wei
-                              ? `$${(Number(e.payout_wei) / 1e6).toFixed(2)}`
-                              : "—"}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
               </div>
             )}
           </section>

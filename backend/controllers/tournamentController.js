@@ -22,6 +22,7 @@ import { parseParticipantEntryIds } from "../services/tournamentGroupHelpers.js"
  */
 function standingsForBracketMatch(match, game, entryMap, displayName) {
   const st = String(match.status || "").toUpperCase();
+  const gameDone = String(game?.status || "").toUpperCase() === "FINISHED";
   if (st === "BYE" && match.winner_entry_id) {
     const eid = Number(match.winner_entry_id);
     return [
@@ -32,7 +33,8 @@ function standingsForBracketMatch(match, game, entryMap, displayName) {
       },
     ];
   }
-  if (st !== "COMPLETED") return null;
+  // Show table order as soon as the board game is finished (match row may still be IN_PROGRESS until onGameFinished runs).
+  if (st !== "COMPLETED" && !gameDone) return null;
 
   let entryIds = parseParticipantEntryIds(match);
   if (!entryIds.length) {
@@ -69,11 +71,18 @@ function standingsForBracketMatch(match, game, entryMap, displayName) {
   });
 
   const allBad = rows.length > 0 && rows.every((r) => r.place >= 900);
-  if (allBad && unique.length === 2 && match.winner_entry_id) {
-    const wid = Number(match.winner_entry_id);
-    rows.forEach((r) => {
-      r.place = r.entry_id === wid ? 1 : 2;
-    });
+  if (allBad && unique.length === 2) {
+    const wid =
+      match.winner_entry_id != null
+        ? Number(match.winner_entry_id)
+        : game?.winner_id != null
+          ? unique.find((eid) => Number(entryMap[eid]?.user_id) === Number(game.winner_id)) ?? null
+          : null;
+    if (wid != null && Number.isInteger(wid) && unique.includes(wid)) {
+      rows.forEach((r) => {
+        r.place = r.entry_id === wid ? 1 : 2;
+      });
+    }
   }
 
   rows.sort((a, b) => a.place - b.place || a.entry_id - b.entry_id);
@@ -475,7 +484,9 @@ export async function getBracket(req, res) {
     let matchGameTypeById = {};
     let gameById = {};
     if (gameIds.length) {
-      const gRows = await db("games").whereIn("id", gameIds).select("id", "game_type", "placements", "winner_id");
+      const gRows = await db("games")
+        .whereIn("id", gameIds)
+        .select("id", "game_type", "placements", "winner_id", "status");
       matchGameTypeById = Object.fromEntries((gRows || []).map((r) => [r.id, r.game_type]));
       gameById = Object.fromEntries((gRows || []).map((r) => [r.id, r]));
     }
@@ -507,6 +518,7 @@ export async function getBracket(req, res) {
         game_id: m.game_id,
         contract_game_id: m.contract_game_id,
         status: m.status,
+        game_status: game?.status ?? null,
         spectator_token: m.spectator_token ?? null,
         spectator_url: spec,
         slot_a_username: m.slot_a_entry_id ? entryDisplayName(entryMap[m.slot_a_entry_id]) : null,
@@ -517,6 +529,7 @@ export async function getBracket(req, res) {
         first_entry_id: standings?.[0]?.entry_id ?? null,
         second_entry_id: standings?.[1]?.entry_id ?? null,
         third_entry_id: standings?.[2]?.entry_id ?? null,
+        fourth_entry_id: standings?.[3]?.entry_id ?? null,
       };
     };
     const roundsPayload = rounds.map((r) => ({
