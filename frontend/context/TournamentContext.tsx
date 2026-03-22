@@ -201,7 +201,12 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
     try {
       const res = await apiClient.get<Bracket>(`${TOURNAMENTS_BASE}/${id}/bracket`, query);
       const data = res?.data;
-      setBracket(data && typeof data === "object" && "rounds" in data ? data : null);
+      const ok =
+        data != null &&
+        typeof data === "object" &&
+        "rounds" in data &&
+        Array.isArray((data as Bracket).rounds);
+      setBracket(ok ? (data as Bracket) : null);
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string } }; message?: string })?.response
