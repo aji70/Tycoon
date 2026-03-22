@@ -57,24 +57,34 @@ router.get("/:id/erc8004-registration", async (req, res) => {
       process.env.PUBLIC_APP_URL ||
       "https://tycoonworld.xyz"
     ).replace(/\/$/, "");
-    const endpoint = callbackUrl || defaultPublicApp;
+    const webEndpoint = defaultPublicApp;
+    const decisionEndpoint = callbackUrl;
+    /** Same structural shape as frontend/public/tycoon-ai.json (EIP-8004 registration-v1). */
+    const services = [{ name: "Web", endpoint: webEndpoint }];
+    if (decisionEndpoint && decisionEndpoint !== webEndpoint) {
+      services.push({ name: "Decision API", endpoint: decisionEndpoint, version: "v1" });
+    }
+    const defaultImage = `${defaultPublicApp}/footerLogo.svg`;
     const registration = {
       type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
       name: agent.name || "Tycoon Agent",
-      description: agent.name ? `Tycoon agent: ${agent.name}` : "AI agent for Tycoon (Monopoly-style game).",
-      image: "",
-      // Keep both keys for compatibility with clients following older/newer docs.
-      endpoints: [{ type: "a2a", url: endpoint }],
-      services: callbackUrl
-        ? [{ name: "web", endpoint: callbackUrl }]
-        : [{ name: "web", endpoint: defaultPublicApp }],
+      description: `Monopoly-style on-chain game agent on Celo. ${agent.name || "This agent"} plays in Tycoon arena and classic matches. Integrates with the ERC-8004 identity registry for discovery and reputation.`,
+      image: defaultImage,
+      active: agent.status !== "draft" && agent.status !== "error",
+      services,
       supportedTrust: ["reputation"],
-      owner: preferredOwner ? `eip155:${chainId}:${preferredOwner.toLowerCase()}` : undefined,
       registrations:
         agent.erc8004_agent_id != null && String(agent.erc8004_agent_id) !== ""
           ? [{ agentId: Number(agent.erc8004_agent_id), agentRegistry }]
           : [],
+      x402Support: false,
     };
+    const primaryEndpoint = decisionEndpoint || webEndpoint;
+    if (preferredOwner) {
+      registration.owner = `eip155:${chainId}:${preferredOwner.toLowerCase()}`;
+    }
+    // Older / A2A clients that expect `endpoints` alongside `services`.
+    registration.endpoints = [{ type: "a2a", url: primaryEndpoint }];
     res.set("Content-Type", "application/json");
     res.set("Access-Control-Allow-Origin", "*");
     res.send(JSON.stringify(registration, null, 2));
