@@ -148,6 +148,10 @@ export interface BracketRound {
     winner_username: string | null;
     /** Present when bracket is loaded from GET .../bracket (joined from games). */
     match_game_type?: string | null;
+    /** Linked game row status — FINISHED means the table ended (match row may still update). */
+    game_status?: string | null;
+    /** Finish order for this table (1 = best), from game placements when complete/finished. */
+    standings?: { place: number; entry_id: number; username: string | null }[] | null;
   }[];
 }
 
