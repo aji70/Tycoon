@@ -34,6 +34,7 @@ import {
 import { ensureUserHasContractPassword, ensureGuestContractPlayReady } from "../utils/ensureContractAuth.js";
 import { onGameFinished as tournamentOnGameFinished } from "../services/tournamentService.js";
 import {
+  augmentNetWorthsWithEliminatedTournamentSeats,
   computeNetWorthResultForGameId,
   placementsFromNetWorths,
 } from "../services/gameNetWorthCompute.js";
@@ -190,7 +191,12 @@ export async function finishGameByNetWorthAndNotify(io, game) {
   const result = await computeWinnerByNetWorth(game);
   if (!result || result.winner_id == null) return null;
 
-  const placements = placementsFromNetWorths(result.net_worths);
+  const netWorths = await augmentNetWorthsWithEliminatedTournamentSeats(
+    game.id,
+    game.game_type,
+    result.net_worths
+  );
+  const placements = placementsFromNetWorths(netWorths);
 
   const updatePayload = { status: "FINISHED", winner_id: result.winner_id, placements: JSON.stringify(placements) };
   const rowCount = await db("games")
