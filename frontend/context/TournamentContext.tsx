@@ -169,7 +169,6 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
   const fetchTournament = useCallback(async (id: string, query?: Record<string, string>) => {
     setDetailLoading(true);
     setDetailError(null);
-    setBracket(null);
     try {
       const res = await apiClient.get<TournamentDetail>(`${TOURNAMENTS_BASE}/${id}`, query);
       setTournament(res?.data ?? null);

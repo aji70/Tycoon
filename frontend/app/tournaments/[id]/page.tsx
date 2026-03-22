@@ -564,7 +564,11 @@ export default function TournamentDetailPage() {
 
   const displayBracket = useMemo(() => {
     if (!tournament || !slugMatches) return null;
-    return bracket ?? buildBracketFromTournament(tournament);
+    const fromDetail = buildBracketFromTournament(tournament);
+    // After a match ends, GET /tournaments/:id includes updated winners/slots immediately; GET …/bracket can
+    // still return a stale snapshot if it wins the race. Prefer detail-derived bracket whenever we have rounds.
+    if (fromDetail?.rounds?.length) return fromDetail;
+    return bracket;
   }, [bracket, tournament, slugMatches]);
 
   const nextRoundToStart = useMemo(() => {
