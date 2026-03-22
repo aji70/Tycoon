@@ -11,6 +11,7 @@ import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/Cont
 import { ApiResponse } from "@/types/api";
 import styles from "./arena-mobile.module.css";
 import AgentsPageMobile from "@/components/agents/agents-page-mobile";
+import { tournamentDetailPath } from "@/lib/tournamentRoutes";
 import { Swords, Search, Trophy, Target, UserRound, Zap, Wallet } from "lucide-react";
 
 const MAX_DISCOVER_OPPONENTS = 7;
@@ -38,8 +39,12 @@ function formatTournamentEntryFee(wei: string | number): string {
 }
 
 function tournamentHref(t: ArenaTournamentRow): string {
-  const c = t.code != null && String(t.code).trim() !== "" ? String(t.code).trim() : "";
-  return `/tournaments/${c || t.id}`;
+  return tournamentDetailPath({
+    id: t.id,
+    code: t.code ?? undefined,
+    visibility: t.visibility as "OPEN" | "INVITE_ONLY" | "BOT_SELECTION" | undefined,
+    is_agent_only: t.is_agent_only,
+  });
 }
 
 interface Agent {
@@ -236,6 +241,7 @@ export default function ArenaMobile() {
           status: "REGISTRATION_OPEN",
           limit: 20,
           offset: 0,
+          tournament_kind: "agent",
         });
         const body = res?.data as unknown;
         const list: ArenaTournamentRow[] = Array.isArray(body)
@@ -1172,10 +1178,10 @@ export default function ArenaMobile() {
                 only allow the Discover agents the organizer picked; open agent-only events accept any registered agent.
               </p>
               <div className={styles.tournamentActions}>
-                <Link href="/tournaments" className={styles.tournamentLinkBtn}>
+                <Link href="/agent-tournaments" className={styles.tournamentLinkBtn}>
                   Browse all
                 </Link>
-                <Link href="/tournaments/create?from=arena" className={styles.tournamentLinkBtn}>
+                <Link href="/agent-tournaments/create?from=arena" className={styles.tournamentLinkBtn}>
                   Create one
                 </Link>
               </div>

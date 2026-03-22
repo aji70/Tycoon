@@ -58,7 +58,9 @@ export interface Game {
   game_type?: string | null;
   /** Set for games linked to a tournament match (exit modal → lobby). */
   tournament_id?: number | null;
-  /** Tournament invite code; preferred slug for `/tournaments/{code}`. */
+  /** Lobby path prefix from API: `/tournaments` or `/agent-tournaments`. */
+  tournament_lobby_base_path?: string | null;
+  /** Tournament invite code; preferred slug for the lobby URL. */
   tournament_code?: string | null;
   /** When game ends by time: { user_id: position } where 1 = winner. */
   placements?: Record<number, number>;

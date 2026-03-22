@@ -33,31 +33,34 @@ export type TournamentLobbyExitGameFields = {
   game_type?: string | null;
   tournament_id?: number | null;
   tournament_code?: string | null;
+  tournament_lobby_base_path?: string | null;
 };
 
 /**
  * After a bracket table ends, send players/spectators back to the tournament lobby URL (invite code when available).
- * Uses `tournament_code` from the API when present so the URL matches the shareable lobby (`/tournaments/{code}`).
+ * Uses `tournament_code` and `tournament_lobby_base_path` from the API when present.
  * Non-tournament games fall back to home.
  */
 export function getTournamentBracketExitHref(
   gameCode: string | null | undefined,
   game?: TournamentLobbyExitGameFields | null
 ): string {
+  const base =
+    game?.tournament_lobby_base_path === "/agent-tournaments" ? "/agent-tournaments" : "/tournaments";
   const tc =
     game?.tournament_code != null && String(game.tournament_code).trim() !== ""
       ? String(game.tournament_code).trim().toUpperCase()
       : null;
-  if (tc) return `/tournaments/${encodeURIComponent(tc)}`;
+  if (tc) return `${base}/${encodeURIComponent(tc)}`;
 
   const c = String(gameCode ?? game?.code ?? "")
     .trim()
     .toUpperCase();
   const fromCode = parseTournamentIdFromBracketGameCode(c);
-  if (fromCode != null) return `/tournaments/${fromCode}`;
+  if (fromCode != null) return `${base}/${fromCode}`;
 
   const tid = game?.tournament_id;
-  if (typeof tid === "number" && Number.isInteger(tid) && tid > 0) return `/tournaments/${tid}`;
+  if (typeof tid === "number" && Number.isInteger(tid) && tid > 0) return `${base}/${tid}`;
 
   return "/";
 }

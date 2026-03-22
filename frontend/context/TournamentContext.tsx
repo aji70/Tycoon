@@ -34,6 +34,8 @@ type TournamentContextValue = {
     prize_source?: string;
     limit?: number;
     offset?: number;
+    tournament_kind?: "human" | "agent";
+    public_arena?: boolean;
   }) => Promise<void>;
 
   // Single tournament
@@ -130,6 +132,7 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
       chain?: string;
       prize_source?: string;
       public_arena?: boolean;
+      tournament_kind?: "human" | "agent";
       limit?: number;
       offset?: number;
     }) => {
@@ -145,6 +148,7 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
                 limit: params.limit,
                 offset: params.offset,
                 ...(params.public_arena ? { public_arena: "1" } : {}),
+                ...(params.tournament_kind ? { tournament_kind: params.tournament_kind } : {}),
               }
             : undefined;
         const res = await apiClient.get<Tournament[]>(TOURNAMENTS_BASE, axiosParams);

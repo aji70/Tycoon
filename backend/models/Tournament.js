@@ -47,6 +47,8 @@ const Tournament = {
     status = null,
     chain = null,
     prize_source = null,
+    /** When set, list only human-style or agent-style tournaments (mutually exclusive with the other). */
+    tournament_kind = null,
     public_arena = false,
   } = {}) {
     const query = db("tournaments")
@@ -60,12 +62,23 @@ const Tournament = {
     if (status) query.where("tournaments.status", status);
     if (chain) query.where("tournaments.chain", chain);
     if (prize_source) query.where("tournaments.prize_source", prize_source);
-    // Arena tab: bot/agent events only — invited-bot brackets or open registration where agents represent humans.
-    if (public_arena) {
-      query.where(function arenaBotTournaments() {
-        this.where("tournaments.visibility", "BOT_SELECTION").orWhere(function openAgentOnly() {
-          this.where("tournaments.visibility", "OPEN").where("tournaments.is_agent_only", true);
+
+    const humanFilter = tournament_kind === "human";
+    const agentFilter =
+      tournament_kind === "agent" || (tournament_kind == null && public_arena);
+
+    if (humanFilter) {
+      query.where(function humanTournaments() {
+        this.where(function notBotSelection() {
+          this.whereNull("tournaments.visibility").orWhereNot("tournaments.visibility", "BOT_SELECTION");
+        }).andWhere(function notAgentOnly() {
+          this.where("tournaments.is_agent_only", false).orWhereNull("tournaments.is_agent_only");
         });
+      });
+    } else if (agentFilter) {
+      // Agent-style: invited-bot lists or any agents-only event (matches frontend isAgentStyleTournament).
+      query.where(function agentStyleTournaments() {
+        this.where("tournaments.visibility", "BOT_SELECTION").orWhere("tournaments.is_agent_only", true);
       });
     }
     const rows = await query;

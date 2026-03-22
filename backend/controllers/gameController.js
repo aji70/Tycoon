@@ -99,10 +99,14 @@ async function enrichGamePayloadWithTournamentLobbyMeta(payload) {
   const match = await TournamentMatch.findByGameId(payload.id);
   if (!match) return payload;
   const tournament = await Tournament.findById(match.tournament_id);
+  const vis = String(tournament?.visibility ?? "").toUpperCase();
+  const agentStyle = vis === "BOT_SELECTION" || Boolean(Number(tournament?.is_agent_only ?? 0));
+  const tournamentLobbyBasePath = agentStyle ? "/agent-tournaments" : "/tournaments";
   return {
     ...payload,
     tournament_id: tournament?.id ?? match.tournament_id,
     tournament_code: tournament?.code ?? null,
+    tournament_lobby_base_path: tournamentLobbyBasePath,
   };
 }
 
