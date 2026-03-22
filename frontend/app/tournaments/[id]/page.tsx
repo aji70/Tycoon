@@ -82,9 +82,17 @@ function extractTournamentPathFromMessage(message: string | null): string | null
   return match?.[1] ?? null;
 }
 
+/** URL slug is numeric id or tournament invite code — not `Number(id)` (alphanumeric codes become NaN). */
+function tournamentMatchesRouteId(t: TournamentDetail, routeId: string): boolean {
+  const rid = String(routeId ?? "").trim();
+  if (!rid) return false;
+  if (String(t.id) === rid) return true;
+  return String(t.code ?? "").toUpperCase() === rid.toUpperCase();
+}
+
 /** Build bracket from tournament detail (rounds + matches + entries) so players see bracket even if bracket API fails or is slow. */
 function buildBracketFromTournament(t: TournamentDetail | null): Bracket | null {
-  if (!t?.rounds?.length || !t?.matches) return null;
+  if (!t?.rounds?.length || !Array.isArray(t.matches)) return null;
   const entryMap = new Map((t.entries ?? []).map((e) => [e.id, e]));
   const rounds: BracketRound[] = t.rounds
     .slice()
@@ -128,8 +136,9 @@ function buildBracketFromTournament(t: TournamentDetail | null): Bracket | null 
 type BracketMatchRow = BracketRound["matches"][number];
 
 function bracketMatchParticipantIds(m: BracketMatchRow): number[] {
-  if (m.participant_entry_ids && m.participant_entry_ids.length >= 2) {
-    return m.participant_entry_ids;
+  const pe = m.participant_entry_ids;
+  if (Array.isArray(pe) && pe.length >= 2) {
+    return pe;
   }
   return [m.slot_a_entry_id, m.slot_b_entry_id].filter((x): x is number => x != null);
 }
@@ -381,7 +390,7 @@ export default function TournamentDetailPage() {
   ]);
 
   useEffect(() => {
-    if (!id || !tournament || tournament.id !== Number(id)) return;
+    if (!id || !tournament || !tournamentMatchesRouteId(tournament, id)) return;
     if (
       tournament.status === "BRACKET_LOCKED" ||
       tournament.status === "IN_PROGRESS" ||
@@ -390,14 +399,14 @@ export default function TournamentDetailPage() {
       fetchBracket(id, inviteParams);
       fetchLeaderboard(id, tournament.status === "COMPLETED" ? "final" : "live", inviteParams);
     }
-  }, [id, tournament?.id, tournament?.status, fetchBracket, fetchLeaderboard, inviteQuery]);
+  }, [id, tournament, fetchBracket, fetchLeaderboard, inviteQuery]);
 
   // Poll bracket so the other player sees "Go to board" when the game is created (e.g. after both click "Start now")
   useEffect(() => {
     if (
       !id ||
       !tournament ||
-      tournament.id !== Number(id) ||
+      !tournamentMatchesRouteId(tournament, id) ||
       (tournament.status !== "BRACKET_LOCKED" && tournament.status !== "IN_PROGRESS")
     ) {
       return;
@@ -407,7 +416,7 @@ export default function TournamentDetailPage() {
       fetchLeaderboard(id, "live", inviteParams);
     }, 5000);
     return () => clearInterval(interval);
-  }, [id, tournament?.id, tournament?.status, fetchBracket, fetchLeaderboard, inviteQuery]);
+  }, [id, tournament, fetchBracket, fetchLeaderboard, inviteQuery]);
 
   // Coming back from a bracket board tab: refresh so the next round / completed matches show without waiting for the poll.
   useEffect(() => {
@@ -551,6 +560,69 @@ export default function TournamentDetailPage() {
     }
   };
 
+  const slugMatches = Boolean(tournament && tournamentMatchesRouteId(tournament, id));
+
+  const displayBracket = useMemo(() => {
+    if (!tournament || !slugMatches) return null;
+    return bracket ?? buildBracketFromTournament(tournament);
+  }, [bracket, tournament, slugMatches]);
+
+  const nextRoundToStart = useMemo(() => {
+    if (!displayBracket?.rounds?.length) return undefined;
+    return displayBracket.rounds.find(
+      (r) =>
+        r.status === "PENDING" &&
+        r.matches?.some((m) => m.status === "PENDING" || m.status === "AWAITING_PLAYERS")
+    );
+  }, [displayBracket]);
+
+  const ongoingMatches = useMemo(() => {
+    const out: Array<{
+      m: BracketMatchRow;
+      round_index: number;
+      labels: string[];
+      gameCodeForMatch: string;
+      isAutonomous: boolean;
+    }> = [];
+    if (!tournament || !slugMatches) return out;
+    const rounds = displayBracket?.rounds;
+    if (!rounds?.length) return out;
+    for (const r of rounds) {
+      for (const m of r.matches ?? []) {
+        if (!bracketMatchIsLiveBoard(m)) continue;
+        const labels = labelsForMatchParticipants(m, tournament.entries);
+        const agentVsAgent = String(m.match_game_type || "") === "TOURNAMENT_AGENT_VS_AGENT";
+        out.push({
+          m,
+          round_index: r.round_index,
+          labels,
+          gameCodeForMatch: `T${tournament.id}-R${r.round_index}-M${m.match_index}`.toUpperCase(),
+          isAutonomous: agentVsAgent || Boolean(tournament.is_agent_only),
+        });
+      }
+    }
+    return out;
+  }, [displayBracket, tournament, slugMatches]);
+
+  const upcomingPairings = useMemo(() => {
+    const out: Array<{ m: BracketMatchRow; round_index: number; labels: string[] }> = [];
+    if (!tournament || !slugMatches) return out;
+    const rounds = displayBracket?.rounds;
+    if (!rounds?.length) return out;
+    const sorted = [...rounds].sort((a, b) => (a.round_index ?? 0) - (b.round_index ?? 0));
+    for (const r of sorted) {
+      for (const m of r.matches ?? []) {
+        if (!isUpcomingBracketMatch(m)) continue;
+        out.push({
+          m,
+          round_index: r.round_index,
+          labels: labelsForMatchParticipants(m, tournament.entries),
+        });
+      }
+    }
+    return out;
+  }, [displayBracket, tournament, slugMatches]);
+
   if (detailLoading && !tournament) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] flex items-center justify-center">
@@ -570,69 +642,11 @@ export default function TournamentDetailPage() {
     );
   }
 
-  // id from URL can be code (e.g. X6TEUPOE) or numeric id; tournament resolved by API
-  const slugMatches =
-    tournament &&
-    (String(tournament.id) === id ||
-      (String(tournament.code ?? "").toUpperCase() === String(id).trim().toUpperCase()));
   if (!tournament || !slugMatches) {
     return null;
   }
 
   const entryCount = tournament.entries?.length ?? 0;
-  const displayBracket = useMemo(
-    () => bracket ?? buildBracketFromTournament(tournament),
-    [bracket, tournament]
-  );
-  const nextRoundToStart =
-    displayBracket?.rounds?.find(
-      (r) => r.status === "PENDING" && r.matches?.some((m) => m.status === "PENDING" || m.status === "AWAITING_PLAYERS")
-    );
-
-  const ongoingMatches = useMemo(() => {
-    const out: Array<{
-      m: BracketMatchRow;
-      round_index: number;
-      labels: string[];
-      gameCodeForMatch: string;
-      isAutonomous: boolean;
-    }> = [];
-    const rounds = displayBracket?.rounds;
-    if (!rounds?.length) return out;
-    for (const r of rounds) {
-      for (const m of r.matches ?? []) {
-        if (!bracketMatchIsLiveBoard(m)) continue;
-        const labels = labelsForMatchParticipants(m, tournament.entries);
-        const agentVsAgent = String(m.match_game_type || "") === "TOURNAMENT_AGENT_VS_AGENT";
-        out.push({
-          m,
-          round_index: r.round_index,
-          labels,
-          gameCodeForMatch: `T${tournament.id}-R${r.round_index}-M${m.match_index}`.toUpperCase(),
-          isAutonomous: agentVsAgent || Boolean(tournament.is_agent_only),
-        });
-      }
-    }
-    return out;
-  }, [displayBracket, tournament.entries, tournament.id, tournament.is_agent_only]);
-
-  const upcomingPairings = useMemo(() => {
-    const out: Array<{ m: BracketMatchRow; round_index: number; labels: string[] }> = [];
-    const rounds = displayBracket?.rounds;
-    if (!rounds?.length) return out;
-    const sorted = [...rounds].sort((a, b) => (a.round_index ?? 0) - (b.round_index ?? 0));
-    for (const r of sorted) {
-      for (const m of r.matches ?? []) {
-        if (!isUpcomingBracketMatch(m)) continue;
-        out.push({
-          m,
-          round_index: r.round_index,
-          labels: labelsForMatchParticipants(m, tournament.entries),
-        });
-      }
-    }
-    return out;
-  }, [displayBracket, tournament.entries]);
 
   const conflictPath = extractTournamentPathFromMessage(actionError);
 
@@ -674,8 +688,8 @@ export default function TournamentDetailPage() {
         {/* Meta card */}
         <section className="rounded-3xl border border-white/[0.08] bg-gradient-to-b from-[#061a1d]/95 to-[#030f12]/90 p-6 md:p-8 shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset] backdrop-blur-sm">
           <div className="flex flex-wrap items-center gap-3 mb-4">
-            <span className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${statusColor(tournament.status)} bg-white/5`}>
-              {tournament.status.replace(/_/g, " ")}
+            <span className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${statusColor(String(tournament.status ?? ""))} bg-white/5`}>
+              {String(tournament.status ?? "UNKNOWN").replace(/_/g, " ")}
             </span>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-sm font-medium">
               <Users className="w-4 h-4" />
@@ -1091,7 +1105,7 @@ export default function TournamentDetailPage() {
                             Round {r.round_index + 1}
                           </p>
                           <p className="text-xs text-white/45 mt-0.5">
-                            {r.status.replace(/_/g, " ")}
+                            {String(r.status ?? "UNKNOWN").replace(/_/g, " ")}
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -1322,7 +1336,7 @@ export default function TournamentDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {leaderboard.entries?.map((e) => {
+                    {(Array.isArray(leaderboard.entries) ? leaderboard.entries : []).map((e) => {
                       const rankBadge =
                         e.rank === 1
                           ? "bg-amber-500/15 text-amber-200 border border-amber-400/35"
