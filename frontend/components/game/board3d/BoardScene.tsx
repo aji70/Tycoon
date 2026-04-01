@@ -81,6 +81,42 @@ function hexToRgb(hex: string): [number, number, number] {
   ];
 }
 
+/** Always-visible tile title (same visual language as Jail / GO / Chest labels). Uses backend `square.name` via caller text. */
+function createPersistentTileLabel(
+  x: number,
+  y: number,
+  z: number,
+  text: string,
+  options?: { vertical?: boolean; fontSize?: string }
+) {
+  const vertical = options?.vertical ?? false;
+  return createElement(
+    Html,
+    {
+      position: [x, y, z] as [number, number, number],
+      center: true,
+      distanceFactor: 12,
+      style: {
+        fontSize: options?.fontSize ?? "10px",
+        fontWeight: 800,
+        color: "#fff",
+        textShadow: "0 0 8px #000, 0 2px 4px #000",
+        textAlign: "center",
+        whiteSpace: vertical ? "normal" : "nowrap",
+        writingMode: vertical ? "vertical-rl" : undefined,
+        textOrientation: vertical ? "mixed" : undefined,
+        maxWidth: vertical ? "72px" : "132px",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        pointerEvents: "none",
+        userSelect: "none",
+        lineHeight: 1.2,
+      },
+    },
+    text
+  );
+}
+
 // Monopoly color groups: same group = same row/side, similar building style
 const COLOR_GROUPS: Record<string, number[]> = {
   brown: [1, 3],
@@ -299,10 +335,11 @@ function SquareTile({
       return createElement("group", groupProps, ground, jailBase, roof, ...bars, jailTextLabel, nameLabel, ownerBadge);
     }
     if (id === 20) {
-      // Free Parking: empty with simple post and sign (no text)
+      // Free Parking: post + sign + backend name (same label style as Jail / GO)
       const post = createElement("mesh", { position: [x, 0.12, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.06, 0.22, 0.06] }), createElement("meshStandardMaterial", { color: 0x5d4037 }));
       const sign = createElement("mesh", { position: [x, 0.26, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.08, 0.04] }), createElement("meshStandardMaterial", { color: 0x3498db }));
-      return createElement("group", groupProps, ground, post, sign, nameLabel, ownerBadge);
+      const fpTitle = createPersistentTileLabel(x, 0.34, z, displayName, { vertical: isTopOrBottomRow });
+      return createElement("group", groupProps, ground, post, sign, fpTitle, nameLabel, ownerBadge);
     }
     if (id === 30) {
       // Go to Jail: heavy prison gate, bars, red arch + short label
@@ -347,7 +384,8 @@ function SquareTile({
     const engine = createElement("mesh", { position: [x - size * 0.2, 0.14, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.22, 0.12, 0.18] }), createElement("meshStandardMaterial", { color: 0xc0392b }));
     const chimney = createElement("mesh", { position: [x - size * 0.2, 0.24, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.06, 0.12, 0.06] }), createElement("meshStandardMaterial", { color: 0x4a4a4a }));
     const carriage = createElement("mesh", { position: [x + size * 0.15, 0.12, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.2, 0.1, 0.16] }), createElement("meshStandardMaterial", { color: 0x2980b9 }));
-    return createElement("group", groupProps, ground, platform, station, awning, engine, chimney, carriage, nameLabel, ownerBadge);
+    const railTitle = createPersistentTileLabel(x, 0.44, z, displayName, { vertical: isTopOrBottomRow });
+    return createElement("group", groupProps, ground, platform, station, awning, engine, chimney, carriage, railTitle, nameLabel, ownerBadge);
   }
 
   // ---- UTILITIES: Electric Company (12) vs Water Works (28) ----
@@ -358,31 +396,15 @@ function SquareTile({
       const transformer = createElement("mesh", { position: [x, 0.32, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.35, size * 0.35, size * 0.3] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
       const poleL = createElement("mesh", { position: [x - size * 0.35, 0.2, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.04, 0.35, 0.04] }), createElement("meshStandardMaterial", { color: 0x5d4037 }));
       const poleR = createElement("mesh", { position: [x + size * 0.35, 0.2, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.04, 0.35, 0.04] }), createElement("meshStandardMaterial", { color: 0x5d4037 }));
-      const electricLabel = createElement(
-        Html,
-        {
-          position: [x, 0.18, z] as [number, number, number],
-          center: true,
-          distanceFactor: 12,
-          style: {
-            fontSize: "11px",
-            fontWeight: 700,
-            color: "#f4d03f",
-            textShadow: "0 0 4px #000, 0 1px 3px #000",
-            pointerEvents: "none",
-            userSelect: "none",
-            whiteSpace: "nowrap",
-          },
-        },
-        "Electric"
-      );
+      const electricLabel = createPersistentTileLabel(x, 0.2, z, displayName, { vertical: isTopOrBottomRow, fontSize: "10px" });
       return createElement("group", groupProps, ground, building, transformer, poleL, poleR, electricLabel, nameLabel, ownerBadge);
     }
     // Water Works (28): water tower
     const towerLegs = createElement("mesh", { position: [x, 0.08, z] as [number, number, number], castShadow: true }, createElement("cylinderGeometry", { args: [0.06, 0.08, 0.12, 6] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
     const tank = createElement("mesh", { position: [x, 0.28, z] as [number, number, number], castShadow: true }, createElement("cylinderGeometry", { args: [size * 0.35, size * 0.35, 0.12, 12] }), createElement("meshStandardMaterial", { color: 0x3498db }));
     const dome = createElement("mesh", { position: [x, 0.38, z] as [number, number, number], castShadow: true }, createElement("sphereGeometry", { args: [size * 0.32, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2] }), createElement("meshStandardMaterial", { color: 0x2980b9 }));
-    return createElement("group", groupProps, ground, towerLegs, tank, dome, nameLabel, ownerBadge);
+    const waterTitle = createPersistentTileLabel(x, 0.48, z, displayName, { vertical: isTopOrBottomRow });
+    return createElement("group", groupProps, ground, towerLegs, tank, dome, waterTitle, nameLabel, ownerBadge);
   }
 
   // ---- CHANCE: standing card with ? label ----
@@ -406,7 +428,8 @@ function SquareTile({
       },
       "?"
     );
-    return createElement("group", groupProps, ground, stand, card, chanceLabel, nameLabel, ownerBadge);
+    const chanceTitle = createPersistentTileLabel(x, 0.42, z, displayName, { vertical: isTopOrBottomRow, fontSize: "9px" });
+    return createElement("group", groupProps, ground, stand, card, chanceLabel, chanceTitle, nameLabel, ownerBadge);
   }
 
   // ---- COMMUNITY CHEST: clean treasure chest + "Chest" label ----
@@ -417,26 +440,7 @@ function SquareTile({
     const bandC = createElement("mesh", { position: [x, 0.14, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.045, 0.04] }), createElement("meshStandardMaterial", { color: 0xd4a574 }));
     const lid = createElement("mesh", { position: [x, 0.3, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.06, size * 0.38] }), createElement("meshStandardMaterial", { color: 0x229954, roughness: 0.6 }));
     const lock = createElement("mesh", { position: [x, 0.1, z + size * 0.19] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.08, 0.06, 0.02] }), createElement("meshStandardMaterial", { color: 0xf1c40f }));
-    const chestLabel = createElement(
-      Html,
-      {
-        position: [x, 0.22, z] as [number, number, number],
-        center: true,
-        distanceFactor: 12,
-        style: {
-          fontSize: "12px",
-          fontWeight: 800,
-          color: "#fff",
-          textShadow: "0 0 8px #000, 0 2px 4px #000",
-          textAlign: "center",
-          whiteSpace: "nowrap",
-          pointerEvents: "none",
-          userSelect: "none",
-          letterSpacing: "0.03em",
-        },
-      },
-      "Chest"
-    );
+    const chestLabel = createPersistentTileLabel(x, 0.22, z, displayName, { vertical: isTopOrBottomRow, fontSize: "10px" });
     return createElement("group", groupProps, ground, pad, body, bandH, bandC, lid, lock, chestLabel, nameLabel, ownerBadge);
   }
 
@@ -464,7 +468,18 @@ function SquareTile({
       },
       "$"
     );
-    return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, steps, building, roof, taxLabel, nameLabel);
+    const taxTitle = createPersistentTileLabel(x, 0.38, z, displayName, { vertical: isTopOrBottomRow, fontSize: "9px" });
+    return createElement(
+      "group",
+      { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) },
+      ground,
+      steps,
+      building,
+      roof,
+      taxLabel,
+      taxTitle,
+      nameLabel
+    );
   }
 
   // ---- PROPERTIES: terraced buildings by color group, pitched roof + houses/hotel ----
@@ -535,6 +550,12 @@ function SquareTile({
     }
   }
 
+  const roofTopY = 0.02 + bodyH + roofH;
+  const hotelExtra = development >= 5 ? 0.22 : 0;
+  const streetTitle = createPersistentTileLabel(x, roofTopY + hotelExtra + 0.06, z, displayName, {
+    vertical: isTopOrBottomRow,
+  });
+
   return createElement(
     "group",
     groupProps,
@@ -543,6 +564,7 @@ function SquareTile({
     roofSlant,
     roofSlant2,
     ...developmentMeshes,
+    streetTitle,
     nameLabel,
     ownerBadge
   );
