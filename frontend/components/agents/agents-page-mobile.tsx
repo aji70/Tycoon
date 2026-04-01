@@ -188,6 +188,7 @@ export default function AgentsPageMobile({
   const [authFailed, setAuthFailed] = useState(false);
   const [linkingWallet, setLinkingWallet] = useState(false);
   const [walletNotRegistered, setWalletNotRegistered] = useState(false);
+  const [arenaWalletSignInRequested, setArenaWalletSignInRequested] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formName, setFormName] = useState("");
@@ -256,6 +257,7 @@ export default function AgentsPageMobile({
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 401) {
         setAuthFailed(true);
+        if (embeddedInArena) setArenaWalletSignInRequested(false);
         setAgents([]);
       } else {
         toast.error("Failed to load agents");
@@ -266,7 +268,7 @@ export default function AgentsPageMobile({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [embeddedInArena]);
 
   const openTournamentPerms = React.useCallback((a: UserAgent) => {
     const p = tournamentPerms[a.id];
@@ -345,7 +347,8 @@ export default function AgentsPageMobile({
     let cancelled = false;
     setErc8004LoadState("loading");
     (async () => {
-      const injected = await getInjectedEoaAddress().catch(() => null);
+      const injected =
+        embeddedInArena ? null : await getInjectedEoaAddress().catch(() => null);
       const probe = address ?? injected ?? null;
       if (!probe) {
         if (!cancelled) setErc8004LoadState("has_none");
@@ -376,11 +379,12 @@ export default function AgentsPageMobile({
       }
     })();
     return () => { cancelled = true; };
-  }, [showForm, address, isCelo, getAgentIdOwnedByAddress, verifyAgentId, agents, formErc8004Id]);
+  }, [showForm, address, isCelo, getAgentIdOwnedByAddress, verifyAgentId, agents, formErc8004Id, embeddedInArena]);
 
   React.useEffect(() => {
     if (!authFailed || !isConnected || !address) return;
     if (!guestAuth?.loginByWallet || !signMessageAsync) return;
+    if (embeddedInArena && !arenaWalletSignInRequested) return;
     if (triedWalletAutoLogin.current && walletLinkRetry === 0) return;
     triedWalletAutoLogin.current = true;
     setLinkingWallet(true);
@@ -393,6 +397,7 @@ export default function AgentsPageMobile({
           await guestAuth.refetchGuest?.();
           setWalletNotRegistered(false);
           setAuthFailed(false);
+          if (embeddedInArena) setArenaWalletSignInRequested(false);
           setLoading(true);
           try {
             const r = await apiClient.get<ApiResponse<UserAgent[]>>("/agents");
@@ -418,7 +423,17 @@ export default function AgentsPageMobile({
         }
       })
       .finally(() => setLinkingWallet(false));
-  }, [authFailed, isConnected, address, chainId, guestAuth, signMessageAsync, walletLinkRetry]);
+  }, [
+    authFailed,
+    isConnected,
+    address,
+    chainId,
+    guestAuth,
+    signMessageAsync,
+    walletLinkRetry,
+    embeddedInArena,
+    arenaWalletSignInRequested,
+  ]);
 
   const resetForm = () => {
     setShowForm(false);
@@ -671,12 +686,34 @@ export default function AgentsPageMobile({
                 <p className="text-cyan-300 font-medium text-sm">Linking your wallet...</p>
                 <p className="text-gray-400 text-xs mt-2">Approve the signature in your wallet</p>
               </>
+            ) : embeddedInArena && !arenaWalletSignInRequested ? (
+              <>
+                <Bot className="w-14 h-14 text-cyan-400 mx-auto mb-3" />
+                <p className="text-cyan-300 font-medium text-sm mb-2">Sign in to create and manage agents</p>
+                <p className="text-gray-400 text-xs mb-4">
+                  Your wallet will ask for a signature only after you continue.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setArenaWalletSignInRequested(true);
+                    setWalletLinkRetry((n) => n + 1);
+                  }}
+                  className="w-full py-3 bg-[#00F0FF] text-[#010F10] font-bold rounded-xl text-sm"
+                >
+                  Sign in with wallet
+                </button>
+              </>
             ) : (
               <>
                 <Bot className="w-14 h-14 text-cyan-400 mx-auto mb-3" />
                 <p className="text-cyan-300 font-medium text-sm mb-2">Approve the signature in your wallet to continue</p>
                 <button
-                  onClick={() => setWalletLinkRetry((n) => n + 1)}
+                  type="button"
+                  onClick={() => {
+                    if (embeddedInArena) setArenaWalletSignInRequested(true);
+                    setWalletLinkRetry((n) => n + 1);
+                  }}
                   className="w-full py-3 bg-[#00F0FF] text-[#010F10] font-bold rounded-xl text-sm"
                 >
                   Try again
