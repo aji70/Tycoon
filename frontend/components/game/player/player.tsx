@@ -280,7 +280,11 @@ export default function GamePlayers({
           setRequestCash={setRequestCash}
           toggleSelect={toggleSelect}
           targetPlayerAddress={
-            game.players.find((p) => p.user_id === counterModal.trade?.target_player_id)?.address
+            game.players.find(
+              (p) =>
+                p.user_id === counterModal.trade?.player_id ||
+                p.id === counterModal.trade?.player_id
+            )?.address
           }
         />
 
