@@ -84,6 +84,22 @@ function formatStakeOrEarned(value: number): string {
 
 const CELO_CHAIN_ID = 42220;
 
+function chainIdToLeaderboardChain(chainId: number): string {
+  switch (chainId) {
+    case 137:
+    case 80001:
+      return 'POLYGON';
+    case 42220:
+    case 44787:
+      return 'CELO';
+    case 8453:
+    case 84531:
+      return 'BASE';
+    default:
+      return 'CELO';
+  }
+}
+
 const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
 const isValidWallet = (a: unknown): a is Address => {
   if (!a || typeof a !== 'string') return false;
@@ -278,6 +294,7 @@ function GuestProfileViewMobile({
       id?: number; games_played?: number; game_won?: number; game_lost?: number;
       celo_games_played?: number; celo_games_won?: number;
       total_staked?: number; total_earned?: number; total_withdrawn?: number;
+      properties_bought?: number; properties_sold?: number;
     } | undefined;
     const gpBackend = Number(offChain?.celo_games_played) > 0 ? Number(offChain.celo_games_played) : Number(offChain?.games_played) ?? 0;
     const backendHasStats = offChain?.id && (gpBackend > 0 || Number(offChain.total_earned) > 0);
@@ -296,10 +313,22 @@ function GuestProfileViewMobile({
          totalStaked: Number(offChain.total_staked) || 0,
          totalEarned: Number(offChain.total_earned) || 0,
          totalWithdrawn: Number(offChain.total_withdrawn) || 0,
+         propertiesBought: Number(offChain.properties_bought ?? userData!.propertiesBought),
+         propertiesSold: Number(offChain.properties_sold ?? userData!.propertiesSold),
          isOnChain: false,
       };
     }
-    if (userData) return { ...userData, isOnChain: true };
+    if (userData) {
+      if (offChain?.id != null) {
+        return {
+          ...userData,
+          propertiesBought: Number(offChain.properties_bought ?? userData.propertiesBought),
+          propertiesSold: Number(offChain.properties_sold ?? userData.propertiesSold),
+          isOnChain: true,
+        };
+      }
+      return { ...userData, isOnChain: true };
+    }
     if (backendHasStats) {
       const gp = gpBackend;
       const gw = Number(offChain!.celo_games_won) > 0 ? Number(offChain!.celo_games_won) : Number(offChain!.game_won) || 0;
@@ -314,8 +343,8 @@ function GuestProfileViewMobile({
          totalStaked: Number(offChain.total_staked) || 0,
          totalEarned: Number(offChain.total_earned) || 0,
          totalWithdrawn: Number(offChain.total_withdrawn) || 0,
-         propertiesBought: 0,
-         propertiesSold: 0,
+         propertiesBought: Number(offChain.properties_bought ?? 0),
+         propertiesSold: Number(offChain.properties_sold ?? 0),
          registeredAt: offChain.created_at ? new Date(offChain.created_at).getTime() / 1000 : 0,
          isOnChain: false,
       };
@@ -957,6 +986,18 @@ export default function ProfilePageMobile() {
     query: { enabled: !!username && !!tycoonAddress },
   });
 
+  const chainParam = chainIdToLeaderboardChain(chainId as number);
+  const { data: backendUser } = useQuery({
+    queryKey: ['user-by-address', gameLookupAddress ?? walletAddress, chainParam],
+    queryFn: async () => {
+      const addr = gameLookupAddress ?? walletAddress;
+      if (!addr) return null;
+      const res = await apiClient.get(`/users/by-address/${addr}`, { params: { chain: chainParam } });
+      return res.data;
+    },
+    enabled: !!isConnected && !!(gameLookupAddress ?? walletAddress),
+  });
+
   const {
     ownedCollectibles: mergedCollectibleRows,
     myVouchers,
@@ -1031,6 +1072,49 @@ export default function ProfilePageMobile() {
       return;
     }
   }, [isConnected, username, usernameLoading, usernameReadError, playerData, playerDataLoading, playerDataReadError, walletAddress]);
+
+  const effectiveUserData = useMemo(() => {
+    if (!userData) return null;
+    const backend = backendUser as {
+      id?: number;
+      games_played?: number; game_won?: number; game_lost?: number;
+      celo_games_played?: number; celo_games_won?: number;
+      base_games_played?: number; base_games_won?: number;
+      total_staked?: number; total_earned?: number; total_withdrawn?: number;
+      properties_bought?: number;
+      properties_sold?: number;
+    } | undefined;
+    const applyBackendPropertyStats = (base: NonNullable<typeof userData>) => {
+      if (backend == null || backend.id == null) return base;
+      return {
+        ...base,
+        propertiesBought: Number(backend.properties_bought ?? base.propertiesBought),
+        propertiesSold: Number(backend.properties_sold ?? base.propertiesSold),
+      };
+    };
+    const contractEmpty =
+      userData.gamesPlayed === 0 && userData.totalStaked === 0 && userData.totalEarned === 0;
+    const isCelo = chainParam === 'CELO';
+    const gp = isCelo && Number(backend?.celo_games_played) > 0 ? Number(backend.celo_games_played) : Number(backend?.games_played) ?? 0;
+    const gw = isCelo && Number(backend?.celo_games_won) > 0 ? Number(backend.celo_games_won) : Number(backend?.game_won) ?? 0;
+    const hasBackendStats = backend && (gp > 0 || Number(backend.total_earned) > 0);
+    if (contractEmpty && hasBackendStats) {
+      const gl = Number(backend!.game_lost) ?? 0;
+      return applyBackendPropertyStats({
+        ...userData,
+        gamesPlayed: gp,
+        gamesWon: gw,
+        gamesLost: gl,
+        winRate: gp > 0 ? ((gw / gp) * 100).toFixed(1) + '%' : '0%',
+        totalStaked: Number(backend!.total_staked) ?? 0,
+        totalEarned: Number(backend!.total_earned) ?? 0,
+        totalWithdrawn: Number(backend!.total_withdrawn) ?? 0,
+      });
+    }
+    return applyBackendPropertyStats(userData);
+  }, [userData, backendUser, chainParam]);
+
+  const statsUser = effectiveUserData ?? userData;
 
   const handleSend = (tokenId: bigint, fromAddress: Address) => {
     if (!rewardAddress) return toast.error("Wallet or contract not available");
@@ -1494,8 +1578,8 @@ export default function ProfilePageMobile() {
                     }
                   />
                 </div>
-                {userData && (() => {
-                  const levelInfo = getLevelFromActivity({ gamesPlayed: userData.gamesPlayed, gamesWon: userData.gamesWon });
+                {statsUser && (() => {
+                  const levelInfo = getLevelFromActivity({ gamesPlayed: statsUser.gamesPlayed, gamesWon: statsUser.gamesWon });
                   return (
                     <div className="mb-3 p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-1.5">
                       <div className="flex items-center justify-between gap-2">
@@ -1517,46 +1601,46 @@ export default function ProfilePageMobile() {
                   <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
                     <BarChart2 className="w-4 h-4 text-cyan-400" />
                     <p className="text-[10px] text-white/50">Games</p>
-                    <p className="text-sm font-bold text-white">{userData.gamesPlayed}</p>
+                    <p className="text-sm font-bold text-white">{statsUser?.gamesPlayed ?? '—'}</p>
                   </div>
                   <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
                     <Crown className="w-4 h-4 text-amber-400" />
                     <p className="text-[10px] text-white/50">Wins</p>
-                    <p className="text-sm font-bold text-amber-300">{userData.gamesWon}</p>
+                    <p className="text-sm font-bold text-amber-300">{statsUser?.gamesWon ?? '—'}</p>
                   </div>
                   <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
                     <Coins className="w-4 h-4 text-slate-400" />
                     <p className="text-[10px] text-white/50">Losses</p>
-                    <p className="text-sm font-bold text-slate-300">{userData.gamesLost}</p>
+                    <p className="text-sm font-bold text-slate-300">{statsUser?.gamesLost ?? '—'}</p>
                   </div>
                   <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
                     <BarChart2 className="w-4 h-4 text-emerald-400" />
                     <p className="text-[10px] text-white/50">Win rate</p>
-                    <p className="text-sm font-bold text-emerald-300">{userData.winRate}</p>
+                    <p className="text-sm font-bold text-emerald-300">{statsUser?.winRate ?? '—'}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 mb-2">
                   <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
                     <p className="text-[9px] text-white/50">Staked</p>
-                    <p className="text-xs font-bold text-white truncate">{formatStakeOrEarned(userData.totalStaked)}</p>
+                    <p className="text-xs font-bold text-white truncate">{statsUser ? formatStakeOrEarned(statsUser.totalStaked) : '—'}</p>
                   </div>
                   <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
                     <p className="text-[9px] text-white/50">Earned</p>
-                    <p className="text-xs font-bold text-emerald-300 truncate">{formatStakeOrEarned(userData.totalEarned)}</p>
+                    <p className="text-xs font-bold text-emerald-300 truncate">{statsUser ? formatStakeOrEarned(statsUser.totalEarned) : '—'}</p>
                   </div>
                   <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
                     <p className="text-[9px] text-white/50">Withdrawn</p>
-                    <p className="text-xs font-bold text-slate-300 truncate">{formatStakeOrEarned(userData.totalWithdrawn)}</p>
+                    <p className="text-xs font-bold text-slate-300 truncate">{statsUser ? formatStakeOrEarned(statsUser.totalWithdrawn) : '—'}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
                     <p className="text-[9px] text-white/50">Props bought</p>
-                    <p className="text-sm font-bold text-cyan-300">{userData.propertiesBought}</p>
+                    <p className="text-sm font-bold text-cyan-300">{statsUser?.propertiesBought ?? '—'}</p>
                   </div>
                   <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
                     <p className="text-[9px] text-white/50">Props sold</p>
-                    <p className="text-sm font-bold text-amber-300">{userData.propertiesSold}</p>
+                    <p className="text-sm font-bold text-amber-300">{statsUser?.propertiesSold ?? '—'}</p>
                   </div>
                 </div>
               </motion.div>

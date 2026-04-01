@@ -207,6 +207,7 @@ function GuestProfileView({
       id?: number; games_played?: number; game_won?: number; game_lost?: number;
       celo_games_played?: number; celo_games_won?: number;
       total_staked?: number; total_earned?: number; total_withdrawn?: number; username?: string; created_at?: string;
+      properties_bought?: number; properties_sold?: number;
     } | undefined;
     const gpBackend = Number(offChain?.celo_games_played) > 0 ? Number(offChain.celo_games_played) : Number(offChain?.games_played) ?? 0;
     const backendHasStats = offChain?.id && (gpBackend > 0 || Number(offChain.total_earned) > 0);
@@ -224,9 +225,20 @@ function GuestProfileView({
         totalStaked: Number(offChain.total_staked) || 0,
         totalEarned: Number(offChain.total_earned) || 0,
         totalWithdrawn: Number(offChain.total_withdrawn) || 0,
+        propertiesBought: Number(offChain.properties_bought ?? userData!.propertiesBought),
+        propertiesSold: Number(offChain.properties_sold ?? userData!.propertiesSold),
       };
     }
-    if (userData) return userData;
+    if (userData) {
+      if (offChain?.id != null) {
+        return {
+          ...userData,
+          propertiesBought: Number(offChain.properties_bought ?? userData.propertiesBought),
+          propertiesSold: Number(offChain.properties_sold ?? userData.propertiesSold),
+        };
+      }
+      return userData;
+    }
     if (backendHasStats) {
       const gp = gpBackend;
       const gw = Number(offChain!.celo_games_won) > 0 ? Number(offChain!.celo_games_won) : Number(offChain!.game_won) || 0;
@@ -241,8 +253,8 @@ function GuestProfileView({
         totalStaked: Number(offChain!.total_staked) || 0,
         totalEarned: Number(offChain!.total_earned) || 0,
         totalWithdrawn: Number(offChain!.total_withdrawn) || 0,
-        propertiesBought: 0,
-        propertiesSold: 0,
+        propertiesBought: Number(offChain!.properties_bought ?? 0),
+        propertiesSold: Number(offChain!.properties_sold ?? 0),
         registeredAt: offChain!.created_at ? new Date(offChain!.created_at).getTime() / 1000 : 0,
       };
     }
@@ -1125,23 +1137,35 @@ export default function Profile() {
   ]);
 
   // When contract returns all zeros but backend has stats (leaderboard source), use backend to populate profile stats.
+  // Property buy/sell counts are updated in the API DB during games; the on-chain User struct is not, so merge from backend.
   const effectiveUserData = useMemo(() => {
     if (!userData) return null;
-    const contractEmpty =
-      userData.gamesPlayed === 0 && userData.totalStaked === 0 && userData.totalEarned === 0;
     const backend = backendUser as {
+      id?: number;
       games_played?: number; game_won?: number; game_lost?: number;
       celo_games_played?: number; celo_games_won?: number;
       base_games_played?: number; base_games_won?: number;
       total_staked?: number; total_earned?: number; total_withdrawn?: number;
+      properties_bought?: number;
+      properties_sold?: number;
     } | undefined;
+    const applyBackendPropertyStats = (base: typeof userData) => {
+      if (backend == null || backend.id == null) return base;
+      return {
+        ...base,
+        propertiesBought: Number(backend.properties_bought ?? base.propertiesBought),
+        propertiesSold: Number(backend.properties_sold ?? base.propertiesSold),
+      };
+    };
+    const contractEmpty =
+      userData.gamesPlayed === 0 && userData.totalStaked === 0 && userData.totalEarned === 0;
     const isCelo = chainParam === 'CELO';
     const gp = isCelo && Number(backend?.celo_games_played) > 0 ? Number(backend.celo_games_played) : Number(backend?.games_played) ?? 0;
     const gw = isCelo && Number(backend?.celo_games_won) > 0 ? Number(backend.celo_games_won) : Number(backend?.game_won) ?? 0;
     const hasBackendStats = backend && (gp > 0 || Number(backend.total_earned) > 0);
     if (contractEmpty && hasBackendStats) {
       const gl = Number(backend.game_lost) ?? 0;
-      return {
+      return applyBackendPropertyStats({
         ...userData,
         gamesPlayed: gp,
         gamesWon: gw,
@@ -1150,9 +1174,9 @@ export default function Profile() {
         totalStaked: Number(backend.total_staked) ?? 0,
         totalEarned: Number(backend.total_earned) ?? 0,
         totalWithdrawn: Number(backend.total_withdrawn) ?? 0,
-      };
+      });
     }
-    return userData;
+    return applyBackendPropertyStats(userData);
   }, [userData, backendUser, chainParam]);
 
   const handleSend = (tokenId: bigint, fromAddress: Address) => {
