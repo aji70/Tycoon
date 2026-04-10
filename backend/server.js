@@ -42,6 +42,7 @@ import tournamentsRoutes from "./routes/tournaments.js";
 import arenaRoutes from "./routes/arena.js";
 import shopAdminRoutes from "./routes/shop-admin.js";
 import adminDashboardRoutes from "./routes/admin-dashboard.js";
+import referralRoutes from "./routes/referral.js";
 import { requireAdminIpAllowlist, adminApiRateLimiter } from "./middleware/adminDashboardGate.js";
 
 import gamePerkController from "./controllers/gamePerkController.js";
@@ -347,6 +348,7 @@ app.get("/api/users/online", (_req, res) => {
 
 // API routes
 app.use("/api/auth", authRoutes);
+app.use("/api/referral", referralRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/games", gamesRoutes);
 app.use("/api/game-settings", gameSettingsRoutes);

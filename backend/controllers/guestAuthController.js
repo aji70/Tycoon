@@ -37,6 +37,18 @@ import {
 import { buildContractUsername } from "../utils/ensureContractAuth.js";
 import { getChainConfig } from "../config/chains.js";
 import logger from "../config/logger.js";
+import { attachReferralByCode } from "../services/referralService.js";
+
+async function tryPrivyReferralAttach(userId, body) {
+  const raw = body?.referralCode ?? body?.referral_code ?? body?.ref;
+  if (raw == null || String(raw).trim() === "") return;
+  try {
+    const r = await attachReferralByCode(userId, raw);
+    if (!r.ok) logger.debug({ userId, error: r.error }, "privy referral attach skipped");
+  } catch (e) {
+    logger.warn({ userId, err: e?.message }, "privy referral attach exception");
+  }
+}
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "../constants/ngnPayments.js";
 import {
   transferToBankAccount,
@@ -423,6 +435,7 @@ export async function privySignin(req, res) {
         user = await User.findById(user.id);
         logger.info({ userId: user.id }, "privySignin: added password_hash to existing Privy user");
       }
+      await tryPrivyReferralAttach(user.id, req.body);
       const token = jwt.sign(
         { userId: user.id, address: user.address, username: user.username, isGuest: true },
         JWT_SECRET,
@@ -459,6 +472,7 @@ export async function privySignin(req, res) {
       if (existingByEmail && !existingByEmail.privy_did) {
         await User.update(existingByEmail.id, { privy_did: privyDid });
         user = await User.findById(existingByEmail.id);
+        await tryPrivyReferralAttach(user.id, req.body);
         const token = jwt.sign(
           { userId: user.id, address: user.address, username: user.username, isGuest: !!user.is_guest },
           JWT_SECRET,
@@ -530,6 +544,7 @@ export async function privySignin(req, res) {
       );
     }
 
+    await tryPrivyReferralAttach(user.id, req.body);
     const token = jwt.sign(
       { userId: user.id, address: user.address, username: user.username, isGuest: true },
       JWT_SECRET,

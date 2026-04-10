@@ -147,10 +147,30 @@ export async function getPlayerById(req, res) {
 
     const profile = sanitizeUserRow(user);
 
+    let referral = null;
+    try {
+      const referralsCountRow = await db("users").where({ referred_by_user_id: id }).count("* as c").first();
+      let referrerUsername = null;
+      if (user.referred_by_user_id) {
+        const ref = await db("users").where({ id: user.referred_by_user_id }).first("username");
+        referrerUsername = ref?.username ?? null;
+      }
+      referral = {
+        code: user.referral_code ?? null,
+        referredByUserId: user.referred_by_user_id ?? null,
+        referredAt: user.referred_at ?? null,
+        referrerUsername,
+        directReferralsCount: Number(referralsCountRow?.c ?? 0),
+      };
+    } catch (_) {
+      referral = null;
+    }
+
     res.json({
       success: true,
       data: {
         profile,
+        referral,
         propertyStats: propertyStats ?? {
           properties_bought: 0,
           properties_sold: 0,
