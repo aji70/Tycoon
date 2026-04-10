@@ -7,6 +7,9 @@ import { recordEvent } from "../services/analytics.js";
 
 const NON_TERMINAL = ["PENDING", "RUNNING", "IN_PROGRESS", "AWAITING_PLAYERS"];
 
+/** Only these may be bulk-cancelled (must be non-terminal). */
+const BULK_CANCEL_ALLOWED = new Set(NON_TERMINAL);
+
 function parseStatusFilter(raw) {
   const s = raw != null ? String(raw).trim().toLowerCase() : "active";
   if (s === "all" || s === "") return null;
@@ -196,6 +199,107 @@ export async function getRoomById(req, res) {
   } catch (err) {
     logger.error({ err }, "admin getRoomById error");
     res.status(500).json({ success: false, error: "Failed to load room" });
+  }
+}
+
+function normalizeBulkStatuses(body) {
+  const raw = body?.statuses;
+  let list = NON_TERMINAL;
+  if (Array.isArray(raw) && raw.length > 0) {
+    list = [...new Set(raw.map((s) => String(s).trim().toUpperCase()).filter(Boolean))];
+  }
+  const bad = list.filter((s) => !BULK_CANCEL_ALLOWED.has(s));
+  if (bad.length) {
+    return { error: `Invalid statuses (allowed: ${[...BULK_CANCEL_ALLOWED].join(", ")}): ${bad.join(", ")}` };
+  }
+  if (list.length === 0) {
+    return { error: "No valid statuses selected" };
+  }
+  return { statuses: list };
+}
+
+/**
+ * POST /api/admin/rooms/bulk-cancel
+ * Body: { dryRun?: true, confirm?: true, statuses?: string[] }
+ * - dryRun: return count + preview (first 500 rows), no DB writes.
+ * - Without dryRun: requires confirm === true; sets all matching games to CANCELLED (chunked SQL), then cache + socket per game.
+ * Does not unwind on-chain state.
+ */
+export async function bulkCancelRooms(req, res) {
+  try {
+    const body = req.body || {};
+    const dryRun = body.dryRun === true || body.dry_run === true;
+
+    const norm = normalizeBulkStatuses(body);
+    if (norm.error) {
+      return res.status(400).json({ success: false, error: norm.error });
+    }
+    const { statuses } = norm;
+
+    const games = await db("games").whereIn("status", statuses).select("id", "code", "status").orderBy("id", "asc");
+
+    if (dryRun) {
+      const previewLimit = 500;
+      return res.json({
+        success: true,
+        data: {
+          dryRun: true,
+          statuses,
+          count: games.length,
+          games: games.slice(0, previewLimit),
+          previewTruncated: games.length > previewLimit,
+        },
+      });
+    }
+
+    if (body.confirm !== true) {
+      return res.status(400).json({
+        success: false,
+        error: 'Set "confirm": true to cancel all matching games (run with dryRun first recommended).',
+      });
+    }
+
+    if (games.length === 0) {
+      return res.json({
+        success: true,
+        data: { updated: 0, statuses, message: "No matching games to cancel." },
+      });
+    }
+
+    const ids = games.map((g) => g.id);
+    const CHUNK = 250;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const chunk = ids.slice(i, i + CHUNK);
+      await db("games").whereIn("id", chunk).update({ status: "CANCELLED", updated_at: db.fn.now() });
+    }
+
+    await recordEvent("admin_bulk_games_cancelled", {
+      entityType: "admin",
+      entityId: null,
+      payload: { count: games.length, statuses },
+    });
+
+    const io = req.app.get("io");
+    for (const g of games) {
+      try {
+        await invalidateGameById(g.id);
+      } catch (_) {}
+      try {
+        if (io && g.code) emitGameUpdate(io, g.code);
+      } catch (_) {}
+    }
+
+    res.json({
+      success: true,
+      data: {
+        updated: games.length,
+        statuses,
+        message: `Cancelled ${games.length} game(s). On-chain state was not modified.`,
+      },
+    });
+  } catch (err) {
+    logger.error({ err }, "admin bulkCancelRooms error");
+    res.status(500).json({ success: false, error: "Failed to bulk-cancel rooms" });
   }
 }
 

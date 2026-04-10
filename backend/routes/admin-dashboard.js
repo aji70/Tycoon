@@ -18,6 +18,7 @@ router.get("/players", adminPlayersController.listPlayers);
 router.get("/players/:id", adminPlayersController.getPlayerById);
 
 router.get("/rooms", adminRoomsController.listRooms);
+router.post("/rooms/bulk-cancel", adminRoomsController.bulkCancelRooms);
 router.post("/rooms/:id/cancel", adminRoomsController.cancelRoom);
 router.get("/rooms/:id", adminRoomsController.getRoomById);
 
