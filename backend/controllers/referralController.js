@@ -53,7 +53,7 @@ export async function getMe(req, res) {
 export async function attach(req, res) {
   try {
     const raw = req.body?.code ?? req.body?.referralCode ?? req.body?.referral_code ?? req.body?.ref;
-    const result = await attachReferralByCode(req.userId, raw);
+    const result = await attachReferralByCode(req.userId, raw, { source: "api" });
 
     if (!result.ok) {
       const status =
