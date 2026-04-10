@@ -1,6 +1,7 @@
 import logger from "../config/logger.js";
 import { getChainConfig, getDefaultAppChain, isAnyChainConfigured, SUPPORTED_CHAINS } from "../config/chains.js";
 import { isStarknetConfigured } from "../services/starknetContract.js";
+import { getAdminRateLimitConfig } from "../config/adminDashboardSecurity.js";
 
 function chainPublicSnapshot(name) {
   const cfg = getChainConfig(name);
@@ -38,6 +39,12 @@ export async function getSettingsSummary(req, res) {
           defaultAppChain: getDefaultAppChain(),
           anyEvmChainConfigured: isAnyChainConfigured(),
           starknetConfigured: isStarknetConfigured(),
+        },
+        adminApiSecurity: {
+          ipAllowlistEnabled: Boolean(
+            process.env.TYCOON_ADMIN_IP_ALLOWLIST && String(process.env.TYCOON_ADMIN_IP_ALLOWLIST).trim()
+          ),
+          rateLimit: getAdminRateLimitConfig(),
         },
         integrations: {
           tyAdminSecretSet: Boolean(process.env.TYCOON_ADMIN_SECRET && String(process.env.TYCOON_ADMIN_SECRET).trim()),

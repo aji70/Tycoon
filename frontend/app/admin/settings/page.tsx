@@ -21,6 +21,10 @@ type ChainSnap = {
 type SummaryData = {
   runtime: { nodeEnv: string; port: number; skipRedis: boolean };
   app: { defaultAppChain: string; anyEvmChainConfigured: boolean; starknetConfigured: boolean };
+  adminApiSecurity?: {
+    ipAllowlistEnabled: boolean;
+    rateLimit: { windowMs: number; maxRequestsPerWindow: number };
+  };
   integrations: Record<string, boolean>;
   evmChains: ChainSnap[];
   note: string;
@@ -103,6 +107,26 @@ export default function AdminSettingsPage() {
 
       {data && !loading && (
         <div className="mt-8 space-y-8">
+          <section>
+            <h2 className="text-sm font-semibold text-slate-300 mb-3">Admin API security</h2>
+            <div className="flex flex-wrap gap-2 items-center">
+              <Flag
+                on={Boolean(data.adminApiSecurity?.ipAllowlistEnabled)}
+                label="Admin IP allowlist active"
+              />
+              <span className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-400">
+                Admin rate limit:{" "}
+                <strong className="text-slate-200 tabular-nums">
+                  {data.adminApiSecurity?.rateLimit?.maxRequestsPerWindow ?? 200}
+                </strong>{" "}
+                req /{" "}
+                <strong className="text-slate-200 tabular-nums">
+                  {(data.adminApiSecurity?.rateLimit?.windowMs ?? 60_000) / 1000}s
+                </strong>
+              </span>
+            </div>
+          </section>
+
           <section>
             <h2 className="text-sm font-semibold text-slate-300 mb-3">Runtime</h2>
             <dl className="grid sm:grid-cols-3 gap-3 text-sm">
