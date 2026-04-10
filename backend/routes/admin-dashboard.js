@@ -8,6 +8,7 @@ import * as adminDashboardController from "../controllers/adminDashboardControll
 import * as adminPlayersController from "../controllers/adminPlayersController.js";
 import * as adminRoomsController from "../controllers/adminRoomsController.js";
 import * as adminPropertiesController from "../controllers/adminPropertiesController.js";
+import * as adminEconomyController from "../controllers/adminEconomyController.js";
 import { requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
 
 const router = express.Router();
@@ -26,5 +27,9 @@ router.get("/rooms/:id", adminRoomsController.getRoomById);
 router.get("/properties", adminPropertiesController.listProperties);
 router.patch("/properties/:id", adminPropertiesController.patchProperty);
 router.get("/properties/:id", adminPropertiesController.getProperty);
+
+router.get("/economy/overview", adminEconomyController.getEconomyOverview);
+router.get("/economy/config", adminEconomyController.getEconomyConfig);
+router.post("/economy/grant-voucher", adminEconomyController.grantVoucher);
 
 export default router;
