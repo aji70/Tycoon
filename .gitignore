@@ -24,6 +24,9 @@ frontend/.env.*.local
 # Synthesis hackathon registration (personal)
 scripts/synthesis-register.local.env
 
+# Local roadmap / implementation notes (do not commit)
+ADMIN_DASHBOARD_IMPLEMENTATION_PLAN.local.md
+
 # Documentation (local — all Markdown except README.md stays untracked)
 **/*.md
 !**/README.md
