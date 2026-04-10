@@ -15,6 +15,7 @@ import * as adminWalletsController from "../controllers/adminWalletsController.j
 import * as adminSettingsController from "../controllers/adminSettingsController.js";
 import * as adminModerationController from "../controllers/adminModerationController.js";
 import * as adminAuditLogController from "../controllers/adminAuditLogController.js";
+import * as adminSearchController from "../controllers/adminSearchController.js";
 import { requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
 
 const router = express.Router();
@@ -22,6 +23,7 @@ const router = express.Router();
 router.use(requireDashboardAdminSecret);
 
 router.get("/overview", adminDashboardController.getOverview);
+router.get("/search", adminSearchController.search);
 router.get("/players", adminPlayersController.listPlayers);
 router.get("/players/:id", adminPlayersController.getPlayerById);
 

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Bell, Search, Wallet } from "lucide-react";
+import { Bell, Wallet } from "lucide-react";
 import { ADMIN_NAV_ITEMS } from "./adminNav";
+import AdminGlobalSearch from "./AdminGlobalSearch";
 import { isAdminSecretConfigured } from "@/lib/adminApi";
 
 function NavLink({ href, label, exact }: { href: string; label: string; exact?: boolean }) {
@@ -48,17 +49,8 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
           <span className="text-cyan-500/90 text-xs font-medium uppercase tracking-wider hidden sm:inline">Admin</span>
         </Link>
 
-        <div className="flex-1 max-w-md mx-2 hidden md:block">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" aria-hidden />
-            <input
-              type="search"
-              placeholder="Search players, rooms… (soon)"
-              disabled
-              className="w-full rounded-lg bg-slate-900/80 border border-slate-700/80 pl-9 pr-3 py-1.5 text-sm text-slate-400 placeholder:text-slate-600 cursor-not-allowed"
-              aria-label="Admin search (coming soon)"
-            />
-          </div>
+        <div className="flex-1 max-w-md mx-2 min-w-0 hidden sm:flex justify-center">
+          <AdminGlobalSearch />
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2 ml-auto">
