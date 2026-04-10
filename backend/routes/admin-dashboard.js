@@ -17,6 +17,7 @@ import * as adminModerationController from "../controllers/adminModerationContro
 import * as adminAuditLogController from "../controllers/adminAuditLogController.js";
 import * as adminSearchController from "../controllers/adminSearchController.js";
 import * as adminReferralsController from "../controllers/adminReferralsController.js";
+import * as adminQuestsController from "../controllers/adminQuestsController.js";
 import { requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
 
 const router = express.Router();
@@ -51,6 +52,12 @@ router.get("/wallets", adminWalletsController.listWallets);
 router.get("/settings/summary", adminSettingsController.getSettingsSummary);
 
 router.get("/audit-log", adminAuditLogController.listAuditLog);
+
+router.get("/quests", adminQuestsController.listQuests);
+router.post("/quests", adminQuestsController.createQuest);
+router.get("/quests/:id", adminQuestsController.getQuestById);
+router.patch("/quests/:id", adminQuestsController.patchQuest);
+router.delete("/quests/:id", adminQuestsController.deleteQuest);
 
 router.get("/moderation/reports", adminModerationController.listReports);
 router.post("/moderation/reports", adminModerationController.createReport);
