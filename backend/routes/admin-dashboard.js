@@ -14,6 +14,7 @@ import * as adminAnalyticsController from "../controllers/adminAnalyticsControll
 import * as adminWalletsController from "../controllers/adminWalletsController.js";
 import * as adminSettingsController from "../controllers/adminSettingsController.js";
 import * as adminModerationController from "../controllers/adminModerationController.js";
+import * as adminAuditLogController from "../controllers/adminAuditLogController.js";
 import { requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
 
 const router = express.Router();
@@ -44,6 +45,8 @@ router.get("/analytics/activity", adminAnalyticsController.activity);
 
 router.get("/wallets", adminWalletsController.listWallets);
 router.get("/settings/summary", adminSettingsController.getSettingsSummary);
+
+router.get("/audit-log", adminAuditLogController.listAuditLog);
 
 router.get("/moderation/reports", adminModerationController.listReports);
 router.post("/moderation/reports", adminModerationController.createReport);

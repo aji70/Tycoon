@@ -1,5 +1,6 @@
 import db from "../config/database.js";
 import logger from "../config/logger.js";
+import { appendAdminAuditLog } from "../services/adminAuditLog.js";
 
 const STATUS = new Set(["open", "reviewing", "resolved", "dismissed"]);
 const SORT_WHITELIST = {
@@ -189,6 +190,14 @@ export async function patchReport(req, res) {
       return res.status(404).json({ success: false, error: "Report not found" });
     }
 
+    await appendAdminAuditLog({
+      action: "moderation.report_patch",
+      targetType: "moderation_report",
+      targetId: String(id),
+      payload: { updatedFields: Object.keys(patch) },
+      req,
+    });
+
     const row = await baseSelect().where("moderation_reports.id", id).first();
     res.json({
       success: true,
@@ -270,6 +279,20 @@ export async function createReport(req, res) {
       category,
       details,
       status: "open",
+    });
+
+    await appendAdminAuditLog({
+      action: "moderation.report_create",
+      targetType: "moderation_report",
+      targetId: String(insertId),
+      payload: {
+        category,
+        reporterUserId,
+        targetUserId,
+        targetType,
+        targetRef,
+      },
+      req,
     });
 
     const row = await baseSelect().where("moderation_reports.id", insertId).first();
