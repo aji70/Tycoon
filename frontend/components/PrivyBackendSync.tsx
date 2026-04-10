@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-toastify";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { clearPendingReferralCode, peekPendingReferralCode } from "@/lib/referralCapture";
 
 const TOKEN_KEY = "token";
 function getApiBase() {
@@ -68,10 +69,14 @@ export default function PrivyBackendSync() {
           return;
         }
         retryCountRef.current = 0;
+        const pendingRef = peekPendingReferralCode();
+        const bodyPayload: Record<string, string> = {};
+        if (usernameBody != null) bodyPayload.username = usernameBody;
+        if (pendingRef) bodyPayload.referralCode = pendingRef;
         const res = await fetch(`${apiBase}/auth/privy-signin`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify(usernameBody != null ? { username: usernameBody } : {}),
+          body: JSON.stringify(bodyPayload),
         });
         const text = await res.text();
         let data: { success?: boolean; message?: string; data?: { token?: string } } = {};
@@ -94,6 +99,7 @@ export default function PrivyBackendSync() {
         }
         if (res.ok && data?.data?.token) {
           if (typeof window !== "undefined") window.localStorage.setItem(TOKEN_KEY, data.data.token);
+          clearPendingReferralCode();
           await refetchGuest?.();
           setSyncState("done");
           setError(null);

@@ -31,6 +31,7 @@ import FirstTimeHint from '@/components/ui/FirstTimeHint';
 import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAssets';
 import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
+import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
 
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
 const MAX_AVATAR_DIM = 512;
@@ -637,6 +638,7 @@ function GuestProfileViewMobile({
                   compact
                   className="mb-4"
                 />
+                <ProfileReferralCard className="mb-4" />
                 <div className="mb-4">
                   <DailyClaim chain="CELO" />
                 </div>
@@ -1567,6 +1569,7 @@ export default function ProfilePageMobile() {
                   compact
                   className="mb-4"
                 />
+                <ProfileReferralCard className="mb-4" />
                 <div className="mb-4">
                   <DailyClaim
                     chain={
