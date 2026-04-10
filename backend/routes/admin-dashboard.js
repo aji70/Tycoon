@@ -11,6 +11,9 @@ import * as adminPropertiesController from "../controllers/adminPropertiesContro
 import * as adminEconomyController from "../controllers/adminEconomyController.js";
 import * as adminLeaderboardController from "../controllers/adminLeaderboardController.js";
 import * as adminAnalyticsController from "../controllers/adminAnalyticsController.js";
+import * as adminWalletsController from "../controllers/adminWalletsController.js";
+import * as adminSettingsController from "../controllers/adminSettingsController.js";
+import * as adminModerationController from "../controllers/adminModerationController.js";
 import { requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
 
 const router = express.Router();
@@ -38,5 +41,13 @@ router.get("/leaderboard", adminLeaderboardController.getLeaderboard);
 
 router.get("/analytics/dashboard", adminAnalyticsController.dashboard);
 router.get("/analytics/activity", adminAnalyticsController.activity);
+
+router.get("/wallets", adminWalletsController.listWallets);
+router.get("/settings/summary", adminSettingsController.getSettingsSummary);
+
+router.get("/moderation/reports", adminModerationController.listReports);
+router.post("/moderation/reports", adminModerationController.createReport);
+router.get("/moderation/reports/:id", adminModerationController.getReportById);
+router.patch("/moderation/reports/:id", adminModerationController.patchReport);
 
 export default router;

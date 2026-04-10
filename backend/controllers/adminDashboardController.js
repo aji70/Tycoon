@@ -33,6 +33,14 @@ export async function getOverview(req, res) {
       db("game_properties").count("* as c").first(),
     ]);
 
+    let flaggedReports = 0;
+    try {
+      const openReportsRow = await db("moderation_reports").where("status", "open").count("* as c").first();
+      flaggedReports = Number(openReportsRow?.c ?? 0);
+    } catch (err) {
+      logger.warn({ err }, "admin overview: moderation_reports count skipped (table missing?)");
+    }
+
     const metrics = {
       totalPlayers: Number(totalPlayersRow?.c ?? 0),
       activePlayersToday: Number(activePlayersTodayRow?.c ?? 0),
@@ -42,7 +50,7 @@ export async function getOverview(req, res) {
       totalTrades: Number(tradesRow?.c ?? 0),
       totalPlayHistoryEvents: Number(historyRow?.c ?? 0),
       totalPropertiesOwned: Number(propertiesOwnedRow?.c ?? 0),
-      flaggedReports: 0,
+      flaggedReports,
     };
 
     res.json({ success: true, data: { metrics } });
