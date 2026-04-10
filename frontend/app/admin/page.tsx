@@ -25,7 +25,11 @@ const metricCards: { key: keyof PlatformMetrics; label: string; hint?: string }[
   { key: "totalTrades", label: "Accepted trades" },
   { key: "totalPlayHistoryEvents", label: "Play history events" },
   { key: "totalPropertiesOwned", label: "Property ownership rows", hint: "Rows in game_properties" },
-  { key: "flaggedReports", label: "Flagged reports", hint: "Moderation table not wired yet" },
+  {
+    key: "flaggedReports",
+    label: "Open reports",
+    hint: "moderation_reports with status open; see /admin/moderation",
+  },
 ];
 
 function formatMetric(key: keyof PlatformMetrics, v: number): string {
