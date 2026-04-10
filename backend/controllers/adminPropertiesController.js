@@ -3,6 +3,7 @@ import logger from "../config/logger.js";
 import Property from "../models/Property.js";
 import redis from "../config/redis.js";
 import { recordEvent } from "../services/analytics.js";
+import { appendAdminAuditLog } from "../services/adminAuditLog.js";
 
 const PATCHABLE = new Set([
   "name",
@@ -188,6 +189,14 @@ export async function patchProperty(req, res) {
       entityType: "property",
       entityId: id,
       payload: { keys: Object.keys(payload) },
+    });
+
+    await appendAdminAuditLog({
+      action: "properties.patch",
+      targetType: "property",
+      targetId: String(id),
+      payload: { keys: Object.keys(payload), patch: payload },
+      req,
     });
 
     const property = await Property.findById(id);

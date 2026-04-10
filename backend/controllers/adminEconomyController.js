@@ -3,6 +3,7 @@ import logger from "../config/logger.js";
 import User from "../models/User.js";
 import { isContractConfigured, mintVoucherTo } from "../services/tycoonContract.js";
 import { recordEvent } from "../services/analytics.js";
+import { appendAdminAuditLog } from "../services/adminAuditLog.js";
 
 function startOfUtcDay(d = new Date()) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -153,6 +154,22 @@ export async function grantVoucher(req, res) {
       entityType: "user",
       entityId: userId,
       payload: { tycAmount, chain, reason: reason || null, tx_hash: hash || null, token_id: tokenId || null },
+    });
+
+    await appendAdminAuditLog({
+      action: "economy.grant_voucher",
+      targetType: "user",
+      targetId: String(userId),
+      payload: {
+        username: user.username,
+        tycAmount,
+        chain,
+        reason: reason || null,
+        txHash: hash || null,
+        tokenId: tokenId ?? null,
+        mintTo: toAddress,
+      },
+      req,
     });
 
     res.json({

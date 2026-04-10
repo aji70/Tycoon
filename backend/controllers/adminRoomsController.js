@@ -4,6 +4,7 @@ import Game from "../models/Game.js";
 import { invalidateGameById } from "../utils/gameCache.js";
 import { emitGameUpdate } from "../utils/socketHelpers.js";
 import { recordEvent } from "../services/analytics.js";
+import { appendAdminAuditLog } from "../services/adminAuditLog.js";
 
 const NON_TERMINAL = ["PENDING", "RUNNING", "IN_PROGRESS", "AWAITING_PLAYERS"];
 
@@ -279,6 +280,13 @@ export async function bulkCancelRooms(req, res) {
       payload: { count: games.length, statuses },
     });
 
+    await appendAdminAuditLog({
+      action: "rooms.bulk_cancel",
+      targetType: "games",
+      payload: { count: games.length, statuses, gameIds: ids.slice(0, 80) },
+      req,
+    });
+
     const io = req.app.get("io");
     for (const g of games) {
       try {
@@ -331,6 +339,13 @@ export async function cancelRoom(req, res) {
       entityType: "game",
       entityId: id,
       payload: { code: game.code ?? null, reason: (req.body && req.body.reason) || null },
+    });
+    await appendAdminAuditLog({
+      action: "rooms.cancel",
+      targetType: "game",
+      targetId: String(id),
+      payload: { code: game.code ?? null, reason: (req.body && req.body.reason) || null },
+      req,
     });
     await invalidateGameById(id);
     const io = req.app.get("io");
