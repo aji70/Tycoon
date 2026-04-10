@@ -213,8 +213,8 @@ export default function AdminQuestsPage() {
     <div>
       <h1 className="text-2xl font-semibold text-slate-100">Quests</h1>
       <p className="mt-1 text-sm text-slate-400 max-w-3xl">
-        Definitions in <code className="text-slate-500">quest_definitions</code>. Game clients can read this table later;
-        for now this is admin metadata and ordering.
+        Definitions in <code className="text-slate-500">quest_definitions</code>. Active rows are exposed publicly as{" "}
+        <code className="text-slate-500">GET /api/quests</code> (no auth); inactive quests are omitted.
       </p>
 
       <div className="mt-4 flex flex-wrap gap-3 items-end">
