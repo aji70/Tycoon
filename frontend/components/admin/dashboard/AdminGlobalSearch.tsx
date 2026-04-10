@@ -12,6 +12,7 @@ type PlayerHit = {
   address: string;
   chain: string;
   isGuest: boolean;
+  referralCode?: string | null;
 };
 
 type GameHit = {
@@ -142,6 +143,7 @@ export default function AdminGlobalSearch() {
                       <span className="text-slate-500 text-xs ml-2">
                         #{p.id} · {p.chain}
                         {p.isGuest ? " · guest" : ""}
+                        {p.referralCode ? ` · ref ${p.referralCode}` : ""}
                       </span>
                       <span className="block text-xs text-slate-500 font-mono truncate mt-0.5">{p.address}</span>
                     </Link>

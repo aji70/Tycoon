@@ -32,20 +32,25 @@ export async function search(req, res) {
     const limit = Math.min(15, Math.max(1, Number(req.query.limit) || 8));
 
     let playersQ = db("users")
-      .select("id", "username", "address", "chain", "is_guest")
+      .select("id", "username", "address", "chain", "is_guest", "referral_code")
       .orderBy("id", "desc")
       .limit(limit);
 
     if (isNumeric) {
       const n = Number(raw);
+      const lower = raw.toLowerCase();
       playersQ = playersQ.where(function () {
         this.where("id", n)
-          .orWhereRaw("LOWER(username) LIKE ?", [`%${raw.toLowerCase()}%`])
-          .orWhereRaw("LOWER(address) LIKE ?", [`%${raw.toLowerCase()}%`]);
+          .orWhereRaw("LOWER(username) LIKE ?", [`%${lower}%`])
+          .orWhereRaw("LOWER(address) LIKE ?", [`%${lower}%`])
+          .orWhereRaw("LOWER(COALESCE(referral_code, '')) LIKE ?", [`%${lower}%`]);
       });
     } else {
       const pat = `%${raw.toLowerCase()}%`;
-      playersQ = playersQ.whereRaw("(LOWER(username) LIKE ? OR LOWER(address) LIKE ?)", [pat, pat]);
+      playersQ = playersQ.whereRaw(
+        "(LOWER(username) LIKE ? OR LOWER(address) LIKE ? OR LOWER(COALESCE(referral_code, '')) LIKE ?)",
+        [pat, pat, pat]
+      );
     }
 
     let gamesQ = db("games")
@@ -74,6 +79,7 @@ export async function search(req, res) {
           address: p.address,
           chain: p.chain,
           isGuest: !!p.is_guest,
+          referralCode: p.referral_code ?? null,
         })),
         games: games.map((g) => ({
           id: g.id,

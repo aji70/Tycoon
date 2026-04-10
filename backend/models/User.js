@@ -1,12 +1,17 @@
 import db from "../config/database.js";
 import { getDefaultAppChain } from "../config/chains.js";
+import { generateUniqueReferralCode } from "../services/referralService.js";
 
 const User = {
   /**
    * Create a new user
    */
   async create(userData) {
-    const [id] = await db("users").insert(userData);
+    const payload = { ...userData };
+    if (payload.referral_code === undefined || payload.referral_code === null) {
+      payload.referral_code = await generateUniqueReferralCode();
+    }
+    const [id] = await db("users").insert(payload);
     return this.findById(id);
   },
 

@@ -34,6 +34,14 @@ type PropertyStats = {
   favourite_property: { property_id: number; count: number } | null;
 };
 
+type ReferralInfo = {
+  code: string | null;
+  referredByUserId: number | null;
+  referredAt: string | null;
+  referrerUsername: string | null;
+  directReferralsCount: number;
+};
+
 type RecentGame = {
   gameId: number;
   code: string;
@@ -82,6 +90,7 @@ export default function AdminPlayerDetailPage({ params }: { params: { id: string
           success: boolean;
           data?: {
             profile: Profile;
+            referral?: ReferralInfo | null;
             propertyStats: PropertyStats;
             activity: { gameMembershipsCount: number; recentGames: RecentGame[] };
           };
@@ -92,6 +101,7 @@ export default function AdminPlayerDetailPage({ params }: { params: { id: string
           return;
         }
         setProfile(body.data.profile);
+        setReferral(body.data.referral ?? null);
         setPropertyStats(body.data.propertyStats);
         setRecentGames(body.data.activity.recentGames);
         setMemberships(body.data.activity.gameMembershipsCount);
@@ -201,6 +211,40 @@ export default function AdminPlayerDetailPage({ params }: { params: { id: string
                 </div>
               </dl>
             </section>
+
+            {referral && (
+              <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-4">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Referrals</h2>
+                <dl className="space-y-2 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-500">Referral code</dt>
+                    <dd className="text-slate-200 font-mono text-xs">{referral.code ?? "—"}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-500">Direct referrals</dt>
+                    <dd className="text-slate-200 tabular-nums">{referral.directReferralsCount}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-500">Referred by</dt>
+                    <dd className="text-slate-200 text-right text-xs">
+                      {referral.referredByUserId != null ? (
+                        <Link href={`/admin/players/${referral.referredByUserId}`} className="text-cyan-400 hover:underline">
+                          {referral.referrerUsername ?? `User #${referral.referredByUserId}`}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
+                    </dd>
+                  </div>
+                  {referral.referredAt && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-slate-500">Referred at</dt>
+                      <dd className="text-slate-200 text-xs">{String(referral.referredAt)}</dd>
+                    </div>
+                  )}
+                </dl>
+              </section>
+            )}
 
             <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-4">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Gameplay & balances</h2>
