@@ -29,6 +29,15 @@ const STATUS_TABS = [
   { value: "cancelled", label: "Cancelled" },
 ] as const;
 
+const BULK_STATUS_OPTIONS = [
+  { value: "PENDING", label: "Pending" },
+  { value: "RUNNING", label: "Running" },
+  { value: "IN_PROGRESS", label: "In progress" },
+  { value: "AWAITING_PLAYERS", label: "Awaiting players" },
+] as const;
+
+const BULK_TIMEOUT_MS = 300_000;
+
 function formatDuration(ms: number) {
   const s = Math.floor(ms / 1000);
   if (s < 60) return `${s}s`;
@@ -49,6 +58,18 @@ export default function AdminGameRoomsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [bulkPick, setBulkPick] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(BULK_STATUS_OPTIONS.map((o) => [o.value, true]))
+  );
+  const [bulkPreview, setBulkPreview] = useState<{
+    count: number;
+    games: { id: number; code: string; status: string }[];
+    previewTruncated: boolean;
+  } | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkDone, setBulkDone] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -88,7 +109,99 @@ export default function AdminGameRoomsPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    setBulkPreview(null);
+    setBulkDone(null);
+  }, [bulkPick]);
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const selectedBulkStatuses = BULK_STATUS_OPTIONS.filter((o) => bulkPick[o.value]).map((o) => o.value);
+
+  async function runBulkPreview() {
+    if (selectedBulkStatuses.length === 0) {
+      setBulkError("Select at least one status.");
+      return;
+    }
+    setBulkLoading(true);
+    setBulkError(null);
+    setBulkDone(null);
+    setBulkPreview(null);
+    try {
+      const { data: body } = await adminApi.post<{
+        success: boolean;
+        data?: {
+          dryRun: boolean;
+          count: number;
+          games: { id: number; code: string; status: string }[];
+          previewTruncated: boolean;
+        };
+      }>(
+        "admin/rooms/bulk-cancel",
+        { dryRun: true, statuses: selectedBulkStatuses },
+        { timeout: BULK_TIMEOUT_MS }
+      );
+      if (!body?.success || !body.data) {
+        setBulkError("Unexpected preview response");
+        return;
+      }
+      setBulkPreview({
+        count: body.data.count,
+        games: body.data.games,
+        previewTruncated: body.data.previewTruncated,
+      });
+    } catch (e) {
+      setBulkError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Preview failed");
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
+  async function runBulkCancel() {
+    if (selectedBulkStatuses.length === 0) {
+      setBulkError("Select at least one status.");
+      return;
+    }
+    const n = bulkPreview?.count;
+    if (n == null) {
+      setBulkError("Run preview first so we know how many games will be affected.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Cancel ${n.toLocaleString()} game(s) in DB (status → CANCELLED)? This does not unwind on-chain contracts.`
+      )
+    ) {
+      return;
+    }
+    if (!window.confirm("Second confirmation: proceed with bulk cancel?")) {
+      return;
+    }
+    setBulkLoading(true);
+    setBulkError(null);
+    setBulkDone(null);
+    try {
+      const { data: body } = await adminApi.post<{
+        success: boolean;
+        data?: { updated: number; message?: string };
+      }>(
+        "admin/rooms/bulk-cancel",
+        { confirm: true, statuses: selectedBulkStatuses },
+        { timeout: BULK_TIMEOUT_MS }
+      );
+      if (!body?.success || body.data == null) {
+        setBulkError("Unexpected response");
+        return;
+      }
+      setBulkDone(body.data.message || `Cancelled ${body.data.updated} game(s).`);
+      setBulkPreview(null);
+      await load();
+    } catch (e) {
+      setBulkError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Bulk cancel failed");
+    } finally {
+      setBulkLoading(false);
+    }
+  }
 
   return (
     <div>
@@ -98,6 +211,68 @@ export default function AdminGameRoomsPage() {
         <code className="text-slate-500">created_at</code>) to now for open games, or to <code className="text-slate-500">updated_at</code>{" "}
         for finished/cancelled. Cancelling a room does not unwind on-chain state.
       </p>
+
+      <section className="mt-6 rounded-xl border border-amber-900/40 bg-amber-950/20 p-4">
+        <h2 className="text-sm font-semibold text-amber-200/95">Bulk cancel open games</h2>
+        <p className="mt-1 text-xs text-amber-200/70 max-w-3xl">
+          Sets matching rows to <code className="text-amber-100/90">CANCELLED</code> in the database, clears game cache, and emits socket updates.
+          Use this to clear stuck <strong>pending</strong> and <strong>running</strong> lobbies. Run <strong>Preview</strong> first; large batches may take up to a few minutes.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-4">
+          {BULK_STATUS_OPTIONS.map((o) => (
+            <label key={o.value} className="inline-flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={bulkPick[o.value] ?? false}
+                onChange={(e) => setBulkPick((p) => ({ ...p, [o.value]: e.target.checked }))}
+                className="rounded border-slate-600 bg-slate-900 text-cyan-600 focus:ring-cyan-800"
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={bulkLoading}
+            onClick={runBulkPreview}
+            className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-200 hover:border-slate-500 disabled:opacity-50"
+          >
+            {bulkLoading ? "Working…" : "Preview count"}
+          </button>
+          <button
+            type="button"
+            disabled={bulkLoading || bulkPreview == null || bulkPreview.count === 0}
+            onClick={runBulkCancel}
+            className="rounded-lg border border-red-900/60 bg-red-950/50 px-3 py-2 text-sm font-medium text-red-200 hover:bg-red-950/70 disabled:opacity-40"
+          >
+            Cancel all matching
+          </button>
+        </div>
+        {bulkError && (
+          <p className="mt-3 text-sm text-red-400 border border-red-900/40 rounded-lg px-2 py-1.5 bg-red-950/30">{bulkError}</p>
+        )}
+        {bulkDone && (
+          <p className="mt-3 text-sm text-emerald-400 border border-emerald-900/40 rounded-lg px-2 py-1.5 bg-emerald-950/30">{bulkDone}</p>
+        )}
+        {bulkPreview != null && (
+          <div className="mt-3 text-sm text-slate-400">
+            <p className="text-slate-200 font-medium tabular-nums">
+              {bulkPreview.count.toLocaleString()} game(s) match
+              {bulkPreview.previewTruncated ? " (showing first 500 below)" : ""}.
+            </p>
+            {bulkPreview.games.length > 0 && (
+              <ul className="mt-2 max-h-40 overflow-y-auto text-xs font-mono text-slate-500 space-y-0.5 border border-slate-800 rounded-lg p-2 bg-slate-950/50">
+                {bulkPreview.games.map((g) => (
+                  <li key={g.id}>
+                    #{g.id} {g.code} <span className="text-slate-600">({g.status})</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </section>
 
       <div className="mt-4 flex flex-wrap gap-2">
         {STATUS_TABS.map((tab) => (
