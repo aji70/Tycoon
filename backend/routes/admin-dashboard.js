@@ -9,6 +9,7 @@ import * as adminPlayersController from "../controllers/adminPlayersController.j
 import * as adminRoomsController from "../controllers/adminRoomsController.js";
 import * as adminPropertiesController from "../controllers/adminPropertiesController.js";
 import * as adminEconomyController from "../controllers/adminEconomyController.js";
+import * as adminLeaderboardController from "../controllers/adminLeaderboardController.js";
 import { requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
 
 const router = express.Router();
@@ -31,5 +32,7 @@ router.get("/properties/:id", adminPropertiesController.getProperty);
 router.get("/economy/overview", adminEconomyController.getEconomyOverview);
 router.get("/economy/config", adminEconomyController.getEconomyConfig);
 router.post("/economy/grant-voucher", adminEconomyController.grantVoucher);
+
+router.get("/leaderboard", adminLeaderboardController.getLeaderboard);
 
 export default router;
