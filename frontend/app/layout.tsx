@@ -8,6 +8,7 @@ import ContextProvider from "@/context";
 import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
 import PrivyProviderWrapper from "@/components/PrivyProviderWrapper";
 import PrivyBackendSync from "@/components/PrivyBackendSync";
+import ReferralCapture from "@/components/ReferralCapture";
 import AddWalletPromptModal from "@/components/guest/AddWalletPromptModal";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
@@ -87,6 +88,7 @@ export default async function RootLayout({
           <ContextProvider cookies={cookies}>
             <TycoonProvider>
               <GuestAuthProvider>
+              <ReferralCapture />
               <PrivyBackendSync />
               <AddWalletPromptModal />
               <TournamentProvider>

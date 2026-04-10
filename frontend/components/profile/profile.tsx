@@ -28,6 +28,7 @@ import FirstTimeHint from '@/components/ui/FirstTimeHint';
 import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAssets';
 import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
+import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
 
 const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
 const isValidWallet = (a: unknown): a is Address => {
@@ -653,6 +654,7 @@ function GuestProfileView({
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[260px] max-h-[60vh] overflow-y-auto">
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
+                <ProfileReferralCard className="mb-5" />
                 {!displayStats ? (
                   <EmptyState
                     icon={<BarChart2 className="w-14 h-14 text-cyan-400/70" />}
@@ -1620,6 +1622,7 @@ export default function Profile() {
                   compact
                   className="mb-4"
                 />
+                <ProfileReferralCard className="mb-5" />
                 <div className="mb-6">
                   <DailyClaim
                     chain={
