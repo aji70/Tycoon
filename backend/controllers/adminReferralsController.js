@@ -67,3 +67,100 @@ export async function getOverview(req, res) {
     res.status(500).json({ success: false, error: "Failed to load referrals overview" });
   }
 }
+
+/**
+ * GET /api/admin/referrals/events
+ * Query: page, pageSize, refereeUserId, referrerUserId, eventType, source
+ */
+export async function listReferralEvents(req, res) {
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 40));
+    const refereeUserId = req.query.refereeUserId != null && req.query.refereeUserId !== "" ? Number(req.query.refereeUserId) : null;
+    const referrerUserId = req.query.referrerUserId != null && req.query.referrerUserId !== "" ? Number(req.query.referrerUserId) : null;
+    const eventType = req.query.eventType != null ? String(req.query.eventType).trim() : "";
+    const source = req.query.source != null ? String(req.query.source).trim() : "";
+
+    const base = db("referral_events as e")
+      .leftJoin("users as referee", "e.referee_user_id", "referee.id")
+      .leftJoin("users as referrer", "e.referrer_user_id", "referrer.id");
+
+    if (refereeUserId != null && Number.isFinite(refereeUserId) && refereeUserId > 0) {
+      base.where("e.referee_user_id", refereeUserId);
+    }
+    if (referrerUserId != null && Number.isFinite(referrerUserId) && referrerUserId > 0) {
+      base.where("e.referrer_user_id", referrerUserId);
+    }
+    if (eventType === "attach_success" || eventType === "attach_failed") {
+      base.where("e.event_type", eventType);
+    }
+    if (source === "api" || source === "privy_signin" || source === "unknown") {
+      base.where("e.source", source);
+    }
+
+    const countRow = await base.clone().count("* as c").first();
+    const total = Number(countRow?.c ?? 0);
+
+    const rows = await base
+      .clone()
+      .select(
+        "e.id",
+        "e.referee_user_id",
+        "e.event_type",
+        "e.referrer_user_id",
+        "e.code_normalized",
+        "e.failure_reason",
+        "e.source",
+        "e.metadata",
+        "e.created_at",
+        "referee.username as refereeUsername",
+        "referrer.username as referrerUsername"
+      )
+      .orderBy("e.created_at", "desc")
+      .offset((page - 1) * pageSize)
+      .limit(pageSize);
+
+    res.json({
+      success: true,
+      data: {
+        events: rows.map((r) => ({
+          id: r.id,
+          refereeUserId: r.referee_user_id,
+          refereeUsername: r.refereeUsername ?? null,
+          eventType: r.event_type,
+          referrerUserId: r.referrer_user_id,
+          referrerUsername: r.referrerUsername ?? null,
+          codeNormalized: r.code_normalized,
+          failureReason: r.failure_reason,
+          source: r.source,
+          metadata: r.metadata,
+          createdAt: r.created_at,
+        })),
+        total,
+        page,
+        pageSize,
+      },
+    });
+  } catch (err) {
+    const missing =
+      err.errno === 1146 ||
+      err.code === "ER_NO_SUCH_TABLE" ||
+      (typeof err.message === "string" && err.message.includes("doesn't exist"));
+    if (missing) {
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 40));
+      return res.json({
+        success: true,
+        data: {
+          events: [],
+          total: 0,
+          page,
+          pageSize,
+          tableMissing: true,
+        },
+      });
+    }
+    logger.error({ err }, "admin listReferralEvents error");
+    res.status(500).json({ success: false, error: "Failed to load referral events" });
+  }
+}

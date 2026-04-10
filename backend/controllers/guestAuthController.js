@@ -43,7 +43,7 @@ async function tryPrivyReferralAttach(userId, body) {
   const raw = body?.referralCode ?? body?.referral_code ?? body?.ref;
   if (raw == null || String(raw).trim() === "") return;
   try {
-    const r = await attachReferralByCode(userId, raw);
+    const r = await attachReferralByCode(userId, raw, { source: "privy_signin" });
     if (!r.ok) logger.debug({ userId, error: r.error }, "privy referral attach skipped");
   } catch (e) {
     logger.warn({ userId, err: e?.message }, "privy referral attach exception");

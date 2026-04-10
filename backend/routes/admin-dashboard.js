@@ -27,6 +27,7 @@ router.use(requireDashboardAdminSecret);
 router.get("/overview", adminDashboardController.getOverview);
 router.get("/search", adminSearchController.search);
 router.get("/referrals/overview", adminReferralsController.getOverview);
+router.get("/referrals/events", adminReferralsController.listReferralEvents);
 router.get("/players", adminPlayersController.listPlayers);
 router.get("/players/:id", adminPlayersController.getPlayerById);
 

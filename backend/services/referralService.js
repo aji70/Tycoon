@@ -22,29 +22,76 @@ function normalizeReferralCodeInput(raw) {
   return s;
 }
 
+function normalizeSource(raw) {
+  if (raw === "api" || raw === "privy_signin") return raw;
+  return "unknown";
+}
+
+async function tryInsertReferralEvent(row) {
+  try {
+    await db("referral_events").insert(row);
+  } catch (err) {
+    const missing =
+      err.errno === 1146 ||
+      err.code === "ER_NO_SUCH_TABLE" ||
+      (typeof err.message === "string" && err.message.includes("doesn't exist"));
+    if (missing) {
+      logger.debug("referral_events table missing; skipping event log");
+      return;
+    }
+    logger.warn({ err }, "referral_events insert failed");
+  }
+}
+
 /**
  * Idempotent attach: only if user has no referred_by yet.
+ * @param {object} [opts]
+ * @param {"api"|"privy_signin"|"unknown"} [opts.source] — used for referral_events.source
  * @returns {{ ok: true, referrerUserId: number } | { ok: false, error: string }}
  */
-export async function attachReferralByCode(userId, rawCode) {
+export async function attachReferralByCode(userId, rawCode, opts = {}) {
+  const source = normalizeSource(opts.source);
+
+  const logEvent = async (partial) => {
+    await tryInsertReferralEvent({
+      referee_user_id: Number(userId),
+      event_type: partial.eventType,
+      referrer_user_id: partial.referrerUserId ?? null,
+      code_normalized: partial.codeNormalized ?? null,
+      failure_reason: partial.failureReason ?? null,
+      source,
+      metadata: partial.metadata ?? null,
+    });
+  };
+
   const code = normalizeReferralCodeInput(rawCode);
   if (!code) {
+    await logEvent({ eventType: "attach_failed", failureReason: "invalid_code" });
     return { ok: false, error: "invalid_code" };
   }
 
   const user = await db("users").where({ id: userId }).first("id", "referred_by_user_id");
   if (!user) {
+    await logEvent({ eventType: "attach_failed", codeNormalized: code, failureReason: "user_not_found" });
     return { ok: false, error: "user_not_found" };
   }
   if (user.referred_by_user_id != null) {
+    await logEvent({ eventType: "attach_failed", codeNormalized: code, failureReason: "already_referred" });
     return { ok: false, error: "already_referred" };
   }
 
   const referrer = await db("users").where({ referral_code: code }).first("id");
   if (!referrer) {
+    await logEvent({ eventType: "attach_failed", codeNormalized: code, failureReason: "code_not_found" });
     return { ok: false, error: "code_not_found" };
   }
   if (Number(referrer.id) === Number(userId)) {
+    await logEvent({
+      eventType: "attach_failed",
+      codeNormalized: code,
+      failureReason: "self_referral",
+      referrerUserId: referrer.id,
+    });
     return { ok: false, error: "self_referral" };
   }
 
@@ -53,8 +100,15 @@ export async function attachReferralByCode(userId, rawCode) {
     referred_at: db.fn.now(),
   });
   if (!updated) {
+    await logEvent({ eventType: "attach_failed", codeNormalized: code, failureReason: "already_referred" });
     return { ok: false, error: "already_referred" };
   }
+
+  await logEvent({
+    eventType: "attach_success",
+    codeNormalized: code,
+    referrerUserId: referrer.id,
+  });
 
   logger.info({ userId, referrerUserId: referrer.id }, "referral attached");
   return { ok: true, referrerUserId: referrer.id };
