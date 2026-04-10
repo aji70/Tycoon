@@ -7,6 +7,7 @@ import express from "express";
 import * as adminDashboardController from "../controllers/adminDashboardController.js";
 import * as adminPlayersController from "../controllers/adminPlayersController.js";
 import * as adminRoomsController from "../controllers/adminRoomsController.js";
+import * as adminPropertiesController from "../controllers/adminPropertiesController.js";
 import { requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
 
 const router = express.Router();
@@ -21,5 +22,9 @@ router.get("/rooms", adminRoomsController.listRooms);
 router.post("/rooms/bulk-cancel", adminRoomsController.bulkCancelRooms);
 router.post("/rooms/:id/cancel", adminRoomsController.cancelRoom);
 router.get("/rooms/:id", adminRoomsController.getRoomById);
+
+router.get("/properties", adminPropertiesController.listProperties);
+router.patch("/properties/:id", adminPropertiesController.patchProperty);
+router.get("/properties/:id", adminPropertiesController.getProperty);
 
 export default router;
