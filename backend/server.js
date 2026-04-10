@@ -41,6 +41,7 @@ import authRoutes from "./routes/auth.js";
 import tournamentsRoutes from "./routes/tournaments.js";
 import arenaRoutes from "./routes/arena.js";
 import shopAdminRoutes from "./routes/shop-admin.js";
+import adminDashboardRoutes from "./routes/admin-dashboard.js";
 
 import gamePerkController from "./controllers/gamePerkController.js";
 import * as shopController from "./controllers/shopController.js";
@@ -366,6 +367,7 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/tournaments", tournamentsRoutes);
 app.use("/api/arena", arenaRoutes);
 app.use("/api/shop-admin", shopAdminRoutes);
+app.use("/api/admin", adminDashboardRoutes);
 
 app.post("/api/perks/activate", gamePerkController.activatePerk);
   app.post("/api/perks/teleport", gamePerkController.teleport);

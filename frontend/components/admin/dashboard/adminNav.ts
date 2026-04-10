@@ -1,0 +1,13 @@
+export const ADMIN_NAV_ITEMS: { href: string; label: string; exact?: boolean }[] = [
+  { href: "/admin", label: "Dashboard", exact: true },
+  { href: "/admin/players", label: "Players" },
+  { href: "/admin/game-rooms", label: "Game Rooms" },
+  { href: "/admin/properties", label: "Properties" },
+  { href: "/admin/token-rewards", label: "Token Rewards" },
+  { href: "/admin/quests", label: "Quests" },
+  { href: "/admin/leaderboard", label: "Leaderboard" },
+  { href: "/admin/analytics", label: "Analytics" },
+  { href: "/admin/wallet-monitor", label: "Wallet Monitor" },
+  { href: "/admin/moderation", label: "Moderation" },
+  { href: "/admin/settings", label: "System Settings" },
+];
