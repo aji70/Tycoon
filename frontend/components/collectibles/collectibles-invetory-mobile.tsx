@@ -633,13 +633,15 @@ export default function CollectibleInventoryBar({
     <>
       {/* PERKS LIST — mobile-optimized: compact header, 2-col grid, clear cards */}
       <div className="space-y-4 pb-8 px-1 sm:px-4 md:px-6">
+        <div className="flex items-center justify-center mb-2">
+          <span className="inline-flex items-center justify-center min-w-[2rem] h-7 px-2 rounded-full bg-[#00F0FF]/20 text-[#00F0FF] text-sm font-bold">
+            {totalOwned}
+          </span>
+        </div>
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-base sm:text-xl font-bold text-[#00F0FF] flex items-center gap-2">
             <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-[#00F0FF]" />
             My Perks
-            <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full bg-[#00F0FF]/20 text-[#00F0FF] text-xs font-bold">
-              {totalOwned}
-            </span>
           </h3>
           <button
             ref={buyPerksTriggerRef}
