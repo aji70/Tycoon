@@ -37,7 +37,7 @@ const providerCache = new Map();
 function getCachedProvider(rpcUrl, network) {
   const cacheKey = `${rpcUrl}:${network.chainId}:${network.name}`;
   if (!providerCache.has(cacheKey)) {
-    const provider = getCachedProvider(rpcUrl, network);
+    const provider = new JsonRpcProvider(rpcUrl, network);
     providerCache.set(cacheKey, provider);
   }
   return providerCache.get(cacheKey);
