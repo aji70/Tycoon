@@ -15,6 +15,7 @@ interface BoardPerksModalProps {
   onEndTurn: () => void;
   onTriggerSpecialLanding: (position: number, isSpecial?: boolean) => void;
   onEndTurnAfterSpecial: () => void;
+  userAddress?: string | null;
 }
 
 export default function BoardPerksModal({
@@ -27,6 +28,7 @@ export default function BoardPerksModal({
   onEndTurn,
   onTriggerSpecialLanding,
   onEndTurnAfterSpecial,
+  userAddress,
 }: BoardPerksModalProps) {
   if (!open) return null;
 
@@ -68,6 +70,7 @@ export default function BoardPerksModal({
               END_TURN={onEndTurn}
               triggerSpecialLanding={onTriggerSpecialLanding}
               endTurnAfterSpecial={onEndTurnAfterSpecial}
+              userAddress={userAddress}
             />
           </div>
         </motion.div>

@@ -1007,6 +1007,7 @@ export default function ProfilePageMobile() {
     myVouchers,
     isLoadingPerks,
     isLoadingVouchers,
+    refetchVouchers,
   } = useMergedProfileRewardAssets(rewardAddress, chainId, [walletAddress, smartWallet]);
 
   const ownedCollectibles = useMemo(

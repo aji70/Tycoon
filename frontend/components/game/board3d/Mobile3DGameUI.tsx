@@ -361,6 +361,7 @@ export default function Mobile3DGameUI({
                     END_TURN={onEndTurn}
                     triggerSpecialLanding={triggerSpecialLanding}
                     endTurnAfterSpecial={endTurnAfterSpecial}
+                    userAddress={me?.address}
                   />
                 ) : (
                   <p className="text-slate-500 text-sm py-4">Join a game to see your perks.</p>
