@@ -367,13 +367,11 @@ async function stepGame(game) {
     return;
   }
 
-  // For multiplayer games, only automate AI players (identified by username pattern).
-  // Skip if current player is a human.
+  // For multiplayer games, automate both NPC AI players and any player with a registered agent callback.
+  // NPC AI players are identified by username pattern; deployed agents will return decisions if registered.
   const username = String(gp.username || "").toLowerCase();
-  if (gameType === "PVP_HUMAN" || gameType === "") {
-    const isAIPlayer = username.includes("ai_") || username.includes("bot") || username.includes("computer");
-    if (!isAIPlayer) return;
-  }
+  const isMultiplayer = gameType === "PVP_HUMAN" || gameType === "";
+  const isAIPlayer = username.includes("ai_") || username.includes("bot") || username.includes("computer");
 
   // Pre-roll build phase: agents should build on their turn start when they have monopoly.
   // This mirrors the frontend "pre-roll build" flow and avoids only building on turns

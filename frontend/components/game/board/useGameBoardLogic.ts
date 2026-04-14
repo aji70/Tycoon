@@ -598,6 +598,28 @@ export function useGameBoardLogic({
     }
   }, [me?.user_id, game?.id, actionLock, lockAction, unlockAction, fetchUpdatedGame, END_TURN, touchActivity]);
 
+  // Auto-roll for AI/agent players (NPC or deployed agents with AI-like usernames)
+  // This mirrors the AI board behavior
+  useEffect(() => {
+    if (!currentPlayer || isMyTurn || isRolling || actionLock || roll || buyPrompted) return;
+    const username = String(currentPlayer.username || "").toLowerCase();
+    const isAIPlayer = username.includes("ai_") || username.includes("bot") || username.includes("computer");
+    if (!isAIPlayer) return;
+
+    // Auto-roll for AI player after a delay
+    const timer = setTimeout(async () => {
+      // Call the roll endpoint for the AI player
+      try {
+        // Simulate a roll by fetching game state which will trigger the backend game runner
+        await fetchUpdatedGame();
+      } catch (err) {
+        // Silently fail - game will continue on next poll
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [currentPlayer, isMyTurn, isRolling, actionLock, roll, buyPrompted, fetchUpdatedGame]);
+
   useEffect(() => {
     if (!roll || !hasMovementFinished || buyPrompted || actionLock || isRolling) return;
     const timer = setTimeout(END_TURN, 1500);

@@ -852,7 +852,7 @@ const MobileGameLayout = ({
 
       <button
         onClick={() => setShowPerksModal(true)}
-        className="fixed bottom-20 right-6 z-40 w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 shadow-2xl shadow-cyan-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+        className="fixed bottom-24 right-6 z-[60] w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 shadow-2xl shadow-cyan-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
       >
         <Sparkles className="w-8 h-8 text-black" />
       </button>
