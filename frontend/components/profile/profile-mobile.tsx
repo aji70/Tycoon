@@ -387,6 +387,7 @@ function GuestProfileViewMobile({
     myVouchers,
     isLoadingPerks,
     isLoadingVouchers,
+    refetchVouchers,
   } = useMergedProfileRewardAssets(rewardAddress, CELO_CHAIN_ID, [linkedWalletAddress, smartWalletAddress]);
 
   const ownedCollectibles = useMemo(
@@ -435,6 +436,7 @@ function GuestProfileViewMobile({
       });
       await tycBalanceLinked.refetch?.();
       await tycBalanceSmart.refetch?.();
+      await refetchVouchers();
       toast.success('Voucher redeemed successfully!');
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string; voucher_owner?: string | null } }; message?: string };
@@ -444,7 +446,7 @@ function GuestProfileViewMobile({
     } finally {
       setRedeemingId(null);
     }
-  }, [tycBalanceLinked, tycBalanceSmart]);
+  }, [tycBalanceLinked, tycBalanceSmart, refetchVouchers]);
 
   const saveDisplayName = () => {
     const trimmed = localDisplayName.trim() || null;
@@ -1137,6 +1139,7 @@ export default function ProfilePageMobile() {
       await apiClient.post<ApiResponse>('/auth/redeem-voucher', { tokenId: tokenId.toString(), chain: 'CELO' });
       tycBalanceSmart.refetch();
       tycBalance.refetch();
+      await refetchVouchers();
       toast.success('Voucher redeemed successfully!');
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string; voucher_owner?: string | null } }; message?: string };
@@ -1146,7 +1149,7 @@ export default function ProfilePageMobile() {
     } finally {
       setRedeemingId(null);
     }
-  }, [tycBalanceSmart, tycBalance]);
+  }, [tycBalanceSmart, tycBalance, refetchVouchers]);
 
   const handleRedeemVoucher = (tokenId: bigint, voucherHolder: Address) => {
     if (!rewardAddress) return toast.error("Contract not available");

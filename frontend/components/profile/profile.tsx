@@ -318,6 +318,7 @@ function GuestProfileView({
     myVouchers,
     isLoadingPerks,
     isLoadingVouchers,
+    refetchVouchers,
   } = useMergedProfileRewardAssets(rewardAddress, CELO_CHAIN_ID, [linkedWalletAddress, smartWalletAddress]);
 
   const ownedCollectibles = useMemo(
@@ -421,6 +422,7 @@ function GuestProfileView({
       });
       if (res?.data?.success) {
         toast.success('Voucher redeemed! Check your balance.');
+        await refetchVouchers();
       } else {
         toast.error(res?.data?.message || 'Failed to redeem voucher');
       }
@@ -1057,6 +1059,7 @@ export default function Profile() {
     myVouchers,
     isLoadingPerks,
     isLoadingVouchers,
+    refetchVouchers,
   } = useMergedProfileRewardAssets(rewardAddress, chainId, [walletAddress, smartWallet]);
 
   const ownedCollectibles = useMemo(
@@ -1221,6 +1224,7 @@ export default function Profile() {
       if (res?.data?.success) {
         toast.success('Voucher redeemed! Check your balance.');
         tycBalance.refetch();
+        await refetchVouchers();
       } else {
         toast.error(res?.data?.message || 'Failed to redeem voucher');
       }
