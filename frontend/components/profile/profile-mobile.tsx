@@ -992,14 +992,14 @@ export default function ProfilePageMobile() {
 
   const chainParam = chainIdToLeaderboardChain(chainId as number);
   const { data: backendUser } = useQuery({
-    queryKey: ['user-by-address', gameLookupAddress ?? walletAddress, chainParam],
+    queryKey: ['user-by-address', gameLookupAddress ?? walletAddress ?? guestUser?.address, chainParam],
     queryFn: async () => {
-      const addr = gameLookupAddress ?? walletAddress;
+      const addr = gameLookupAddress ?? walletAddress ?? guestUser?.address;
       if (!addr) return null;
       const res = await apiClient.get(`/users/by-address/${addr}`, { params: { chain: chainParam } });
       return res.data;
     },
-    enabled: !!isConnected && !!(gameLookupAddress ?? walletAddress),
+    enabled: !!(gameLookupAddress ?? walletAddress ?? guestUser?.address),
   });
 
   const {
