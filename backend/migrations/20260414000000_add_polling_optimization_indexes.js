@@ -10,46 +10,71 @@
  */
 
 export async function up(knex) {
-  // Index for timedGameFinishPoller: WHERE status IN (...) AND duration IS NOT NULL
-  await knex.schema.table('games', (table) => {
-    table.index(['status', 'duration'], 'idx_games_status_duration_polling');
-  });
+  const isMySQL = knex.client.config.client === 'mysql' || knex.client.config.client === 'mysql2';
+  const indexesToAdd = [
+    { name: 'idx_games_status_duration_polling', columns: ['status', 'duration'] },
+    { name: 'idx_games_started_at_status', columns: ['started_at', 'status'] },
+    { name: 'idx_games_status', columns: ['status'] },
+    { name: 'idx_games_created_at', columns: ['created_at'] },
+  ];
 
-  // Index for sorting/filtering by started_at
-  await knex.schema.table('games', (table) => {
-    table.index(['started_at', 'status'], 'idx_games_started_at_status');
-  });
+  for (const idx of indexesToAdd) {
+    try {
+      // Check if index already exists
+      let indexExists = false;
+      if (isMySQL) {
+        const result = await knex.raw(
+          "SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 'games' AND INDEX_NAME = ?",
+          [idx.name]
+        );
+        indexExists = result[0] && result[0].length > 0;
+      }
 
-  // Index for agentGameRunner: WHERE status IN (...) queries
-  await knex.schema.table('games', (table) => {
-    table.index(['status'], 'idx_games_status');
-  });
-
-  // Index for created_at filtering in analytics queries
-  await knex.schema.table('games', (table) => {
-    table.index(['created_at'], 'idx_games_created_at');
-  });
-
-  console.log('✓ Added polling optimization indexes (4 new indexes on games table)');
+      if (!indexExists) {
+        await knex.schema.table('games', (table) => {
+          table.index(idx.columns, idx.name);
+        });
+        console.log(`✓ Created index: ${idx.name}`);
+      } else {
+        console.log(`⊘ Index already exists: ${idx.name} (skipping)`);
+      }
+    } catch (err) {
+      console.log(`⊘ Could not create index ${idx.name}: ${err.message}`);
+    }
+  }
 }
 
 export async function down(knex) {
-  // Drop indexes in reverse order
-  await knex.schema.table('games', (table) => {
-    table.dropIndex([], 'idx_games_created_at');
-  });
+  const isMySQL = knex.client.config.client === 'mysql' || knex.client.config.client === 'mysql2';
+  const indexesToDrop = [
+    'idx_games_created_at',
+    'idx_games_status',
+    'idx_games_started_at_status',
+    'idx_games_status_duration_polling',
+  ];
 
-  await knex.schema.table('games', (table) => {
-    table.dropIndex([], 'idx_games_status');
-  });
+  for (const indexName of indexesToDrop) {
+    try {
+      // Check if index exists
+      let indexExists = false;
+      if (isMySQL) {
+        const result = await knex.raw(
+          "SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 'games' AND INDEX_NAME = ?",
+          [indexName]
+        );
+        indexExists = result[0] && result[0].length > 0;
+      }
 
-  await knex.schema.table('games', (table) => {
-    table.dropIndex([], 'idx_games_started_at_status');
-  });
-
-  await knex.schema.table('games', (table) => {
-    table.dropIndex([], 'idx_games_status_duration_polling');
-  });
-
-  console.log('✓ Dropped polling optimization indexes');
+      if (indexExists) {
+        await knex.schema.table('games', (table) => {
+          table.dropIndex([], indexName);
+        });
+        console.log(`✓ Dropped index: ${indexName}`);
+      } else {
+        console.log(`⊘ Index does not exist: ${indexName} (skipping)`);
+      }
+    } catch (err) {
+      console.log(`⊘ Could not drop index ${indexName}: ${err.message}`);
+    }
+  }
 }
