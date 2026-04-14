@@ -30,6 +30,19 @@ export function withTxQueue(fn) {
     });
 }
 
+/** Cache RPC providers to avoid creating new connections on every call (cost optimization). */
+const providerCache = new Map();
+
+/** Get or create a cached provider for a given RPC URL and network. */
+function getCachedProvider(rpcUrl, network) {
+  const cacheKey = `${rpcUrl}:${network.chainId}:${network.name}`;
+  if (!providerCache.has(cacheKey)) {
+    const provider = getCachedProvider(rpcUrl, network);
+    providerCache.set(cacheKey, provider);
+  }
+  return providerCache.get(cacheKey);
+}
+
 const TYCOON_ABI = [
   {
     type: "function",
@@ -251,7 +264,8 @@ function getGameFaucetContract(chain = "CELO") {
     throw new Error(`Game faucet not configured for ${String(chain).toUpperCase()}`);
   }
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
-  const provider = new JsonRpcProvider(rpcUrl, new Network(networkName, chainId));
+  const network = new Network(networkName, chainId);
+  const provider = getCachedProvider(rpcUrl, network);
   const wallet = new Wallet(privateKey, provider);
   return new Contract(gameFaucetAddress, GAME_FAUCET_ABI, wallet);
 }
@@ -331,7 +345,8 @@ function getUserRegistryContract(chain = "CELO") {
     throw new Error(`User registry not configured for ${String(chain).toUpperCase()}`);
   }
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
-  const provider = new JsonRpcProvider(rpcUrl, new Network(networkName, chainId));
+  const network = new Network(networkName, chainId);
+  const provider = getCachedProvider(rpcUrl, network);
   const wallet = new Wallet(privateKey, provider);
   return new Contract(userRegistryAddress, USER_REGISTRY_ABI, wallet);
 }
@@ -364,7 +379,8 @@ function getRegistryOwnerContract(chain = "CELO") {
     );
   }
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
-  const provider = new JsonRpcProvider(rpcUrl, new Network(networkName, chainId));
+  const network = new Network(networkName, chainId);
+  const provider = getCachedProvider(rpcUrl, network);
   const wallet = new Wallet(String(pk).startsWith("0x") ? pk : `0x${pk}`, provider);
   return new Contract(userRegistryAddress, USER_REGISTRY_ABI, wallet);
 }
@@ -717,7 +733,7 @@ export function getContract(chain = "CELO") {
   const pk = String(privateKey).startsWith("0x") ? privateKey : `0x${privateKey}`;
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
   const network = new Network(networkName, chainId);
-  const provider = new JsonRpcProvider(rpcUrl, network);
+  const provider = getCachedProvider(rpcUrl, network);
   const wallet = new Wallet(pk, provider);
   const contract = new Contract(contractAddress, TYCOON_ABI, wallet);
   return contract;
@@ -798,7 +814,7 @@ export async function getNairaVaultBalances(chain = "CELO") {
   if (!cfg.nairaVaultAddress || !cfg.rpcUrl) return null;
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
   const network = new Network(networkName, cfg.chainId);
-  const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+  const provider = getCachedProvider(cfg.rpcUrl, network);
   const vault = new Contract(cfg.nairaVaultAddress, NAIRA_VAULT_ABI, provider);
   const [balanceCeloWei, balanceUsdcUnits] = await Promise.all([
     vault.balanceCelo(),
@@ -826,7 +842,7 @@ async function getRewardContract(chain = "CELO") {
   const pk = String(privateKey).startsWith("0x") ? privateKey : `0x${privateKey}`;
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
   const network = new Network(networkName, chainId);
-  const provider = new JsonRpcProvider(rpcUrl, network);
+  const provider = getCachedProvider(rpcUrl, network);
   const wallet = new Wallet(pk, provider);
   return new Contract(rewardAddress, REWARD_ABI_MINT, wallet);
 }
@@ -841,7 +857,7 @@ export async function testContractConnection(chain = "CELO") {
     const pk = String(privateKey).startsWith("0x") ? privateKey : `0x${privateKey}`;
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
     const network = new Network(networkName, chainId);
-    const provider = new JsonRpcProvider(rpcUrl, network);
+    const provider = getCachedProvider(rpcUrl, network);
     const blockNumber = await provider.getBlockNumber();
     const wallet = new Wallet(pk, provider);
     const address = await wallet.getAddress();
@@ -961,7 +977,8 @@ export async function getSmartWalletAddress(ownerAddress, chain = "CELO") {
   const zero = "0x0000000000000000000000000000000000000000";
   try {
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
-    const provider = new JsonRpcProvider(rpcUrl, new Network(networkName, chainId));
+    const network = new Network(networkName, chainId);
+  const provider = getCachedProvider(rpcUrl, network);
     const registry = new Contract(userRegistryAddress, USER_REGISTRY_ABI, provider);
     const wallet = await registry.getWallet(ownerAddress);
     const addr = typeof wallet === "string" ? wallet : wallet?.toString?.();
@@ -985,7 +1002,8 @@ export async function getProfileOwnerForWallet(walletAddress, chain = "CELO") {
   const zero = "0x0000000000000000000000000000000000000000";
   try {
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
-    const provider = new JsonRpcProvider(rpcUrl, new Network(networkName, chainId));
+    const network = new Network(networkName, chainId);
+  const provider = getCachedProvider(rpcUrl, network);
     const registry = new Contract(userRegistryAddress, USER_REGISTRY_ABI, provider);
     const owner = await registry.ownerByWallet(walletAddress);
     const addr = typeof owner === "string" ? owner : owner?.toString?.();
@@ -1019,7 +1037,7 @@ export async function createWalletForExistingUser(playerAddress, chain = "CELO")
     const pk = String(ownerKey).startsWith("0x") ? ownerKey : `0x${ownerKey}`;
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
     const network = new Network(networkName, chainId);
-    const provider = new JsonRpcProvider(rpcUrl, network);
+    const provider = getCachedProvider(rpcUrl, network);
     const wallet = new Wallet(pk, provider);
     const tycoon = new Contract(contractAddress, TYCOON_ABI, wallet);
     const tx = await tycoon.createWalletForExistingUser(playerAddress);
@@ -1073,7 +1091,7 @@ function getWithdrawalAuthorityWallet(chain = "CELO") {
   const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
   const network = new Network(networkName, cfg.chainId);
-  const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+  const provider = getCachedProvider(cfg.rpcUrl, network);
   return new Wallet(key, provider);
 }
 
@@ -1122,7 +1140,7 @@ export async function withdrawFromSmartWalletCelo(smartWalletAddress, to, amount
     const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
     const network = new Network(networkName, cfg.chainId);
-    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const provider = getCachedProvider(cfg.rpcUrl, network);
     const wallet = new Wallet(key, provider);
     const userWallet = new Contract(smartWalletAddress, USER_WALLET_ABI, wallet);
     const tx = await userWallet.withdrawNativeWithAuth(to, amountWei, nonce, signature);
@@ -1145,7 +1163,7 @@ export async function withdrawFromSmartWalletUsdc(smartWalletAddress, to, amount
     const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
     const network = new Network(networkName, cfg.chainId);
-    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const provider = getCachedProvider(cfg.rpcUrl, network);
     const wallet = new Wallet(key, provider);
     const userWallet = new Contract(smartWalletAddress, USER_WALLET_ABI, wallet);
     const tx = await userWallet.withdrawERC20WithAuth(usdc, to, amountWei, nonce, signature);
@@ -1196,7 +1214,7 @@ export async function executeCallFromSmartWalletWithAuth(
     const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
     const network = new Network(networkName, cfg.chainId);
-    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const provider = getCachedProvider(cfg.rpcUrl, network);
     const wallet = new Wallet(key, provider);
     const userWallet = new Contract(smartWalletAddress, USER_WALLET_ABI, wallet);
     const tx = await userWallet.executeCallWithAuth(target, BigInt(valueWei ?? 0), calldataHex, nonce, signature);
@@ -1231,7 +1249,7 @@ export async function getSmartWalletUsdcBalanceWei(smartWalletAddress, chain = "
   if (!addr) throw new Error("Smart wallet address required");
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
   const network = new Network(networkName, cfg.chainId);
-  const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+  const provider = getCachedProvider(cfg.rpcUrl, network);
   const token = new Contract(usdc, ERC20_BALANCE_OF_ABI, provider);
   return await token.balanceOf(addr);
 }
@@ -1249,7 +1267,7 @@ export async function ensureUsdcAllowanceFromSmartWalletForTycoon(smartWalletAdd
 
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
   const network = new Network(networkName, cfg.chainId);
-  const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+  const provider = getCachedProvider(cfg.rpcUrl, network);
   const token = new Contract(usdc, ERC20_ALLOWANCE_APPROVE_ABI, provider);
   const current = await token.allowance(smartWalletAddress, tycoon);
   if (current >= requiredAmount) {
@@ -1275,7 +1293,7 @@ export async function ensureUsdcAllowanceFromSmartWalletForEscrow(smartWalletAdd
 
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
   const network = new Network(networkName, cfg.chainId);
-  const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+  const provider = getCachedProvider(cfg.rpcUrl, network);
   const token = new Contract(usdc, ERC20_ALLOWANCE_APPROVE_ABI, provider);
   const current = await token.allowance(smartWalletAddress, escrowAddress);
   if (current >= requiredAmount) {
@@ -1320,7 +1338,7 @@ export async function processNairaWithdrawalCelo(fromWallet, amountWei, chain = 
     const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
     const network = new Network(networkName, cfg.chainId);
-    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const provider = getCachedProvider(cfg.rpcUrl, network);
     const wallet = new Wallet(key, provider);
     const vault = new Contract(vaultAddress, NAIRA_VAULT_ABI, wallet);
     const tx = await vault.processNairaWithdrawalCelo(fromWallet, amountWei);
@@ -1352,7 +1370,7 @@ export async function creditCeloFromVault(recipient, amountWei, chain = "CELO") 
     const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
     const network = new Network(networkName, cfg.chainId);
-    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const provider = getCachedProvider(cfg.rpcUrl, network);
     const wallet = new Wallet(key, provider);
     const vault = new Contract(vaultAddress, NAIRA_VAULT_ABI, wallet);
     const tx = await vault.creditCelo(recipient, amountWei);
@@ -1384,7 +1402,7 @@ export async function creditUsdcFromVault(recipient, amountUsdcUnits, chain = "C
     const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
     const network = new Network(networkName, cfg.chainId);
-    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const provider = getCachedProvider(cfg.rpcUrl, network);
     const wallet = new Wallet(key, provider);
     const vault = new Contract(vaultAddress, NAIRA_VAULT_ABI, wallet);
     const tx = await vault.creditUsdc(recipient, amountUsdcUnits);
@@ -1699,7 +1717,7 @@ export async function redeemVoucherForUser(voucherOwnerAddress, tokenId, chain =
     const pk = String(redeemPk).startsWith("0x") ? redeemPk : `0x${redeemPk}`;
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
     const network = new Network(networkName, cfg.chainId);
-    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const provider = getCachedProvider(cfg.rpcUrl, network);
     const wallet = new Wallet(pk, provider);
     const reward = new Contract(rewardAddress, REWARD_ABI_MINT, wallet);
     const tx = await reward.redeemVoucherFor(voucherOwnerAddress, BigInt(tokenId));
@@ -1754,7 +1772,7 @@ export async function buyCollectibleFromSmartWalletWithAuth(smartWalletAddress, 
     const key = String(operatorPk).startsWith("0x") ? operatorPk : `0x${operatorPk}`;
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
     const network = new Network(networkName, cfg.chainId);
-    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const provider = getCachedProvider(cfg.rpcUrl, network);
     await assertSmartWalletRewardSystemMatches(provider, smartWalletAddress, rewardAddress);
     const operator = new Wallet(key, provider);
     const rewardRead = new Contract(rewardAddress, REWARD_ABI_MINT, provider);
@@ -1795,7 +1813,7 @@ export async function buyBundleFromSmartWalletWithAuth(smartWalletAddress, bundl
     const key = String(operatorPk).startsWith("0x") ? operatorPk : `0x${operatorPk}`;
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
     const network = new Network(networkName, cfg.chainId);
-    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const provider = getCachedProvider(cfg.rpcUrl, network);
     await assertSmartWalletRewardSystemMatches(provider, smartWalletAddress, rewardAddress);
     const operator = new Wallet(key, provider);
     const rewardRead = new Contract(rewardAddress, REWARD_ABI_MINT, provider);
@@ -1837,7 +1855,7 @@ export async function burnCollectibleFromSmartWalletWithAuth(smartWalletAddress,
     const key = String(operatorPk).startsWith("0x") ? operatorPk : `0x${operatorPk}`;
     const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
     const network = new Network(networkName, cfg.chainId);
-    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const provider = getCachedProvider(cfg.rpcUrl, network);
     const operator = new Wallet(key, provider);
     const userWallet = new Contract(smartWalletAddress, USER_WALLET_ABI, operator);
     const authWallet = getWithdrawalAuthorityWallet(chain);
