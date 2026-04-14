@@ -614,15 +614,15 @@ export function useGameBoardLogic({
     return map;
   }, [players, animatedPositions]);
 
-  /** Roll to show in center: our roll when we rolled, or current player's roll when it's their turn (so everyone sees opponents' rolls). */
+  /** Roll to show in center: always show the roll (local or current player's) in die1 + die2 = total format. */
   const displayRoll = useMemo((): { die1: number; die2: number; total: number } | null => {
-    if (isMyTurn) return roll;
+    if (roll) return roll;
     const otherRolled = currentPlayer?.rolled;
     if (otherRolled != null && Number(otherRolled) >= 2 && Number(otherRolled) <= 12) {
       return totalToDice(Number(otherRolled));
     }
     return null;
-  }, [isMyTurn, roll, currentPlayer?.rolled]);
+  }, [roll, currentPlayer?.rolled]);
 
   const propertyOwner = useCallback((id: number) => {
     const gp = game_properties.find((g) => g.property_id === id);
