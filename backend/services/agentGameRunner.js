@@ -281,7 +281,6 @@ async function maybeBuildHouses({ gameId, gp, slot, myBalance }) {
 async function stepGame(game) {
   const gameId = Number(game.id);
   if (!gameId || !["RUNNING", "IN_PROGRESS"].includes(game.status)) return;
-  if (!GAME_TYPES.has(String(game.game_type || ""))) return;
 
   try {
     const { eliminateNegativeBalancePlayersForAgentGames } = await import(
@@ -309,6 +308,11 @@ async function stepGame(game) {
     .first();
   if (!refreshed || !["RUNNING", "IN_PROGRESS"].includes(refreshed.status)) return;
   Object.assign(game, refreshed);
+
+  const gameType = String(game.game_type || "");
+  // Process agent-specific games and multiplayer games that may have AI players
+  const isMultiplayerGame = gameType === "PVP_HUMAN" || gameType === "";
+  if (!GAME_TYPES.has(gameType) && !isMultiplayerGame) return;
 
   // Auto-finish timed games.
   // The runner previously advanced turns forever because it never called
@@ -361,6 +365,14 @@ async function stepGame(game) {
   // Human plays seat 1; only the opponent agent (seat 2+) is auto-driven.
   if (String(game.game_type || "") === "ONCHAIN_HUMAN_VS_AGENT" && slot === 1) {
     return;
+  }
+
+  // For multiplayer games, only automate AI players (identified by username pattern).
+  // Skip if current player is a human.
+  const username = String(gp.username || "").toLowerCase();
+  if (gameType === "PVP_HUMAN" || gameType === "") {
+    const isAIPlayer = username.includes("ai_") || username.includes("bot") || username.includes("computer");
+    if (!isAIPlayer) return;
   }
 
   // Pre-roll build phase: agents should build on their turn start when they have monopoly.
