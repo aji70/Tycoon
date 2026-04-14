@@ -160,11 +160,16 @@ export function useMergedProfileRewardAssets(
   const isLoadingVouchers =
     (tokenCalls.length > 0 && tokenRes.isPending) || (voucherTokenIds.length > 0 && voucherInfoRes.isPending);
 
+  const refetchVouchers = async () => {
+    await Promise.all([tokenRes.refetch(), voucherInfoRes.refetch()]);
+  };
+
   return {
     holders,
     ownedCollectibles,
     myVouchers,
     isLoadingPerks,
     isLoadingVouchers,
+    refetchVouchers,
   };
 }
