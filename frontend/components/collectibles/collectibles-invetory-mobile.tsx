@@ -657,43 +657,45 @@ export default function CollectibleInventoryBar({
           <p className="text-slate-400 text-sm py-3">No perks yet. Tap &quot;Buy more&quot; to get some.</p>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 md:gap-4">
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
           {ownedCollectibles.map((item) => (
             <motion.button
               key={`${item.perk}-${item.strength}-${item.tokenId.toString()}`}
               whileTap={{ scale: 0.97 }}
               onClick={() => handleUsePerk(item.tokenId, item.perk, item.name, item.canBeActivated, item.strength)}
               disabled={!isMyTurn || !item.canBeActivated}
-              className={`relative overflow-hidden rounded-xl p-2 sm:p-3 text-left transition-all border
-                bg-black/30 border-white/10 backdrop-blur-sm
+              className={`flex flex-col items-center gap-1.5 text-center transition-all
                 ${!isMyTurn || !item.canBeActivated
                   ? "opacity-60 cursor-not-allowed"
-                  : "hover:ring-2 hover:ring-[#00F0FF]/50 active:scale-[0.98]"}
+                  : "hover:opacity-90 active:scale-[0.98]"}
               `}
             >
-              {item.count > 1 && (
-                <span className="absolute top-1 right-1 z-[2] rounded-md bg-black/60 px-1 py-0.5 text-[10px] font-bold text-white">
-                  ×{item.count}
-                </span>
-              )}
+              {/* Perk Image Container */}
               {item.shopImage && (
-                <div className="relative -mx-2 -mt-2 mb-1.5 h-10 w-[calc(100%+1rem)] overflow-hidden rounded-t-lg">
+                <div className="relative w-16 h-16 sm:w-20 sm:h-20 overflow-hidden rounded-lg border border-white/20 bg-black/30">
                   <Image
                     src={item.shopImage}
                     alt={item.name}
                     fill
                     className="object-cover"
-                    sizes="(max-width: 640px) 50vw, 200px"
+                    sizes="(max-width: 640px) 80px, 100px"
                   />
+                  {item.count > 1 && (
+                    <span className="absolute top-0.5 right-0.5 rounded-md bg-black/80 px-1 py-0.5 text-[10px] font-bold text-white">
+                      ×{item.count}
+                    </span>
+                  )}
                 </div>
               )}
-              <div className="flex flex-col gap-0.5 min-h-0">
+
+              {/* Text Below Image */}
+              <div className="flex flex-col gap-0.5 w-full">
+                <p className="font-semibold text-white text-[10px] sm:text-xs leading-tight line-clamp-2">{item.name}</p>
                 {!isMyTurn && (
-                  <span className="text-[9px] sm:text-xs text-white/70 whitespace-nowrap">Wait</span>
+                  <span className="text-[9px] text-white/60">Wait</span>
                 )}
-                <p className="font-semibold text-white text-[11px] sm:text-xs leading-tight line-clamp-1">{item.name}</p>
                 {item.canBeActivated && isMyTurn && (
-                  <span className="text-[9px] sm:text-xs text-white/60">Tap</span>
+                  <span className="text-[9px] text-white/60">Tap to use</span>
                 )}
               </div>
             </motion.button>
