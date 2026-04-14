@@ -638,11 +638,7 @@ export default function CollectibleInventoryBar({
             {totalOwned}
           </span>
         </div>
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="text-base sm:text-xl font-bold text-[#00F0FF] flex items-center gap-2">
-            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-[#00F0FF]" />
-            My Perks
-          </h3>
+        <div className="flex items-center justify-end">
           <button
             ref={buyPerksTriggerRef}
             onClick={() => setShowMiniShop(true)}
