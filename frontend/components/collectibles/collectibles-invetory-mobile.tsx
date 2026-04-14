@@ -37,8 +37,18 @@ import { useFocusTrap } from "@/hooks/useFocusTrap";
 import RewardABI from "@/context/abi/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 import { Game, GameProperty } from "@/types/game";
-import { useRewardBurnCollectible } from "@/context/ContractProvider";
+import {
+  useRewardBurnCollectible,
+  useRewardBuyCollectible,
+  useRewardBuyCollectibleFrom,
+  useUserRegistryWallet,
+  useApprove,
+  useUserWalletApproveERC20,
+} from "@/context/ContractProvider";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import Erc20Abi from "@/context/abi/ERC20abi.json";
 import { apiClient } from "@/lib/api";
+import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "@/lib/constants/ngnPayments";
 import { ApiResponse } from "@/types/api";
 import {
   buildTokenOfOwnerByIndexSlotCalls,
@@ -111,21 +121,51 @@ export default function CollectibleInventoryBar({
   userWalletAddresses,
 }: CollectibleInventoryBarProps) {
   const { address: wagmiAddress, isConnected } = useAccount();
+  const guestAuth = useGuestAuthOptional();
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
+  const usdcToken = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
+
+  // Smart wallet support
+  const guestSmartWallet = guestAuth?.guestUser?.smart_wallet_address ?? undefined;
+  const { data: registrySmartWallet } = useUserRegistryWallet(wagmiAddress);
+  const smartWalletAddress = registrySmartWallet || (guestSmartWallet as Address | undefined);
+
+  const isValidWallet = (a: string | undefined): a is Address =>
+    !!a && a !== '0x0000000000000000000000000000000000000000' && a.toLowerCase() !== '0x0000000000000000000000000000000000000000'.toLowerCase();
+
   // Use provided wallet addresses, or fall back to single userAddress, or wagmi address
   const addressesToCheck = userWalletAddresses?.length ? userWalletAddresses : (userAddress ? [userAddress] : (wagmiAddress ? [wagmiAddress] : []));
   const address = addressesToCheck[0] as Address | undefined;
-  const chainId = useChainId();
-  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
-
-  const usdcToken = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
 
   const [showMiniShop, setShowMiniShop] = useState(false);
+  const [payWith, setPayWith] = useState<'connected' | 'smart_wallet'>('connected');
+  const [useUsdc, setUseUsdc] = useState(true);
   const miniShopSheetRef = useRef<HTMLDivElement>(null);
   const buyPerksTriggerRef = useRef<HTMLButtonElement>(null);
   useFocusTrap(miniShopSheetRef, showMiniShop, buyPerksTriggerRef);
-  const useUsdc = true;
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
   const [approvingId, setApprovingId] = useState<bigint | null>(null);
+  const [ngnLoadingTokenId, setNgnLoadingTokenId] = useState<string | null>(null);
+
+  const readAppSessionToken = (): string | null => {
+    if (typeof window === "undefined") return null;
+    try {
+      return window.localStorage?.getItem("token") ?? null;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  // Auto-switch to smart wallet if guest has one but not connected via wagmi
+  useEffect(() => {
+    if (smartWalletAddress && isValidWallet(smartWalletAddress) && !isConnected) {
+      setPayWith('smart_wallet');
+    }
+  }, [smartWalletAddress, isConnected]);
+
+  // Determine payer address based on payment selection
+  const payerAddress = payWith === 'smart_wallet' && isValidWallet(smartWalletAddress) ? smartWalletAddress : address;
 
   const [pendingPerk, setPendingPerk] = useState<{
     tokenId: bigint;
@@ -134,26 +174,57 @@ export default function CollectibleInventoryBar({
     strength?: number;
   } | null>(null);
 
+  // Naira conversion (1 USDC = 1400 NGN)
+  const USDC_TO_NGN_RATE = 1400;
+  const MIN_NGN_PURCHASE = 1000;
+
+  const calculateNgnPrice = (ngnBasePrice: number): number => {
+    if (ngnBasePrice < MIN_NGN_PURCHASE) return MIN_NGN_PURCHASE;
+    if (ngnBasePrice > 1000) return Math.round(ngnBasePrice * 0.8); // 20% discount
+    return ngnBasePrice;
+  };
+
+  // Buy hooks
+  const {
+    buy,
+    isPending: buyingPending,
+    isConfirming: buyingConfirming,
+    isSuccess: buySuccess,
+    reset: resetBuy,
+  } = useRewardBuyCollectible();
+
+  const {
+    buyFrom,
+    isPending: buyFromPending,
+    isConfirming: buyFromConfirming,
+    isSuccess: buyFromSuccess,
+    reset: resetBuyFrom,
+  } = useRewardBuyCollectibleFrom();
+
+  const {
+    approve,
+    isPending: approvePending,
+    isConfirming: approveConfirming,
+    isSuccess: approveSuccess,
+    reset: resetApprove,
+  } = useApprove();
+
+  const { approveERC20: smartWalletApprove, isPending: smartWalletApprovePending } = useUserWalletApproveERC20(smartWalletAddress);
+
   const [selectedPositionIndex, setSelectedPositionIndex] = useState<number | null>(null);
   const [selectedRollTotal, setSelectedRollTotal] = useState<number | null>(null);
 
   const selectedToken = usdcToken;
   const selectedDecimals = 6;
 
-  const { writeContract: writeBuy, data: buyHash, isPending: buyingPending } = useWriteContract();
-  const { writeContract: writeApprove, data: approveHash, isPending: approving } = useWriteContract();
-
-  const { isLoading: confirmingBuy } = useWaitForTransactionReceipt({ hash: buyHash });
-  const { isLoading: confirmingApprove, isSuccess: approveSuccess } = useWaitForTransactionReceipt({ hash: approveHash });
-
-  const { data: usdcBal } = useBalance({ address, token: usdcToken });
+  const { data: usdcBal } = useBalance({ address: payerAddress, token: usdcToken });
 
   const { data: allowance } = useReadContract({
     address: selectedToken,
     abi: erc20Abi,
     functionName: "allowance",
-    args: address && contractAddress ? [address, contractAddress] : undefined,
-    query: { enabled: !!address && !!contractAddress && !!selectedToken },
+    args: payerAddress && contractAddress ? [payerAddress, contractAddress] : undefined,
+    query: { enabled: !!payerAddress && !!contractAddress && !!selectedToken },
   });
 
   const currentAllowance = allowance ?? 0;
@@ -368,12 +439,16 @@ export default function CollectibleInventoryBar({
 
         const meta = perkMetadata[perk] ?? perkMetadata[10];
         const shopAsset = getPerkShopAsset(perk);
+        const usdcPriceStr = formatUnits(usdcPriceBig, 6);
+        const baseNgnPrice = Math.round(Number(usdcPriceStr) * USDC_TO_NGN_RATE);
+        const ngnPrice = calculateNgnPrice(baseNgnPrice);
 
         return {
           tokenId: shopTokenIds[i],
           perk,
           tycPrice: formatUnits(tycPriceBig, 18),
-          usdcPrice: formatUnits(usdcPriceBig, 6),
+          usdcPrice: usdcPriceStr,
+          ngnPrice,
           stock,
           name: meta.name,
           icon: meta.icon,
@@ -385,53 +460,189 @@ export default function CollectibleInventoryBar({
   }, [shopInfoResults, shopTokenIds]);
 
   // === BUY LOGIC ===
-  const handleBuy = async (item: typeof shopItems[number]) => {
-    if (!contractAddress || !address) {
-      toast.error("Wallet not connected");
+  const handleBuyWithUsdc = async (item: typeof shopItems[number]) => {
+    if (!contractAddress) {
+      toast.error("Contract not supported on this network");
       return;
     }
 
-    const priceStr = useUsdc ? item.usdcPrice : item.tycPrice;
-    const priceBig = BigInt(Math.round(parseFloat(priceStr) * 10 ** selectedDecimals));
-
-    if (currentAllowance < priceBig) {
-      setApprovingId(item.tokenId);
-      toast.loading("Approving USDC...", { id: "approve" });
-      writeApprove({
-        address: selectedToken!,
-        abi: erc20Abi,
-        functionName: "approve",
-        args: [contractAddress, priceBig],
-      });
+    const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
+    if (!hasPaymentMethod) {
+      toast.error("Please connect your wallet or register to use your smart wallet");
       return;
     }
 
-    setBuyingId(item.tokenId);
-    toast.loading("Purchasing...", { id: "buy" });
-    writeBuy({
-      address: contractAddress,
-      abi: RewardABI,
-      functionName: "buyCollectible",
-      args: [item.tokenId, useUsdc],
-    });
+    const price = BigInt(Math.round(Number(item.usdcPrice) * 1e6));
+
+    if (!usdcToken) {
+      toast.error("USDC not supported on this network");
+      return;
+    }
+
+    // Check balance
+    if (Number(usdcBal?.formatted ?? 0) < Number(item.usdcPrice)) {
+      toast.error("Insufficient USDC balance");
+      return;
+    }
+
+    try {
+      if (payWith === 'smart_wallet' && smartWalletAddress) {
+        // Smart wallet payment
+        const session = readAppSessionToken();
+        if (session) {
+          // Use API endpoint with PIN for registered smart wallet
+          const pin = typeof window !== "undefined" ? window.prompt("Enter your withdrawal PIN to pay from your smart wallet")?.trim() : "";
+          if (!pin) {
+            toast.error("PIN is required");
+            return;
+          }
+          setApprovingId(item.tokenId);
+          toast.loading("Processing smart wallet payment...", { id: "approve-sw" });
+          const res = await apiClient.post<{ success?: boolean; message?: string }>(
+            "auth/smart-wallet/buy-collectible",
+            {
+              tokenId: item.tokenId.toString(),
+              useUsdc: true,
+              maxPrice: price.toString(),
+              pin,
+            }
+          );
+          if (!res?.success && !res?.data?.success) {
+            throw new Error(res?.data?.message || "Purchase failed");
+          }
+          toast.dismiss("approve-sw");
+          toast.success("Purchase successful! 🎉");
+          setApprovingId(null);
+        } else {
+          // Fallback: direct smartWalletApprove + buyFrom for unregistered smart wallets
+          await smartWalletApprove(usdcToken, contractAddress, price);
+          setApprovingId(item.tokenId);
+          toast.loading("Approving USDC from smart wallet...", { id: "approve-sw" });
+        }
+      } else {
+        // Connected wallet payment
+        if (currentAllowance < price) {
+          setApprovingId(item.tokenId);
+          toast.loading("Approving USDC...", { id: "approve" });
+          await approve(usdcToken, contractAddress, price);
+        } else {
+          // Approval already sufficient, proceed to buy
+          setBuyingId(item.tokenId);
+          toast.loading("Purchasing...", { id: "buy" });
+          await buy(item.tokenId, true);
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Transaction failed";
+      toast.error(msg);
+      setApprovingId(null);
+    }
   };
 
+  const handlePayPerkWithNaira = async (item: typeof shopItems[number]) => {
+    if (ngnLoadingTokenId != null) return;
+
+    try {
+      if (typeof window !== "undefined" && !window.localStorage?.getItem("token")) {
+        toast.error("Please sign in to pay with Naira.");
+        return;
+      }
+    } catch (_) {}
+
+    const tokenIdStr = item.tokenId.toString();
+    setNgnLoadingTokenId(tokenIdStr);
+
+    try {
+      const amountNgn = Math.max(
+        MIN_FLUTTERWAVE_CHECKOUT_NGN,
+        Math.ceil(Number(item.usdcPrice) * USDC_TO_NGN_RATE)
+      );
+      const base = typeof window !== "undefined" ? window.location.origin : "";
+      const callbackUrl = `${base}/game-play`;
+
+      const res = await apiClient.post<{
+        success?: boolean;
+        link?: string;
+        reference?: string;
+        message?: string;
+      }>("shop/flutterwave/initialize-perk", {
+        token_id: tokenIdStr,
+        amount_ngn: amountNgn,
+        callback_url: callbackUrl,
+      });
+
+      if (res?.data?.link) {
+        window.location.href = res.data.link;
+        return;
+      }
+
+      toast.error(res?.data?.message ?? "Could not start Naira payment");
+    } catch (e: unknown) {
+      const status = (e as { status?: number; response?: { status?: number } })
+        ?.status ?? (e as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        toast.error("Please sign in to pay with Naira.");
+      } else {
+        toast.error((e as Error)?.message ?? "Failed to start Naira payment");
+      }
+    } finally {
+      setNgnLoadingTokenId(null);
+    }
+  };
+
+  const handleBuy = async (item: typeof shopItems[number]) => {
+    if (useUsdc) {
+      await handleBuyWithUsdc(item);
+    } else {
+      await handlePayPerkWithNaira(item);
+    }
+  };
+
+  // Handle approval success
   useEffect(() => {
     if (approveSuccess && approvingId !== null) {
       toast.dismiss("approve");
+      toast.dismiss("approve-sw");
       toast.success("Approved! Completing purchase...");
       const item = shopItems.find(i => i.tokenId === approvingId);
-      if (item) handleBuy(item);
+      if (item) {
+        setBuyingId(item.tokenId);
+        toast.loading("Purchasing...", { id: "buy" });
+        try {
+          if (payWith === 'smart_wallet' && smartWalletAddress) {
+            buyFrom(smartWalletAddress, item.tokenId, true);
+          } else {
+            buy(item.tokenId, true);
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : "Transaction failed";
+          toast.error(msg);
+        }
+      }
       setApprovingId(null);
+      resetApprove();
     }
-  }, [approveSuccess, approvingId, shopItems, handleBuy]);
+  }, [approveSuccess, approvingId, shopItems, payWith, smartWalletAddress, buy, buyFrom, resetApprove]);
 
+  // Handle buy success
   useEffect(() => {
-    if (buyHash && !buyingPending && !confirmingBuy) {
+    if (buySuccess && buyingId !== null) {
+      toast.dismiss("buy");
       toast.success("Purchase complete! 🎉");
       setBuyingId(null);
+      resetBuy();
     }
-  }, [buyHash, buyingPending, confirmingBuy]);
+  }, [buySuccess, buyingId, resetBuy]);
+
+  // Handle buyFrom success
+  useEffect(() => {
+    if (buyFromSuccess && buyingId !== null) {
+      toast.dismiss("buy");
+      toast.success("Purchase complete! 🎉");
+      setBuyingId(null);
+      resetBuyFrom();
+    }
+  }, [buyFromSuccess, buyingId, resetBuyFrom]);
 
   // === PERK ACTIVATION ===
   const handleUsePerk = (
@@ -752,12 +963,57 @@ export default function CollectibleInventoryBar({
                   <span className="text-white">USDC: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
                 </div>
 
-                <button
-                  onClick={() => setUseUsdc(!useUsdc)}
-                  className="w-full py-3 bg-cyan-950/50 rounded-xl border border-cyan-700/40 text-sm font-semibold hover:bg-cyan-900/50 transition text-cyan-300"
-                >
-                  Pay with {useUsdc ? "USDC" : "Naira"}
-                </button>
+                {(isConnected || smartWalletAddress) && (
+                  <div className="flex gap-2">
+                    {isConnected && (
+                      <button
+                        onClick={() => setPayWith('connected')}
+                        className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition ${
+                          payWith === 'connected'
+                            ? "bg-blue-950/80 border-blue-600 text-blue-300"
+                            : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
+                        }`}
+                      >
+                        Connected Wallet
+                      </button>
+                    )}
+                    {smartWalletAddress && (
+                      <button
+                        onClick={() => setPayWith('smart_wallet')}
+                        className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition ${
+                          payWith === 'smart_wallet'
+                            ? "bg-purple-950/80 border-purple-600 text-purple-300"
+                            : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
+                        }`}
+                      >
+                        Smart Wallet
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setUseUsdc(true)}
+                    className={`flex-1 py-3 rounded-xl border text-sm font-semibold transition ${
+                      useUsdc
+                        ? "bg-cyan-950/80 border-cyan-600 text-cyan-300"
+                        : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
+                    }`}
+                  >
+                    USDC
+                  </button>
+                  <button
+                    onClick={() => setUseUsdc(false)}
+                    className={`flex-1 py-3 rounded-xl border text-sm font-semibold transition ${
+                      !useUsdc
+                        ? "bg-cyan-950/80 border-cyan-600 text-cyan-300"
+                        : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
+                    }`}
+                  >
+                    Naira
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto px-5 pb-8">
@@ -780,9 +1036,9 @@ export default function CollectibleInventoryBar({
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.3 }}
                         onClick={() => handleBuy(item)}
-                        disabled={buyingId === item.tokenId || approvingId === item.tokenId}
+                        disabled={buyingId === item.tokenId || approvingId === item.tokenId || ngnLoadingTokenId === item.tokenId.toString()}
                         className={`flex flex-col items-center gap-1.5 text-center transition-all
-                          ${buyingId === item.tokenId || approvingId === item.tokenId
+                          ${buyingId === item.tokenId || approvingId === item.tokenId || ngnLoadingTokenId === item.tokenId.toString()
                             ? "opacity-60 cursor-not-allowed"
                             : "hover:opacity-90 active:scale-[0.98]"}
                         `}
@@ -802,10 +1058,10 @@ export default function CollectibleInventoryBar({
                         <div className="flex flex-col gap-0.5 w-full">
                           <p className="font-semibold text-white text-[10px] sm:text-xs leading-tight line-clamp-2">{item.name}</p>
                           <p className="text-[9px] text-cyan-400 font-medium">
-                            {useUsdc ? `$${Number(item.usdcPrice).toFixed(2)}` : `₦${(Number(item.usdcPrice) * 500).toFixed(0)}`}
+                            {useUsdc ? `$${Number(item.usdcPrice).toFixed(2)}` : `₦${item.ngnPrice.toFixed(0)}`}
                           </p>
                           <p className="text-[8px] text-white/60">Stock: {item.stock}</p>
-                          {(buyingId === item.tokenId || approvingId === item.tokenId) && (
+                          {(buyingId === item.tokenId || approvingId === item.tokenId || ngnLoadingTokenId === item.tokenId.toString()) && (
                             <span className="text-[9px] text-cyan-400 flex items-center justify-center gap-1 mt-0.5">
                               <Loader2 className="w-3 h-3 animate-spin" />
                             </span>
