@@ -664,20 +664,20 @@ export default function CollectibleInventoryBar({
               whileTap={{ scale: 0.97 }}
               onClick={() => handleUsePerk(item.tokenId, item.perk, item.name, item.canBeActivated, item.strength)}
               disabled={!isMyTurn || !item.canBeActivated}
-              className={`relative overflow-hidden rounded-xl p-3 sm:p-4 text-left transition-all border
-                bg-gradient-to-br ${item.gradient} border-white/10
+              className={`relative overflow-hidden rounded-xl p-2 sm:p-3 text-left transition-all border
+                bg-black/30 border-white/10 backdrop-blur-sm
                 ${!isMyTurn || !item.canBeActivated
                   ? "opacity-60 cursor-not-allowed"
                   : "hover:ring-2 hover:ring-[#00F0FF]/50 active:scale-[0.98]"}
               `}
             >
               {item.count > 1 && (
-                <span className="absolute top-2 right-2 z-[1] rounded-md bg-black/40 px-1.5 py-0.5 text-xs font-bold text-white">
+                <span className="absolute top-1 right-1 z-[2] rounded-md bg-black/60 px-1 py-0.5 text-[10px] font-bold text-white">
                   ×{item.count}
                 </span>
               )}
               {item.shopImage && (
-                <div className="relative -mx-3 -mt-3 mb-2 h-14 w-[calc(100%+1.5rem)] overflow-hidden rounded-t-xl">
+                <div className="relative -mx-2 -mt-2 mb-1.5 h-10 w-[calc(100%+1rem)] overflow-hidden rounded-t-lg">
                   <Image
                     src={item.shopImage}
                     alt={item.name}
@@ -685,21 +685,15 @@ export default function CollectibleInventoryBar({
                     className="object-cover"
                     sizes="(max-width: 640px) 50vw, 200px"
                   />
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
                 </div>
               )}
-              <div className="flex flex-col gap-1.5 min-h-[72px] sm:min-h-0">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-white/90 shrink-0 [&>svg]:w-8 [&>svg]:h-8 sm:[&>svg]:w-10 sm:[&>svg]:h-10">
-                    {React.cloneElement(item.icon as React.ReactElement, { className: "w-8 h-8 sm:w-10 sm:h-10" })}
-                  </span>
-                  {!isMyTurn && (
-                    <span className="text-[10px] sm:text-xs text-white/80 whitespace-nowrap">Wait</span>
-                  )}
-                </div>
-                <p className="font-semibold text-white text-xs sm:text-sm leading-tight line-clamp-2">{item.name}</p>
+              <div className="flex flex-col gap-0.5 min-h-0">
+                {!isMyTurn && (
+                  <span className="text-[9px] sm:text-xs text-white/70 whitespace-nowrap">Wait</span>
+                )}
+                <p className="font-semibold text-white text-[11px] sm:text-xs leading-tight line-clamp-1">{item.name}</p>
                 {item.canBeActivated && isMyTurn && (
-                  <span className="text-[10px] sm:text-xs text-white/70">Tap to use</span>
+                  <span className="text-[9px] sm:text-xs text-white/60">Tap</span>
                 )}
               </div>
             </motion.button>
