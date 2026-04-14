@@ -42,6 +42,8 @@ import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import {
   buildTokenOfOwnerByIndexSlotCalls,
+  buildMergedHolderSlotCalls,
+  mergeSlotScanResultsForHolders,
   REWARD_OWNED_SLOT_SCAN_CAP,
   takeTokenIdsUntilFirstFailure,
 } from "@/lib/rewardOwnedEnumerable";
@@ -96,6 +98,7 @@ interface CollectibleInventoryBarProps {
   triggerSpecialLanding?: (position: number, isSpecial: boolean) => void;
   endTurnAfterSpecial?: () => void;
   userAddress?: string | null;
+  userWalletAddresses?: string[];
 }
 
 export default function CollectibleInventoryBar({
@@ -105,9 +108,12 @@ export default function CollectibleInventoryBar({
   ROLL_DICE,
   triggerSpecialLanding,
   userAddress,
+  userWalletAddresses,
 }: CollectibleInventoryBarProps) {
   const { address: wagmiAddress, isConnected } = useAccount();
-  const address = wagmiAddress || (userAddress as Address | undefined);
+  // Use provided wallet addresses, or fall back to single userAddress, or wagmi address
+  const addressesToCheck = userWalletAddresses?.length ? userWalletAddresses : (userAddress ? [userAddress] : (wagmiAddress ? [wagmiAddress] : []));
+  const address = addressesToCheck[0] as Address | undefined;
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
 
@@ -225,34 +231,44 @@ export default function CollectibleInventoryBar({
   };
 
   // === OWNED COLLECTIBLES === (slot-scan: see rewardOwnedEnumerable.ts)
+  // Support multiple addresses to find perks across all user wallets
+  const validAddresses = useMemo(() => {
+    const addrs = addressesToCheck.filter((a): a is Address => !!a && a !== '0x0000000000000000000000000000000000000000');
+    return addrs.length > 0 ? addrs : [];
+  }, [addressesToCheck]);
+
   const ownedTokenCalls = useMemo(() => {
-    if (!contractAddress || !address) return [];
-    return buildTokenOfOwnerByIndexSlotCalls(contractAddress, RewardABI as Abi, address, chainId, REWARD_OWNED_SLOT_SCAN_CAP);
-  }, [contractAddress, address, chainId]);
+    if (!contractAddress || validAddresses.length === 0) return [];
+    return buildMergedHolderSlotCalls(contractAddress, RewardABI as Abi, validAddresses, chainId, REWARD_OWNED_SLOT_SCAN_CAP);
+  }, [contractAddress, validAddresses, chainId]);
 
   const { data: tokenResults } = useReadContracts({
     contracts: ownedTokenCalls,
-    query: { enabled: !!contractAddress && !!address },
+    query: { enabled: !!contractAddress && validAddresses.length > 0 },
   });
 
-  const ownedTokenIds = useMemo(() => {
-    const scanned = takeTokenIdsUntilFirstFailure(tokenResults);
-    return scanned.filter((id) => id >= BigInt(COLLECTIBLE_ID_START));
-  }, [tokenResults]);
+  const { tokenIds: ownedTokenIds } = useMemo(() =>
+    mergeSlotScanResultsForHolders(validAddresses, tokenResults, REWARD_OWNED_SLOT_SCAN_CAP),
+    [validAddresses, tokenResults]
+  );
 
-  const infoCalls = useMemo(() => 
-    ownedTokenIds.map(id => ({
+  const filteredOwnedTokenIds = useMemo(() => {
+    return ownedTokenIds.filter((id) => id >= BigInt(COLLECTIBLE_ID_START));
+  }, [ownedTokenIds]);
+
+  const infoCalls = useMemo(() =>
+    filteredOwnedTokenIds.map(id => ({
       address: contractAddress!,
       abi: RewardABI as Abi,
       functionName: "getCollectibleInfo" as const,
       args: [id],
     })),
-    [contractAddress, ownedTokenIds]
+    [contractAddress, filteredOwnedTokenIds]
   );
 
   const { data: infoResults } = useReadContracts({
     contracts: infoCalls,
-    query: { enabled: ownedTokenIds.length > 0 },
+    query: { enabled: filteredOwnedTokenIds.length > 0 },
   });
 
   const ownedCollectiblesRaw = useMemo(() => {
@@ -273,7 +289,7 @@ export default function CollectibleInventoryBar({
         const shopAsset = getPerkShopAsset(perk);
 
         return {
-          tokenId: ownedTokenIds[i],
+          tokenId: filteredOwnedTokenIds[i],
           perk,
           name: displayName,
           icon: meta.icon,
@@ -285,7 +301,7 @@ export default function CollectibleInventoryBar({
         };
       })
       .filter((c): c is NonNullable<typeof c> => c !== null);
-  }, [infoResults, ownedTokenIds]);
+  }, [infoResults, filteredOwnedTokenIds]);
 
   // Group by (perk, strength) so we can show one card per type with "×n" when count > 1
   const ownedCollectibles = useMemo(() => {
@@ -611,7 +627,7 @@ export default function CollectibleInventoryBar({
     }
   };
 
-  if (!isConnected && !address) return null;
+  if (!isConnected && validAddresses.length === 0) return null;
 
   return (
     <>
