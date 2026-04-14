@@ -10,10 +10,13 @@ import * as Sentry from "@sentry/node";
 dotenv.config();
 
 if (process.env.SENTRY_DSN) {
+  const sampleRate = process.env.SENTRY_TRACE_SAMPLE_RATE
+    ? Number(process.env.SENTRY_TRACE_SAMPLE_RATE)
+    : (process.env.NODE_ENV === "production" ? 0.1 : 1.0);
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
     environment: process.env.NODE_ENV || "development",
-    tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+    tracesSampleRate: Math.max(0, Math.min(1, sampleRate)),
   });
 }
 
