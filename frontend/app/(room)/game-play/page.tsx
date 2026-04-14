@@ -306,6 +306,7 @@ export default function GamePlayPage() {
               game_properties={game_properties}
               me={me}
               myAddress={myAddress ?? undefined}
+              userWalletAddresses={[guestUser?.address, guestUser?.linked_wallet_address, guestUser?.smart_wallet_address, address].filter(Boolean) as string[]}
               onGameUpdated={() => refetchGame()}
               onFinishByTime={onFinishByTime}
               onViewTrades={() => {

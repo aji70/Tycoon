@@ -41,6 +41,7 @@ const MobileGameLayout = ({
   game_properties,
   me,
   myAddress,
+  userWalletAddresses,
   onGameUpdated,
   onFinishByTime,
   onViewTrades,
@@ -50,6 +51,7 @@ const MobileGameLayout = ({
   game_properties: GameProperty[];
   me: Player | null;
   myAddress?: string;
+  userWalletAddresses?: string[];
   onGameUpdated?: () => void;
   onFinishByTime?: () => void | Promise<void>;
   onViewTrades?: () => void;
@@ -868,6 +870,7 @@ const MobileGameLayout = ({
         onTriggerSpecialLanding={triggerLandingLogic}
         onEndTurnAfterSpecial={endTurnAfterSpecialMove}
         userAddress={myAddress}
+        userWalletAddresses={userWalletAddresses}
       />
 
       <GameModals
