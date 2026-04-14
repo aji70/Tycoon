@@ -867,6 +867,7 @@ const MobileGameLayout = ({
         onEndTurn={END_TURN}
         onTriggerSpecialLanding={triggerLandingLogic}
         onEndTurnAfterSpecial={endTurnAfterSpecialMove}
+        userAddress={myAddress}
       />
 
       <GameModals

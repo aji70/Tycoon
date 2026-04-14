@@ -444,6 +444,7 @@ const Board = ({
                     END_TURN={END_TURN}
                     triggerSpecialLanding={triggerLandingLogic}
                     endTurnAfterSpecial={endTurnAfterSpecialMove}
+                    userAddress={me?.address}
                   />
                 </div>
               </div>

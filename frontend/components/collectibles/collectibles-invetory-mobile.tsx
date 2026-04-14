@@ -95,6 +95,7 @@ interface CollectibleInventoryBarProps {
   END_TURN?: () => void;
   triggerSpecialLanding?: (position: number, isSpecial: boolean) => void;
   endTurnAfterSpecial?: () => void;
+  userAddress?: string | null;
 }
 
 export default function CollectibleInventoryBar({
@@ -103,8 +104,10 @@ export default function CollectibleInventoryBar({
   isMyTurn,
   ROLL_DICE,
   triggerSpecialLanding,
+  userAddress,
 }: CollectibleInventoryBarProps) {
-  const { address, isConnected } = useAccount();
+  const { address: wagmiAddress, isConnected } = useAccount();
+  const address = wagmiAddress || (userAddress as Address | undefined);
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
 
@@ -608,7 +611,7 @@ export default function CollectibleInventoryBar({
     }
   };
 
-  if (!isConnected) return null;
+  if (!isConnected && !address) return null;
 
   return (
     <>

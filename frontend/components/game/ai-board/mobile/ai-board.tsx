@@ -1151,6 +1151,7 @@ const endTime =
         onEndTurn={END_TURN}
         onTriggerSpecialLanding={triggerLandingLogic}
         onEndTurnAfterSpecial={endTurnAfterSpecialMove}
+        userAddress={me?.address}
       />
 
       {/* End game by net worth — corner button (top-left) */}
