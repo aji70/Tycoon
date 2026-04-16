@@ -498,128 +498,124 @@ function GuestProfileViewMobile({
         ) : null}
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
         <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-4">
-          <div className="relative group mb-3 flex items-center justify-center">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="relative w-20 h-20 rounded-2xl overflow-hidden shadow-[0_0_30px_rgba(0,240,255,0.12)] border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-[#011112] block"
-              aria-label="Update avatar"
-            >
-              {profile?.avatar ? (
-                <img src={profile.avatar} alt="Profile" className="w-full h-full object-cover aspect-square" />
-              ) : (
-                <Image src={avatar} alt="Avatar" width={88} height={88} className="w-full h-full object-cover aspect-square" />
-              )}
-              <span className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="w-10 h-10 rounded-full bg-cyan-500/30 flex items-center justify-center">
-                  <Camera className="w-5 h-5 text-white" />
-                </span>
-              </span>
-            </button>
-            <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg border-2 border-[#011112]">
-              <Crown className="w-4 h-4 text-black" />
+          <div className="flex flex-col sm:flex-row gap-4 items-start">
+            <div className="flex gap-3 w-full sm:flex-1 min-w-0">
+              <div className="relative group shrink-0 mx-auto sm:mx-0">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="relative w-20 h-20 rounded-2xl overflow-hidden shadow-[0_0_30px_rgba(0,240,255,0.12)] border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-[#011112] block"
+                  aria-label="Update avatar"
+                >
+                  {profile?.avatar ? (
+                    <img src={profile.avatar} alt="Profile" className="w-full h-full object-cover aspect-square" />
+                  ) : (
+                    <Image src={avatar} alt="Avatar" width={88} height={88} className="w-full h-full object-cover aspect-square" />
+                  )}
+                  <span className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="w-10 h-10 rounded-full bg-cyan-500/30 flex items-center justify-center">
+                      <Camera className="w-5 h-5 text-white" />
+                    </span>
+                  </span>
+                </button>
+                <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg border-2 border-[#011112]">
+                  <Crown className="w-4 h-4 text-black" />
+                </div>
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <h2 className="text-lg font-bold text-white mb-1">{heroOnChainUsername}</h2>
+                {displayName && <p className="text-cyan-300/80 text-xs mb-1">"{displayName}"</p>}
+                {statsForDisplay.registeredAt > 0 ? (
+                  <p className="text-slate-500 text-[11px] mb-2">
+                    Member since{' '}
+                    {new Date(statsForDisplay.registeredAt * 1000).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                  </p>
+                ) : null}
+                {!guestOnChainAddress && (
+                  <p className="text-cyan-300/80 text-xs mb-2">Your progress is saved. Connect your wallet from the nav to link this account.</p>
+                )}
+                {(shortLinkedWalletAddress || shortSmartWalletAddress) && (
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                    {shortLinkedWalletAddress ? (
+                      <>
+                        <span className="text-cyan-400 font-semibold shrink-0">Connected</span>
+                        <span className="text-slate-300 font-mono truncate">{shortLinkedWalletAddress}</span>
+                      </>
+                    ) : null}
+                    {shortSmartWalletAddress ? (
+                      <>
+                        <span className="text-cyan-400 font-semibold shrink-0">Smart</span>
+                        <span className="text-slate-300 font-mono truncate">{shortSmartWalletAddress}</span>
+                      </>
+                    ) : null}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {(linkedWalletAddress || showSmartBalances) && (
+              <div className="w-full sm:w-[min(100%,260px)] sm:shrink-0 rounded-xl border border-white/10 bg-black/20 px-2 py-2">
+                {showDualGuestBalances ? (
+                  <div className="flex items-center justify-start gap-1.5 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setGuestBalanceTab('connected')}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition ${
+                        guestBalanceTab === 'connected'
+                          ? 'bg-cyan-500/20 border-cyan-500/45 text-cyan-200'
+                          : 'bg-white/5 border-white/10 text-white/55'
+                      }`}
+                    >
+                      Connected
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGuestBalanceTab('smart')}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition ${
+                        guestBalanceTab === 'smart'
+                          ? 'bg-cyan-500/20 border-cyan-500/45 text-cyan-200'
+                          : 'bg-white/5 border-white/10 text-white/55'
+                      }`}
+                    >
+                      Smart
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[9px] font-medium uppercase tracking-wider text-white/40 mb-1.5">
+                    {linkedWalletAddress ? 'Balances · connected' : 'Balances · smart wallet'}
+                  </p>
+                )}
+                {viewingConnected ? (
+                  <div className="flex gap-1.5">
+                    {[
+                      { label: 'TYC', value: tycBalanceLinked.isLoading ? '…' : Number(tycBalanceLinked.data?.formatted || 0).toFixed(2) },
+                      { label: 'USDC', value: usdcBalanceLinked.isLoading ? '…' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2) },
+                      { label: 'Celo', value: nativeBalanceLinked.isLoading ? '…' : (nativeBalanceLinked.data ? Number(nativeBalanceLinked.data.formatted).toFixed(4) : '0') },
+                    ].map(({ label, value }) => (
+                      <div key={`gc-${label}`} className="flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center">
+                        <p className="text-[8px] font-medium uppercase tracking-wider text-white/45 leading-none">{label}</p>
+                        <p className="text-xs font-bold text-white truncate mt-0.5 tabular-nums">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {viewingSmart ? (
+                  <div className="flex gap-1.5">
+                    {[
+                      { label: 'TYC', value: tycBalanceSmart.isLoading ? '…' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2) },
+                      { label: 'USDC', value: usdcBalanceSmart.isLoading ? '…' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2) },
+                      { label: 'Celo', value: nativeBalanceSmart.isLoading ? '…' : (nativeBalanceSmart.data ? Number(nativeBalanceSmart.data.formatted).toFixed(4) : '0') },
+                    ].map(({ label, value }) => (
+                      <div key={`gs-${label}`} className="flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center">
+                        <p className="text-[8px] font-medium uppercase tracking-wider text-white/45 leading-none">{label}</p>
+                        <p className="text-xs font-bold text-white truncate mt-0.5 tabular-nums">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
-
-          <h2 className="text-lg font-bold text-white mb-2 text-center">{heroOnChainUsername}</h2>
-          {displayName && <p className="text-cyan-300/80 text-xs text-center mb-1">"{displayName}"</p>}
-          {statsForDisplay.registeredAt > 0 ? (
-            <p className="text-slate-500 text-[11px] text-center mb-2">
-              Member since{' '}
-              {new Date(statsForDisplay.registeredAt * 1000).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
-            </p>
-          ) : null}
-          {!guestOnChainAddress && (
-            <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account.</p>
-          )}
-          {(shortLinkedWalletAddress || shortSmartWalletAddress) && (
-            <div className="flex flex-wrap items-center gap-2 mt-2 text-sm">
-              {shortLinkedWalletAddress ? (
-                <>
-                  <span className="text-cyan-400 font-semibold text-xs">Connected wallet</span>
-                  <span className="text-slate-300 font-mono text-xs truncate max-w-full">{shortLinkedWalletAddress}</span>
-                </>
-              ) : null}
-              {shortSmartWalletAddress ? (
-                <>
-                  <span className="text-cyan-400 font-semibold text-xs">Smart wallet:</span>
-                  <span className="text-slate-300 font-mono text-xs truncate max-w-full">{shortSmartWalletAddress}</span>
-                </>
-              ) : null}
-            </div>
-          )}
-
-          {(linkedWalletAddress || showSmartBalances) && (
-            <div className="mt-3 rounded-xl border border-white/10 bg-black/20 px-2 py-2">
-              {showDualGuestBalances ? (
-                <div className="flex items-center justify-center gap-1.5 mb-2">
-                  <button
-                    type="button"
-                    onClick={() => setGuestBalanceTab('connected')}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition ${
-                      guestBalanceTab === 'connected'
-                        ? 'bg-cyan-500/20 border-cyan-500/45 text-cyan-200'
-                        : 'bg-white/5 border-white/10 text-white/55'
-                    }`}
-                  >
-                    Connected
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setGuestBalanceTab('smart')}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition ${
-                      guestBalanceTab === 'smart'
-                        ? 'bg-cyan-500/20 border-cyan-500/45 text-cyan-200'
-                        : 'bg-white/5 border-white/10 text-white/55'
-                    }`}
-                  >
-                    Smart
-                  </button>
-                </div>
-              ) : (
-                <p className="text-[9px] font-medium uppercase tracking-wider text-white/40 mb-1.5 text-center">
-                  {linkedWalletAddress ? 'Balances · connected' : 'Balances · smart wallet'}
-                </p>
-              )}
-              {viewingConnected ? (
-                <div className="flex gap-1.5">
-                  {[
-                    { label: 'TYC', value: tycBalanceLinked.isLoading ? '…' : Number(tycBalanceLinked.data?.formatted || 0).toFixed(2) },
-                    { label: 'USDC', value: usdcBalanceLinked.isLoading ? '…' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2) },
-                    { label: 'Celo', value: nativeBalanceLinked.isLoading ? '…' : (nativeBalanceLinked.data ? Number(nativeBalanceLinked.data.formatted).toFixed(4) : '0') },
-                  ].map(({ label, value }) => (
-                    <div key={`gc-${label}`} className="flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center">
-                      <p className="text-[8px] font-medium uppercase tracking-wider text-white/45 leading-none">{label}</p>
-                      <p className="text-xs font-bold text-white truncate mt-0.5 tabular-nums">{value}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              {viewingSmart ? (
-                <div className="flex gap-1.5">
-                  {[
-                    { label: 'TYC', value: tycBalanceSmart.isLoading ? '…' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2) },
-                    { label: 'USDC', value: usdcBalanceSmart.isLoading ? '…' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2) },
-                    { label: 'Celo', value: nativeBalanceSmart.isLoading ? '…' : (nativeBalanceSmart.data ? Number(nativeBalanceSmart.data.formatted).toFixed(4) : '0') },
-                  ].map(({ label, value }) => (
-                    <div key={`gs-${label}`} className="flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center">
-                      <p className="text-[8px] font-medium uppercase tracking-wider text-white/45 leading-none">{label}</p>
-                      <p className="text-xs font-bold text-white truncate mt-0.5 tabular-nums">{value}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          )}
-
-          {showSmartBalances && shortSmartWalletAddress ? (
-            <Link
-              href="/profile/smart-wallet"
-              className="mt-2 inline-flex w-full items-center justify-center px-3 py-2 rounded-lg bg-cyan-500/12 hover:bg-cyan-500/20 border border-cyan-500/35 text-cyan-200 text-xs font-semibold transition"
-            >
-              Manage smart wallet
-            </Link>
-          ) : null}
         </div>
 
         {(guestUser.smart_wallet_migration_status || guestUser.legacy_smart_wallet_address) && (
