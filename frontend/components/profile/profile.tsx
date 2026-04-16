@@ -259,8 +259,10 @@ function GuestProfileView({
       const gp = gpBackend;
       const gw = Number(offChain!.celo_games_won) > 0 ? Number(offChain!.celo_games_won) : Number(offChain!.game_won) || 0;
       const gl = Number(offChain!.game_lost) || 0;
+      const chainName =
+        typeof onChainUsername === 'string' && onChainUsername.trim() ? onChainUsername.trim() : '';
       return {
-        username: offChain!.username || guestUser!.username,
+        username: chainName || offChain!.username || guestUser!.username,
         shortAddress: guestUser!.address ? `${guestUser!.address.slice(0, 6)}...${guestUser!.address.slice(-4)}` : '',
         gamesPlayed: gp,
         gamesWon: gw,
@@ -275,7 +277,12 @@ function GuestProfileView({
       };
     }
     return null;
-  }, [userData, offChainUserData, guestUser]);
+  }, [userData, offChainUserData, guestUser, onChainUsername]);
+
+  const heroOnChainUsername = React.useMemo(() => {
+    const u = displayStats?.username?.trim();
+    return u || username;
+  }, [displayStats, username]);
 
   const { data: tycTokenAddress } = useReadContract({
     address: rewardAddress,
@@ -363,16 +370,6 @@ function GuestProfileView({
     }
     return Array.from(byKey.values()).map(({ item, count }) => ({ ...item, count }));
   }, [ownedCollectibles]);
-
-  const { data: games = [] } = useQuery({
-    queryKey: ['guest-my-games'],
-    queryFn: async () => {
-      const res = await apiClient.get<ApiResponse>('/games/my-games', { params: { limit: 100 } });
-      if (!res?.data?.success || !Array.isArray(res.data.data)) return [];
-      return res.data.data as { code: string; status: string; is_ai?: boolean }[];
-    },
-  });
-  const gameCount = games.length;
 
   const saveDisplayName = () => {
     const trimmed = localDisplayName.trim() || null;
@@ -512,9 +509,15 @@ function GuestProfileView({
               </div>
 
               <div className="flex-1 w-full text-center sm:text-left min-w-0">
-                <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight drop-shadow-sm">{username}</h2>
+                <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight drop-shadow-sm">{heroOnChainUsername}</h2>
                 {profile?.displayName?.trim() ? (
                   <p className="text-cyan-300/80 text-sm mt-1">"{profile.displayName.trim()}"</p>
+                ) : null}
+                {displayStats && displayStats.registeredAt > 0 ? (
+                  <p className="text-slate-500 text-xs mt-1">
+                    Member since{' '}
+                    {new Date(displayStats.registeredAt * 1000).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                  </p>
                 ) : null}
 
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-4">
@@ -522,7 +525,7 @@ function GuestProfileView({
                     <>
                       {shortLinkedWalletAddress ? (
                         <>
-                          <span className="text-slate-400 text-xs">Linked wallet:</span>
+                          <span className="text-slate-400 text-xs">Connected wallet</span>
                           <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortLinkedWalletAddress}</span>
                         </>
                       ) : null}
@@ -538,20 +541,13 @@ function GuestProfileView({
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 mt-4 text-sm">
-                  <div>
-                    <span className="text-cyan-400 font-semibold">{gameCount}</span>
-                    <span className="text-white/70 ml-1">games played</span>
-                  </div>
-                </div>
-
                 {/* Balances (same card area as avatar/identity) */}
                 <div className="mt-5 w-full">
                   <div className="space-y-3">
                     {linkedWalletAddress ? (
                       <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                         <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 mb-2">
-                          Linked wallet balances
+                          Connected wallet balances
                         </p>
                         <div className="grid grid-cols-3 gap-2">
                           {[
@@ -650,7 +646,7 @@ function GuestProfileView({
               { id: 'about' as const, label: 'About you', icon: User },
               { id: 'perks' as const, label: 'My Perks', icon: ShoppingBag, badge: ownedCollectibles.length },
               { id: 'vouchers' as const, label: 'Reward Vouchers', icon: Ticket, badge: myVouchers.length },
-            ].map(({ id, label, icon: Icon }) => (
+            ].map(({ id, label, icon: Icon, badge }) => (
               <button
                 key={id}
                 type="button"
@@ -663,7 +659,9 @@ function GuestProfileView({
               >
                 <Icon className="w-4 h-4 shrink-0" />
                 {label}
-                {'badge' in (arguments[0] as any) && (arguments[0] as any).badge !== undefined && (arguments[0] as any).badge > 0 ? null : null}
+                {badge !== undefined && (
+                  <span className="ml-1 min-w-[1.25rem] h-5 px-1.5 rounded-md bg-white/10 text-xs flex items-center justify-center">{badge}</span>
+                )}
               </button>
             ))}
           </div>
@@ -1629,7 +1627,7 @@ export default function Profile() {
               >
                 <Icon className="w-4 h-4 shrink-0" />
                 {label}
-                {badge !== undefined && badge > 0 && (
+                {badge !== undefined && (
                   <span className="ml-1 min-w-[1.25rem] h-5 px-1.5 rounded-md bg-white/10 text-xs flex items-center justify-center">{badge}</span>
                 )}
               </button>

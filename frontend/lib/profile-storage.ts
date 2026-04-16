@@ -28,6 +28,27 @@ export function getProfile(address: string | undefined): ProfileData | null {
   }
 }
 
+const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
+
+/** Same key as profile page `useProfileForAddress` for JWT / Privy users without wagmi. */
+export function guestProfileStorageKey(guestUser: {
+  address?: string;
+  linked_wallet_address?: string | null;
+  smart_wallet_address?: string | null;
+}): string | null {
+  const linked = guestUser.linked_wallet_address?.trim();
+  if (linked && linked.toLowerCase() !== ZERO_ADDR && /^0x[a-fA-F0-9]{40}$/i.test(linked)) {
+    return linked.toLowerCase();
+  }
+  const sw = guestUser.smart_wallet_address?.trim();
+  if (sw && sw.toLowerCase() !== ZERO_ADDR && /^0x[a-fA-F0-9]{40}$/i.test(sw)) {
+    return sw.toLowerCase();
+  }
+  const a = guestUser.address?.trim();
+  if (a) return a.toLowerCase();
+  return null;
+}
+
 export function setProfile(
   address: string | undefined,
   data: Partial<Pick<ProfileData, 'avatar' | 'displayName' | 'bio'>>
@@ -42,4 +63,7 @@ export function setProfile(
     updatedAt: Date.now(),
   };
   localStorage.setItem(key, JSON.stringify(updated));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('tycoon-profile-updated', { detail: { address } }));
+  }
 }

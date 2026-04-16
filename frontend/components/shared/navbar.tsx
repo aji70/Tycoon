@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
@@ -19,6 +19,7 @@ import { useProfileAvatar } from '@/context/ProfileContext';
 import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
+import { getProfile, guestProfileStorageKey } from '@/lib/profile-storage';
 
 const PREFETCH_ROUTES = ['/game-shop', '/arena', '/profile', '/leaderboard'] as const;
 
@@ -74,9 +75,23 @@ const NavBar = () => {
   const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
   const profileAvatar = useProfileAvatar();
 
+  const [storedProfileTick, setStoredProfileTick] = useState(0);
+  useEffect(() => {
+    const onUpdate = () => setStoredProfileTick((t) => t + 1);
+    window.addEventListener('tycoon-profile-updated', onUpdate);
+    return () => window.removeEventListener('tycoon-profile-updated', onUpdate);
+  }, []);
+
   const { ready, authenticated, login, logout, user } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
+
+  const guestNavAvatar = useMemo(() => {
+    if (!guestUser) return null;
+    const key = guestProfileStorageKey(guestUser);
+    if (!key) return null;
+    return getProfile(key)?.avatar ?? null;
+  }, [guestUser, pathname, storedProfileTick]);
   const isPrivyAuthed = ready && authenticated;
   /** Game APIs use the backend JWT — Privy alone is not a session until privy-signin completes. */
   const isSignedIn = isConnected || !!guestUser;
@@ -350,7 +365,14 @@ const NavBar = () => {
                 <Wallet className="w-4 h-4" />
                 Connect wallet
               </button>
-              <span className="px-3 py-2 rounded-[12px] border border-[#0E282A] bg-[#011112] text-[#00F0FF] text-xs font-dmSans">
+              <span className="flex items-center gap-2 px-3 py-2 rounded-[12px] border border-[#0E282A] bg-[#011112] text-[#00F0FF] text-xs font-dmSans">
+                <span className="h-8 w-8 rounded-full border-2 border-[#0FF0FC] overflow-hidden shadow-lg shrink-0">
+                  {guestNavAvatar || profileAvatar ? (
+                    <img src={(guestNavAvatar || profileAvatar) as string} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <Image src={avatar} alt="" width={32} height={32} className="object-cover w-full h-full" />
+                  )}
+                </span>
                 Guest: {guestUser.username}
               </span>
               <button
