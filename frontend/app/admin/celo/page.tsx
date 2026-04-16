@@ -6,7 +6,7 @@ import { adminApi } from "@/lib/adminApi";
 import { ApiError, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { Loader2 } from "lucide-react";
 
-type BotRow = {
+type WalletRow = {
   address: string;
   registered: boolean;
   balanceCelo: string;
@@ -18,11 +18,11 @@ type StatusPayload = {
   chain: string;
   contractAddress: string;
   distributorAddress: string | null;
-  botCount: number;
-  bots: BotRow[];
+  walletCount: number;
+  wallets: WalletRow[];
 };
 
-export default function AdminCeloBotFarmPage() {
+export default function AdminCeloOperatorsPage() {
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export default function AdminCeloBotFarmPage() {
     setError(null);
     try {
       const { data: body } = await adminApi.get<{ success: boolean; data?: StatusPayload; message?: string }>(
-        "admin/celo-bot-farm/status"
+        "admin/celo-operator/status"
       );
       if (!body?.success || !body.data) {
         setError(body?.message || "Unexpected response");
@@ -65,7 +65,7 @@ export default function AdminCeloBotFarmPage() {
     setLog("");
     try {
       const { data: body } = await adminApi.post<{ success: boolean; data?: { results: unknown[] }; message?: string }>(
-        "admin/celo-bot-farm/register",
+        "admin/celo-operator/register",
         { delayMs },
         { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
       );
@@ -88,7 +88,7 @@ export default function AdminCeloBotFarmPage() {
         data?: unknown;
         message?: string;
       }>(
-        "admin/celo-bot-farm/create-ai-games",
+        "admin/celo-operator/create-ai-games",
         {
           delayMs,
           gamesPerWallet,
@@ -117,7 +117,7 @@ export default function AdminCeloBotFarmPage() {
         success: boolean;
         data?: Record<string, unknown>;
         message?: string;
-      }>("admin/celo-bot-farm/distributor-payload", { celoPerWallet });
+      }>("admin/celo-operator/distributor-payload", { celoPerWallet });
       if (!body?.success || !body.data) throw new Error(body?.message || "Failed");
       setDistributorJson(JSON.stringify(body.data, null, 2));
       setLog("Payload ready — send a tx to `to` with `valueWei` wei and `data` from the JSON below (e.g. cast send or your admin wallet).");
@@ -135,11 +135,13 @@ export default function AdminCeloBotFarmPage() {
           ← Admin
         </Link>
       </div>
-      <h1 className="text-xl font-semibold text-white mb-1">Celo bot farm (operator)</h1>
+      <h1 className="text-xl font-semibold text-white mb-1">Celo operators</h1>
       <p className="text-sm text-slate-400 mb-6">
         On-chain only on <strong className="text-slate-300">CELO</strong>. Enable with{" "}
-        <code className="text-amber-200/90">CELO_BOT_FARM_ENABLED=true</code> and{" "}
-        <code className="text-amber-200/90">CELO_BOT_FARM_PRIVATE_KEYS</code> (comma-separated) on the backend. Optional{" "}
+        <code className="text-amber-200/90">CELO_OPERATOR_TOOLS_ENABLED=true</code> and{" "}
+        <code className="text-amber-200/90">CELO_OPERATOR_WALLET_PRIVATE_KEYS</code> (comma-separated) on the backend.
+        Legacy env names <code className="text-amber-200/90">CELO_BOT_FARM_ENABLED</code> /{" "}
+        <code className="text-amber-200/90">CELO_BOT_FARM_PRIVATE_KEYS</code> still work. Optional{" "}
         <code className="text-amber-200/90">CELO_BATCH_NATIVE_DISTRIBUTOR_ADDRESS</code> for batch CELO funding via{" "}
         <code className="text-amber-200/90">CeloBatchNativeDistributor</code>.
       </p>
@@ -161,7 +163,7 @@ export default function AdminCeloBotFarmPage() {
         <>
           <div className="grid gap-2 text-sm text-slate-300 mb-4">
             <div>
-              Farm enabled (env):{" "}
+              Operator tools enabled (env):{" "}
               <span className={status.enabled ? "text-emerald-400" : "text-amber-300"}>{String(status.enabled)}</span>
             </div>
             <div>
@@ -172,7 +174,7 @@ export default function AdminCeloBotFarmPage() {
                 Distributor: <code className="text-xs text-slate-200">{status.distributorAddress}</code>
               </div>
             )}
-            <div>Configured bots: {status.botCount}</div>
+            <div>Configured wallets: {status.walletCount}</div>
           </div>
 
           <div className="flex flex-wrap gap-3 items-end mb-6">
@@ -188,7 +190,7 @@ export default function AdminCeloBotFarmPage() {
               />
             </label>
             <label className="text-xs text-slate-400 block">
-              AI games per wallet
+              AI games per operator wallet
               <input
                 type="number"
                 min={1}
@@ -263,7 +265,7 @@ export default function AdminCeloBotFarmPage() {
                 </tr>
               </thead>
               <tbody>
-                {status.bots.map((b) => (
+                {status.wallets.map((b) => (
                   <tr key={b.address} className="border-t border-slate-800">
                     <td className="px-3 py-2 font-mono text-xs text-slate-300">{b.address}</td>
                     <td className="px-3 py-2">{b.registered ? "yes" : "no"}</td>
