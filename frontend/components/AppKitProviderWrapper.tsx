@@ -8,6 +8,14 @@ import { celo } from '@reown/appkit/networks';
 
 const projectId = process.env.NEXT_PUBLIC_PROJECT_ID || '912f9a3279905a7dd417a7bf68e04209';
 
+/** Canonical app origin for wallet metadata (Reown). Align with `minikit.config.ts` / production: set `NEXT_PUBLIC_URL=https://www.tycoonworld.xyz` on Vercel. */
+const siteUrl = (() => {
+  const fromEnv = process.env.NEXT_PUBLIC_URL || process.env.NEXT_PUBLIC_SITE_URL;
+  if (fromEnv?.trim()) return fromEnv.replace(/\/$/, '');
+  if (process.env.NODE_ENV === 'development') return 'http://localhost:3000';
+  return 'https://www.tycoonworld.xyz';
+})();
+
 // Celo only
 const wagmiAdapter = new WagmiAdapter({
   networks: [celo],
@@ -34,8 +42,8 @@ export default function AppKitProviderWrapper({
         metadata: {
           name: 'Tycoon',
           description: 'Play Monopoly onchain',
-          url: 'http://localhost:3000', // Update to your deployed URL
-          icons: ['https://avatars.githubusercontent.com/u/37784886'], // Replace with your logo
+          url: siteUrl,
+          icons: [`${siteUrl}/logo.png`],
         },
       });
       isInitialized = true;

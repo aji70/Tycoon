@@ -688,7 +688,6 @@ function GuestProfileView({
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[260px] max-h-[60vh] overflow-y-auto">
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
-                <ProfileReferralCard className="mb-5" />
                 {!displayStats ? (
                   <EmptyState
                     icon={<BarChart2 className="w-14 h-14 text-cyan-400/70" />}
@@ -765,6 +764,7 @@ function GuestProfileView({
                     </div>
                   </>
                 )}
+                <ProfileReferralCard className={displayStats ? 'mt-6' : 'mt-5'} />
               </motion.div>
             )}
 
@@ -1631,7 +1631,6 @@ export default function Profile() {
                   compact
                   className="mb-4"
                 />
-                <ProfileReferralCard className="mb-5" />
                 <div className="mb-6">
                   <DailyClaim
                     chain={
@@ -1713,6 +1712,7 @@ export default function Profile() {
                     </div>
                   ))}
                 </div>
+                <ProfileReferralCard className="mt-6" />
               </motion.div>
             )}
             {profileTab === 'about' && (

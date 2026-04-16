@@ -1,6 +1,10 @@
-const ROOT_URL =
-  process.env.NEXT_PUBLIC_URL ||
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : 'http://localhost:3000');
+/** Same rules as `AppKitProviderWrapper`: env first, localhost in dev, else canonical prod. */
+const ROOT_URL = (() => {
+  const fromEnv = process.env.NEXT_PUBLIC_URL || process.env.NEXT_PUBLIC_SITE_URL;
+  if (fromEnv?.trim()) return fromEnv.replace(/\/$/, '');
+  if (process.env.NODE_ENV === 'development') return 'http://localhost:3000';
+  return 'https://www.tycoonworld.xyz';
+})();
 
 /**
  * MiniApp configuration object. Must follow the Farcaster MiniApp specification.
