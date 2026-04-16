@@ -24,6 +24,7 @@ type Profile = Record<string, unknown> & {
   linked_wallet_address?: string | null;
   smart_wallet_address?: string | null;
   privy_did?: string | null;
+  account_status?: string | null;
 };
 
 type PropertyStats = {
@@ -68,11 +69,14 @@ export default function AdminPlayerDetailPage({ params }: { params: { id: string
   const id = Number(params.id);
 
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [referral, setReferral] = useState<ReferralInfo | null>(null);
   const [propertyStats, setPropertyStats] = useState<PropertyStats | null>(null);
   const [recentGames, setRecentGames] = useState<RecentGame[]>([]);
   const [memberships, setMemberships] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!Number.isFinite(id) || id < 1) {
@@ -119,6 +123,37 @@ export default function AdminPlayerDetailPage({ params }: { params: { id: string
       cancelled = true;
     };
   }, [id]);
+
+  async function applyStatus(next: "active" | "suspended" | "banned") {
+    if (!Number.isFinite(id) || id < 1) return;
+    if (!window.confirm(`Set this account to "${next}"?`)) return;
+    setStatusBusy(true);
+    setStatusMsg(null);
+    try {
+      await adminApi.patch(`admin/players/${id}/status`, { status: next, reason: "admin_dashboard" });
+      const { data: body } = await adminApi.get<{
+        success: boolean;
+        data?: {
+          profile: Profile;
+          referral?: ReferralInfo | null;
+          propertyStats: PropertyStats;
+          activity: { gameMembershipsCount: number; recentGames: RecentGame[] };
+        };
+      }>(`admin/players/${id}`);
+      if (body?.success && body.data) {
+        setProfile(body.data.profile);
+        setReferral(body.data.referral ?? null);
+        setPropertyStats(body.data.propertyStats);
+        setRecentGames(body.data.activity.recentGames);
+        setMemberships(body.data.activity.gameMembershipsCount);
+      }
+      setStatusMsg(`Status set to ${next}.`);
+    } catch (e) {
+      setStatusMsg(e instanceof ApiError ? e.message : "Update failed");
+    } finally {
+      setStatusBusy(false);
+    }
+  }
 
   if (!Number.isFinite(id) || id < 1) {
     return (
@@ -208,6 +243,50 @@ export default function AdminPlayerDetailPage({ params }: { params: { id: string
                 <div className="flex justify-between gap-4">
                   <dt className="text-slate-500">Joined</dt>
                   <dd className="text-slate-200 text-xs">{profile.created_at ? String(profile.created_at) : "—"}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-slate-500">Account status</dt>
+                  <dd className="text-slate-200 text-xs font-medium uppercase tracking-wide">
+                    {String(profile.account_status || "active")}
+                  </dd>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-800">
+                  <p className="text-xs text-slate-500 mb-2">
+                    Suspended/banned users receive 403 on authenticated API calls until restored.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={statusBusy}
+                      onClick={() => applyStatus("active")}
+                      className="rounded-lg border border-emerald-900/50 bg-emerald-950/40 px-2.5 py-1.5 text-xs text-emerald-200 hover:bg-emerald-900/30 disabled:opacity-40"
+                    >
+                      Active
+                    </button>
+                    <button
+                      type="button"
+                      disabled={statusBusy}
+                      onClick={() => applyStatus("suspended")}
+                      className="rounded-lg border border-amber-900/50 bg-amber-950/40 px-2.5 py-1.5 text-xs text-amber-200 hover:bg-amber-900/30 disabled:opacity-40"
+                    >
+                      Suspend
+                    </button>
+                    <button
+                      type="button"
+                      disabled={statusBusy}
+                      onClick={() => applyStatus("banned")}
+                      className="rounded-lg border border-red-900/50 bg-red-950/40 px-2.5 py-1.5 text-xs text-red-200 hover:bg-red-900/30 disabled:opacity-40"
+                    >
+                      Ban
+                    </button>
+                  </div>
+                  {statusMsg && (
+                    <p
+                      className={`text-xs mt-2 ${statusMsg.includes("failed") || statusMsg.includes("403") || statusMsg.includes("401") ? "text-red-400" : "text-emerald-400/90"}`}
+                    >
+                      {statusMsg}
+                    </p>
+                  )}
                 </div>
               </dl>
             </section>

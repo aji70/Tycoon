@@ -34,6 +34,13 @@ function shortenAddr(a: string, left = 6, right = 4) {
   return `${a.slice(0, left)}…${a.slice(-right)}`;
 }
 
+function statusBadgeClass(status: string) {
+  const s = String(status || "active").toLowerCase();
+  if (s === "banned") return "bg-red-950/50 text-red-300 border-red-900/50";
+  if (s === "suspended") return "bg-amber-950/50 text-amber-300 border-amber-900/50";
+  return "bg-emerald-950/50 text-emerald-400/90 border-emerald-900/40";
+}
+
 export default function AdminPlayersPage() {
   const [qInput, setQInput] = useState("");
   const [q, setQ] = useState("");
@@ -89,7 +96,8 @@ export default function AdminPlayersPage() {
     <div>
       <h1 className="text-2xl font-semibold text-slate-100">Player management</h1>
       <p className="mt-1 text-sm text-slate-400 max-w-2xl">
-        Search by username, wallet address, or numeric user id. Destructive actions (suspend/ban) are not enabled yet.
+        Search by username, wallet address, or numeric user id. Use each player’s profile to suspend, ban, or restore
+        access (requires DB migration <code className="text-slate-600">account_status</code>).
       </p>
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -187,7 +195,9 @@ export default function AdminPlayersPage() {
                       {Number(p.total_earned).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex rounded-md bg-emerald-950/50 text-emerald-400/90 px-2 py-0.5 text-xs font-medium border border-emerald-900/40">
+                      <span
+                        className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium border ${statusBadgeClass(p.status)}`}
+                      >
                         {p.status}
                       </span>
                     </td>

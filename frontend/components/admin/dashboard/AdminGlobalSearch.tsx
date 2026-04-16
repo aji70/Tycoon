@@ -23,6 +23,16 @@ type GameHit = {
   mode: string | null;
 };
 
+type PropertyHit = { id: number; name: string; type: string; position: string };
+
+type ReportHit = {
+  id: number;
+  status: string;
+  category: string;
+  targetUsername: string | null;
+  createdAt: string;
+};
+
 export default function AdminGlobalSearch() {
   const [input, setInput] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -30,6 +40,8 @@ export default function AdminGlobalSearch() {
   const [loading, setLoading] = useState(false);
   const [players, setPlayers] = useState<PlayerHit[]>([]);
   const [games, setGames] = useState<GameHit[]>([]);
+  const [properties, setProperties] = useState<PropertyHit[]>([]);
+  const [reports, setReports] = useState<ReportHit[]>([]);
   const [hint, setHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -43,6 +55,8 @@ export default function AdminGlobalSearch() {
     if (!q) {
       setPlayers([]);
       setGames([]);
+      setProperties([]);
+      setReports([]);
       setHint(null);
       setError(null);
       setLoading(false);
@@ -53,21 +67,33 @@ export default function AdminGlobalSearch() {
     try {
       const { data: body } = await adminApi.get<{
         success: boolean;
-        data?: { players: PlayerHit[]; games: GameHit[]; hint?: string | null };
+        data?: {
+          players: PlayerHit[];
+          games: GameHit[];
+          properties?: PropertyHit[];
+          reports?: ReportHit[];
+          hint?: string | null;
+        };
       }>("admin/search", { params: { q, limit: 8 } });
       if (!body?.success || !body.data) {
         setError("Bad response");
         setPlayers([]);
         setGames([]);
+        setProperties([]);
+        setReports([]);
         return;
       }
       setPlayers(body.data.players);
       setGames(body.data.games);
+      setProperties(body.data.properties ?? []);
+      setReports(body.data.reports ?? []);
       setHint(body.data.hint ?? null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Search failed");
       setPlayers([]);
       setGames([]);
+      setProperties([]);
+      setReports([]);
     } finally {
       setLoading(false);
     }
@@ -88,7 +114,7 @@ export default function AdminGlobalSearch() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  const hasResults = players.length > 0 || games.length > 0;
+  const hasResults = players.length > 0 || games.length > 0 || properties.length > 0 || reports.length > 0;
   const showPanel = open && (debounced.length > 0 || hint || error);
 
   return (
@@ -99,7 +125,7 @@ export default function AdminGlobalSearch() {
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onFocus={() => setOpen(true)}
-        placeholder="Players (name, wallet, id) · Rooms (code, id)"
+        placeholder="Players · Rooms · Properties · Reports"
         autoComplete="off"
         className="w-full rounded-lg bg-slate-900/80 border border-slate-700/80 pl-9 pr-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-700/60"
         aria-label="Admin search"
@@ -168,6 +194,49 @@ export default function AdminGlobalSearch() {
                       <span className="text-slate-500 text-xs ml-2">
                         #{g.id} · {g.status} · {g.chain}
                       </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {!loading && !error && properties.length > 0 && (
+            <div className="border-t border-slate-800/80">
+              <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Properties</p>
+              <ul className="pb-1">
+                {properties.map((p) => (
+                  <li key={`prop-${p.id}`}>
+                    <Link
+                      href={`/admin/properties/${p.id}`}
+                      className="block px-3 py-2 text-sm hover:bg-slate-800/80 text-slate-200"
+                      onClick={() => setOpen(false)}
+                    >
+                      <span className="font-medium text-cyan-200/90">{p.name}</span>
+                      <span className="text-slate-500 text-xs ml-2">
+                        #{p.id} · {p.type} · {p.position}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {!loading && !error && reports.length > 0 && (
+            <div className="border-t border-slate-800/80">
+              <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Moderation</p>
+              <ul className="pb-1">
+                {reports.map((r) => (
+                  <li key={`rep-${r.id}`}>
+                    <Link
+                      href="/admin/moderation"
+                      className="block px-3 py-2 text-sm hover:bg-slate-800/80 text-slate-200"
+                      onClick={() => setOpen(false)}
+                    >
+                      <span className="text-cyan-200/90">Report #{r.id}</span>
+                      <span className="text-slate-500 text-xs ml-2">{r.status}</span>
+                      <span className="block text-xs text-slate-500 mt-0.5">{r.category}</span>
                     </Link>
                   </li>
                 ))}

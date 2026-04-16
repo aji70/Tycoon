@@ -2,6 +2,7 @@ import db from "../config/database.js";
 import logger from "../config/logger.js";
 import User from "../models/User.js";
 import { getUserPropertyStats } from "../utils/userPropertyStats.js";
+import { appendAdminAuditLog } from "../services/adminAuditLog.js";
 
 const SENSITIVE_USER_KEYS = new Set([
   "password_hash",
@@ -73,7 +74,8 @@ export async function listPlayers(req, res) {
       "users.game_lost",
       "users.total_earned",
       "users.created_at",
-      "users.updated_at"
+      "users.updated_at",
+      "users.account_status"
     );
     applyListFilters(listQuery, filters);
     for (const { column, direction } of orderSpecs) {
@@ -87,12 +89,18 @@ export async function listPlayers(req, res) {
       success: true,
       data: {
         players: players.map((p) => ({
-          ...p,
-          status: "active",
+          id: p.id,
+          username: p.username,
+          address: p.address,
+          chain: p.chain,
+          is_guest: p.is_guest,
           games_played: Number(p.games_played ?? 0),
           game_won: Number(p.game_won ?? 0),
           game_lost: Number(p.game_lost ?? 0),
           total_earned: Number(p.total_earned ?? 0),
+          created_at: p.created_at,
+          updated_at: p.updated_at,
+          status: String(p.account_status || "active").toLowerCase(),
         })),
         total,
         page,
@@ -200,5 +208,57 @@ export async function getPlayerById(req, res) {
   } catch (err) {
     logger.error({ err }, "admin getPlayerById error");
     res.status(500).json({ success: false, error: "Failed to load player" });
+  }
+}
+
+const ACCOUNT_STATUSES = new Set(["active", "suspended", "banned"]);
+
+/**
+ * PATCH /api/admin/players/:id/status
+ * Body: { status: "active"|"suspended"|"banned", reason?: string }
+ */
+export async function patchPlayerStatus(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id < 1) {
+      return res.status(400).json({ success: false, error: "Invalid player id" });
+    }
+    const status = String(req.body?.status ?? "").trim().toLowerCase();
+    if (!ACCOUNT_STATUSES.has(status)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid status (use active, suspended, or banned)",
+      });
+    }
+    const reason = req.body?.reason != null ? String(req.body.reason).slice(0, 500) : "";
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: "Player not found" });
+    }
+
+    const prev = String(user.account_status || "active").toLowerCase();
+    await db("users").where({ id }).update({ account_status: status, updated_at: new Date() });
+
+    await appendAdminAuditLog({
+      action: "players.status",
+      targetType: "user",
+      targetId: String(id),
+      payload: {
+        username: user.username,
+        previousStatus: prev,
+        nextStatus: status,
+        reason: reason || null,
+      },
+      req,
+    });
+
+    res.json({
+      success: true,
+      data: { id, account_status: status, previousStatus: prev },
+    });
+  } catch (err) {
+    logger.error({ err }, "admin patchPlayerStatus error");
+    res.status(500).json({ success: false, error: "Failed to update player status" });
   }
 }

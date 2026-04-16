@@ -53,6 +53,7 @@ import gamePerkController from "./controllers/gamePerkController.js";
 import * as shopController from "./controllers/shopController.js";
 import * as dailyClaimController from "./controllers/dailyClaimController.js";
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
+import { blockApiWhenMaintenance } from "./middleware/maintenanceMode.js";
 import { connectSocketRedis } from "./config/socketRedis.js";
 import logger from "./config/logger.js";
 import db from "./config/database.js";
@@ -206,6 +207,7 @@ app.post(
 
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use(blockApiWhenMaintenance);
 
 // Step 10: Health check (DB + Redis)
 app.get("/health", async (req, res) => {

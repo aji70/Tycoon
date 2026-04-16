@@ -20,6 +20,7 @@ type ChainSnap = {
 
 type SummaryData = {
   runtime: { nodeEnv: string; port: number; skipRedis: boolean };
+  maintenance?: { enabled: boolean };
   app: { defaultAppChain: string; anyEvmChainConfigured: boolean; starknetConfigured: boolean };
   adminApiSecurity?: {
     ipAllowlistEnabled: boolean;
@@ -57,6 +58,8 @@ export default function AdminSettingsPage() {
   const [data, setData] = useState<SummaryData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mainBusy, setMainBusy] = useState(false);
+  const [mainMsg, setMainMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,8 +91,9 @@ export default function AdminSettingsPage() {
     <div>
       <h1 className="text-2xl font-semibold text-slate-100">System settings</h1>
       <p className="mt-1 text-sm text-slate-400 max-w-2xl">
-        Read-only snapshot for operators. Values like RPC URLs, contract addresses, and private keys are <strong>never</strong> exposed.
-        Maintenance mode and live feature flags belong in a future DB-backed config.
+        Operator snapshot: integration flags and chain readiness. Secrets are never returned. Maintenance mode is
+        stored in <code className="text-slate-600">platform_settings</code> and blocks most public <code className="text-slate-600">/api/*</code> routes
+        (admin and auth stay available).
       </p>
 
       {loading && (
@@ -107,6 +111,56 @@ export default function AdminSettingsPage() {
 
       {data && !loading && (
         <div className="mt-8 space-y-8">
+          <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-4 max-w-xl">
+            <h2 className="text-sm font-semibold text-slate-200 mb-2">Maintenance mode</h2>
+            <p className="text-xs text-slate-500 mb-3">
+              When enabled, clients get HTTP 503 on most API routes until you disable it here.
+            </p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                type="button"
+                disabled={mainBusy}
+                onClick={async () => {
+                  setMainBusy(true);
+                  setMainMsg(null);
+                  const next = !data.maintenance?.enabled;
+                  try {
+                    await adminApi.patch("admin/settings/maintenance", { enabled: next });
+                    const { data: body } = await adminApi.get<{ success: boolean; data?: SummaryData }>(
+                      "admin/settings/summary"
+                    );
+                    if (body?.success && body.data) setData(body.data);
+                    setMainMsg(next ? "Maintenance is ON." : "Maintenance is OFF.");
+                  } catch (e) {
+                    setMainMsg(e instanceof ApiError ? e.message : "Update failed (run DB migrations?)");
+                  } finally {
+                    setMainBusy(false);
+                  }
+                }}
+                className={`rounded-lg px-4 py-2 text-sm font-medium border transition-colors disabled:opacity-40 ${
+                  data.maintenance?.enabled
+                    ? "bg-amber-950/50 border-amber-800 text-amber-200 hover:bg-amber-900/40"
+                    : "bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700"
+                }`}
+              >
+                {data.maintenance?.enabled ? "Turn maintenance OFF" : "Turn maintenance ON"}
+              </button>
+              <span className="text-xs text-slate-500">
+                Current:{" "}
+                <strong className={data.maintenance?.enabled ? "text-amber-300" : "text-emerald-400/90"}>
+                  {data.maintenance?.enabled ? "ON" : "OFF"}
+                </strong>
+              </span>
+            </div>
+            {mainMsg && (
+              <p
+                className={`text-xs mt-2 ${mainMsg.includes("failed") || mainMsg.includes("403") || mainMsg.includes("401") ? "text-red-400" : "text-emerald-400/90"}`}
+              >
+                {mainMsg}
+              </p>
+            )}
+          </section>
+
           <section>
             <h2 className="text-sm font-semibold text-slate-300 mb-3">Admin API security</h2>
             <div className="flex flex-wrap gap-2 items-center">

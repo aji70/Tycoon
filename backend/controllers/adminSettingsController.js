@@ -2,6 +2,8 @@ import logger from "../config/logger.js";
 import { getChainConfig, getDefaultAppChain, isAnyChainConfigured, SUPPORTED_CHAINS } from "../config/chains.js";
 import { isStarknetConfigured } from "../services/starknetContract.js";
 import { getAdminRateLimitConfig } from "../config/adminDashboardSecurity.js";
+import { isMaintenanceModeEnabled, upsertSetting } from "../services/platformSettings.js";
+import { appendAdminAuditLog } from "../services/adminAuditLog.js";
 
 function chainPublicSnapshot(name) {
   const cfg = getChainConfig(name);
@@ -27,6 +29,13 @@ export async function getSettingsSummary(req, res) {
   try {
     const chains = SUPPORTED_CHAINS.map(chainPublicSnapshot);
 
+    let maintenanceOn = false;
+    try {
+      maintenanceOn = await isMaintenanceModeEnabled();
+    } catch (_) {
+      maintenanceOn = false;
+    }
+
     res.json({
       success: true,
       data: {
@@ -35,6 +44,7 @@ export async function getSettingsSummary(req, res) {
           port: Number(process.env.PORT) || 3000,
           skipRedis: process.env.SKIP_REDIS === "true",
         },
+        maintenance: { enabled: maintenanceOn },
         app: {
           defaultAppChain: getDefaultAppChain(),
           anyEvmChainConfigured: isAnyChainConfigured(),
@@ -55,11 +65,33 @@ export async function getSettingsSummary(req, res) {
           privyAppSecretSet: Boolean(process.env.PRIVY_APP_SECRET && String(process.env.PRIVY_APP_SECRET).trim()),
         },
         evmChains: chains,
-        note: "Secrets and RPC URLs are never returned. Flesh out maintenance mode in DB when you add it.",
+        note: "Secrets and RPC URLs are never returned. Maintenance is stored in platform_settings (see PATCH /api/admin/settings/maintenance).",
       },
     });
   } catch (err) {
     logger.error({ err }, "admin getSettingsSummary error");
     res.status(500).json({ success: false, error: "Failed to load settings summary" });
+  }
+}
+
+/**
+ * PATCH /api/admin/settings/maintenance
+ * Body: { enabled: boolean }
+ */
+export async function patchMaintenance(req, res) {
+  try {
+    const enabled = Boolean(req.body?.enabled);
+    await upsertSetting("maintenance", { enabled });
+    await appendAdminAuditLog({
+      action: "settings.maintenance",
+      targetType: "platform",
+      targetId: "maintenance",
+      payload: { enabled },
+      req,
+    });
+    res.json({ success: true, data: { maintenance: { enabled } } });
+  } catch (err) {
+    logger.error({ err }, "admin patchMaintenance error");
+    res.status(500).json({ success: false, error: "Failed to update maintenance mode" });
   }
 }

@@ -19,6 +19,7 @@ import * as adminSearchController from "../controllers/adminSearchController.js"
 import * as adminReferralsController from "../controllers/adminReferralsController.js";
 import * as adminQuestsController from "../controllers/adminQuestsController.js";
 import * as adminAlertsController from "../controllers/adminAlertsController.js";
+import * as adminNotificationsController from "../controllers/adminNotificationsController.js";
 import { requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
 
 const router = express.Router();
@@ -27,10 +28,12 @@ router.use(requireDashboardAdminSecret);
 
 router.get("/overview", adminDashboardController.getOverview);
 router.get("/alerts", adminAlertsController.getAlerts);
+router.get("/notifications", adminNotificationsController.listNotifications);
 router.get("/search", adminSearchController.search);
 router.get("/referrals/overview", adminReferralsController.getOverview);
 router.get("/referrals/events", adminReferralsController.listReferralEvents);
 router.get("/players", adminPlayersController.listPlayers);
+router.patch("/players/:id/status", adminPlayersController.patchPlayerStatus);
 router.get("/players/:id", adminPlayersController.getPlayerById);
 
 router.get("/rooms", adminRoomsController.listRooms);
@@ -44,6 +47,7 @@ router.get("/properties/:id", adminPropertiesController.getProperty);
 
 router.get("/economy/overview", adminEconomyController.getEconomyOverview);
 router.get("/economy/config", adminEconomyController.getEconomyConfig);
+router.patch("/economy/config", adminEconomyController.patchEconomyConfig);
 router.post("/economy/grant-voucher", adminEconomyController.grantVoucher);
 
 router.get("/leaderboard", adminLeaderboardController.getLeaderboard);
@@ -53,6 +57,7 @@ router.get("/analytics/activity", adminAnalyticsController.activity);
 
 router.get("/wallets", adminWalletsController.listWallets);
 router.get("/settings/summary", adminSettingsController.getSettingsSummary);
+router.patch("/settings/maintenance", adminSettingsController.patchMaintenance);
 
 router.get("/audit-log", adminAuditLogController.listAuditLog);
 
