@@ -4,6 +4,12 @@ import User from "../models/User.js";
 import { isContractConfigured, mintVoucherTo } from "../services/tycoonContract.js";
 import { recordEvent } from "../services/analytics.js";
 import { appendAdminAuditLog } from "../services/adminAuditLog.js";
+import {
+  getEffectiveDailyClaimConfig,
+  getEconomyDailyClaimOverrides,
+  upsertSetting,
+  clearPlatformSettingsCache,
+} from "../services/platformSettings.js";
 
 function startOfUtcDay(d = new Date()) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -74,22 +80,106 @@ export async function getEconomyOverview(req, res) {
  */
 export async function getEconomyConfig(req, res) {
   try {
-    const base = process.env.DAILY_REWARD_TYC_BASE ?? "1";
-    const streakBonus = process.env.DAILY_REWARD_STREAK_BONUS_TYC ?? "0.5";
+    const eff = await getEffectiveDailyClaimConfig();
+    const envBase = process.env.DAILY_REWARD_TYC_BASE ?? "1";
+    const envStreak = process.env.DAILY_REWARD_STREAK_BONUS_TYC ?? "0.5";
     res.json({
       success: true,
       data: {
         dailyClaim: {
-          dailyRewardTycBase: base,
-          streakBonusTycPerDay: streakBonus,
+          dailyRewardTycBase: eff.dailyRewardTycBase,
+          streakBonusTycPerDay: eff.streakBonusTycPerDay,
+          effectiveSource: eff.source,
+          envFallback: { dailyRewardTycBase: envBase, streakBonusTycPerDay: envStreak },
           envKeys: ["DAILY_REWARD_TYC_BASE", "DAILY_REWARD_STREAK_BONUS_TYC"],
         },
-        note: "Values are read from process.env. Restart the backend after changing .env.",
+        note:
+          eff.source === "db_override"
+            ? "Daily claim amounts are overridden in platform_settings (economy_daily_claim). Env is fallback for unset fields."
+            : "Values come from process.env unless overridden via PATCH /api/admin/economy/config.",
       },
     });
   } catch (err) {
     logger.error({ err }, "admin getEconomyConfig error");
     res.status(500).json({ success: false, error: "Failed to read config" });
+  }
+}
+
+/**
+ * PATCH /api/admin/economy/config
+ * Body: { dailyRewardTycBase?: string|null, streakBonusTycPerDay?: number|null } — null clears override for that field.
+ */
+export async function patchEconomyConfig(req, res) {
+  try {
+    const cur = await getEconomyDailyClaimOverrides();
+    const next = {
+      dailyRewardTycBase: cur.dailyRewardTycBase,
+      streakBonusTycPerDay: cur.streakBonusTycPerDay,
+    };
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "dailyRewardTycBase")) {
+      const v = req.body.dailyRewardTycBase;
+      if (v === null || v === "") {
+        next.dailyRewardTycBase = null;
+      } else {
+        const s = String(v).trim();
+        if (!/^\d+(\.\d+)?$/.test(s)) {
+          return res.status(400).json({ success: false, error: "dailyRewardTycBase must be a non-negative number string" });
+        }
+        next.dailyRewardTycBase = s;
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "streakBonusTycPerDay")) {
+      const v = req.body.streakBonusTycPerDay;
+      if (v === null || v === "") {
+        next.streakBonusTycPerDay = null;
+      } else {
+        const n = Number(v);
+        if (!Number.isFinite(n) || n < 0 || n > 1e6) {
+          return res.status(400).json({ success: false, error: "streakBonusTycPerDay must be a finite non-negative number" });
+        }
+        next.streakBonusTycPerDay = n;
+      }
+    }
+
+    const rowPayload = {};
+    if (next.dailyRewardTycBase != null) rowPayload.dailyRewardTycBase = next.dailyRewardTycBase;
+    if (next.streakBonusTycPerDay != null) rowPayload.streakBonusTycPerDay = next.streakBonusTycPerDay;
+
+    const hasAny = Object.keys(rowPayload).length > 0;
+    if (!hasAny) {
+      const has = await db.schema.hasTable("platform_settings");
+      if (has) {
+        await db("platform_settings").where({ setting_key: "economy_daily_claim" }).delete();
+      }
+      clearPlatformSettingsCache();
+    } else {
+      await upsertSetting("economy_daily_claim", rowPayload);
+    }
+
+    await appendAdminAuditLog({
+      action: "economy.config_patch",
+      targetType: "platform",
+      targetId: "economy_daily_claim",
+      payload: { next, cleared: !hasAny },
+      req,
+    });
+
+    const eff = await getEffectiveDailyClaimConfig();
+    res.json({
+      success: true,
+      data: {
+        dailyClaim: {
+          dailyRewardTycBase: eff.dailyRewardTycBase,
+          streakBonusTycPerDay: eff.streakBonusTycPerDay,
+          effectiveSource: eff.source,
+        },
+      },
+    });
+  } catch (err) {
+    logger.error({ err }, "admin patchEconomyConfig error");
+    res.status(500).json({ success: false, error: "Failed to update economy config" });
   }
 }
 

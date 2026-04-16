@@ -16,7 +16,13 @@ type OverviewData = {
 };
 
 type ConfigData = {
-  dailyClaim: { dailyRewardTycBase: string; streakBonusTycPerDay: string; envKeys: string[] };
+  dailyClaim: {
+    dailyRewardTycBase: string;
+    streakBonusTycPerDay: number | string;
+    effectiveSource?: string;
+    envFallback?: { dailyRewardTycBase: string; streakBonusTycPerDay: string };
+    envKeys: string[];
+  };
   note: string;
 };
 
@@ -34,6 +40,11 @@ export default function AdminTokenRewardsPage() {
   const [grantError, setGrantError] = useState<string | null>(null);
   const [grantOk, setGrantOk] = useState<string | null>(null);
 
+  const [ecoBase, setEcoBase] = useState("");
+  const [ecoStreak, setEcoStreak] = useState("");
+  const [ecoBusy, setEcoBusy] = useState(false);
+  const [ecoMsg, setEcoMsg] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -46,6 +57,9 @@ export default function AdminTokenRewardsPage() {
       if (!cf.data?.success || !cf.data.data) throw new Error("Config failed");
       setOverview(ov.data.data);
       setConfig(cf.data.data);
+      const dc = cf.data.data.dailyClaim;
+      setEcoBase(String(dc.dailyRewardTycBase ?? ""));
+      setEcoStreak(String(dc.streakBonusTycPerDay ?? ""));
     } catch (e) {
       setLoadError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Load failed");
       setOverview(null);
@@ -58,6 +72,42 @@ export default function AdminTokenRewardsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function saveEconomyOverrides(e: React.FormEvent) {
+    e.preventDefault();
+    setEcoBusy(true);
+    setEcoMsg(null);
+    try {
+      await adminApi.patch("admin/economy/config", {
+        dailyRewardTycBase: ecoBase.trim() || null,
+        streakBonusTycPerDay: ecoStreak.trim() === "" ? null : Number(ecoStreak),
+      });
+      await load();
+      setEcoMsg("Saved economy overrides.");
+    } catch (err) {
+      setEcoMsg(err instanceof ApiError ? err.message : "Save failed");
+    } finally {
+      setEcoBusy(false);
+    }
+  }
+
+  async function clearEconomyOverrides() {
+    if (!window.confirm("Remove DB overrides and revert daily claim to env only?")) return;
+    setEcoBusy(true);
+    setEcoMsg(null);
+    try {
+      await adminApi.patch("admin/economy/config", {
+        dailyRewardTycBase: null,
+        streakBonusTycPerDay: null,
+      });
+      await load();
+      setEcoMsg("Cleared overrides.");
+    } catch (err) {
+      setEcoMsg(err instanceof ApiError ? err.message : "Clear failed");
+    } finally {
+      setEcoBusy(false);
+    }
+  }
 
   async function onGrant(e: React.FormEvent) {
     e.preventDefault();
@@ -167,8 +217,11 @@ export default function AdminTokenRewardsPage() {
           </div>
 
           <section className="mt-8 rounded-xl border border-slate-800 bg-slate-900/30 p-4 max-w-2xl">
-            <h2 className="text-sm font-semibold text-slate-200">Daily claim (env)</h2>
+            <h2 className="text-sm font-semibold text-slate-200">Daily claim (effective)</h2>
             <p className="text-xs text-slate-500 mt-1">{config.note}</p>
+            <p className="text-xs text-cyan-500/90 mt-1">
+              Source: <strong>{config.dailyClaim.effectiveSource ?? "—"}</strong>
+            </p>
             <dl className="mt-3 grid sm:grid-cols-2 gap-2 text-sm">
               <div>
                 <dt className="text-slate-500">Base TYC</dt>
@@ -176,10 +229,68 @@ export default function AdminTokenRewardsPage() {
               </div>
               <div>
                 <dt className="text-slate-500">Streak bonus TYC / day</dt>
-                <dd className="text-slate-200 font-mono">{config.dailyClaim.streakBonusTycPerDay}</dd>
+                <dd className="text-slate-200 font-mono">{String(config.dailyClaim.streakBonusTycPerDay)}</dd>
               </div>
+              {config.dailyClaim.envFallback && (
+                <>
+                  <div>
+                    <dt className="text-slate-500">Env fallback base</dt>
+                    <dd className="text-slate-500 font-mono text-xs">{config.dailyClaim.envFallback.dailyRewardTycBase}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Env fallback streak</dt>
+                    <dd className="text-slate-500 font-mono text-xs">{config.dailyClaim.envFallback.streakBonusTycPerDay}</dd>
+                  </div>
+                </>
+              )}
             </dl>
             <p className="text-xs text-slate-600 mt-2 font-mono">{config.dailyClaim.envKeys.join(", ")}</p>
+
+            <form onSubmit={saveEconomyOverrides} className="mt-6 space-y-3 border-t border-slate-800 pt-4">
+              <p className="text-xs text-slate-500">Override daily claim (stored in DB). Use integers / decimals as needed.</p>
+              <label className="block text-sm">
+                <span className="text-slate-500 text-xs">Base TYC (override)</span>
+                <input
+                  value={ecoBase}
+                  onChange={(e) => setEcoBase(e.target.value)}
+                  className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-200 font-mono text-sm"
+                  placeholder="e.g. 1"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-500 text-xs">Streak bonus per day (TYC)</span>
+                <input
+                  value={ecoStreak}
+                  onChange={(e) => setEcoStreak(e.target.value)}
+                  className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-200 font-mono text-sm"
+                  placeholder="e.g. 0.5"
+                />
+              </label>
+              {ecoMsg && (
+                <p
+                  className={`text-xs ${ecoMsg.includes("failed") || ecoMsg.includes("400") ? "text-red-400" : "text-emerald-400/90"}`}
+                >
+                  {ecoMsg}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="submit"
+                  disabled={ecoBusy}
+                  className="rounded-lg bg-cyan-800 hover:bg-cyan-700 text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+                >
+                  {ecoBusy ? "Saving…" : "Save overrides"}
+                </button>
+                <button
+                  type="button"
+                  disabled={ecoBusy}
+                  onClick={clearEconomyOverrides}
+                  className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Clear DB overrides
+                </button>
+              </div>
+            </form>
           </section>
 
           <section className="mt-8 rounded-xl border border-amber-900/40 bg-amber-950/15 p-4 max-w-xl">

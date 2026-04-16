@@ -4,7 +4,7 @@ import logger from "../config/logger.js";
 /**
  * GET /api/admin/search
  * Query: q (required, min 2 chars unless numeric id), limit (per category, default 8, max 15)
- * Returns matching players (username, address, id) and games (code, id).
+ * Returns matching players, games, board properties, and moderation reports (when tables exist).
  */
 export async function search(req, res) {
   try {
@@ -12,7 +12,7 @@ export async function search(req, res) {
     if (raw.length === 0) {
       return res.json({
         success: true,
-        data: { query: "", players: [], games: [], hint: null },
+        data: { query: "", players: [], games: [], properties: [], reports: [], hint: null },
       });
     }
 
@@ -24,6 +24,8 @@ export async function search(req, res) {
           query: raw,
           players: [],
           games: [],
+          properties: [],
+          reports: [],
           hint: "Type at least 2 characters, or a numeric id for exact match.",
         },
       });
@@ -67,7 +69,60 @@ export async function search(req, res) {
       gamesQ = gamesQ.whereRaw("UPPER(code) LIKE ?", [`%${raw.toUpperCase()}%`]);
     }
 
+    let propertiesQ = db("properties")
+      .select("id", "name", "type", "position")
+      .orderBy("id", "asc")
+      .limit(limit);
+
+    if (isNumeric) {
+      const n = Number(raw);
+      propertiesQ = propertiesQ.where(function () {
+        this.where("id", n).orWhereRaw("LOWER(name) LIKE ?", [`%${raw.toLowerCase()}%`]);
+      });
+    } else {
+      const pat = `%${raw.toLowerCase()}%`;
+      propertiesQ = propertiesQ.whereRaw("LOWER(name) LIKE ?", [pat]);
+    }
+
+    let reports = [];
+    try {
+      let reportsQ = db("moderation_reports as mr")
+        .leftJoin("users as target", "mr.target_user_id", "target.id")
+        .select(
+          "mr.id",
+          "mr.status",
+          "mr.category",
+          "mr.created_at as createdAt",
+          db.raw("target.username as targetUsername")
+        )
+        .orderBy("mr.id", "desc")
+        .limit(limit);
+
+      if (isNumeric) {
+        const n = Number(raw);
+        reportsQ = reportsQ.where(function () {
+          this.where("mr.id", n)
+            .orWhereRaw("LOWER(mr.category) LIKE ?", [`%${raw.toLowerCase()}%`])
+            .orWhereRaw("LOWER(COALESCE(mr.details, '')) LIKE ?", [`%${raw.toLowerCase()}%`]);
+        });
+      } else {
+        const pat = `%${raw.toLowerCase()}%`;
+        reportsQ = reportsQ.where(function () {
+          this.whereRaw("LOWER(mr.category) LIKE ?", [pat]).orWhereRaw("LOWER(COALESCE(mr.details, '')) LIKE ?", [pat]);
+        });
+      }
+      reports = await reportsQ;
+    } catch (err) {
+      reports = [];
+    }
+
     const [players, games] = await Promise.all([playersQ, gamesQ]);
+    let properties = [];
+    try {
+      properties = await propertiesQ;
+    } catch (err) {
+      logger.warn({ err }, "admin search properties skipped");
+    }
 
     res.json({
       success: true,
@@ -87,6 +142,19 @@ export async function search(req, res) {
           status: g.status,
           chain: g.chain,
           mode: g.mode,
+        })),
+        properties: properties.map((p) => ({
+          id: p.id,
+          name: p.name,
+          type: p.type,
+          position: p.position,
+        })),
+        reports: reports.map((r) => ({
+          id: r.id,
+          status: r.status,
+          category: r.category,
+          targetUsername: r.targetUsername ?? null,
+          createdAt: r.createdAt,
         })),
         hint: null,
       },

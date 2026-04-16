@@ -18,6 +18,14 @@ export async function optionalAuth(req, res, next) {
     if (!decoded.userId) return next();
     const user = await User.findById(decoded.userId);
     if (!user) return next();
+    const st = String(user.account_status || "active").toLowerCase();
+    if (st === "banned" || st === "suspended") {
+      return res.status(403).json({
+        success: false,
+        code: st === "banned" ? "ACCOUNT_BANNED" : "ACCOUNT_SUSPENDED",
+        message: st === "banned" ? "This account has been banned." : "This account is suspended.",
+      });
+    }
     req.user = user;
     req.userId = decoded.userId;
     req.isGuest = !!decoded.isGuest;
@@ -44,6 +52,14 @@ export async function requireAuth(req, res, next) {
     const user = await User.findById(decoded.userId);
     if (!user) {
       return res.status(401).json({ success: false, message: "User not found" });
+    }
+    const st = String(user.account_status || "active").toLowerCase();
+    if (st === "banned" || st === "suspended") {
+      return res.status(403).json({
+        success: false,
+        code: st === "banned" ? "ACCOUNT_BANNED" : "ACCOUNT_SUSPENDED",
+        message: st === "banned" ? "This account has been banned." : "This account is suspended.",
+      });
     }
     req.user = user;
     req.userId = decoded.userId;
