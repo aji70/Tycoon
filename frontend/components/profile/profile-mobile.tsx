@@ -109,6 +109,21 @@ const isValidWallet = (a: unknown): a is Address => {
   return s.toLowerCase() !== zeroAddress.toLowerCase();
 };
 
+/** DB row key for `/users/by-address` — must match guest profile (linked or account address, not smart wallet alone). */
+function backendUserStatsLookupAddress(
+  guestUser: { address?: string; linked_wallet_address?: string | null } | null | undefined,
+  gameLookupAddress: string | undefined | null,
+  walletAddress: string | undefined | null
+): string | undefined {
+  if (guestUser) {
+    if (guestUser.linked_wallet_address && isValidWallet(guestUser.linked_wallet_address)) {
+      return guestUser.linked_wallet_address.trim();
+    }
+    if (guestUser.address) return guestUser.address.trim();
+  }
+  return (gameLookupAddress ?? walletAddress) ?? undefined;
+}
+
 /** Guest/Privy profile when wallet is not connected, or when a connected extension wallet is not the Tycoon-registered address (notice only if wallet not registered — smart/linked users see no banner). */
 function GuestProfileViewMobile({
   guestUser,
@@ -991,15 +1006,19 @@ export default function ProfilePageMobile() {
   });
 
   const chainParam = chainIdToLeaderboardChain(chainId as number);
+  const backendStatsAddress = backendUserStatsLookupAddress(guestUser, gameLookupAddress, walletAddress);
   const { data: backendUser } = useQuery({
-    queryKey: ['user-by-address', gameLookupAddress ?? walletAddress ?? guestUser?.address, chainParam],
+    queryKey: ['user-by-address', backendStatsAddress, chainParam],
     queryFn: async () => {
-      const addr = gameLookupAddress ?? walletAddress ?? guestUser?.address;
-      if (!addr) return null;
-      const res = await apiClient.get(`/users/by-address/${addr}`, { params: { chain: chainParam } });
-      return res.data;
+      if (!backendStatsAddress) return null;
+      try {
+        const res = await apiClient.get(`/users/by-address/${backendStatsAddress}`, { params: { chain: chainParam } });
+        return res.data;
+      } catch {
+        return null;
+      }
     },
-    enabled: !!(gameLookupAddress ?? walletAddress ?? guestUser?.address),
+    enabled: !!backendStatsAddress,
   });
 
   const {
@@ -1042,7 +1061,7 @@ export default function ProfilePageMobile() {
     setError(null);
     setUserData(null);
     setLoading(true);
-  }, [walletAddress]);
+  }, [walletAddress, smartWallet]);
 
   useEffect(() => {
     if (!isConnected) return;
@@ -1065,7 +1084,7 @@ export default function ProfilePageMobile() {
     }
 
     if (username && playerData) {
-      const parsed = parseUserFromContract(playerData, username as string, walletAddress);
+      const parsed = parseUserFromContract(playerData, username as string, tycoonProfileOwnerAddress);
       if (parsed) setUserData(parsed);
       setLoading(false);
       return;
@@ -1076,7 +1095,7 @@ export default function ProfilePageMobile() {
       setLoading(false);
       return;
     }
-  }, [isConnected, username, usernameLoading, usernameReadError, playerData, playerDataLoading, playerDataReadError, walletAddress]);
+  }, [isConnected, username, usernameLoading, usernameReadError, playerData, playerDataLoading, playerDataReadError, walletAddress, tycoonProfileOwnerAddress]);
 
   const effectiveUserData = useMemo(() => {
     if (!userData) return null;
