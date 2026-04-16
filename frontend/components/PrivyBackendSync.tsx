@@ -31,10 +31,11 @@ export default function PrivyBackendSync() {
 
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const [username, setUsername] = useState("");
+  const [referralCodeInput, setReferralCodeInput] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const callPrivySignin = useCallback(
-    async (usernameBody?: string) => {
+    async (usernameBody?: string, referralOverride?: string | null) => {
       const apiBase = getApiBase();
       if (!apiBase) {
         setError("API URL not configured");
@@ -69,10 +70,14 @@ export default function PrivyBackendSync() {
           return;
         }
         retryCountRef.current = 0;
+        const typedRef = (referralOverride ?? "").trim().toLowerCase();
         const pendingRef = peekPendingReferralCode();
+        const refToSend = typedRef.length > 0 ? typedRef : pendingRef ?? "";
         const bodyPayload: Record<string, string> = {};
         if (usernameBody != null) bodyPayload.username = usernameBody;
-        if (pendingRef) bodyPayload.referralCode = pendingRef;
+        if (refToSend && /^[a-z0-9]{2,32}$/.test(refToSend)) {
+          bodyPayload.referralCode = refToSend;
+        }
         const res = await fetch(`${apiBase}/auth/privy-signin`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -106,11 +111,15 @@ export default function PrivyBackendSync() {
           return;
         }
         if (res.status === 400 && (data?.message ?? "").toLowerCase().includes("username")) {
+          const pending = peekPendingReferralCode();
+          setReferralCodeInput((prev) => (prev.trim() ? prev : pending ?? ""));
           setSyncState("needs_username");
           setError(null);
           return;
         }
         if (res.status === 409) {
+          const pending = peekPendingReferralCode();
+          setReferralCodeInput((prev) => (prev.trim() ? prev : pending ?? ""));
           setError(data?.message ?? "Username already taken");
           setSyncState("needs_username");
           return;
@@ -137,6 +146,8 @@ export default function PrivyBackendSync() {
       retryCountRef.current = 0;
       setSyncState("idle");
       setError(null);
+      setUsername("");
+      setReferralCodeInput("");
       return;
     }
   }, [authenticated]);
@@ -180,7 +191,7 @@ export default function PrivyBackendSync() {
     }
     setError(null);
     setSyncState("submitting");
-    callPrivySignin(trimmed).finally(() => {
+    callPrivySignin(trimmed, referralCodeInput).finally(() => {
       setSyncState((s) => (s === "submitting" ? "needs_username" : s));
     });
   };
@@ -211,17 +222,42 @@ export default function PrivyBackendSync() {
           Your sign-in is already done with Privy (no password). This username is your in-game name and is linked to your Privy account. Next time you sign in with Privy, you’re in—no password needed.
         </p>
         <form onSubmit={handleUsernameSubmit} className="space-y-4">
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Username"
-            minLength={2}
-            maxLength={50}
-            className="w-full h-12 px-4 rounded-xl bg-[#010F10] border border-[#003B3E] text-[#17ffff] font-orbitron placeholder:text-[#455A64] focus:border-[#00F0FF] focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#010F10]"
-            disabled={syncState === "submitting"}
-            autoFocus
-          />
+          <div>
+            <label htmlFor="privy-choose-username" className="sr-only">
+              Username
+            </label>
+            <input
+              id="privy-choose-username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Username"
+              minLength={2}
+              maxLength={50}
+              className="w-full h-12 px-4 rounded-xl bg-[#010F10] border border-[#003B3E] text-[#17ffff] font-orbitron placeholder:text-[#455A64] focus:border-[#00F0FF] focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#010F10]"
+              disabled={syncState === "submitting"}
+              autoFocus
+            />
+          </div>
+          <div>
+            <label htmlFor="privy-referral-code" className="block text-xs text-[#869298] mb-1.5">
+              Referral code <span className="text-[#455A64]">(optional)</span>
+            </label>
+            <input
+              id="privy-referral-code"
+              type="text"
+              value={referralCodeInput}
+              onChange={(e) => setReferralCodeInput(e.target.value.toLowerCase())}
+              placeholder="e.g. friend’s code if you have one"
+              maxLength={32}
+              autoComplete="off"
+              className="w-full h-11 px-4 rounded-xl bg-[#010F10] border border-[#003B3E] text-[#a8d4d6] text-sm font-mono placeholder:text-[#455A64] focus:border-[#00F0FF] focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#010F10]"
+              disabled={syncState === "submitting"}
+            />
+            <p className="text-[11px] text-[#455A64] mt-1.5">
+              If you opened an invite link, this may already be filled. You can change it before continuing.
+            </p>
+          </div>
           {error && <p className="text-sm text-red-400">{error}</p>}
           <button
             type="submit"
