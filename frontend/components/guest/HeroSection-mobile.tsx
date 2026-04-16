@@ -213,6 +213,16 @@ const HeroSectionMobile: React.FC = () => {
 
   const { levelInfo } = useUserLevel({
     address: guestUser && !address ? undefined : levelContractLookupAddress,
+    wagmiAddress: address,
+    guestUser,
+    guestLevelContext:
+      guestUser && !address
+        ? {
+            address: guestUser.address,
+            linked_wallet_address: guestUser.linked_wallet_address,
+            smart_wallet_address: guestUser.smart_wallet_address,
+          }
+        : null,
     guestGameCount: guestUser && !address ? guestGameCount : 0,
     isGuest: !!(guestUser && !address),
   });

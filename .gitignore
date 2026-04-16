@@ -27,6 +27,7 @@ scripts/synthesis-register.local.env
 
 # Local roadmap / implementation notes (do not commit)
 ADMIN_DASHBOARD_IMPLEMENTATION_PLAN.local.md
+MINIPAY_SUBMISSION_CHECKLIST.local.md
 
 # Documentation (local — all Markdown except README.md stays untracked)
 **/*.md

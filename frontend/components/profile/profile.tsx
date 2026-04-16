@@ -488,8 +488,8 @@ function GuestProfileView({
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-teal-500/10" />
           <div className="absolute inset-0 border border-cyan-500/20 rounded-3xl" />
           <div className="relative p-6 sm:p-8">
-            <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
-              <div className="relative group shrink-0">
+            <div className="flex flex-col lg:flex-row items-start gap-6 lg:gap-8">
+              <div className="relative group shrink-0 mx-auto lg:mx-0">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -514,42 +514,44 @@ function GuestProfileView({
                 </div>
               </div>
 
-              <div className="flex-1 w-full text-center sm:text-left min-w-0">
-                <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight drop-shadow-sm">{heroOnChainUsername}</h2>
-                {profile?.displayName?.trim() ? (
-                  <p className="text-cyan-300/80 text-sm mt-1">"{profile.displayName.trim()}"</p>
-                ) : null}
-                {displayStats && displayStats.registeredAt > 0 ? (
-                  <p className="text-slate-500 text-xs mt-1">
-                    Member since{' '}
-                    {new Date(displayStats.registeredAt * 1000).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
-                  </p>
-                ) : null}
+              <div className="flex flex-1 flex-col md:flex-row gap-5 md:gap-6 w-full min-w-0 items-stretch md:items-start">
+                <div className="flex-1 min-w-0 text-center sm:text-left md:max-w-md">
+                  <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight drop-shadow-sm">{heroOnChainUsername}</h2>
+                  {profile?.displayName?.trim() ? (
+                    <p className="text-cyan-300/80 text-sm mt-1">"{profile.displayName.trim()}"</p>
+                  ) : null}
+                  {displayStats && displayStats.registeredAt > 0 ? (
+                    <p className="text-slate-500 text-xs mt-1">
+                      Member since{' '}
+                      {new Date(displayStats.registeredAt * 1000).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                    </p>
+                  ) : null}
 
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-4">
-                  {shortLinkedWalletAddress || shortSmartWalletAddress ? (
-                    <>
-                      {shortLinkedWalletAddress ? (
-                        <>
-                          <span className="text-slate-400 text-xs">Connected wallet</span>
-                          <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortLinkedWalletAddress}</span>
-                        </>
-                      ) : null}
-                      {shortSmartWalletAddress ? (
-                        <>
-                          <span className="text-slate-400 text-xs">Smart wallet:</span>
-                          <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortSmartWalletAddress}</span>
-                        </>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span className="text-cyan-300/80 text-sm">Your progress is saved. Link a wallet to sync stats on-chain.</span>
-                  )}
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-4">
+                    {shortLinkedWalletAddress || shortSmartWalletAddress ? (
+                      <>
+                        {shortLinkedWalletAddress ? (
+                          <>
+                            <span className="text-slate-400 text-xs">Connected wallet</span>
+                            <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortLinkedWalletAddress}</span>
+                          </>
+                        ) : null}
+                        {shortSmartWalletAddress ? (
+                          <>
+                            <span className="text-slate-400 text-xs">Smart wallet:</span>
+                            <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortSmartWalletAddress}</span>
+                          </>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span className="text-cyan-300/80 text-sm">Your progress is saved. Link a wallet to sync stats on-chain.</span>
+                    )}
+                  </div>
                 </div>
 
-                {/* Balances — one compact row; Connected/Smart toggle when both exist */}
+                {/* Balances beside identity on md+; full width below on small screens */}
                 {(linkedWalletAddress || showSmartBalances) && (
-                  <div className="mt-3 w-full max-w-lg">
+                  <div className="w-full md:w-[min(100%,280px)] md:shrink-0">
                     <div className="rounded-xl border border-white/10 bg-black/20 px-2 py-2">
                       {showDualGuestBalances ? (
                         <div className="flex items-center justify-center sm:justify-start gap-1.5 mb-2">
@@ -648,14 +650,6 @@ function GuestProfileView({
                         </div>
                       ) : null}
                     </div>
-                    {showSmartBalances && shortSmartWalletAddress ? (
-                      <Link
-                        href="/profile/smart-wallet"
-                        className="mt-2 inline-flex w-full items-center justify-center px-3 py-2 rounded-lg bg-cyan-500/12 hover:bg-cyan-500/20 border border-cyan-500/35 text-cyan-200 text-xs font-semibold transition"
-                      >
-                        Manage smart wallet
-                      </Link>
-                    ) : null}
                   </div>
                 )}
               </div>
