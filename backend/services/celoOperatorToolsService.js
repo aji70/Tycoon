@@ -1,6 +1,6 @@
 /**
- * Celo-only admin bot farm: EOAs in CELO_BOT_FARM_PRIVATE_KEYS call registerPlayer / createAIGame on-chain.
- * Gated by CELO_BOT_FARM_ENABLED=true. Keys never leave server env.
+ * Celo-only admin operator tools: EOAs in CELO_OPERATOR_WALLET_PRIVATE_KEYS (or legacy CELO_BOT_FARM_PRIVATE_KEYS)
+ * call registerPlayer / createAIGame on-chain. Gated by CELO_OPERATOR_TOOLS_ENABLED (or legacy CELO_BOT_FARM_ENABLED).
  */
 import { Contract, Interface, JsonRpcProvider, Network, Wallet, formatEther, parseEther } from "ethers";
 import { getChainConfig } from "../config/chains.js";
@@ -18,13 +18,15 @@ const DISTRIBUTOR_IFACE = new Interface([
   "function distribute(address[] recipients, uint256[] amounts) payable",
 ]);
 
-function isFarmEnabled() {
-  const v = process.env.CELO_BOT_FARM_ENABLED;
+function isOperatorToolsEnabled() {
+  const v =
+    process.env.CELO_OPERATOR_TOOLS_ENABLED ?? process.env.CELO_BOT_FARM_ENABLED;
   return v === "1" || String(v).toLowerCase() === "true";
 }
 
 function parsePrivateKeys() {
-  const raw = process.env.CELO_BOT_FARM_PRIVATE_KEYS;
+  const raw =
+    process.env.CELO_OPERATOR_WALLET_PRIVATE_KEYS ?? process.env.CELO_BOT_FARM_PRIVATE_KEYS;
   if (raw == null || String(raw).trim() === "") return [];
   return String(raw)
     .split(/[\s,]+/)
@@ -36,7 +38,7 @@ function parsePrivateKeys() {
 function getReadContext() {
   const cfg = getChainConfig(CHAIN);
   if (!cfg.rpcUrl || !cfg.contractAddress) {
-    throw new Error("CELO_RPC_URL and TYCOON_CELO_CONTRACT_ADDRESS are required for Celo bot farm");
+    throw new Error("CELO_RPC_URL and TYCOON_CELO_CONTRACT_ADDRESS are required for Celo operator tools");
   }
   const chainId = cfg.chainId || 42220;
   const network = new Network("celo", chainId);
@@ -44,66 +46,70 @@ function getReadContext() {
   return { provider, contractAddress: cfg.contractAddress, cfg };
 }
 
-export function assertFarmEnabled() {
-  if (!isFarmEnabled()) {
-    const err = new Error("Celo bot farm is disabled. Set CELO_BOT_FARM_ENABLED=true and CELO_BOT_FARM_PRIVATE_KEYS.");
-    err.code = "BOT_FARM_DISABLED";
+export function assertOperatorToolsEnabled() {
+  if (!isOperatorToolsEnabled()) {
+    const err = new Error(
+      "Celo operator tools are disabled. Set CELO_OPERATOR_TOOLS_ENABLED=true (or legacy CELO_BOT_FARM_ENABLED) and CELO_OPERATOR_WALLET_PRIVATE_KEYS (or legacy CELO_BOT_FARM_PRIVATE_KEYS)."
+    );
+    err.code = "CELO_OPERATOR_DISABLED";
     throw err;
   }
   const keys = parsePrivateKeys();
   if (keys.length === 0) {
-    const err = new Error("No CELO_BOT_FARM_PRIVATE_KEYS configured.");
-    err.code = "BOT_FARM_NO_KEYS";
+    const err = new Error(
+      "No operator wallet keys configured. Set CELO_OPERATOR_WALLET_PRIVATE_KEYS (or legacy CELO_BOT_FARM_PRIVATE_KEYS)."
+    );
+    err.code = "CELO_OPERATOR_NO_KEYS";
     throw err;
   }
 }
 
-export function getBotWalletsFromEnv() {
+export function getOperatorWalletsFromEnv() {
   const keys = parsePrivateKeys();
   const { provider } = getReadContext();
   return keys.map((pk) => new Wallet(pk, provider));
 }
 
 /** On-chain username derived from address (unique, short, valid length). */
-export function defaultBotUsername(address) {
+export function defaultOperatorUsername(address) {
   const a = String(address).toLowerCase().replace(/^0x/, "");
   const u = `bf_${a.slice(0, 10)}`;
   return u.length > 32 ? u.slice(0, 32) : u;
 }
 
-export async function getFarmStatus() {
+export async function getOperatorToolsStatus() {
   const { provider, contractAddress } = getReadContext();
   const keys = parsePrivateKeys();
   const distributor = process.env.CELO_BATCH_NATIVE_DISTRIBUTOR_ADDRESS?.trim() || null;
   const tycoonRead = new Contract(contractAddress, TYCOON_IFACE, provider);
-  const bots = [];
+  const wallets = [];
   for (const pk of keys) {
     const w = new Wallet(pk, provider);
     let registered = false;
     try {
       registered = await tycoonRead.registered(w.address);
     } catch (e) {
-      logger.warn({ err: e?.message, address: w.address }, "celoBotFarm registered() failed");
+      logger.warn({ err: e?.message, address: w.address }, "celoOperatorTools registered() failed");
     }
     let balanceWei = 0n;
     try {
       balanceWei = await provider.getBalance(w.address);
     } catch (_) {}
-    bots.push({
+    wallets.push({
       address: w.address,
       registered,
       balanceWei: balanceWei.toString(),
       balanceCelo: formatEther(balanceWei),
-      suggestedUsername: defaultBotUsername(w.address),
+      suggestedUsername: defaultOperatorUsername(w.address),
     });
   }
   return {
-    enabled: isFarmEnabled(),
+    enabled: isOperatorToolsEnabled(),
     chain: CHAIN,
     contractAddress,
     distributorAddress: distributor,
-    botCount: bots.length,
-    bots,
+    walletCount: wallets.length,
+    wallets,
   };
 }
 
@@ -133,14 +139,14 @@ async function sleep(ms) {
   if (ms > 0) await new Promise((r) => setTimeout(r, ms));
 }
 
-export async function registerAllBots(options = {}) {
-  assertFarmEnabled();
+export async function registerAllOperatorWallets(options = {}) {
+  assertOperatorToolsEnabled();
   const delayMs = Math.max(0, Number(options.delayMs) || 0);
   const { provider, contractAddress } = getReadContext();
-  const wallets = getBotWalletsFromEnv();
+  const wallets = getOperatorWalletsFromEnv();
   const results = [];
   for (const w of wallets) {
-    const username = defaultBotUsername(w.address);
+    const username = defaultOperatorUsername(w.address);
     const tycoon = new Contract(contractAddress, TYCOON_IFACE, w);
     try {
       const reg = await new Contract(contractAddress, TYCOON_IFACE, provider).registered(w.address);
@@ -152,9 +158,9 @@ export async function registerAllBots(options = {}) {
       const tx = await tycoon.registerPlayer(username);
       const receipt = await tx.wait();
       results.push({ address: w.address, username, hash: receipt?.hash, ok: true });
-      logger.info({ address: w.address, hash: receipt?.hash }, "celoBotFarm registerPlayer");
+      logger.info({ address: w.address, hash: receipt?.hash }, "celoOperatorTools registerPlayer");
     } catch (err) {
-      logger.error({ err: err?.message, address: w.address }, "celoBotFarm registerPlayer failed");
+      logger.error({ err: err?.message, address: w.address }, "celoOperatorTools registerPlayer failed");
       results.push({ address: w.address, username, ok: false, error: err?.shortMessage || err?.message || String(err) });
     }
     await sleep(delayMs);
@@ -162,8 +168,8 @@ export async function registerAllBots(options = {}) {
   return { results };
 }
 
-export async function createAIGamesForAllBots(options = {}) {
-  assertFarmEnabled();
+export async function createAIGamesForAllOperatorWallets(options = {}) {
+  assertOperatorToolsEnabled();
   const delayMs = Math.max(0, Number(options.delayMs) || 0);
   const gamesPerWallet = Math.max(1, Math.min(50, Number(options.gamesPerWallet) || 1));
   const startingBalance = BigInt(options.startingBalance ?? 1500);
@@ -176,11 +182,11 @@ export async function createAIGamesForAllBots(options = {}) {
   }
 
   const { provider, contractAddress } = getReadContext();
-  const wallets = getBotWalletsFromEnv();
+  const wallets = getOperatorWalletsFromEnv();
   const results = [];
 
   for (const w of wallets) {
-    const username = defaultBotUsername(w.address);
+    const username = defaultOperatorUsername(w.address);
     const tycoonRead = new Contract(contractAddress, TYCOON_IFACE, provider);
     const reg = await tycoonRead.registered(w.address);
     if (!reg) {
@@ -195,9 +201,9 @@ export async function createAIGamesForAllBots(options = {}) {
         const tx = await tycoon.createAIGame(username, gameType, playerSymbol, numberOfAI, code, startingBalance);
         const receipt = await tx.wait();
         results.push({ address: w.address, code, hash: receipt?.hash, ok: true });
-        logger.info({ address: w.address, code, hash: receipt?.hash }, "celoBotFarm createAIGame");
+        logger.info({ address: w.address, code, hash: receipt?.hash }, "celoOperatorTools createAIGame");
       } catch (err) {
-        logger.error({ err: err?.message, address: w.address, code }, "celoBotFarm createAIGame failed");
+        logger.error({ err: err?.message, address: w.address, code }, "celoOperatorTools createAIGame failed");
         results.push({
           address: w.address,
           code,

@@ -1,16 +1,16 @@
 import {
-  assertFarmEnabled,
-  createAIGamesForAllBots,
+  assertOperatorToolsEnabled,
+  createAIGamesForAllOperatorWallets,
   encodeDistributorFundEqual,
-  getFarmStatus,
-  getBotWalletsFromEnv,
+  getOperatorToolsStatus,
+  getOperatorWalletsFromEnv,
   parseWeiFromCeloString,
-  registerAllBots,
-} from "../services/celoBotFarmService.js";
+  registerAllOperatorWallets,
+} from "../services/celoOperatorToolsService.js";
 
 export async function getStatus(req, res) {
   try {
-    const data = await getFarmStatus();
+    const data = await getOperatorToolsStatus();
     return res.json({ success: true, data });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
@@ -19,26 +19,26 @@ export async function getStatus(req, res) {
 
 export async function postRegister(req, res) {
   try {
-    assertFarmEnabled();
+    assertOperatorToolsEnabled();
     const delayMs = Number(req.body?.delayMs) || 0;
-    const out = await registerAllBots({ delayMs });
+    const out = await registerAllOperatorWallets({ delayMs });
     return res.json({ success: true, data: out });
   } catch (err) {
-    const code = err.code === "BOT_FARM_DISABLED" || err.code === "BOT_FARM_NO_KEYS" ? 403 : 400;
+    const code = err.code === "CELO_OPERATOR_DISABLED" || err.code === "CELO_OPERATOR_NO_KEYS" ? 403 : 400;
     return res.status(code).json({ success: false, message: err.message, code: err.code });
   }
 }
 
 export async function postCreateAiGames(req, res) {
   try {
-    assertFarmEnabled();
+    assertOperatorToolsEnabled();
     const delayMs = Number(req.body?.delayMs) || 0;
     const gamesPerWallet = Number(req.body?.gamesPerWallet) || 1;
     const startingBalance = req.body?.startingBalance ?? 1500;
     const gameType = req.body?.gameType;
     const playerSymbol = req.body?.playerSymbol;
     const numberOfAI = req.body?.numberOfAI;
-    const out = await createAIGamesForAllBots({
+    const out = await createAIGamesForAllOperatorWallets({
       delayMs,
       gamesPerWallet,
       startingBalance,
@@ -48,23 +48,23 @@ export async function postCreateAiGames(req, res) {
     });
     return res.json({ success: true, data: out });
   } catch (err) {
-    const code = err.code === "BOT_FARM_DISABLED" || err.code === "BOT_FARM_NO_KEYS" ? 403 : 400;
+    const code = err.code === "CELO_OPERATOR_DISABLED" || err.code === "CELO_OPERATOR_NO_KEYS" ? 403 : 400;
     return res.status(code).json({ success: false, message: err.message, code: err.code });
   }
 }
 
-/** Build distributor tx payload for equal CELO per configured bot address (funding gas). */
+/** Build distributor tx payload for equal CELO per configured operator address (funding gas). */
 export async function postDistributorPayload(req, res) {
   try {
-    assertFarmEnabled();
+    assertOperatorToolsEnabled();
     const celoPerWallet = req.body?.celoPerWallet ?? "0.5";
     const wei = parseWeiFromCeloString(celoPerWallet);
-    const wallets = getBotWalletsFromEnv();
+    const wallets = getOperatorWalletsFromEnv();
     const recipients = wallets.map((w) => w.address);
     const payload = encodeDistributorFundEqual(recipients, wei);
     return res.json({ success: true, data: { ...payload, recipientCount: recipients.length, celoPerWallet } });
   } catch (err) {
-    const code = err.code === "BOT_FARM_DISABLED" || err.code === "BOT_FARM_NO_KEYS" ? 403 : 400;
+    const code = err.code === "CELO_OPERATOR_DISABLED" || err.code === "CELO_OPERATOR_NO_KEYS" ? 403 : 400;
     return res.status(code).json({ success: false, message: err.message, code: err.code });
   }
 }

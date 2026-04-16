@@ -20,7 +20,7 @@ import * as adminReferralsController from "../controllers/adminReferralsControll
 import * as adminQuestsController from "../controllers/adminQuestsController.js";
 import * as adminAlertsController from "../controllers/adminAlertsController.js";
 import * as adminNotificationsController from "../controllers/adminNotificationsController.js";
-import * as adminCeloBotFarmController from "../controllers/adminCeloBotFarmController.js";
+import * as adminCeloOperatorController from "../controllers/adminCeloOperatorController.js";
 import { requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
 
 const router = express.Router();
@@ -73,10 +73,10 @@ router.post("/moderation/reports", adminModerationController.createReport);
 router.get("/moderation/reports/:id", adminModerationController.getReportById);
 router.patch("/moderation/reports/:id", adminModerationController.patchReport);
 
-/** Celo-only synthetic EOAs: fund / register / createAIGame (gated by CELO_BOT_FARM_ENABLED + keys). */
-router.get("/celo-bot-farm/status", adminCeloBotFarmController.getStatus);
-router.post("/celo-bot-farm/register", adminCeloBotFarmController.postRegister);
-router.post("/celo-bot-farm/create-ai-games", adminCeloBotFarmController.postCreateAiGames);
-router.post("/celo-bot-farm/distributor-payload", adminCeloBotFarmController.postDistributorPayload);
+/** Celo-only operator wallets: fund / register / createAIGame (gated by CELO_OPERATOR_TOOLS_* or legacy CELO_BOT_* env). */
+router.get("/celo-operator/status", adminCeloOperatorController.getStatus);
+router.post("/celo-operator/register", adminCeloOperatorController.postRegister);
+router.post("/celo-operator/create-ai-games", adminCeloOperatorController.postCreateAiGames);
+router.post("/celo-operator/distributor-payload", adminCeloOperatorController.postDistributorPayload);
 
 export default router;
