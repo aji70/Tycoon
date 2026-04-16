@@ -9,4 +9,6 @@ via_ir = true
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 
-
+[etherscan]
+# CeloScan (Etherscan-compatible API). Export ETHERSCAN_API_KEY (or CELOSCAN_API_KEY) before `forge script --verify`.
+celo = { chain = 42220, key = "${ETHERSCAN_API_KEY}", url = "https://api.celoscan.io/api" }

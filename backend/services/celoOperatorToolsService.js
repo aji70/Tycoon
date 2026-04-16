@@ -115,7 +115,7 @@ export async function getOperatorToolsStatus() {
 
 /**
  * Encode calldata for CeloBatchNativeDistributor.distribute with equal wei per recipient.
- * @returns {{ to: string, data: string, valueWei: string, valueCelo: string }}
+ * @returns {{ to: string, data: string, valueWei: string, valueCelo: string, recipients: string[], amountsWei: string[] }}
  */
 export function encodeDistributorFundEqual(recipients, weiPerRecipient) {
   const to = process.env.CELO_BATCH_NATIVE_DISTRIBUTOR_ADDRESS?.trim();
@@ -132,6 +132,8 @@ export function encodeDistributorFundEqual(recipients, weiPerRecipient) {
     data,
     valueWei: sum.toString(),
     valueCelo: formatEther(sum),
+    recipients,
+    amountsWei: amounts.map((a) => a.toString()),
   };
 }
 

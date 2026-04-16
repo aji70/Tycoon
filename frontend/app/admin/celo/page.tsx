@@ -2,9 +2,36 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useAccount, useChainId, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { adminApi } from "@/lib/adminApi";
 import { ApiError, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import { Loader2 } from "lucide-react";
+
+const CELO_MAINNET_CHAIN_ID = 42220;
+
+const DISTRIBUTOR_ABI = [
+  {
+    type: "function",
+    name: "distribute",
+    stateMutability: "payable",
+    inputs: [
+      { name: "recipients", type: "address[]" },
+      { name: "amounts", type: "uint256[]" },
+    ],
+    outputs: [],
+  },
+] as const;
+
+type DistributorFundPayload = {
+  to: string;
+  data: string;
+  valueWei: string;
+  valueCelo: string;
+  recipients: string[];
+  amountsWei: string[];
+  recipientCount?: number;
+  celoPerWallet?: string;
+};
 
 type WalletRow = {
   address: string;
@@ -23,6 +50,14 @@ type StatusPayload = {
 };
 
 export default function AdminCeloOperatorsPage() {
+  const { isConnected, address: connectedAddress } = useAccount();
+  const chainId = useChainId();
+  const { writeContractAsync, isPending: isFundWalletPending, data: fundTxHash, error: fundWriteError } =
+    useWriteContract();
+  const { isLoading: isFundConfirming, isSuccess: fundTxSuccess } = useWaitForTransactionReceipt({
+    hash: fundTxHash,
+  });
+
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +69,7 @@ export default function AdminCeloOperatorsPage() {
   const [startingBalance, setStartingBalance] = useState(1500);
   const [celoPerWallet, setCeloPerWallet] = useState("0.5");
   const [distributorJson, setDistributorJson] = useState<string>("");
+  const [distributorFund, setDistributorFund] = useState<DistributorFundPayload | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,6 +95,17 @@ export default function AdminCeloOperatorsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (fundWriteError) setLog((prev) => `${prev}\n${fundWriteError.message}`);
+  }, [fundWriteError]);
+
+  useEffect(() => {
+    if (fundTxSuccess && fundTxHash) {
+      setLog((prev) => `${prev}\nBatch fund confirmed: ${fundTxHash}`);
+      load();
+    }
+  }, [fundTxSuccess, fundTxHash, load]);
 
   async function runRegister() {
     setBusy("register");
@@ -119,12 +166,52 @@ export default function AdminCeloOperatorsPage() {
         message?: string;
       }>("admin/celo-operator/distributor-payload", { celoPerWallet });
       if (!body?.success || !body.data) throw new Error(body?.message || "Failed");
+      const d = body.data as DistributorFundPayload;
+      if (!d.recipients?.length || !d.amountsWei?.length || !d.to || !d.valueWei) {
+        throw new Error("Invalid distributor payload from server");
+      }
+      setDistributorFund(d);
       setDistributorJson(JSON.stringify(body.data, null, 2));
-      setLog("Payload ready — send a tx to `to` with `valueWei` wei and `data` from the JSON below (e.g. cast send or your admin wallet).");
+      setLog(
+        "Payload ready. Use “Send with connected wallet” (Celo mainnet) or send manually with cast / another tool."
+      );
     } catch (e) {
       setLog(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function sendBatchFundWithWallet() {
+    setLog("");
+    if (!distributorFund) {
+      setLog("Click “Build payload” first.");
+      return;
+    }
+    if (!isConnected) {
+      setLog("Connect your wallet in the app header, then try again.");
+      return;
+    }
+    if (chainId !== CELO_MAINNET_CHAIN_ID) {
+      setLog(
+        `Switch your wallet to Celo mainnet (chain id ${CELO_MAINNET_CHAIN_ID}). You are on chain ${chainId}.`
+      );
+      return;
+    }
+    try {
+      const hash = await writeContractAsync({
+        address: distributorFund.to as `0x${string}`,
+        abi: DISTRIBUTOR_ABI,
+        functionName: "distribute",
+        args: [
+          distributorFund.recipients as `0x${string}`[],
+          distributorFund.amountsWei.map((a) => BigInt(a)),
+        ],
+        value: BigInt(distributorFund.valueWei),
+      });
+      setLog(`Submitted batch fund tx: ${hash}`);
+    } catch (e) {
+      setLog(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -229,7 +316,12 @@ export default function AdminCeloOperatorsPage() {
           </div>
 
           <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4 mb-6">
-            <h2 className="text-sm font-medium text-slate-200 mb-2">Batch fund CELO (calldata)</h2>
+            <h2 className="text-sm font-medium text-slate-200 mb-2">Batch fund CELO</h2>
+            <p className="text-xs text-slate-500 mb-3">
+              Build payload, then send <strong className="text-slate-400">distribute</strong> from a connected wallet on{" "}
+              <strong className="text-slate-400">Celo mainnet ({CELO_MAINNET_CHAIN_ID})</strong>. The wallet pays total{" "}
+              <code className="text-slate-400">valueWei</code> CELO plus gas.
+            </p>
             <div className="flex flex-wrap gap-3 items-end">
               <label className="text-xs text-slate-400 block">
                 CELO per wallet
@@ -248,7 +340,29 @@ export default function AdminCeloOperatorsPage() {
               >
                 {busy === "payload" ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} Build payload
               </button>
+              <button
+                type="button"
+                disabled={
+                  !distributorFund || !!busy || isFundWalletPending || isFundConfirming || !isConnected
+                }
+                onClick={sendBatchFundWithWallet}
+                className="rounded-lg bg-emerald-900/80 hover:bg-emerald-800 px-4 py-2 text-sm font-medium text-emerald-100 border border-emerald-800 disabled:opacity-50"
+              >
+                {isFundWalletPending || isFundConfirming ? (
+                  <Loader2 className="h-4 w-4 animate-spin inline" />
+                ) : null}{" "}
+                Send with connected wallet
+              </button>
             </div>
+            {isConnected && (
+              <p className="mt-2 text-xs text-slate-500">
+                Wallet: <code className="text-slate-400">{connectedAddress}</code> · chain:{" "}
+                <code className="text-slate-400">{chainId}</code>
+                {chainId !== CELO_MAINNET_CHAIN_ID ? (
+                  <span className="text-amber-400"> (switch to Celo mainnet to send)</span>
+                ) : null}
+              </p>
+            )}
             {distributorJson && (
               <pre className="mt-3 text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap break-all">{distributorJson}</pre>
             )}
