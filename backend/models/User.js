@@ -53,6 +53,21 @@ const User = {
   },
 
   /**
+   * Find user by TycoonUserRegistry smart_wallet_address + chain.
+   */
+  async findBySmartWallet(address, chain) {
+    if (!address || !chain) return null;
+    const normalizedChain = this.normalizeChain(chain);
+    const addr = String(address).trim().toLowerCase();
+    if (!addr || addr === "0x0000000000000000000000000000000000000000") return null;
+    const row = await db("users")
+      .where({ chain: normalizedChain })
+      .whereRaw("LOWER(TRIM(COALESCE(smart_wallet_address, ''))) = ?", [addr])
+      .first();
+    return row;
+  },
+
+  /**
    * Resolve user by address: try primary (address, chain) then linked_wallet (address, chain).
    * Falls back to other chains (CELO, BASE, POLYGON) if not found on given chain.
    * Use this wherever we identify user by "connected wallet" (create game, join game, etc.).
@@ -69,6 +84,8 @@ const User = {
       let user = await this.findByAddress(address, c);
       if (user) return user;
       user = await this.findByLinkedWallet(address, c);
+      if (user) return user;
+      user = await this.findBySmartWallet(address, c);
       if (user) return user;
     }
     return null;

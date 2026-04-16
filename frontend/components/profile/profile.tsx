@@ -38,6 +38,21 @@ const isValidWallet = (a: unknown): a is Address => {
   return s.toLowerCase() !== zeroAddress.toLowerCase();
 };
 
+/** DB row key for `/users/by-address` — must match guest profile (linked or account address, not smart wallet alone). */
+function backendUserStatsLookupAddress(
+  guestUser: { address?: string; linked_wallet_address?: string | null } | null | undefined,
+  gameLookupAddress: string | undefined | null,
+  walletAddress: string | undefined | null
+): string | undefined {
+  if (guestUser) {
+    if (guestUser.linked_wallet_address && isValidWallet(guestUser.linked_wallet_address)) {
+      return guestUser.linked_wallet_address.trim();
+    }
+    if (guestUser.address) return guestUser.address.trim();
+  }
+  return (gameLookupAddress ?? walletAddress) ?? undefined;
+}
+
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
 const MAX_AVATAR_DIM = 512;
 
@@ -1043,15 +1058,19 @@ export default function Profile() {
   });
 
   const chainParam = chainIdToLeaderboardChain(chainId as number);
+  const backendStatsAddress = backendUserStatsLookupAddress(guestUser, gameLookupAddress, walletAddress);
   const { data: backendUser } = useQuery({
-    queryKey: ['user-by-address', gameLookupAddress ?? walletAddress ?? guestUser?.address, chainParam],
+    queryKey: ['user-by-address', backendStatsAddress, chainParam],
     queryFn: async () => {
-      const addr = gameLookupAddress ?? walletAddress ?? guestUser?.address;
-      if (!addr) return null;
-      const res = await apiClient.get(`/users/by-address/${addr}`, { params: { chain: chainParam } });
-      return res.data;
+      if (!backendStatsAddress) return null;
+      try {
+        const res = await apiClient.get(`/users/by-address/${backendStatsAddress}`, { params: { chain: chainParam } });
+        return res.data;
+      } catch {
+        return null;
+      }
     },
-    enabled: !!(gameLookupAddress ?? walletAddress ?? guestUser?.address),
+    enabled: !!backendStatsAddress,
   });
 
   const {
@@ -1139,6 +1158,7 @@ export default function Profile() {
     playerData,
     playerDataLoading,
     playerDataReadError,
+    tycoonProfileOwnerAddress,
   ]);
 
   // When contract returns all zeros but backend has stats (leaderboard source), use backend to populate profile stats.

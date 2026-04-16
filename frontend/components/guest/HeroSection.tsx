@@ -31,6 +31,16 @@ function chainIdToBackendChain(chainId: number): string {
   return "CELO";
 }
 
+const zeroAddr = "0x0000000000000000000000000000000000000000";
+
+function isValidNonZeroAddress(a: string | null | undefined): a is `0x${string}` {
+  if (!a || typeof a !== "string") return false;
+  const s = a.trim();
+  if (!s || s.length < 42) return false;
+  if (s.toLowerCase() === zeroAddr) return false;
+  return /^0x[a-fA-F0-9]{40}$/i.test(s);
+}
+
 const HeroSection: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
@@ -80,8 +90,16 @@ const HeroSection: React.FC = () => {
     ? (guestUser.smart_wallet_address as `0x${string}`)
     : undefined;
   const { data: profileOwner } = useProfileOwner(smartWalletAddress);
-  const zeroAddr = "0x0000000000000000000000000000000000000000";
   const needsTransferToLink = !!smartWalletAddress && !!profileOwner && profileOwner !== zeroAddr && !!address && address.toLowerCase() !== (profileOwner as string).toLowerCase();
+
+  /** On-chain stats (incl. level) are keyed like profile: smart wallet when linked EOA is connected. */
+  const connectedWalletIsLinked =
+    !!guestUser &&
+    !!address &&
+    isValidNonZeroAddress(guestUser.linked_wallet_address ?? undefined) &&
+    address.toLowerCase() === (guestUser.linked_wallet_address as string).trim().toLowerCase();
+  const levelContractLookupAddress =
+    connectedWalletIsLinked && smartWalletAddress ? smartWalletAddress : (address ?? undefined);
 
   const [backendGame, setBackendGame] = useState<{ status: string; is_ai?: boolean } | null>(null);
   const [guestLastGame, setGuestLastGame] = useState<{ code: string; status: string; is_ai?: boolean } | null>(null);
@@ -209,9 +227,9 @@ const HeroSection: React.FC = () => {
   }, [guestUser, privyUser, user, localUsername, fetchedUsername, inputUsername, isPrivyAuthed]);
 
   const { levelInfo } = useUserLevel({
-    address: address ?? undefined,
-    guestGameCount: guestUser ? guestGameCount : 0,
-    isGuest: !!guestUser,
+    address: guestUser && !address ? undefined : levelContractLookupAddress,
+    guestGameCount: guestUser && !address ? guestGameCount : 0,
+    isGuest: !!(guestUser && !address),
   });
 
   // Handle registration (on-chain + backend if needed)
