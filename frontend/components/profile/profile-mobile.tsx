@@ -672,7 +672,6 @@ function GuestProfileViewMobile({
                   compact
                   className="mb-4"
                 />
-                <ProfileReferralCard className="mb-4" />
                 <div className="mb-4">
                   <DailyClaim chain="CELO" />
                 </div>
@@ -749,6 +748,7 @@ function GuestProfileViewMobile({
                     </>
                   );
                 })()}
+                <ProfileReferralCard className="mt-4" />
               </motion.div>
             )}
 
@@ -1562,7 +1562,6 @@ export default function ProfilePageMobile() {
                   compact
                   className="mb-4"
                 />
-                <ProfileReferralCard className="mb-4" />
                 <div className="mb-4">
                   <DailyClaim
                     chain={
@@ -1639,6 +1638,7 @@ export default function ProfilePageMobile() {
                     <p className="text-sm font-bold text-amber-300">{statsUser?.propertiesSold ?? '—'}</p>
                   </div>
                 </div>
+                <ProfileReferralCard className="mt-4" />
               </motion.div>
             )}
             {profileTab === 'about' && (
