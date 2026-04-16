@@ -20,7 +20,7 @@ import { apiClient } from '@/lib/api';
 import { ApiResponse } from '@/types/api';
 import { useQuery } from '@tanstack/react-query';
 import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
-import { useProfileOwner, useRecreateWalletForUser, useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
+import { useProfileOwner, useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
@@ -127,8 +127,6 @@ function backendUserStatsLookupAddress(
 /** Guest/Privy profile when wallet is not connected, or when a connected extension wallet is not the Tycoon-registered address (notice only if wallet not registered — smart/linked users see no banner). */
 function GuestProfileViewMobile({
   guestUser,
-  onRecreateClick,
-  recreatePending,
   connectedWalletMismatchNotice,
 }: {
   guestUser: {
@@ -140,8 +138,6 @@ function GuestProfileViewMobile({
     smart_wallet_migration_status?: string | null;
     smart_wallet_migration_report?: string | null;
   };
-  onRecreateClick?: () => void | Promise<void>;
-  recreatePending?: boolean;
   /** Shown when the connected extension wallet is not registered for this account yet (prompt to link). Omitted when user already has smart/linked wallet — perks use those silently. */
   connectedWalletMismatchNotice?: string | null;
 }) {
@@ -218,6 +214,15 @@ function GuestProfileViewMobile({
   const showSmartBalances =
     !!smartWalletAddress &&
     (!linkedWalletAddress || smartWalletAddress.toLowerCase() !== linkedWalletAddress.toLowerCase());
+  const showDualGuestBalances = !!linkedWalletAddress && showSmartBalances;
+  const [guestBalanceTab, setGuestBalanceTab] = useState<'connected' | 'smart'>('smart');
+  useEffect(() => {
+    if (!showSmartBalances) setGuestBalanceTab('connected');
+    else if (!linkedWalletAddress) setGuestBalanceTab('smart');
+  }, [linkedWalletAddress, showSmartBalances]);
+  const viewingConnected =
+    !!linkedWalletAddress && (!showDualGuestBalances || guestBalanceTab === 'connected');
+  const viewingSmart = showSmartBalances && (!showDualGuestBalances || guestBalanceTab === 'smart');
 
   const { data: tycTokenAddress } = useReadContract({
     address: rewardAddress,
@@ -492,8 +497,8 @@ function GuestProfileViewMobile({
           </div>
         ) : null}
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
-        <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
-          <div className="relative group mb-4 flex items-center justify-center">
+        <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-4">
+          <div className="relative group mb-3 flex items-center justify-center">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -543,65 +548,79 @@ function GuestProfileViewMobile({
               ) : null}
             </div>
           )}
-        </div>
 
-        {(shortLinkedWalletAddress || shortSmartWalletAddress) && (
-          <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
-            <h3 className="text-sm font-semibold text-cyan-400 mb-3">Balances</h3>
-            <div className="space-y-3">
-              {linkedWalletAddress ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-[10px] font-medium text-white/50 uppercase tracking-widest mb-2">
-                    Connected wallet
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { label: 'TYC', value: tycBalanceLinked.isLoading ? '...' : Number(tycBalanceLinked.data?.formatted || 0).toFixed(2) },
-                      { label: 'USDC', value: usdcBalanceLinked.isLoading ? '...' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2) },
-                      { label: 'Celo', value: nativeBalanceLinked.isLoading ? '...' : (nativeBalanceLinked.data ? Number(nativeBalanceLinked.data.formatted).toFixed(4) : '0') },
-                    ].map(({ label, value }) => (
-                      <div key={label} className="profile-card rounded-xl p-3 text-center border border-white/10">
-                        <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                        <p className="text-sm font-bold text-white truncate mt-0.5">{value}</p>
-                      </div>
-                    ))}
-                  </div>
+          {(linkedWalletAddress || showSmartBalances) && (
+            <div className="mt-3 rounded-xl border border-white/10 bg-black/20 px-2 py-2">
+              {showDualGuestBalances ? (
+                <div className="flex items-center justify-center gap-1.5 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setGuestBalanceTab('connected')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition ${
+                      guestBalanceTab === 'connected'
+                        ? 'bg-cyan-500/20 border-cyan-500/45 text-cyan-200'
+                        : 'bg-white/5 border-white/10 text-white/55'
+                    }`}
+                  >
+                    Connected
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGuestBalanceTab('smart')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition ${
+                      guestBalanceTab === 'smart'
+                        ? 'bg-cyan-500/20 border-cyan-500/45 text-cyan-200'
+                        : 'bg-white/5 border-white/10 text-white/55'
+                    }`}
+                  >
+                    Smart
+                  </button>
+                </div>
+              ) : (
+                <p className="text-[9px] font-medium uppercase tracking-wider text-white/40 mb-1.5 text-center">
+                  {linkedWalletAddress ? 'Balances · connected' : 'Balances · smart wallet'}
+                </p>
+              )}
+              {viewingConnected ? (
+                <div className="flex gap-1.5">
+                  {[
+                    { label: 'TYC', value: tycBalanceLinked.isLoading ? '…' : Number(tycBalanceLinked.data?.formatted || 0).toFixed(2) },
+                    { label: 'USDC', value: usdcBalanceLinked.isLoading ? '…' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2) },
+                    { label: 'Celo', value: nativeBalanceLinked.isLoading ? '…' : (nativeBalanceLinked.data ? Number(nativeBalanceLinked.data.formatted).toFixed(4) : '0') },
+                  ].map(({ label, value }) => (
+                    <div key={`gc-${label}`} className="flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center">
+                      <p className="text-[8px] font-medium uppercase tracking-wider text-white/45 leading-none">{label}</p>
+                      <p className="text-xs font-bold text-white truncate mt-0.5 tabular-nums">{value}</p>
+                    </div>
+                  ))}
                 </div>
               ) : null}
-
-              {showSmartBalances ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-[10px] font-medium text-white/50 uppercase tracking-widest mb-2">
-                    Smart wallet
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { label: 'TYC', value: tycBalanceSmart.isLoading ? '...' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2) },
-                      { label: 'USDC', value: usdcBalanceSmart.isLoading ? '...' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2) },
-                      { label: 'Celo', value: nativeBalanceSmart.isLoading ? '...' : (nativeBalanceSmart.data ? Number(nativeBalanceSmart.data.formatted).toFixed(4) : '0') },
-                    ].map(({ label, value }) => (
-                      <div key={label} className="profile-card rounded-xl p-3 text-center border border-white/10">
-                        <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                        <p className="text-sm font-bold text-white truncate mt-0.5">{value}</p>
-                      </div>
-                    ))}
-                  </div>
+              {viewingSmart ? (
+                <div className="flex gap-1.5">
+                  {[
+                    { label: 'TYC', value: tycBalanceSmart.isLoading ? '…' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2) },
+                    { label: 'USDC', value: usdcBalanceSmart.isLoading ? '…' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2) },
+                    { label: 'Celo', value: nativeBalanceSmart.isLoading ? '…' : (nativeBalanceSmart.data ? Number(nativeBalanceSmart.data.formatted).toFixed(4) : '0') },
+                  ].map(({ label, value }) => (
+                    <div key={`gs-${label}`} className="flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center">
+                      <p className="text-[8px] font-medium uppercase tracking-wider text-white/45 leading-none">{label}</p>
+                      <p className="text-xs font-bold text-white truncate mt-0.5 tabular-nums">{value}</p>
+                    </div>
+                  ))}
                 </div>
               ) : null}
             </div>
-          </div>
-        )}
+          )}
 
-        {shortSmartWalletAddress && (
-          <button
-            type="button"
-            disabled={recreatePending}
-            onClick={async () => { await onRecreateClick?.(); }}
-            className="w-full px-4 py-3 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60 disabled:hover:bg-cyan-500/15"
-          >
-            {recreatePending ? 'Creating…' : 'Recreate smart wallet'}
-          </button>
-        )}
+          {showSmartBalances && shortSmartWalletAddress ? (
+            <Link
+              href="/profile/smart-wallet"
+              className="mt-2 inline-flex w-full items-center justify-center px-3 py-2 rounded-lg bg-cyan-500/12 hover:bg-cyan-500/20 border border-cyan-500/35 text-cyan-200 text-xs font-semibold transition"
+            >
+              Manage smart wallet
+            </Link>
+          ) : null}
+        </div>
 
         {(guestUser.smart_wallet_migration_status || guestUser.legacy_smart_wallet_address) && (
           <div className="rounded-2xl border border-amber-500/20 bg-[#011112]/80 p-4">
@@ -914,7 +933,6 @@ function GuestProfileViewMobile({
 
 export default function ProfilePageMobile() {
   const { address: walletAddress, isConnected, chainId } = useAccount();
-  const { recreate: recreateWallet, isPending: recreateWalletPending } = useRecreateWalletForUser();
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1275,44 +1293,6 @@ export default function ProfilePageMobile() {
     toast.success('Bio saved');
   };
 
-  const [recreateApiPending, setRecreateApiPending] = useState(false);
-  const [recreateAnyPending, setRecreateAnyPending] = useState(false);
-
-  const handleRecreateViaApi = useCallback(async () => {
-    setRecreateApiPending(true);
-    try {
-      await apiClient.post<ApiResponse & { data?: { smart_wallet_address?: string } }>('auth/recreate-smart-wallet');
-      await refetchGuest?.();
-      toast.success('Smart wallet recreated');
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } }; message?: string };
-      toast.error(err?.response?.data?.message ?? err?.message ?? 'Failed to recreate');
-    } finally {
-      setRecreateApiPending(false);
-    }
-  }, [refetchGuest]);
-
-  const handleRecreate = useCallback(async () => {
-    setRecreateAnyPending(true);
-    try {
-      await apiClient.post<ApiResponse & { data?: { smart_wallet_address?: string } }>('auth/recreate-smart-wallet');
-      await refetchGuest?.();
-      refetchRegistryWallet?.();
-      toast.success('Smart wallet recreated');
-    } catch (e: unknown) {
-      const err = e as { response?: { status?: number; data?: { message?: string } }; message?: string };
-      if (err?.response?.status === 401) {
-        toast.error('Log in (e.g. with email or social) to recreate your smart wallet. No wallet connection needed.');
-      } else if (err?.response?.status === 503) {
-        toast.error(err?.response?.data?.message ?? 'Recreate is not available right now. Try again later.');
-      } else {
-        toast.error(err?.response?.data?.message ?? err?.message ?? 'Failed to recreate');
-      }
-    } finally {
-      setRecreateAnyPending(false);
-    }
-  }, [refetchGuest, refetchRegistryWallet]);
-
   const guestHasPerkHolderAddresses =
     !!guestUser &&
     ((guestUser.smart_wallet_address && isValidWallet(guestUser.smart_wallet_address)) ||
@@ -1325,19 +1305,13 @@ export default function ProfilePageMobile() {
   if (!isConnected || loading || error || !userData) {
     if (guestUser && !isConnected) {
       return (
-        <GuestProfileViewMobile
-          guestUser={guestUser}
-          onRecreateClick={handleRecreateViaApi}
-          recreatePending={recreateApiPending}
-        />
+        <GuestProfileViewMobile guestUser={guestUser} />
       );
     }
     if (showGuestProfileForConnectedWalletMismatch && guestUser) {
       return (
         <GuestProfileViewMobile
           guestUser={guestUser}
-          onRecreateClick={handleRecreateViaApi}
-          recreatePending={recreateApiPending}
           connectedWalletMismatchNotice={
             guestHasPerkHolderAddresses
               ? undefined
@@ -1452,15 +1426,13 @@ export default function ProfilePageMobile() {
                   <span className="italic">— (register in-game to get one)</span>
                 )}
               </p>
-              {isConnected && (
-                <button
-                  type="button"
-                  onClick={() => handleRecreate()}
-                  disabled={recreateAnyPending}
-                  className="w-full max-w-[260px] mx-auto flex justify-center px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60"
+              {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+                <Link
+                  href="/profile/smart-wallet"
+                  className="w-full max-w-[260px] mx-auto flex justify-center px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition"
                 >
-                  {recreateAnyPending ? 'Creating…' : 'Recreate smart wallet'}
-                </button>
+                  Manage smart wallet
+                </Link>
               )}
             </div>
             {(guestUser?.smart_wallet_migration_status || guestUser?.legacy_smart_wallet_address) && (
