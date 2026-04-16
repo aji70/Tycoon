@@ -5,10 +5,18 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, Wallet, User, ChevronDown } from "lucide-react";
+import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
+import { useChainId } from "wagmi";
 import { ADMIN_NAV_ITEMS } from "./adminNav";
 import AdminGlobalSearch from "./AdminGlobalSearch";
 import AdminDashboardAlerts from "./AdminDashboardAlerts";
 import { adminApi, isAdminSecretConfigured } from "@/lib/adminApi";
+
+function shortAddr(addr: string | undefined) {
+  if (!addr) return "";
+  if (addr.length < 14) return addr;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
 
 function NavLink({ href, label, exact }: { href: string; label: string; exact?: boolean }) {
   const pathname = usePathname();
@@ -45,6 +53,9 @@ type NotifPayload = {
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
   const secretOk = isAdminSecretConfigured();
   const router = useRouter();
+  const { open } = useAppKit();
+  const { address, isConnected } = useAppKitAccount();
+  const chainId = useChainId();
   const notifWrap = useRef<HTMLDivElement>(null);
   const profileWrap = useRef<HTMLDivElement>(null);
 
@@ -154,6 +165,34 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                   ))}
               </div>
             )}
+          </div>
+
+          <div className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-1 text-xs text-slate-300 max-w-[min(100vw-8rem,200px)] sm:max-w-none">
+            <Wallet className="w-3.5 h-3.5 shrink-0 text-slate-500" />
+            {isConnected ? (
+              <button
+                type="button"
+                onClick={() => open()}
+                className="truncate max-w-[140px] text-left text-cyan-200/95 hover:underline"
+                title="Wallet connected — click to open wallet menu"
+              >
+                {shortAddr(address)}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => open()}
+                className="text-cyan-300 hover:text-cyan-200 font-medium"
+                title="Connect wallet (same as main site — needed for Celo txs in admin)"
+              >
+                Connect wallet
+              </button>
+            )}
+            {isConnected && chainId ? (
+              <span className="text-[10px] text-slate-500 tabular-nums shrink-0 border-l border-slate-700 pl-1.5 ml-0.5">
+                {chainId}
+              </span>
+            ) : null}
           </div>
 
           <Link
