@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Bell, Wallet } from "lucide-react";
 import { ADMIN_NAV_ITEMS } from "./adminNav";
 import AdminGlobalSearch from "./AdminGlobalSearch";
+import AdminDashboardAlerts from "./AdminDashboardAlerts";
 import { isAdminSecretConfigured } from "@/lib/adminApi";
 
 function NavLink({ href, label, exact }: { href: string; label: string; exact?: boolean }) {
@@ -90,20 +91,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
           aria-label="Alerts"
         >
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Alerts</h2>
-          <ul className="space-y-4 text-sm text-slate-500">
-            <li>
-              <p className="text-slate-400 font-medium mb-1">Flagged players</p>
-              <p className="text-xs">No moderation pipeline wired yet.</p>
-            </li>
-            <li>
-              <p className="text-slate-400 font-medium mb-1">Suspicious wallets</p>
-              <p className="text-xs">Connect fraud rules in a later step.</p>
-            </li>
-            <li>
-              <p className="text-slate-400 font-medium mb-1">Game errors</p>
-              <p className="text-xs">Hook to analytics / Sentry events next.</p>
-            </li>
-          </ul>
+          <AdminDashboardAlerts />
         </aside>
       </div>
 
