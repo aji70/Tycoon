@@ -20,6 +20,7 @@ import * as adminReferralsController from "../controllers/adminReferralsControll
 import * as adminQuestsController from "../controllers/adminQuestsController.js";
 import * as adminAlertsController from "../controllers/adminAlertsController.js";
 import * as adminNotificationsController from "../controllers/adminNotificationsController.js";
+import * as adminCeloBotFarmController from "../controllers/adminCeloBotFarmController.js";
 import { requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
 
 const router = express.Router();
@@ -71,5 +72,11 @@ router.get("/moderation/reports", adminModerationController.listReports);
 router.post("/moderation/reports", adminModerationController.createReport);
 router.get("/moderation/reports/:id", adminModerationController.getReportById);
 router.patch("/moderation/reports/:id", adminModerationController.patchReport);
+
+/** Celo-only synthetic EOAs: fund / register / createAIGame (gated by CELO_BOT_FARM_ENABLED + keys). */
+router.get("/celo-bot-farm/status", adminCeloBotFarmController.getStatus);
+router.post("/celo-bot-farm/register", adminCeloBotFarmController.postRegister);
+router.post("/celo-bot-farm/create-ai-games", adminCeloBotFarmController.postCreateAiGames);
+router.post("/celo-bot-farm/distributor-payload", adminCeloBotFarmController.postDistributorPayload);
 
 export default router;
