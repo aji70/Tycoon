@@ -18,6 +18,7 @@ import * as adminAuditLogController from "../controllers/adminAuditLogController
 import * as adminSearchController from "../controllers/adminSearchController.js";
 import * as adminReferralsController from "../controllers/adminReferralsController.js";
 import * as adminQuestsController from "../controllers/adminQuestsController.js";
+import * as adminAlertsController from "../controllers/adminAlertsController.js";
 import { requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
 
 const router = express.Router();
@@ -25,6 +26,7 @@ const router = express.Router();
 router.use(requireDashboardAdminSecret);
 
 router.get("/overview", adminDashboardController.getOverview);
+router.get("/alerts", adminAlertsController.getAlerts);
 router.get("/search", adminSearchController.search);
 router.get("/referrals/overview", adminReferralsController.getOverview);
 router.get("/referrals/events", adminReferralsController.listReferralEvents);
