@@ -127,13 +127,9 @@ function chainIdToLeaderboardChain(chainId: number): string {
 /** Guest/Privy profile when wallet is not connected, or when a connected extension wallet is not the Tycoon-registered address (notice only if wallet not registered — smart/linked users see no banner). */
 function GuestProfileView({
   guestUser,
-  onRecreateClick,
-  recreatePending,
   connectedWalletMismatchNotice,
 }: {
   guestUser: { address: string; username: string; linked_wallet_address?: string | null; smart_wallet_address?: string | null };
-  onRecreateClick?: () => void | Promise<void>;
-  recreatePending?: boolean;
   /** Shown when the connected extension wallet is not registered for this account yet (prompt to link). Omitted when user already has smart/linked wallet — perks use those silently. */
   connectedWalletMismatchNotice?: string | null;
 }) {
@@ -180,6 +176,16 @@ function GuestProfileView({
   const showSmartBalances =
     !!smartWalletAddress &&
     (!linkedWalletAddress || smartWalletAddress.toLowerCase() !== linkedWalletAddress.toLowerCase());
+  const showDualGuestBalances = !!linkedWalletAddress && showSmartBalances;
+  const [guestBalanceTab, setGuestBalanceTab] = useState<'connected' | 'smart'>('smart');
+  React.useEffect(() => {
+    if (!showSmartBalances) setGuestBalanceTab('connected');
+    else if (!linkedWalletAddress) setGuestBalanceTab('smart');
+  }, [linkedWalletAddress, showSmartBalances]);
+
+  const viewingConnected =
+    !!linkedWalletAddress && (!showDualGuestBalances || guestBalanceTab === 'connected');
+  const viewingSmart = showSmartBalances && (!showDualGuestBalances || guestBalanceTab === 'smart');
 
   const { data: onChainUsername } = useReadContract({
     address: tycoonAddress,
@@ -541,30 +547,57 @@ function GuestProfileView({
                   )}
                 </div>
 
-                {/* Balances (same card area as avatar/identity) */}
-                <div className="mt-5 w-full">
-                  <div className="space-y-3">
-                    {linkedWalletAddress ? (
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                        <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 mb-2">
-                          Connected wallet balances
+                {/* Balances — one compact row; Connected/Smart toggle when both exist */}
+                {(linkedWalletAddress || showSmartBalances) && (
+                  <div className="mt-3 w-full max-w-lg">
+                    <div className="rounded-xl border border-white/10 bg-black/20 px-2 py-2">
+                      {showDualGuestBalances ? (
+                        <div className="flex items-center justify-center sm:justify-start gap-1.5 mb-2">
+                          <button
+                            type="button"
+                            onClick={() => setGuestBalanceTab('connected')}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition ${
+                              guestBalanceTab === 'connected'
+                                ? 'bg-cyan-500/20 border-cyan-500/45 text-cyan-200'
+                                : 'bg-white/5 border-white/10 text-white/55 hover:text-white/75'
+                            }`}
+                          >
+                            Connected
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setGuestBalanceTab('smart')}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition ${
+                              guestBalanceTab === 'smart'
+                                ? 'bg-cyan-500/20 border-cyan-500/45 text-cyan-200'
+                                : 'bg-white/5 border-white/10 text-white/55 hover:text-white/75'
+                            }`}
+                          >
+                            Smart
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-[9px] font-medium uppercase tracking-wider text-white/40 mb-1.5 text-center sm:text-left">
+                          {linkedWalletAddress ? 'Balances · connected' : 'Balances · smart wallet'}
                         </p>
-                        <div className="grid grid-cols-3 gap-2">
+                      )}
+                      {viewingConnected ? (
+                        <div className="flex gap-1.5">
                           {[
                             {
                               label: 'TYC',
-                              value: tycBalanceLinked.isLoading ? '...' : Number(tycBalanceLinked.data?.formatted || 0).toFixed(2),
+                              value: tycBalanceLinked.isLoading ? '…' : Number(tycBalanceLinked.data?.formatted || 0).toFixed(2),
                               color: 'cyan',
                             },
                             {
                               label: 'USDC',
-                              value: usdcBalanceLinked.isLoading ? '...' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2),
+                              value: usdcBalanceLinked.isLoading ? '…' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2),
                               color: 'emerald',
                             },
                             {
                               label: 'Celo',
                               value: nativeBalanceLinked.isLoading
-                                ? '...'
+                                ? '…'
                                 : nativeBalanceLinked.data
                                   ? Number(nativeBalanceLinked.data.formatted).toFixed(4)
                                   : '0',
@@ -572,38 +605,32 @@ function GuestProfileView({
                             },
                           ].map(({ label, value, color }) => (
                             <div
-                              key={label}
-                              className={`text-center balance-pill balance-${color} rounded-xl px-3 py-2 min-w-0`}
+                              key={`c-${label}`}
+                              className={`flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center balance-${color}`}
                             >
-                              <p className="text-[10px] font-medium uppercase tracking-wider text-white/50">{label}</p>
-                              <p className="text-sm font-bold text-white truncate mt-0.5">{value}</p>
+                              <p className="text-[8px] font-medium uppercase tracking-wider text-white/45 leading-none">{label}</p>
+                              <p className="text-xs font-bold text-white truncate mt-0.5 leading-tight tabular-nums">{value}</p>
                             </div>
                           ))}
                         </div>
-                      </div>
-                    ) : null}
-
-                    {showSmartBalances ? (
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                        <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 mb-2">
-                          Smart wallet balances
-                        </p>
-                        <div className="grid grid-cols-3 gap-2">
+                      ) : null}
+                      {viewingSmart ? (
+                        <div className="flex gap-1.5">
                           {[
                             {
                               label: 'TYC',
-                              value: tycBalanceSmart.isLoading ? '...' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2),
+                              value: tycBalanceSmart.isLoading ? '…' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2),
                               color: 'cyan',
                             },
                             {
                               label: 'USDC',
-                              value: usdcBalanceSmart.isLoading ? '...' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2),
+                              value: usdcBalanceSmart.isLoading ? '…' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2),
                               color: 'emerald',
                             },
                             {
                               label: 'Celo',
                               value: nativeBalanceSmart.isLoading
-                                ? '...'
+                                ? '…'
                                 : nativeBalanceSmart.data
                                   ? Number(nativeBalanceSmart.data.formatted).toFixed(4)
                                   : '0',
@@ -611,28 +638,26 @@ function GuestProfileView({
                             },
                           ].map(({ label, value, color }) => (
                             <div
-                              key={label}
-                              className={`text-center balance-pill balance-${color} rounded-xl px-3 py-2 min-w-0`}
+                              key={`s-${label}`}
+                              className={`flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center balance-${color}`}
                             >
-                              <p className="text-[10px] font-medium uppercase tracking-wider text-white/50">{label}</p>
-                              <p className="text-sm font-bold text-white truncate mt-0.5">{value}</p>
+                              <p className="text-[8px] font-medium uppercase tracking-wider text-white/45 leading-none">{label}</p>
+                              <p className="text-xs font-bold text-white truncate mt-0.5 leading-tight tabular-nums">{value}</p>
                             </div>
                           ))}
                         </div>
-                        {shortSmartWalletAddress && (
-                          <button
-                            type="button"
-                            disabled={recreatePending}
-                            onClick={async () => { await onRecreateClick?.(); }}
-                            className="w-full mt-3 px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60 disabled:hover:bg-cyan-500/15"
-                          >
-                            {recreatePending ? 'Creating…' : 'Recreate smart wallet'}
-                          </button>
-                        )}
-                      </div>
+                      ) : null}
+                    </div>
+                    {showSmartBalances && shortSmartWalletAddress ? (
+                      <Link
+                        href="/profile/smart-wallet"
+                        className="mt-2 inline-flex w-full items-center justify-center px-3 py-2 rounded-lg bg-cyan-500/12 hover:bg-cyan-500/20 border border-cyan-500/35 text-cyan-200 text-xs font-semibold transition"
+                      >
+                        Manage smart wallet
+                      </Link>
                     ) : null}
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
@@ -1331,27 +1356,6 @@ export default function Profile() {
     toast.success('Bio saved');
   };
 
-  const refetchGuest = guestAuth?.refetchGuest;
-  const [recreateApiPending, setRecreateApiPending] = useState(false);
-
-  const handleRecreateViaApi = React.useCallback(async () => {
-    setRecreateApiPending(true);
-    try {
-      const res = await apiClient.post<ApiResponse & { data?: { smart_wallet_address?: string; migration?: { status?: string; error?: string } } }>('auth/recreate-smart-wallet');
-      await refetchGuest?.();
-      if (res?.data?.data?.migration?.status === 'failed') {
-        toast.warn('Wallet recreated, but migration is incomplete. Contact support with your old wallet address.');
-      } else {
-        toast.success('Smart wallet recreated. CELO, USDC, TYC, perks, and vouchers migrated.');
-      }
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } }; message?: string };
-      toast.error(err?.response?.data?.message ?? err?.message ?? 'Failed to recreate');
-    } finally {
-      setRecreateApiPending(false);
-    }
-  }, [refetchGuest]);
-
   const guestHasPerkHolderAddresses =
     !!guestUser &&
     ((guestUser.smart_wallet_address && isValidWallet(guestUser.smart_wallet_address)) ||
@@ -1364,19 +1368,13 @@ export default function Profile() {
   if (!isConnected || loading || error || !userData) {
     if (guestUser && !isConnected) {
       return (
-        <GuestProfileView
-          guestUser={guestUser}
-          onRecreateClick={handleRecreateViaApi}
-          recreatePending={recreateApiPending}
-        />
+        <GuestProfileView guestUser={guestUser} />
       );
     }
     if (showGuestProfileForConnectedWalletMismatch && guestUser) {
       return (
         <GuestProfileView
           guestUser={guestUser}
-          onRecreateClick={handleRecreateViaApi}
-          recreatePending={recreateApiPending}
           connectedWalletMismatchNotice={
             guestHasPerkHolderAddresses
               ? undefined
@@ -1517,15 +1515,12 @@ export default function Profile() {
                     )}
                   </div>
                   {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
-                    <button
-                      type="button"
-                      onClick={handleRecreateViaApi}
-                      disabled={recreateApiPending}
-                      className="w-full sm:w-auto px-4 py-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60"
-                      title="Recreate smart wallet with safe migration"
+                    <Link
+                      href="/profile/smart-wallet"
+                      className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition"
                     >
-                      {recreateApiPending ? 'Migrating…' : 'Recreate smart wallet'}
-                    </button>
+                      Manage smart wallet
+                    </Link>
                   )}
                 </div>
               </div>
@@ -1592,14 +1587,12 @@ export default function Profile() {
                   ))}
                 </div>
                 {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
-                  <button
-                    type="button"
-                    onClick={handleRecreateViaApi}
-                    disabled={recreateApiPending}
-                    className="w-full mt-3 px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60"
+                  <Link
+                    href="/profile/smart-wallet"
+                    className="w-full mt-3 inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition"
                   >
-                    {recreateApiPending ? 'Migrating…' : 'Recreate smart wallet'}
-                  </button>
+                    Manage smart wallet
+                  </Link>
                 )}
               </div>
             </div>

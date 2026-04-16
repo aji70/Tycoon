@@ -11,6 +11,7 @@ import { parseEther, formatUnits, type Address } from "viem";
 import { toast } from "react-toastify";
 import { Copy, Wallet, Coins, Loader2, Send, ArrowRightLeft, Banknote } from "lucide-react";
 import { apiClient } from "@/lib/api";
+import { ApiResponse } from "@/types/api";
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "@/lib/constants/ngnPayments";
 
 const UserWalletABI = [
@@ -113,6 +114,7 @@ export default function ManageSmartWalletPage() {
   const [vaultCeloWei, setVaultCeloWei] = useState<bigint | null>(null);
   const [swapCeloAmount, setSwapCeloAmount] = useState("");
   const [transferToAddress, setTransferToAddress] = useState("");
+  const [recreateSmartWalletPending, setRecreateSmartWalletPending] = useState(false);
 
   const { writeContractAsync, isPending: writePending, data: txHash } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
@@ -199,6 +201,27 @@ export default function ManageSmartWalletPage() {
       auth?.refetchGuest?.();
     } catch (e) {
       toast.error((e as Error)?.message ?? "Transfer failed");
+    }
+  };
+
+  const handleRecreateSmartWallet = async () => {
+    setRecreateSmartWalletPending(true);
+    try {
+      const res = await apiClient.post<
+        ApiResponse & { data?: { smart_wallet_address?: string; migration?: { status?: string; error?: string } } }
+      >("auth/recreate-smart-wallet");
+      await auth?.refetchGuest?.();
+      fromRegistry.refetch();
+      if (res?.data?.data?.migration?.status === "failed") {
+        toast.warn("Wallet recreated, but migration is incomplete. Contact support with your old wallet address.");
+      } else {
+        toast.success("Smart wallet recreated. CELO, USDC, TYC, perks, and vouchers migrated when possible.");
+      }
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } }; message?: string };
+      toast.error(err?.response?.data?.message ?? err?.message ?? "Failed to recreate");
+    } finally {
+      setRecreateSmartWalletPending(false);
     }
   };
 
@@ -445,6 +468,27 @@ export default function ManageSmartWalletPage() {
           {!isConnected && (
             <p className="text-xs text-white/50 mt-2">You can withdraw CELO/USDC below without connecting (if you’ve enabled managed withdrawals).</p>
           )}
+        </section>
+
+        <section className="rounded-2xl border border-white/10 bg-[#011112]/80 p-5">
+          <h2 className="text-base font-semibold text-white/90 mb-2">Replace smart wallet</h2>
+          <p className="text-xs text-white/55 mb-3 text-left">
+            Creates a new smart wallet contract and migrates CELO, USDC, TYC, perks, and vouchers when possible. Use if support asked you to, or your wallet was compromised. Requires an active session (email or linked wallet).
+          </p>
+          <button
+            type="button"
+            onClick={handleRecreateSmartWallet}
+            disabled={recreateSmartWalletPending}
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-200 text-sm font-semibold transition disabled:opacity-60"
+          >
+            {recreateSmartWalletPending ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> Migrating…
+              </span>
+            ) : (
+              "Recreate smart wallet"
+            )}
+          </button>
         </section>
 
         <section className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
