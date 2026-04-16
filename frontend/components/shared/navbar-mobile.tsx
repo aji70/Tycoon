@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
@@ -21,6 +21,7 @@ import { useProfileAvatar } from '@/context/ProfileContext';
 import { isAddress } from 'viem';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
+import { getProfile, guestProfileStorageKey } from '@/lib/profile-storage';
 
 const SCROLL_TOP_THRESHOLD = 40;
 const SCROLL_SENSITIVITY = 8;
@@ -125,6 +126,20 @@ const safeAddress = address && isAddress(address)
 
 const { data: fetchedUsername } = useGetUsername(safeAddress);
   const profileAvatar = useProfileAvatar();
+
+  const [storedProfileTick, setStoredProfileTick] = useState(0);
+  useEffect(() => {
+    const onUpdate = () => setStoredProfileTick((t) => t + 1);
+    window.addEventListener('tycoon-profile-updated', onUpdate);
+    return () => window.removeEventListener('tycoon-profile-updated', onUpdate);
+  }, []);
+
+  const guestNavAvatar = useMemo(() => {
+    if (!guestUser) return null;
+    const key = guestProfileStorageKey(guestUser);
+    if (!key) return null;
+    return getProfile(key)?.avatar ?? null;
+  }, [guestUser, pathname, storedProfileTick]);
 
   // MiniPay detection + auto-connect attempt
   useEffect(() => {
@@ -242,8 +257,8 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                   <div className="p-4 rounded-xl bg-gradient-to-br from-[#022a2c]/90 to-[#011112] border border-[#00F0FF]/20 shadow-[0_4px_16px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(0,240,255,0.06)] flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="h-11 w-11 rounded-lg border-2 border-[#00F0FF]/40 overflow-hidden shadow-[0_0_12px_rgba(0,240,255,0.15)] shrink-0 ring-1 ring-[#00F0FF]/10">
-                        {profileAvatar ? (
-                          <img src={profileAvatar} alt="Profile" className="w-full h-full object-cover" />
+                        {guestNavAvatar || profileAvatar ? (
+                          <img src={(guestNavAvatar || profileAvatar) as string} alt="Profile" className="w-full h-full object-cover" />
                         ) : (
                           <Image src={avatar} alt="Avatar" width={44} height={44} className="object-cover w-full h-full" />
                         )}

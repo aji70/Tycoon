@@ -311,6 +311,8 @@ function GuestProfileViewMobile({
       celo_games_played?: number; celo_games_won?: number;
       total_staked?: number; total_earned?: number; total_withdrawn?: number;
       properties_bought?: number; properties_sold?: number;
+      username?: string;
+      created_at?: string;
     } | undefined;
     const gpBackend = Number(offChain?.celo_games_played) > 0 ? Number(offChain.celo_games_played) : Number(offChain?.games_played) ?? 0;
     const backendHasStats = offChain?.id && (gpBackend > 0 || Number(offChain.total_earned) > 0);
@@ -349,8 +351,10 @@ function GuestProfileViewMobile({
       const gp = gpBackend;
       const gw = Number(offChain!.celo_games_won) > 0 ? Number(offChain!.celo_games_won) : Number(offChain!.game_won) || 0;
       const gl = Number(offChain.game_lost) || 0;
+      const chainName =
+        typeof onChainUsername === 'string' && onChainUsername.trim() ? onChainUsername.trim() : '';
       return {
-         username: offChain.username || guestUser!.username,
+         username: chainName || offChain.username || guestUser!.username,
          shortAddress: guestUser!.address ? `${guestUser!.address.slice(0, 6)}...${guestUser!.address.slice(-4)}` : '',
          gamesPlayed: gp,
          gamesWon: gw,
@@ -366,24 +370,14 @@ function GuestProfileViewMobile({
       };
     }
     return null;
-  }, [userData, offChainUserData, guestUser]);
-
-  const { data: games = [] } = useQuery({
-    queryKey: ['guest-my-games'],
-    queryFn: async () => {
-      const res = await apiClient.get<ApiResponse>('/games/my-games', { params: { limit: 100 } });
-      if (!res?.data?.success || !Array.isArray(res.data.data)) return [];
-      return res.data.data as { code: string; status: string; is_ai?: boolean }[];
-    },
-  });
-  const gameCount = games.length;
+  }, [userData, offChainUserData, guestUser, onChainUsername]);
 
   const statsForDisplay = React.useMemo(() => {
     if (displayStats) return displayStats;
     return {
       username: guestUser.username,
       shortAddress: guestUser.address ? `${guestUser.address.slice(0, 6)}...${guestUser.address.slice(-4)}` : '',
-      gamesPlayed: gameCount,
+      gamesPlayed: 0,
       gamesWon: 0,
       gamesLost: 0,
       winRate: '0%',
@@ -395,7 +389,12 @@ function GuestProfileViewMobile({
       registeredAt: 0,
       isOnChain: false,
     };
-  }, [displayStats, guestUser.username, guestUser.address, gameCount]);
+  }, [displayStats, guestUser.username, guestUser.address]);
+
+  const heroOnChainUsername = useMemo(() => {
+    const u = statsForDisplay.username?.trim();
+    return u || username;
+  }, [statsForDisplay.username, username]);
 
   const {
     ownedCollectibles: mergedCollectibleRows,
@@ -512,10 +511,19 @@ function GuestProfileViewMobile({
                 </span>
               </span>
             </button>
+            <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg border-2 border-[#011112]">
+              <Crown className="w-4 h-4 text-black" />
+            </div>
           </div>
 
-          <h2 className="text-lg font-bold text-white mb-2 text-center">{username}</h2>
+          <h2 className="text-lg font-bold text-white mb-2 text-center">{heroOnChainUsername}</h2>
           {displayName && <p className="text-cyan-300/80 text-xs text-center mb-1">"{displayName}"</p>}
+          {statsForDisplay.registeredAt > 0 ? (
+            <p className="text-slate-500 text-[11px] text-center mb-2">
+              Member since{' '}
+              {new Date(statsForDisplay.registeredAt * 1000).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+            </p>
+          ) : null}
           {!guestOnChainAddress && (
             <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account.</p>
           )}
@@ -523,7 +531,7 @@ function GuestProfileViewMobile({
             <div className="flex flex-wrap items-center gap-2 mt-2 text-sm">
               {shortLinkedWalletAddress ? (
                 <>
-                  <span className="text-cyan-400 font-semibold text-xs">Linked wallet:</span>
+                  <span className="text-cyan-400 font-semibold text-xs">Connected wallet</span>
                   <span className="text-slate-300 font-mono text-xs truncate max-w-full">{shortLinkedWalletAddress}</span>
                 </>
               ) : null}
@@ -535,12 +543,6 @@ function GuestProfileViewMobile({
               ) : null}
             </div>
           )}
-          <div className="flex gap-4 text-sm">
-            <div>
-              <span className="text-cyan-400 font-semibold">{gameCount}</span>
-              <span className="text-white/70 ml-1">games</span>
-            </div>
-          </div>
         </div>
 
         {(shortLinkedWalletAddress || shortSmartWalletAddress) && (
@@ -550,7 +552,7 @@ function GuestProfileViewMobile({
               {linkedWalletAddress ? (
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                   <p className="text-[10px] font-medium text-white/50 uppercase tracking-widest mb-2">
-                    Linked wallet
+                    Connected wallet
                   </p>
                   <div className="grid grid-cols-3 gap-2">
                     {[
@@ -637,7 +639,7 @@ function GuestProfileViewMobile({
                 <Icon className="w-3.5 h-3.5 shrink-0" />
                 <span className="flex items-center gap-1 min-w-0 justify-center flex-wrap text-center leading-tight">
                   <span className="break-words">{label}</span>
-                  {badge !== undefined && badge > 0 && (
+                  {badge !== undefined && (
                     <span className="shrink-0 min-w-[1rem] h-4 px-1 rounded text-[10px] flex items-center justify-center bg-white/10">{badge}</span>
                   )}
                 </span>
@@ -1574,7 +1576,7 @@ export default function ProfilePageMobile() {
                 <Icon className="w-3.5 h-3.5 shrink-0" />
                 <span className="flex items-center gap-1 min-w-0 justify-center flex-wrap text-center leading-tight">
                   <span className="break-words">{label}</span>
-                  {badge !== undefined && badge > 0 && (
+                  {badge !== undefined && (
                     <span className="shrink-0 min-w-[1rem] h-4 px-1 rounded text-[10px] flex items-center justify-center bg-white/10">{badge}</span>
                   )}
                 </span>
