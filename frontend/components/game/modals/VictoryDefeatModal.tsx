@@ -182,6 +182,16 @@ export const VictoryDefeatModal: React.FC<VictoryDefeatModalProps> = ({
                 <HeartHandshake className="w-12 h-12 text-cyan-400/80" />
                 <p className="text-slate-300">Better luck next time — you played well!</p>
               </motion.div>
+              {shareCode ? (
+                <VictorySocialShare
+                  variant="loss"
+                  gameCode={shareCode}
+                  winnerUsername={winner.username}
+                  loserUsername={me?.username ?? undefined}
+                  joinPagePath={joinPagePath}
+                  className="mb-5 text-left"
+                />
+              ) : null}
               <motion.button
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}

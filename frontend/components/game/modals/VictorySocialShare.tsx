@@ -39,9 +39,31 @@ export function buildWinnerShareCaption(challengeUrl: string, winnerUsername?: s
   return `${opener}\n\nThink you can beat me? Jump in here:\n${challengeUrl}\n\n#Tycoon`;
 }
 
+/** Loss: challenge friends / rematch — `winnerUsername` is who beat you; `loserUsername` is you (optional). */
+export function buildLossShareCaption(
+  challengeUrl: string,
+  winnerUsername?: string,
+  loserUsername?: string
+): string {
+  const w = winnerUsername?.trim();
+  const l = loserUsername?.trim();
+  const opener =
+    w && l
+      ? `Tough match on Tycoon — ${w} took this one (I played as ${l}) 🎲`
+      : w
+        ? `Tough match on Tycoon — ${w} won this round 🎲`
+        : `Just wrapped a match on Tycoon 🎲`;
+  return `${opener}\n\nWant a rematch? Jump in here:\n${challengeUrl}\n\n#Tycoon`;
+}
+
 export interface VictorySocialShareProps {
   gameCode: string;
+  /** Win: your name as champion. Loss: opponent who won (use with variant="loss"). */
   winnerUsername?: string;
+  /** Loss only: your display name (optional). */
+  loserUsername?: string;
+  /** Win (default) or loss — changes caption and labels. */
+  variant?: "win" | "loss";
   /** Lobby path before `?gameCode=` — default 3D `/game-waiting-3d`, classic `/game-waiting`. */
   joinPagePath?: string;
   className?: string;
@@ -50,6 +72,8 @@ export interface VictorySocialShareProps {
 export function VictorySocialShare({
   gameCode,
   winnerUsername,
+  loserUsername,
+  variant = "win",
   joinPagePath = DEFAULT_JOIN_3D,
   className = "",
 }: VictorySocialShareProps) {
@@ -61,8 +85,11 @@ export function VictorySocialShare({
   );
 
   const caption = useMemo(
-    () => buildWinnerShareCaption(challengeUrl, winnerUsername),
-    [challengeUrl, winnerUsername]
+    () =>
+      variant === "loss"
+        ? buildLossShareCaption(challengeUrl, winnerUsername, loserUsername)
+        : buildWinnerShareCaption(challengeUrl, winnerUsername),
+    [challengeUrl, winnerUsername, loserUsername, variant]
   );
 
   const xIntentUrl = useMemo(() => {
@@ -112,14 +139,14 @@ export function VictorySocialShare({
     if (!challengeUrl || typeof navigator === "undefined" || !navigator.share) return;
     try {
       await navigator.share({
-        title: "Tycoon win",
+        title: variant === "loss" ? "Tycoon match" : "Tycoon win",
         text: caption,
         url: challengeUrl,
       });
     } catch {
       /* user cancelled or unsupported */
     }
-  }, [caption, challengeUrl]);
+  }, [caption, challengeUrl, variant]);
 
   if (!challengeUrl) return null;
 
@@ -136,10 +163,12 @@ export function VictorySocialShare({
       className={`w-full rounded-2xl border border-cyan-500/25 bg-black/30 backdrop-blur-sm p-4 text-left ${className}`}
     >
       <p className="text-[0.65rem] uppercase tracking-[0.2em] text-cyan-300/90 font-bold mb-1">
-        Share your win
+        {variant === "loss" ? "Share your game" : "Share your win"}
       </p>
       <p className="text-xs text-slate-400 mb-3 leading-relaxed">
-        One tap to post — friends land on join with your room code ready.
+        {variant === "loss"
+          ? "Invite friends or call for a rematch — same room code on the join link."
+          : "One tap to post — friends land on join with your room code ready."}
       </p>
 
       <div className="grid grid-cols-2 gap-2 mb-2">
