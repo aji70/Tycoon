@@ -30,6 +30,7 @@ import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAsse
 import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
+import GameRoomLoading from '@/components/settings/game-room-loading';
 
 const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
 const isValidWallet = (a: unknown): a is Address => {
@@ -979,7 +980,7 @@ function GuestProfileView({
 }
 
 export default function Profile() {
-  const { address: walletAddress, isConnected, chainId } = useAccount();
+  const { address: walletAddress, isConnected, chainId, status: walletStatus } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const guestLoading = guestAuth?.isLoading ?? false;
@@ -1412,23 +1413,43 @@ export default function Profile() {
   }
 
   if (!isConnected || loading || error || !userData) {
+    if (walletStatus === 'connecting' || walletStatus === 'reconnecting') {
+      return (
+        <GameRoomLoading
+          variant="waiting"
+          title="Lobby loading…"
+          subtitle="Your wallet is still shaking hands with the chain. The rivals are pretending not to care."
+          tagline="MUAHAHAHA… almost there."
+        />
+      );
+    }
+
+    if (loading && isConnected) {
+      return (
+        <GameRoomLoading
+          variant="waiting"
+          title="Polishing your dossier…"
+          subtitle="Pulling on-chain stats, perks, and a little bit of attitude."
+          tagline="MUAHAHAHA… worth the wait."
+        />
+      );
+    }
+
+    if (!isConnected) {
+      return (
+        <GameRoomLoading
+          variant="waiting"
+          title="The lobby’s quiet… too quiet"
+          subtitle="No wallet in sight — connect from the nav to load your Tycoon profile here, or sign in as a guest from Home."
+          tagline="The table is set. MUAHAHAHA."
+        />
+      );
+    }
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] flex items-center justify-center">
-        <div className="text-center space-y-6">
-          {!isConnected ? (
-            <p className="text-3xl font-bold text-red-400">Wallet not connected</p>
-          ) : loading ? (
-            <>
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                className="w-20 h-20 border-4 border-[#00F0FF] border-t-transparent rounded-full mx-auto"
-              />
-              <p className="text-2xl text-[#00F0FF]">Loading profile...</p>
-            </>
-          ) : (
-            <p className="text-3xl font-bold text-red-400">Error: {error || 'No data'}</p>
-          )}
+        <div className="text-center space-y-6 px-4">
+          <p className="text-3xl font-bold text-red-400">Error: {error || 'No data'}</p>
         </div>
       </div>
     );
