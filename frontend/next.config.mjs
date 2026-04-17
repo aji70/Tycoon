@@ -37,6 +37,18 @@ const nextConfig = {
       },
     ];
   },
+  /** Safe defaults; CSP/HSTS/COOP are usually set at the edge (Vercel) to avoid breaking wallet popups / miniapps. */
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+    ];
+  },
 };
 
 export default withSentryConfig(nextConfig, {
