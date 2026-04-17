@@ -59,6 +59,7 @@ import {
   REWARD_OWNED_SLOT_SCAN_CAP,
   takeTokenIdsUntilFirstFailure,
 } from '@/lib/rewardOwnedEnumerable';
+import { shopRegistryOwnerAddress, shopSmartWalletAddress } from '@/lib/shopWalletIdentity';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -152,17 +153,20 @@ export default function GameShopMobile() {
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
   const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
 
-  const guestProfileOwner = auth?.guestUser?.address;
-  const registryOwnerAddress = useMemo((): Address | undefined => {
-    if (address) return address;
-    if (guestProfileOwner && isAddress(guestProfileOwner)) return guestProfileOwner as Address;
-    return undefined;
-  }, [address, guestProfileOwner]);
+  const guestUser = auth?.guestUser ?? null;
+  const registryOwnerAddress = useMemo(
+    () => shopRegistryOwnerAddress({ guestUser, connectedAddress: address }),
+    [guestUser, address]
+  );
   const { data: registrySmartWallet } = useUserRegistryWallet(registryOwnerAddress);
-  const guestSmartWallet = auth?.guestUser?.smart_wallet_address ?? undefined;
-  const smartWalletAddress =
-    (isValidWallet(registrySmartWallet) ? registrySmartWallet : null) ??
-    (isValidWallet(guestSmartWallet) ? (guestSmartWallet as Address) : null);
+  const smartWalletAddress = useMemo(
+    () =>
+      shopSmartWalletAddress({
+        guestUser,
+        registrySmartWallet: registrySmartWallet as string | undefined,
+      }),
+    [guestUser, registrySmartWallet]
+  );
 
   const readAppSessionToken = (): string | null => {
     try {

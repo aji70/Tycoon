@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useAccount } from 'wagmi';
-import { getProfile, setProfile as saveProfile, type ProfileData } from '@/lib/profile-storage';
+import { getProfile, setProfile as saveProfile, mergeLocalProfilesForAddresses, type ProfileData } from '@/lib/profile-storage';
 
 type ProfileContextValue = {
   profile: ProfileData | null;
@@ -99,17 +99,31 @@ export function useProfileAvatar(): string | null {
  * Loads/saves the locally-stored profile data keyed by a specific address.
  * This is useful on `/profile` where "profile owner" (linked wallet) can differ from the connected wallet (smart wallet).
  */
-export function useProfileForAddress(profileAddress: string | undefined | null): ProfileContextValue {
+export type UseProfileForAddressOptions = {
+  /** Also read these localStorage keys and merge missing avatar/displayName/bio (linked vs smart vs guest address). */
+  readFallbackAddresses?: (string | null | undefined)[];
+};
+
+export function useProfileForAddress(
+  profileAddress: string | undefined | null,
+  options?: UseProfileForAddressOptions
+): ProfileContextValue {
   const address = profileAddress ?? undefined;
   const [profile, setProfileState] = useState<ProfileData | null>(null);
+  const fallbackKey = JSON.stringify(options?.readFallbackAddresses ?? []);
 
   useEffect(() => {
     if (!address) {
       setProfileState(null);
       return;
     }
-    setProfileState(getProfile(address) ?? defaultProfile);
-  }, [address]);
+    const extras = options?.readFallbackAddresses ?? [];
+    if (extras.length) {
+      setProfileState(mergeLocalProfilesForAddresses(address, extras));
+    } else {
+      setProfileState(getProfile(address) ?? defaultProfile);
+    }
+  }, [address, fallbackKey]);
 
   const setProfile = useCallback(
     (data: Partial<Pick<ProfileData, 'avatar' | 'displayName' | 'bio'>>) => {
