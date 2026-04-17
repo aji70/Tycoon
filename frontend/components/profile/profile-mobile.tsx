@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useProfileForAddress } from '@/context/ProfileContext';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import AccountLinkWallet from '@/components/auth/AccountLinkWallet';
+import PrivyWalletProfilePrompt from '@/components/auth/PrivyWalletProfilePrompt';
 
 import { apiClient } from '@/lib/api';
 import { ApiResponse } from '@/types/api';
@@ -1294,28 +1295,48 @@ export default function ProfilePageMobile() {
     ((guestUser.smart_wallet_address && isValidWallet(guestUser.smart_wallet_address)) ||
       (guestUser.linked_wallet_address && isValidWallet(guestUser.linked_wallet_address)));
 
+  const hasValidLinkedWallet =
+    !!guestUser?.linked_wallet_address && isValidWallet(guestUser.linked_wallet_address);
+  const connectedVsLinkedWallet =
+    Boolean(guestUser) &&
+    isConnected &&
+    !!walletAddress &&
+    hasValidLinkedWallet &&
+    walletAddress.toLowerCase() !== (guestUser!.linked_wallet_address as string).toLowerCase();
+
   // Show guest view when connected wallet has no on-chain profile (e.g. first-time link) so user can still see "Link this wallet"
   const showGuestProfileForConnectedWalletMismatch =
-    Boolean(guestUser) && isConnected && !loading && (!!error || !userData);
+    Boolean(guestUser) && isConnected && !loading && (!!error || !userData || connectedVsLinkedWallet);
 
-  if (!isConnected || loading || error || !userData) {
-    if (guestUser && !isConnected) {
-      return (
-        <GuestProfileViewMobile guestUser={guestUser} />
-      );
-    }
-    if (showGuestProfileForConnectedWalletMismatch && guestUser) {
-      return (
+  if (guestUser && !isConnected) {
+    return <GuestProfileViewMobile guestUser={guestUser} />;
+  }
+
+  if (showGuestProfileForConnectedWalletMismatch && guestUser && walletAddress) {
+    return (
+      <>
+        <PrivyWalletProfilePrompt
+          guestId={guestUser.id}
+          guestUsername={guestUser.username}
+          linkedWalletAddress={guestUser.linked_wallet_address}
+          connectedAddress={walletAddress}
+          showLinkFirstPrompt={!hasValidLinkedWallet}
+        />
         <GuestProfileViewMobile
           guestUser={guestUser}
           connectedWalletMismatchNotice={
             guestHasPerkHolderAddresses
-              ? undefined
+              ? connectedVsLinkedWallet
+                ? 'You’re viewing your Tycoon account. The wallet in your browser is not your linked wallet — use Account below if you want to change it.'
+                : undefined
               : "Your connected wallet isn't registered on-chain yet. Link it below to use this account when you connect with that wallet (staked games, same stats)."
           }
         />
-      );
-    }
+      </>
+    );
+  }
+
+  if (!isConnected || loading || error || !userData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] flex items-center justify-center px-4">
         <div className="text-center space-y-6">

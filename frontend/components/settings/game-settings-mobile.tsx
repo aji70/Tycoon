@@ -35,6 +35,7 @@ import {
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
+import { shouldUseBackendGuestGameFlow } from "@/lib/minipayGuestFlow";
 import { Address, parseUnits } from "viem";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
@@ -62,8 +63,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
   const wagmiChainId = useChainId();
   const { caipNetwork } = useAppKitNetwork();
   const guestAuth = useGuestAuthOptional();
-  // Use guest API only when signed in as guest and no wallet connected; wallet users must use wallet flow
-  const isGuest = !!guestAuth?.guestUser && !address;
+  const isGuest = shouldUseBackendGuestGameFlow(guestAuth?.guestUser ?? null, address, wagmiChainId);
 
   const { data: username } = useGetUsername(address);
   const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);

@@ -18,6 +18,7 @@ import {
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { TYCOON_CONTRACT_ADDRESSES, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
+import { shouldUseBackendGuestGameFlow } from "@/lib/minipayGuestFlow";
 import type { Address } from "viem";
 
 export const AI_ADDRESSES = [
@@ -86,8 +87,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
   const { caipNetwork } = useAppKitNetwork();
   const board3DUrl = redirectTo3D ? (isMobile ? `/board-3d-mobile?gameCode=` : `/board-3d?gameCode=`) : null;
   const guestAuth = useGuestAuthOptional();
-  // Use guest API only when signed in as guest and no wallet connected; wallet users must use wallet flow
-  const isGuest = !!guestAuth?.guestUser && !address;
+  const isGuest = shouldUseBackendGuestGameFlow(guestAuth?.guestUser ?? null, address, wagmiChainId);
 
   const { data: username, refetch: refetchUsername } = useGetUsername(address);
   const { data: isUserRegistered, isLoading: isRegisteredLoading, refetch: refetchRegistered } = useIsRegistered(address);
