@@ -20,6 +20,7 @@ import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { socketService } from "@/lib/socket";
+import { shouldUseBackendGuestGameFlow, getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 
 const POLL_INTERVAL = 2000;
 const SOCKET_URL =
@@ -124,7 +125,18 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     ? BigInt(contractGame.stakePerPlayer)
     : BigInt(0);
 
-  const guestCannotJoinStaked = !!guestUser && stakePerPlayer > BigInt(0);
+  const backendGuestGameFlow = useMemo(
+    () => shouldUseBackendGuestGameFlow(guestUser, address, chainId),
+    [guestUser, address, chainId]
+  );
+
+  const guestIdentityAddr = useMemo(() => {
+    if (!guestUser) return undefined;
+    return getGuestUserPlayAddress(guestUser) ?? (guestUser.address?.trim() || undefined);
+  }, [guestUser]);
+
+  /** No connected wallet: guest join API cannot do staked games. MiniPay mismatch uses backend smart wallet and may join staked. */
+  const guestCannotJoinStaked = !!guestUser && !address && stakePerPlayer > BigInt(0);
 
   const {
     write: joinGame,
@@ -204,21 +216,21 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
   const checkPlayerJoined = useCallback(
     (g: Game | null) => {
       if (!g) return false;
-      const addr = guestUser?.address ?? address;
+      const addr = guestIdentityAddr ?? address;
       if (!addr) return false;
       return g.players.some(
         (p) => String(p.address || "").toLowerCase() === addr.toLowerCase()
       );
     },
-    [address, guestUser?.address]
+    [address, guestIdentityAddr]
   );
 
   const isCreator = useMemo(() => {
     if (!game) return false;
-    const addr = guestUser?.address ?? address;
+    const addr = guestIdentityAddr ?? address;
     if (!addr) return false;
     return addr.toLowerCase() === String(contractGame?.creator).toLowerCase();
-  }, [game, address, guestUser?.address, contractGame?.creator]);
+  }, [game, address, guestIdentityAddr, contractGame?.creator]);
 
   const showShare = useMemo(() => {
     if (!game) return false;
@@ -426,9 +438,9 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     setError(null);
     const toastId = toast.loading("Joining the game...");
 
-    // Use guest join only when signed in as guest and no wallet connected; wallet users must use wallet flow
-    if (guestUser && !address) {
-      if (stakePerPlayer > BigInt(0)) {
+    // Backend guest join: no wallet, or MiniPay local address ≠ account play address (backend pays contract gas)
+    if (guestUser && backendGuestGameFlow) {
+      if (stakePerPlayer > BigInt(0) && !address) {
         setError("Guests cannot join staked games. Connect a wallet to join this game.");
         actionGuardRef.current = false;
         setActionLoading(false);
@@ -564,6 +576,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     availableSymbols,
     address,
     guestUser,
+    backendGuestGameFlow,
     joinGame,
     stakePerPlayer,
     contractId,
