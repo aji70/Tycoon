@@ -6,15 +6,17 @@ import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy, BookOpen, Bot, MessageCircle, FileText, Shield, LifeBuoy } from 'lucide-react';
-import useSound from 'use-sound';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { useConnect } from 'wagmi';
 import { injected } from 'wagmi/connectors';
 import Image from 'next/image';
 import avatar from '@/public/avatar.jpg';
-import WalletConnectModal from './wallet-connect-modal';
-import WalletDisconnectModal from './wallet-disconnect-modal';
+import ThemeSoundPlayer from './ThemeSoundPlayer';
+
+const WalletConnectModal = dynamic(() => import('./wallet-connect-modal'), { ssr: false });
+const WalletDisconnectModal = dynamic(() => import('./wallet-disconnect-modal'), { ssr: false });
 import NetworkSwitcherModal from './network-switcher-modal';
 import { useGetUsername } from '@/context/ContractProvider';
 import { useProfileAvatar } from '@/context/ProfileContext';
@@ -101,16 +103,12 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
   const networkDisplay = caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : '—');
 
   const [isSoundPlaying, setIsSoundPlaying] = useState(false);
+  const [themeSoundMounted, setThemeSoundMounted] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNetworkModalOpen, setIsNetworkModalOpen] = useState(false);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
   const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
   const [isMiniPay, setIsMiniPay] = useState(false);
-
-  const [play, { pause }] = useSound('/sound/monopoly-theme.mp3', {
-    volume: 0.5,
-    loop: true,
-  });
 
   // Prefetch main nav routes after mount so navigation feels instant
   useEffect(() => {
@@ -151,10 +149,9 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
 
   const toggleSound = () => {
     if (isSoundPlaying) {
-      pause();
       setIsSoundPlaying(false);
     } else {
-      play();
+      setThemeSoundMounted(true);
       setIsSoundPlaying(true);
     }
   };
@@ -173,6 +170,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
 
   return (
     <>
+      {themeSoundMounted ? <ThemeSoundPlayer playing={isSoundPlaying} /> : null}
       {/* Minimal mode (e.g. board-3d-mobile): only hamburger — no navbar bar covering the board */}
       {minimal ? (
         hamburgerButton

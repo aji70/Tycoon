@@ -435,7 +435,8 @@ const HeroSectionMobile: React.FC = () => {
           fill
           className="object-cover object-center hero-bg-zoom"
           priority
-          quality={90}
+          fetchPriority="high"
+          quality={78}
           sizes="100vw"
         />
         {/* Gradient overlay for readability on mobile */}

@@ -48,6 +48,12 @@
     "viem": "^2.45.2",
     "wagmi": "^2.16.9"
   },
+  "browserslist": [
+    "chrome >= 111",
+    "edge >= 111",
+    "firefox >= 115",
+    "safari >= 16.4"
+  ],
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
