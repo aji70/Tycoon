@@ -25,6 +25,9 @@ const nextConfig = {
       "react-icons",
       "@radix-ui/react-select",
       "@radix-ui/react-switch",
+      "@tanstack/react-query",
+      "wagmi",
+      "viem",
     ],
   },
   async redirects() {
