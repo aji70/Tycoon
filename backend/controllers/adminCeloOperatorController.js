@@ -3,9 +3,10 @@ import {
   createAIGamesForAllOperatorWallets,
   encodeDistributorFundEqual,
   getOperatorToolsStatus,
-  getOperatorWalletsFromEnv,
+  getOperatorWalletsSortedByBalanceDesc,
   parseWeiFromCeloString,
   registerAllOperatorWallets,
+  touchDistributorFromAllOperatorWallets,
 } from "../services/celoOperatorToolsService.js";
 
 export async function getStatus(req, res) {
@@ -59,10 +60,22 @@ export async function postDistributorPayload(req, res) {
     assertOperatorToolsEnabled();
     const celoPerWallet = req.body?.celoPerWallet ?? "0.5";
     const wei = parseWeiFromCeloString(celoPerWallet);
-    const wallets = getOperatorWalletsFromEnv();
+    const wallets = await getOperatorWalletsSortedByBalanceDesc();
     const recipients = wallets.map((w) => w.address);
     const payload = encodeDistributorFundEqual(recipients, wei);
     return res.json({ success: true, data: { ...payload, recipientCount: recipients.length, celoPerWallet } });
+  } catch (err) {
+    const code = err.code === "CELO_OPERATOR_DISABLED" || err.code === "CELO_OPERATOR_NO_KEYS" ? 403 : 400;
+    return res.status(code).json({ success: false, message: err.message, code: err.code });
+  }
+}
+
+export async function postTouchDistributor(req, res) {
+  try {
+    assertOperatorToolsEnabled();
+    const delayMs = Number(req.body?.delayMs) || 0;
+    const out = await touchDistributorFromAllOperatorWallets({ delayMs });
+    return res.json({ success: true, data: out });
   } catch (err) {
     const code = err.code === "CELO_OPERATOR_DISABLED" || err.code === "CELO_OPERATOR_NO_KEYS" ? 403 : 400;
     return res.status(code).json({ success: false, message: err.message, code: err.code });

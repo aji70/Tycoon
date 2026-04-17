@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAccount, useChainId, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { adminApi } from "@/lib/adminApi";
@@ -20,6 +20,13 @@ const DISTRIBUTOR_ABI = [
     ],
     outputs: [],
   },
+  {
+    type: "function",
+    name: "touch",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
 ] as const;
 
 type DistributorFundPayload = {
@@ -36,6 +43,7 @@ type DistributorFundPayload = {
 type WalletRow = {
   address: string;
   registered: boolean;
+  balanceWei: string;
   balanceCelo: string;
   suggestedUsername: string;
 };
@@ -96,6 +104,18 @@ export default function AdminCeloOperatorsPage() {
     load();
   }, [load]);
 
+  /** Table: API returns wallets sorted by CELO balance (highest first); keep client sort by balanceWei as fallback. */
+  const walletsSorted = useMemo(() => {
+    if (!status?.wallets?.length) return [];
+    return [...status.wallets].sort((a, b) => {
+      const ba = BigInt(a.balanceWei ?? "0");
+      const bb = BigInt(b.balanceWei ?? "0");
+      if (bb > ba) return 1;
+      if (bb < ba) return -1;
+      return a.address.localeCompare(b.address);
+    });
+  }, [status?.wallets]);
+
   useEffect(() => {
     if (fundWriteError) setLog((prev) => `${prev}\n${fundWriteError.message}`);
   }, [fundWriteError]);
@@ -144,6 +164,26 @@ export default function AdminCeloOperatorsPage() {
           playerSymbol: "hat",
           numberOfAI: 1,
         },
+        { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
+      );
+      if (!body?.success) throw new Error(body?.message || "Failed");
+      setLog(JSON.stringify(body.data, null, 2));
+      await load();
+    } catch (e) {
+      setLog(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Cheap tx on `CeloBatchNativeDistributor` (not Tycoon) — one `touch()` per wallet; redeploy distributor if `touch` is missing. */
+  async function runTouchDistributor() {
+    setBusy("touch");
+    setLog("");
+    try {
+      const { data: body } = await adminApi.post<{ success: boolean; data?: unknown; message?: string }>(
+        "admin/celo-operator/touch-distributor",
+        { delayMs },
         { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
       );
       if (!body?.success) throw new Error(body?.message || "Failed");
@@ -238,6 +278,31 @@ export default function AdminCeloOperatorsPage() {
         only in server environment variables.
       </div>
 
+      <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-4 py-3 text-slate-300 text-xs mb-6 space-y-2">
+        <p>
+          <strong className="text-slate-200">Execution order:</strong> Register, Create AI games, Distributor touch, and
+          batch-fund recipient lists all run <strong className="text-cyan-300">highest CELO balance first</strong> so
+          better-funded keys are more likely to succeed before balances run low.
+        </p>
+        <p>
+          <strong className="text-slate-200">Long batches:</strong> Create AI games uses a long HTTP timeout; if the
+          browser still cancels, lower <code className="text-slate-400">gamesPerWallet</code> or run again — completed
+          wallets stay done; failures show in the log.
+        </p>
+        <p>
+          <strong className="text-slate-200">Cheaper / second contract:</strong>{" "}
+          <strong className="text-violet-300">Touch distributor</strong> calls only{" "}
+          <code className="text-slate-400">touch()</code> on <code className="text-slate-400">CeloBatchNativeDistributor</code>{" "}
+          (event emit). Redeploy that contract from the repo if your on-chain copy does not include{" "}
+          <code className="text-slate-400">touch</code> yet.
+        </p>
+        <p>
+          <strong className="text-slate-200">Gas ladder (Tycoon contract):</strong>{" "}
+          <code className="text-slate-400">registerPlayer</code> (when needed) then{" "}
+          <code className="text-slate-400">createAIGame</code> (heavier). Touch is the lightest on the distributor.
+        </p>
+      </div>
+
       {loading && (
         <div className="flex items-center gap-2 text-slate-400">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -313,6 +378,15 @@ export default function AdminCeloOperatorsPage() {
             >
               {busy === "games" ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} Create AI games
             </button>
+            <button
+              type="button"
+              disabled={!!busy}
+              onClick={runTouchDistributor}
+              className="rounded-lg bg-slate-700 hover:bg-slate-600 px-4 py-2 text-sm font-medium text-slate-100 border border-slate-500 disabled:opacity-50"
+              title="Cheap touch() on batch distributor — redeploy contract if touch is missing on-chain"
+            >
+              {busy === "touch" ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} Touch distributor
+            </button>
           </div>
 
           <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4 mb-6">
@@ -372,6 +446,7 @@ export default function AdminCeloOperatorsPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-900/80 text-slate-400">
                 <tr>
+                  <th className="px-3 py-2 w-10 text-right">#</th>
                   <th className="px-3 py-2">Address</th>
                   <th className="px-3 py-2">Registered</th>
                   <th className="px-3 py-2">CELO</th>
@@ -379,11 +454,12 @@ export default function AdminCeloOperatorsPage() {
                 </tr>
               </thead>
               <tbody>
-                {status.wallets.map((b) => (
+                {walletsSorted.map((b, i) => (
                   <tr key={b.address} className="border-t border-slate-800">
+                    <td className="px-3 py-2 text-right tabular-nums text-slate-500">{i + 1}</td>
                     <td className="px-3 py-2 font-mono text-xs text-slate-300">{b.address}</td>
                     <td className="px-3 py-2">{b.registered ? "yes" : "no"}</td>
-                    <td className="px-3 py-2">{b.balanceCelo}</td>
+                    <td className="px-3 py-2 tabular-nums">{b.balanceCelo}</td>
                     <td className="px-3 py-2 font-mono text-xs text-slate-400">{b.suggestedUsername}</td>
                   </tr>
                 ))}

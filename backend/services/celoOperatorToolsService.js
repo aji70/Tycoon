@@ -16,6 +16,7 @@ const TYCOON_IFACE = new Interface([
 
 const DISTRIBUTOR_IFACE = new Interface([
   "function distribute(address[] recipients, uint256[] amounts) payable",
+  "function touch()",
 ]);
 
 function isOperatorToolsEnabled() {
@@ -70,6 +71,27 @@ export function getOperatorWalletsFromEnv() {
   return keys.map((pk) => new Wallet(pk, provider));
 }
 
+/** Same wallets as env order, re-sorted by native CELO balance descending (highest first) for funding-heavy ops. */
+export async function getOperatorWalletsSortedByBalanceDesc() {
+  const wallets = getOperatorWalletsFromEnv();
+  const { provider } = getReadContext();
+  const rows = await Promise.all(
+    wallets.map(async (w) => {
+      let balanceWei = 0n;
+      try {
+        balanceWei = await provider.getBalance(w.address);
+      } catch (_) {}
+      return { wallet: w, balanceWei };
+    })
+  );
+  rows.sort((a, b) => {
+    if (b.balanceWei > a.balanceWei) return 1;
+    if (b.balanceWei < a.balanceWei) return -1;
+    return String(a.wallet.address).localeCompare(String(b.wallet.address));
+  });
+  return rows.map((r) => r.wallet);
+}
+
 /** On-chain username derived from address (unique, short, valid length). */
 export function defaultOperatorUsername(address) {
   const a = String(address).toLowerCase().replace(/^0x/, "");
@@ -103,6 +125,13 @@ export async function getOperatorToolsStatus() {
       suggestedUsername: defaultOperatorUsername(w.address),
     });
   }
+  wallets.sort((a, b) => {
+    const ba = BigInt(a.balanceWei);
+    const bb = BigInt(b.balanceWei);
+    if (bb > ba) return 1;
+    if (bb < ba) return -1;
+    return String(a.address).localeCompare(String(b.address));
+  });
   return {
     enabled: isOperatorToolsEnabled(),
     chain: CHAIN,
@@ -145,7 +174,7 @@ export async function registerAllOperatorWallets(options = {}) {
   assertOperatorToolsEnabled();
   const delayMs = Math.max(0, Number(options.delayMs) || 0);
   const { provider, contractAddress } = getReadContext();
-  const wallets = getOperatorWalletsFromEnv();
+  const wallets = await getOperatorWalletsSortedByBalanceDesc();
   const results = [];
   for (const w of wallets) {
     const username = defaultOperatorUsername(w.address);
@@ -184,7 +213,7 @@ export async function createAIGamesForAllOperatorWallets(options = {}) {
   }
 
   const { provider, contractAddress } = getReadContext();
-  const wallets = getOperatorWalletsFromEnv();
+  const wallets = await getOperatorWalletsSortedByBalanceDesc();
   const results = [];
 
   for (const w of wallets) {
@@ -223,4 +252,37 @@ export function parseWeiFromCeloString(celoStr) {
   const s = String(celoStr || "").trim();
   if (!s) throw new Error("amount required");
   return parseEther(s);
+}
+
+/**
+ * Each operator wallet calls `touch()` on CeloBatchNativeDistributor (cheap log; separate contract from Tycoon).
+ * Requires deployed distributor that includes `touch()` — redeploy if `touch` is missing on-chain.
+ */
+export async function touchDistributorFromAllOperatorWallets(options = {}) {
+  assertOperatorToolsEnabled();
+  const delayMs = Math.max(0, Number(options.delayMs) || 0);
+  const distributorAddr = process.env.CELO_BATCH_NATIVE_DISTRIBUTOR_ADDRESS?.trim();
+  if (!distributorAddr) {
+    throw new Error("Set CELO_BATCH_NATIVE_DISTRIBUTOR_ADDRESS (deploy CeloBatchNativeDistributor with touch())");
+  }
+  const wallets = await getOperatorWalletsSortedByBalanceDesc();
+  const results = [];
+  for (const w of wallets) {
+    const distributor = new Contract(distributorAddr, DISTRIBUTOR_IFACE, w);
+    try {
+      const tx = await distributor.touch();
+      const receipt = await tx.wait();
+      results.push({ address: w.address, hash: receipt?.hash, ok: true });
+      logger.info({ address: w.address, hash: receipt?.hash }, "celoOperatorTools distributor.touch");
+    } catch (err) {
+      logger.error({ err: err?.message, address: w.address }, "celoOperatorTools distributor.touch failed");
+      results.push({
+        address: w.address,
+        ok: false,
+        error: err?.shortMessage || err?.message || String(err),
+      });
+    }
+    await sleep(delayMs);
+  }
+  return { results, distributorAddress: distributorAddr };
 }
