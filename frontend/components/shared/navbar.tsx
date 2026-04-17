@@ -6,7 +6,7 @@ import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
-import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet, BookOpen, Bot, MoreVertical } from 'lucide-react';
+import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet, BookOpen, Bot, MoreVertical, FileText, Shield, LifeBuoy } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { PiUserCircle } from 'react-icons/pi';
@@ -291,6 +291,33 @@ const NavBar = () => {
                   <BookOpen className="w-[16px] h-[16px]" />
                   <span className="font-dmSans">How to Play</span>
                 </Link>
+
+                <Link
+                  href="/terms"
+                  className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
+                  onClick={() => setMoreMenuOpen(false)}
+                >
+                  <FileText className="w-[16px] h-[16px]" />
+                  <span className="font-dmSans">Terms of Service</span>
+                </Link>
+
+                <Link
+                  href="/privacy"
+                  className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
+                  onClick={() => setMoreMenuOpen(false)}
+                >
+                  <Shield className="w-[16px] h-[16px]" />
+                  <span className="font-dmSans">Privacy Policy</span>
+                </Link>
+
+                <a
+                  href="https://t.me/+xJLEjw9tbyQwMGVk"
+                  className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
+                  onClick={() => setMoreMenuOpen(false)}
+                >
+                  <LifeBuoy className="w-[16px] h-[16px]" />
+                  <span className="font-dmSans">Support (Telegram)</span>
+                </a>
 
                 {/* Sound Toggle */}
                 <button
