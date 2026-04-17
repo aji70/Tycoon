@@ -1,6 +1,19 @@
 import db from "../config/database.js";
 import { getDefaultAppChain } from "../config/chains.js";
 import { generateUniqueReferralCode } from "../services/referralService.js";
+import { monthUtcBounds, parseYearMonth } from "../utils/leaderboardMonth.js";
+
+function applyGameChainFilter(qb, gameAlias, normalized) {
+  const def = getDefaultAppChain();
+  const col = `${gameAlias}.chain`;
+  if (normalized === def) {
+    qb.where(function () {
+      this.where(col, normalized).orWhereNull(col);
+    });
+  } else {
+    qb.where(col, normalized);
+  }
+}
 
 const User = {
   /**
@@ -438,6 +451,70 @@ const User = {
         db.raw("(CASE WHEN games_played > 0 THEN (1.0 * game_won / games_played) ELSE 0 END) AS win_rate")
       )
       .orderBy("win_rate", "desc")
+      .limit(lim);
+  },
+
+  /**
+   * Top players by games won in a UTC calendar month (finished games on this chain).
+   * Uses games.updated_at when status = FINISHED as the finish time (no dedicated finished_at column).
+   */
+  async getMonthlyLeaderboardByWins(chain, yearMonth, limit = 20) {
+    const normalized = this.normalizeChain(chain);
+    const lim = Math.min(Number(limit) || 20, 100);
+    const { start, end } = monthUtcBounds(parseYearMonth(yearMonth));
+    const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
+    const lostExpr = "SUM(CASE WHEN g.winner_id IS NOT NULL AND g.winner_id <> gp.user_id THEN 1 ELSE 0 END)";
+    return db("game_players as gp")
+      .join("games as g", "g.id", "gp.game_id")
+      .join("users as u", "u.id", "gp.user_id")
+      .where("g.status", "FINISHED")
+      .where("g.updated_at", ">=", start)
+      .where("g.updated_at", "<", end)
+      .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+      .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
+      .groupBy("u.id", "u.username")
+      .select(
+        "u.id",
+        "u.username",
+        db.raw("COUNT(*) AS games_played"),
+        db.raw(`${wonExpr} AS game_won`),
+        db.raw(`${lostExpr} AS game_lost`)
+      )
+      .havingRaw("COUNT(*) > 0")
+      .orderByRaw(`${wonExpr} DESC`)
+      .orderByRaw("COUNT(*) DESC")
+      .limit(lim);
+  },
+
+  /**
+   * Win rate in a UTC calendar month among players with at least one finished game that month.
+   */
+  async getMonthlyLeaderboardByWinRate(chain, yearMonth, limit = 20) {
+    const normalized = this.normalizeChain(chain);
+    const lim = Math.min(Number(limit) || 20, 100);
+    const { start, end } = monthUtcBounds(parseYearMonth(yearMonth));
+    const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
+    const rateExpr = `(${wonExpr} * 1.0 / NULLIF(COUNT(*), 0))`;
+    return db("game_players as gp")
+      .join("games as g", "g.id", "gp.game_id")
+      .join("users as u", "u.id", "gp.user_id")
+      .where("g.status", "FINISHED")
+      .where("g.updated_at", ">=", start)
+      .where("g.updated_at", "<", end)
+      .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+      .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
+      .groupBy("u.id", "u.username")
+      .select(
+        "u.id",
+        "u.username",
+        db.raw("COUNT(*) AS games_played"),
+        db.raw(`${wonExpr} AS game_won`),
+        db.raw("0 AS game_lost"),
+        db.raw(`${rateExpr} AS win_rate`)
+      )
+      .havingRaw("COUNT(*) > 0")
+      .orderByRaw(`${rateExpr} DESC`)
+      .orderByRaw("COUNT(*) DESC")
       .limit(lim);
   },
 };

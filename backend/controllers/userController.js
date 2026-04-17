@@ -133,31 +133,51 @@ const userController = {
   // -------------------------
 
   /**
-   * GET /api/users/leaderboard?chain=&type=wins|earnings|stakes|winrate&limit=20
+   * GET /api/users/leaderboard?chain=&type=wins|earnings|stakes|winrate&limit=20&period=all|month&month=YYYY-MM
    * Returns top players for the given chain. Chain can be name (BASE, CELO) or chainId (8453, 42220).
-   * Default chain is CELO (app is Celo-only); use BASE/POLYGON if query param provided.
+   * period=month uses finished games in the UTC month (month= defaults to current UTC). Monthly is supported for wins and winrate only.
    */
   async getLeaderboard(req, res) {
     try {
-      const { chain = "CELO", type = "wins", limit = 20 } = req.query;
+      const { chain = "CELO", type = "wins", limit = 20, period = "all", month } = req.query;
       const normalizedLimit = Math.min(Number.parseInt(limit, 10) || 20, 100);
       const normalizedType = String(type).toLowerCase();
+      const periodNorm = String(period).toLowerCase() === "month" ? "month" : "all";
       let data;
-      switch (normalizedType) {
-        case "wins":
-          data = await User.getLeaderboardByWins(chain, normalizedLimit);
-          break;
-        case "earnings":
-          data = await User.getLeaderboardByEarnings(chain, normalizedLimit);
-          break;
-        case "stakes":
-          data = await User.getLeaderboardByStakes(chain, normalizedLimit);
-          break;
-        case "winrate":
-          data = await User.getLeaderboardByWinRate(chain, normalizedLimit);
-          break;
-        default:
-          return res.status(400).json({ error: "Invalid type. Use: wins, earnings, stakes, winrate" });
+      if (periodNorm === "month") {
+        switch (normalizedType) {
+          case "wins":
+            data = await User.getMonthlyLeaderboardByWins(chain, month, normalizedLimit);
+            break;
+          case "winrate":
+            data = await User.getMonthlyLeaderboardByWinRate(chain, month, normalizedLimit);
+            break;
+          case "earnings":
+          case "stakes":
+            return res.status(400).json({
+              error: "monthly_not_supported",
+              message: "Monthly leaderboard is available for wins and win rate. Earnings and stakes are all-time on-chain totals.",
+            });
+          default:
+            return res.status(400).json({ error: "Invalid type. Use: wins, earnings, stakes, winrate" });
+        }
+      } else {
+        switch (normalizedType) {
+          case "wins":
+            data = await User.getLeaderboardByWins(chain, normalizedLimit);
+            break;
+          case "earnings":
+            data = await User.getLeaderboardByEarnings(chain, normalizedLimit);
+            break;
+          case "stakes":
+            data = await User.getLeaderboardByStakes(chain, normalizedLimit);
+            break;
+          case "winrate":
+            data = await User.getLeaderboardByWinRate(chain, normalizedLimit);
+            break;
+          default:
+            return res.status(400).json({ error: "Invalid type. Use: wins, earnings, stakes, winrate" });
+        }
       }
       res.json(Array.isArray(data) ? data : []);
     } catch (error) {
