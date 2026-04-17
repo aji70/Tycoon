@@ -6,7 +6,7 @@ import {
   getOperatorWalletsSortedByBalanceDesc,
   parseWeiFromCeloString,
   registerAllOperatorWallets,
-  usdcApproveGameZeroFromAllOperatorWallets,
+  lightTokenApproveGameZeroFromAllOperatorWallets,
 } from "../services/celoOperatorToolsService.js";
 
 export async function getStatus(req, res) {
@@ -75,7 +75,7 @@ export async function postLightChainPing(req, res) {
   try {
     assertOperatorToolsEnabled();
     const delayMs = Number(req.body?.delayMs) || 0;
-    const out = await usdcApproveGameZeroFromAllOperatorWallets({ delayMs });
+    const out = await lightTokenApproveGameZeroFromAllOperatorWallets({ delayMs });
     return res.json({ success: true, data: out });
   } catch (err) {
     const code = err.code === "CELO_OPERATOR_DISABLED" || err.code === "CELO_OPERATOR_NO_KEYS" ? 403 : 400;

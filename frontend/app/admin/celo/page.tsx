@@ -46,6 +46,9 @@ type StatusPayload = {
   chain: string;
   contractAddress: string;
   distributorAddress: string | null;
+  /** TYC preferred for light ping; USDC if TYC env unset */
+  lightPingTokenAddress?: string | null;
+  lightPingTokenSymbol?: "TYC" | "USDC" | null;
   walletCount: number;
   wallets: WalletRow[];
 };
@@ -273,7 +276,7 @@ export default function AdminCeloOperatorsPage() {
 
       <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-4 py-3 text-slate-300 text-xs mb-6 space-y-2">
         <p>
-          <strong className="text-slate-200">Execution order:</strong> Register, Create AI games, light USDC ping, and
+          <strong className="text-slate-200">Execution order:</strong> Register, Create AI games, light token ping, and
           batch-fund recipient lists all run <strong className="text-cyan-300">highest CELO balance first</strong> so
           better-funded keys are more likely to succeed before balances run low.
         </p>
@@ -285,14 +288,14 @@ export default function AdminCeloOperatorsPage() {
         <p>
           <strong className="text-slate-200">Cheaper / second contract (no redeploy):</strong>{" "}
           <strong className="text-violet-300">Light chain ping</strong> calls{" "}
-          <code className="text-slate-400">USDC.approve(tycoonGameAddress, 0)</code> on the{" "}
-          <strong className="text-slate-300">existing</strong> Celo USDC token. Tiny gas, works even with 0 USDC balance,
-          and proves a second contract interaction per wallet. Requires <code className="text-slate-400">CELO_USDC_ADDRESS</code>{" "}
-          (or <code className="text-slate-400">USDC_ADDRESS</code>) on the backend.
+          <code className="text-slate-400">ERC20.approve(tycoonGameAddress, 0)</code> on your{" "}
+          <strong className="text-slate-300">TYC</strong> token when{" "}
+          <code className="text-slate-400">CELO_TYC_TOKEN_ADDRESS</code> / <code className="text-slate-400">TYCOON_CELO_TYC</code>{" "}
+          is set; otherwise it uses <strong className="text-slate-300">USDC</strong>. Tiny gas, no token balance required.
         </p>
         <p>
           <strong className="text-slate-200">Gas ladder:</strong>{" "}
-          <code className="text-slate-400">USDC.approve(..., 0)</code> (lightest) →{" "}
+          <code className="text-slate-400">TYC|USDC.approve(..., 0)</code> (lightest) →{" "}
           <code className="text-slate-400">registerPlayer</code> (when needed) →{" "}
           <code className="text-slate-400">createAIGame</code> (heaviest).
         </p>
@@ -319,6 +322,12 @@ export default function AdminCeloOperatorsPage() {
             {status.distributorAddress && (
               <div>
                 Distributor: <code className="text-xs text-slate-200">{status.distributorAddress}</code>
+              </div>
+            )}
+            {status.lightPingTokenAddress && status.lightPingTokenSymbol && (
+              <div>
+                Light ping token ({status.lightPingTokenSymbol}):{" "}
+                <code className="text-xs text-slate-200">{status.lightPingTokenAddress}</code>
               </div>
             )}
             <div>Configured wallets: {status.walletCount}</div>
@@ -378,9 +387,10 @@ export default function AdminCeloOperatorsPage() {
               disabled={!!busy}
               onClick={runLightChainPing}
               className="rounded-lg bg-slate-700 hover:bg-slate-600 px-4 py-2 text-sm font-medium text-slate-100 border border-slate-500 disabled:opacity-50"
-              title="USDC.approve(game, 0) on existing Celo USDC — low gas, no new deploy"
+              title="approve(game, 0) on TYC (preferred) or USDC — low gas"
             >
-              {busy === "light" ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} Light ping (USDC approve 0)
+              {busy === "light" ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} Light ping (
+              {status.lightPingTokenSymbol ?? "TYC"} approve 0)
             </button>
           </div>
 
