@@ -14,6 +14,8 @@ const PUBLIC_PATHS = [
   "/verify-email",
   "/waitlist",
   "/rooms",
+  "/terms",
+  "/privacy",
 ];
 
 function isPublicPath(pathname: string): boolean {
