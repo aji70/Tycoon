@@ -1,6 +1,48 @@
 import db from "../config/database.js";
 import logger from "../config/logger.js";
 import { attachReferralByCode, ensureUserReferralCode } from "../services/referralService.js";
+import { monthUtcBounds, parseYearMonth } from "../utils/leaderboardMonth.js";
+
+/**
+ * GET /api/referral/leaderboard?limit=20&month=YYYY-MM
+ * Public: top accounts by direct referral count (users who completed signup with their code).
+ * Optional month= filters referee.referred_at to that UTC calendar month (default: all-time).
+ */
+export async function getPublicLeaderboard(req, res) {
+  try {
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit ?? "20"), 10) || 20, 1), 100);
+    const monthRaw = req.query.month != null && String(req.query.month).trim() !== "" ? String(req.query.month).trim() : null;
+    const { start, end } = monthRaw ? monthUtcBounds(parseYearMonth(monthRaw)) : null;
+
+    let q = db("users as referee")
+      .join("users as referrer", "referee.referred_by_user_id", "referrer.id")
+      .where("referrer.is_guest", false)
+      .andWhereRaw("referrer.username NOT LIKE ?", ["%AI_%"]);
+
+    if (start && end) {
+      q = q.where("referee.referred_at", ">=", start).where("referee.referred_at", "<", end);
+    }
+
+    const rows = await q
+      .select("referrer.id as id", "referrer.username as username")
+      .count("referee.id as referral_count")
+      .groupBy("referrer.id", "referrer.username")
+      .orderBy("referral_count", "desc")
+      .orderBy("referrer.username", "asc")
+      .limit(limit);
+
+    const data = (rows || []).map((row) => ({
+      id: Number(row.id),
+      username: row.username ?? "—",
+      referral_count: Number(row.referral_count ?? 0),
+    }));
+
+    res.json({ success: true, data });
+  } catch (err) {
+    logger.error({ err }, "referral getPublicLeaderboard error");
+    res.status(500).json({ success: false, message: "Failed to load referral leaderboard" });
+  }
+}
 
 /**
  * GET /api/referral/me
