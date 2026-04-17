@@ -21,7 +21,16 @@ import React, { FC } from "react";
 const Logo: FC<LogoTypes> = ({ className, image, href }) => {
     return (
         <Link href={href} className={className}>
-            <Image src={image} alt="Logo" className='w-full' width={226} height={196} priority quality={100} />
+            <Image
+                src={image}
+                alt="Logo"
+                className="w-full"
+                width={128}
+                height={111}
+                priority
+                quality={85}
+                sizes="(max-width: 768px) 44px, 50px"
+            />
         </Link>
     )
 }

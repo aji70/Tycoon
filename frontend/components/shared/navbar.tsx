@@ -6,14 +6,16 @@ import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet, BookOpen, Bot, MoreVertical, FileText, Shield, LifeBuoy } from 'lucide-react';
-import useSound from 'use-sound';
 import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { PiUserCircle } from 'react-icons/pi';
 import Image from 'next/image';
 import avatar from '@/public/avatar.jpg';
-import WalletConnectModal from './wallet-connect-modal';
-import WalletDisconnectModal from './wallet-disconnect-modal';
+import ThemeSoundPlayer from './ThemeSoundPlayer';
+
+const WalletConnectModal = dynamic(() => import('./wallet-connect-modal'), { ssr: false });
+const WalletDisconnectModal = dynamic(() => import('./wallet-disconnect-modal'), { ssr: false });
 import NetworkSwitcherModal from './network-switcher-modal';
 import { useProfileAvatar } from '@/context/ProfileContext';
 import { useOnlineUsers } from '@/hooks/useOnlineUsers';
@@ -65,10 +67,7 @@ const NavBar = () => {
   const networkDisplay =  caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : 'Network');
 
   const [isSoundPlaying, setIsSoundPlaying] = useState(false);
-  const [play, { pause }] = useSound('/sound/monopoly-theme.mp3', {
-    volume: 0.5,
-    loop: true,
-  });
+  const [themeSoundMounted, setThemeSoundMounted] = useState(false);
 
   const [isNetworkModalOpen, setIsNetworkModalOpen] = useState(false);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
@@ -100,10 +99,9 @@ const NavBar = () => {
 
   const toggleSound = () => {
     if (isSoundPlaying) {
-      pause();
       setIsSoundPlaying(false);
     } else {
-      play();
+      setThemeSoundMounted(true);
       setIsSoundPlaying(true);
     }
   };
@@ -118,6 +116,7 @@ const NavBar = () => {
 
   return (
     <>
+      {themeSoundMounted ? <ThemeSoundPlayer playing={isSoundPlaying} /> : null}
       {/* Progress Bar */}
       <motion.div
         className="fixed top-0 left-0 right-0 bg-[#0FF0FC] origin-[0%] h-[2px] z-[40]"

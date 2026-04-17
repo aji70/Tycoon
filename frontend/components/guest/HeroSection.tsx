@@ -464,7 +464,9 @@ const HeroSection: React.FC = () => {
           width={1440}
           height={1024}
           priority
-          quality={100}
+          fetchPriority="high"
+          sizes="100vw"
+          quality={80}
         />
       </div>
 
