@@ -703,62 +703,49 @@ export default function ArenaPage() {
             </span>
           </div>
           <p className={styles.challengeHint}>
-            <strong style={{ color: "#e8fbff" }}>Pick</strong> up to {maxOpponentPicks} opponent{maxOpponentPicks === 1 ? "" : "s"}, then{" "}
-            <strong style={{ color: "#e8fbff" }}>Start</strong>. On-chain setup often takes{" "}
-            <strong style={{ color: "#e8fbff" }}>1–3 minutes</strong>; keep this tab open. Matches run{" "}
-            <strong style={{ color: "#e8fbff" }}>30 minutes</strong>. Faster lobby flow:{" "}
-            <a href="/agent-battles" style={{ color: "#7ee8ff" }}>
-              Agent Battles
-            </a>
-            . You do <strong style={{ color: "#e8fbff" }}>not</strong> need wallet spending enabled here — that only applies to{" "}
-            <strong style={{ color: "#e8fbff" }}>tournament entry fees</strong> and the <strong style={{ color: "#e8fbff" }}>Challenges</strong> tab.
+            Pick up to {maxOpponentPicks} opponent{maxOpponentPicks === 1 ? "" : "s"} below, then Start.
           </p>
+          <details className={styles.challengeDiscoverDetails}>
+            <summary>Timing, match length &amp; wallet notes</summary>
+            <p>
+              On-chain setup often takes 1–3 minutes — keep this tab open. Matches run 30 minutes. For a faster lobby, try{" "}
+              <a href="/agent-battles" className={styles.challengeDiscoverLink}>
+                Agent Battles
+              </a>
+              . Wallet spending caps apply to tournament entry and the Challenges tab only; they are not required on Discover.
+            </p>
+          </details>
           <div className={styles.challengeToolbar}>
             <div className={styles.challengeField}>
-              <span className={styles.challengeFieldLabel}>Playing as</span>
+              <div className={styles.challengesLabelRow}>
+                <span className={styles.challengeFieldLabel}>Playing as</span>
+                {challengerAgentId != null ? (
+                  <button
+                    type="button"
+                    className={`${styles.tournamentLinkBtn} ${styles.challengesCapsLinkBtn}`}
+                    onClick={() => {
+                      setActiveTab("my-agents");
+                      setMyAgentsSubTab("manage");
+                      setOpenTournamentSpendingJumpAgentId(challengerAgentId);
+                    }}
+                  >
+                    Edit caps
+                  </button>
+                ) : null}
+              </div>
               <select
                 className={styles.agentSelect}
                 value={challengerAgentId ?? ""}
                 onChange={(e) => setChallengerAgentId(Number(e.target.value))}
                 aria-label="Your agent for challenges"
               >
-                {myAgents.map((a) => {
-                  const tp = tournamentPerms[a.id];
-                  const capHint =
-                    tp?.enabled === true
-                      ? ` — spend: max ${formatUsdcDisplay(tp.max_entry_fee_usdc)}/entry${
-                          tp.daily_cap_usdc ? `, ${formatUsdcDisplay(tp.daily_cap_usdc)}/day total` : ""
-                        }`
-                      : " — tournament spending off";
-                  return (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                      {capHint}
-                    </option>
-                  );
-                })}
+                {myAgents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
               </select>
             </div>
-            <p className={styles.challengeHint} style={{ marginTop: 6, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 12px" }}>
-              <span>
-                Tournament / staked caps: <strong style={{ color: "#e8fbff" }}>My agents</strong> →{" "}
-                <strong style={{ color: "#e8fbff" }}>Tournament wallet spending</strong> on each card, or{" "}
-                <strong style={{ color: "#e8fbff" }}>Manage &amp; spending</strong>.
-              </span>
-              {challengerAgentId != null && (
-                <button
-                  type="button"
-                  className={styles.tournamentLinkBtn}
-                  onClick={() => {
-                    setActiveTab("my-agents");
-                    setMyAgentsSubTab("manage");
-                    setOpenTournamentSpendingJumpAgentId(challengerAgentId);
-                  }}
-                >
-                  Edit spending for selected agent
-                </button>
-              )}
-            </p>
             <div className={styles.challengeActions}>
               <button
                 type="button"

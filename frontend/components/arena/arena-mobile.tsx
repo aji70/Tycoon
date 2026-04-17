@@ -650,74 +650,60 @@ export default function ArenaMobile() {
       {activeTab === "discover" && isAuthed && myAgents.length > 0 && (
         <section className={styles.challengePanel} aria-label="Challenge setup">
           <div className={styles.challengePanelHead}>
-            <h2 className={styles.challengePanelTitle}>Challenges</h2>
+            <h2 className={styles.challengePanelTitle}>Challenge setup</h2>
             <span className={styles.challengeCountPill}>
-              {selectedOpponents.length}/{maxOpponentPicks}
+              {selectedOpponents.length}/{maxOpponentPicks} picked
             </span>
           </div>
           <p className={styles.challengeHint}>
-            <strong style={{ color: "#e8fbff" }}>Pick</strong> up to {maxOpponentPicks} opponent{maxOpponentPicks === 1 ? "" : "s"}, then{" "}
-            <strong style={{ color: "#e8fbff" }}>Start</strong>. We register{" "}
-            <strong style={{ color: "#e8fbff" }}>every seat on-chain</strong> (create, then each join), one confirmation
-            at a time — often <strong style={{ color: "#e8fbff" }}>1–3 min</strong>. Matches run{" "}
-            <strong style={{ color: "#e8fbff" }}>30 minutes</strong>; at time-up the winner is set by net worth and results
-            are saved.{" "}
-            <a href="/agent-battles" style={{ color: "#7ee8ff" }}>
-              Agent Battles
-            </a>{" "}
-            uses a lobby first and often feels quicker. Wallet spending caps only apply to{" "}
-            <strong style={{ color: "#e8fbff" }}>tournament entries</strong> and the <strong style={{ color: "#e8fbff" }}>Challenges</strong> tab — not required to start games here.
+            Pick up to {maxOpponentPicks} opponent{maxOpponentPicks === 1 ? "" : "s"} below, then Start.
           </p>
-          <label className={styles.challengeFieldLabel} htmlFor="arena-mobile-agent">
-            Playing as
-          </label>
-          <select
-            id="arena-mobile-agent"
-            className={styles.agentSelect}
-            value={challengerAgentId ?? ""}
-            onChange={(e) => setChallengerAgentId(Number(e.target.value))}
-          >
-            {myAgents.map((a) => {
-              const tp = tournamentPerms[a.id];
-              const capHint =
-                tp?.enabled === true
-                  ? ` — ${formatUsdcDisplay(tp.max_entry_fee_usdc)}/match${
-                      tp.daily_cap_usdc ? `, ${formatUsdcDisplay(tp.daily_cap_usdc)}/day` : ""
-                    }`
-                  : " — spending off";
-              return (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                  {capHint}
-                </option>
-              );
-            })}
-          </select>
-          {selectedChallenger && (
-            <p className={styles.challengeHint} style={{ marginTop: -2, marginBottom: 10 }}>
-              <strong style={{ color: "#e8fbff" }}>{selectedChallenger.name}</strong> · XP {xpOf(selectedChallenger)}
+          <details className={styles.challengeDiscoverDetails}>
+            <summary>Timing, match length &amp; wallet notes</summary>
+            <p>
+              Each seat is registered on-chain (often 1–3 minutes total); keep this tab open. Matches run 30 minutes; at
+              time-up the winner is net worth. Try{" "}
+              <a href="/agent-battles" className={styles.challengeDiscoverLink}>
+                Agent Battles
+              </a>{" "}
+              for a lobby-first flow. Wallet caps apply to tournaments and Challenges only, not Discover.
             </p>
-          )}
-          <div className={styles.challengeHint} style={{ marginBottom: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-            <span>
-              Caps: <strong style={{ color: "#e8fbff" }}>Mine</strong> → <strong style={{ color: "#e8fbff" }}>Tournament wallet spending</strong> on each card, or{" "}
-              <strong style={{ color: "#e8fbff" }}>Manage</strong>.
-            </span>
-            {challengerAgentId != null && (
+          </details>
+          <div className={styles.challengesLabelRow}>
+            <label className={styles.challengeFieldLabel} htmlFor="arena-mobile-agent" style={{ margin: 0 }}>
+              Playing as
+            </label>
+            {challengerAgentId != null ? (
               <button
                 type="button"
-                className={styles.tournamentLinkBtn}
-                style={{ alignSelf: "flex-start" }}
+                className={`${styles.tournamentLinkBtn} ${styles.challengesCapsLinkBtn}`}
                 onClick={() => {
                   setActiveTab("my-agents");
                   setMyAgentsSubTab("manage");
                   setOpenTournamentSpendingJumpAgentId(challengerAgentId);
                 }}
               >
-                Edit spending for selected agent
+                Edit caps
               </button>
-            )}
+            ) : null}
           </div>
+          <select
+            id="arena-mobile-agent"
+            className={styles.agentSelect}
+            value={challengerAgentId ?? ""}
+            onChange={(e) => setChallengerAgentId(Number(e.target.value))}
+          >
+            {myAgents.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+          {selectedChallenger ? (
+            <p className={styles.challengeHint} style={{ marginTop: 6, marginBottom: 10, fontSize: "0.72rem", color: "#8aa8b0" }}>
+              {selectedChallenger.name} · XP {xpOf(selectedChallenger)}
+            </p>
+          ) : null}
           <div className={styles.challengeActionRow}>
             <button
               type="button"
