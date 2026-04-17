@@ -4,6 +4,7 @@ import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, Sparkles, HeartHandshake } from "lucide-react";
 import { Player } from "@/types/game";
+import { VictorySocialShare, DEFAULT_JOIN_2D } from "./VictorySocialShare";
 
 interface VictoryDefeatModalProps {
   winner: Player | null;
@@ -12,6 +13,10 @@ interface VictoryDefeatModalProps {
   myPosition?: number;
   /** Called when "Go home" is clicked. Can be async (e.g. finalize/claim). Then we redirect to /. */
   onGoHome?: () => void | Promise<void>;
+  /** Room code — enables winner share row (join link with `gameCode`). */
+  gameCode?: string | null;
+  /** Join page path; classic board uses `/join-room`, 3D flow uses `/join-room-3d`. */
+  joinPagePath?: string;
 }
 
 /**
@@ -30,10 +35,13 @@ export const VictoryDefeatModal: React.FC<VictoryDefeatModalProps> = ({
   me,
   myPosition,
   onGoHome,
+  gameCode,
+  joinPagePath = DEFAULT_JOIN_2D,
 }) => {
   if (!winner) return null;
 
   const isWinner = winner.user_id === me?.user_id;
+  const shareCode = (gameCode ?? "").trim();
 
   const handleGoHome = async () => {
     await onGoHome?.();
@@ -95,10 +103,18 @@ export const VictoryDefeatModal: React.FC<VictoryDefeatModalProps> = ({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                className="text-cyan-200/90 text-base mb-6"
+                className="text-cyan-200/90 text-base mb-4"
               >
                 Well played — you earned this one.
               </motion.p>
+              {shareCode ? (
+                <VictorySocialShare
+                  gameCode={shareCode}
+                  winnerUsername={me?.username ?? winner.username}
+                  joinPagePath={joinPagePath}
+                  className="mb-5"
+                />
+              ) : null}
               <motion.button
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
