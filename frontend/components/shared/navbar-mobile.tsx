@@ -33,9 +33,9 @@ interface NavBarMobileProps {
   minimal?: boolean;
 }
 
+/** Omit /profile from idle prefetch — large route chunk was flagged unused on home (Lighthouse). */
 const PREFETCH_ROUTES = [
   '/game-shop',
-  '/profile',
   '/leaderboard',
   '/arena',
   '/rooms',

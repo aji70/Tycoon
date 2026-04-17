@@ -23,7 +23,8 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 
-const PREFETCH_ROUTES = ['/game-shop', '/arena', '/profile', '/leaderboard'] as const;
+/** Skip /profile here — prefetching it on the home shell pulls a large unused chunk (Lighthouse). Hover still prefetches profile. */
+const PREFETCH_ROUTES = ['/game-shop', '/arena', '/leaderboard'] as const;
 
 const NavBar = () => {
   const pathname = usePathname();
