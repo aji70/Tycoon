@@ -33,6 +33,7 @@ import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAsse
 import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
+import GameRoomLoading from '@/components/settings/game-room-loading';
 
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
 const MAX_AVATAR_DIM = 512;
@@ -937,7 +938,7 @@ function GuestProfileViewMobile({
 }
 
 export default function ProfilePageMobile() {
-  const { address: walletAddress, isConnected, chainId } = useAccount();
+  const { address: walletAddress, isConnected, chainId, status: walletStatus } = useAccount();
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1345,19 +1346,43 @@ export default function ProfilePageMobile() {
   }
 
   if (!isConnected || loading || error || !userData) {
+    if (walletStatus === 'connecting' || walletStatus === 'reconnecting') {
+      return (
+        <GameRoomLoading
+          variant="waiting"
+          title="Lobby loading…"
+          subtitle="Wallet still linking up. Rivals are rehearsing their poker faces."
+          tagline="MUAHAHAHA… almost there."
+        />
+      );
+    }
+
+    if (loading && isConnected) {
+      return (
+        <GameRoomLoading
+          variant="waiting"
+          title="Polishing your dossier…"
+          subtitle="Stats, perks, and mild villainy incoming."
+          tagline="MUAHAHAHA… hold tight."
+        />
+      );
+    }
+
+    if (!isConnected) {
+      return (
+        <GameRoomLoading
+          variant="waiting"
+          title="The lobby’s quiet… too quiet"
+          subtitle="Connect from the menu to summon your profile — or roll in as a guest from Home."
+          tagline="We’ll save you a seat. MUAHAHAHA."
+        />
+      );
+    }
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] flex items-center justify-center px-4">
         <div className="text-center space-y-6">
-          {!isConnected ? (
-            <p className="text-2xl font-bold text-red-400">Connect Wallet</p>
-          ) : loading ? (
-            <>
-              <Loader2 className="w-12 h-12 animate-spin text-[#00F0FF] mx-auto" />
-              <p className="text-xl text-[#00F0FF]">Loading profile...</p>
-            </>
-          ) : (
-            <p className="text-xl font-bold text-red-400">Error: {error || 'No data'}</p>
-          )}
+          <p className="text-xl font-bold text-red-400">Error: {error || 'No data'}</p>
         </div>
       </div>
     );
