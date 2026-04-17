@@ -646,6 +646,40 @@ button.tournamentLinkBtn.tournamentBtnDisabled {
   color: #c5e8ec;
 }
 
+.challengeDiscoverDetails {
+  margin: -4px 0 12px;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: #9eb8bc;
+}
+
+.challengeDiscoverDetails summary {
+  cursor: pointer;
+  color: #7ec4d0;
+  font-weight: 600;
+}
+
+.challengeDiscoverDetails summary:hover {
+  color: #b8f0ff;
+}
+
+.challengeDiscoverDetails[open] summary {
+  margin-bottom: 6px;
+}
+
+.challengeDiscoverDetails p {
+  margin: 0;
+}
+
+.challengeDiscoverLink {
+  color: #7ee8ff;
+  font-weight: 600;
+}
+
+.challengeDiscoverLink:hover {
+  text-decoration: underline;
+}
+
 .challengeSubTabs {
   display: flex;
   flex-wrap: wrap;
