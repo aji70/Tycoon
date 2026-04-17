@@ -55,6 +55,12 @@ export function getChainConfig(chain) {
       process.env.TYCOON_GAME_FAUCET_CELO ??
       process.env.TYCOON_GAME_FAUCET_ADDRESS;
     const usdcAddress = process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
+    /** TYC ERC20 (same token the game / shop use); used e.g. for admin light-ping approve. */
+    const tycTokenAddress =
+      process.env.CELO_TYC_TOKEN_ADDRESS ??
+      process.env.TYCOON_CELO_TYC ??
+      process.env.TYCOON_CELO_TOKEN ??
+      undefined;
     return {
       rpcUrl,
       contractAddress,
@@ -66,6 +72,7 @@ export function getChainConfig(chain) {
       nairaVaultAddress: nairaVaultAddress || undefined,
       gameFaucetAddress: gameFaucetAddress || undefined,
       usdcAddress: usdcAddress || undefined,
+      tycTokenAddress: tycTokenAddress || undefined,
       isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
     };
   }

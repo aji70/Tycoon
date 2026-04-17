@@ -102,9 +102,13 @@ export function defaultOperatorUsername(address) {
 }
 
 export async function getOperatorToolsStatus() {
-  const { provider, contractAddress } = getReadContext();
+  const { provider, contractAddress, cfg } = getReadContext();
   const keys = parsePrivateKeys();
   const distributor = process.env.CELO_BATCH_NATIVE_DISTRIBUTOR_ADDRESS?.trim() || null;
+  const tycTok = cfg.tycTokenAddress?.trim();
+  const usdcTok = cfg.usdcAddress?.trim();
+  const lightPingTokenAddress = tycTok || usdcTok || null;
+  const lightPingTokenSymbol = tycTok ? "TYC" : usdcTok ? "USDC" : null;
   const tycoonRead = new Contract(contractAddress, TYCOON_IFACE, provider);
   const wallets = [];
   for (const pk of keys) {
@@ -139,6 +143,8 @@ export async function getOperatorToolsStatus() {
     chain: CHAIN,
     contractAddress,
     distributorAddress: distributor,
+    lightPingTokenAddress,
+    lightPingTokenSymbol,
     walletCount: wallets.length,
     wallets,
   };
@@ -257,35 +263,39 @@ export function parseWeiFromCeloString(celoStr) {
 }
 
 /**
- * Each operator wallet calls **USDC.approve(Tycoon game, 0)** on the existing Celo USDC contract.
- * Second contract vs game logic; very low gas; no redeploy. Safe even with zero USDC balance (allowance-only).
+ * Each operator wallet calls **ERC20.approve(Tycoon game, 0)** on your token.
+ * Prefers **TYC** (`CELO_TYC_TOKEN_ADDRESS` / `TYCOON_CELO_TYC` / `TYCOON_CELO_TOKEN`); falls back to **USDC** if TYC unset.
+ * Low gas; no token balance required.
  */
-export async function usdcApproveGameZeroFromAllOperatorWallets(options = {}) {
+export async function lightTokenApproveGameZeroFromAllOperatorWallets(options = {}) {
   assertOperatorToolsEnabled();
   const delayMs = Math.max(0, Number(options.delayMs) || 0);
   const { contractAddress, cfg } = getReadContext();
+  const tycAddr = cfg.tycTokenAddress?.trim();
   const usdcAddr = cfg.usdcAddress?.trim();
-  if (!usdcAddr) {
+  const tokenAddr = tycAddr || usdcAddr;
+  const tokenSymbol = tycAddr ? "TYC" : "USDC";
+  if (!tokenAddr) {
     throw new Error(
-      "Set CELO_USDC_ADDRESS or USDC_ADDRESS in backend env so USDC approve ping can target the token contract"
+      "Set CELO_TYC_TOKEN_ADDRESS (or TYCOON_CELO_TYC / TYCOON_CELO_TOKEN) for TYC, or CELO_USDC_ADDRESS / USDC_ADDRESS for USDC fallback"
     );
   }
   const wallets = await getOperatorWalletsSortedByBalanceDesc();
   const results = [];
   for (const w of wallets) {
-    const usdc = new Contract(usdcAddr, ERC20_APPROVE_IFACE, w);
+    const token = new Contract(tokenAddr, ERC20_APPROVE_IFACE, w);
     try {
-      const tx = await usdc.approve(contractAddress, 0n);
+      const tx = await token.approve(contractAddress, 0n);
       const receipt = await tx.wait();
       results.push({
         address: w.address,
         hash: receipt?.hash,
         ok: true,
-        method: "USDC.approve(game,0)",
+        method: `${tokenSymbol}.approve(game,0)`,
       });
-      logger.info({ address: w.address, hash: receipt?.hash }, "celoOperatorTools USDC approve 0 to game");
+      logger.info({ address: w.address, hash: receipt?.hash, tokenSymbol }, "celoOperatorTools token approve 0 to game");
     } catch (err) {
-      logger.error({ err: err?.message, address: w.address }, "celoOperatorTools USDC approve failed");
+      logger.error({ err: err?.message, address: w.address }, "celoOperatorTools token approve failed");
       results.push({
         address: w.address,
         ok: false,
@@ -296,8 +306,11 @@ export async function usdcApproveGameZeroFromAllOperatorWallets(options = {}) {
   }
   return {
     results,
-    usdcAddress: usdcAddr,
+    tokenAddress: tokenAddr,
+    tokenSymbol,
     spenderGame: contractAddress,
-    note: "Uses existing Celo USDC + Tycoon proxy; no distributor redeploy",
+    note: tycAddr
+      ? "TYC token → approve(game,0) on your ERC20"
+      : "USDC fallback → approve(game,0); set TYC env to use your TYC contract instead",
   };
 }
