@@ -130,7 +130,7 @@ function GuestProfileView({
   guestUser,
   connectedWalletMismatchNotice,
 }: {
-  guestUser: { address: string; username: string; linked_wallet_address?: string | null; smart_wallet_address?: string | null };
+  guestUser: { id: number; address: string; username: string; linked_wallet_address?: string | null; smart_wallet_address?: string | null };
   /** Shown when the connected extension wallet is not registered for this account yet (prompt to link). Omitted when user already has smart/linked wallet — perks use those silently. */
   connectedWalletMismatchNotice?: string | null;
 }) {
@@ -152,8 +152,15 @@ function GuestProfileView({
   // Key local profile storage by whichever address represents this profile.
   // For Privy-only users, fall back to their guest `address` so avatar updates persist.
   const profileKeyAddress = linkedWalletAddress ?? smartWalletAddress ?? guestUser.address;
+  const profileReadFallbacks = [
+    guestUser.linked_wallet_address,
+    guestUser.smart_wallet_address,
+    guestUser.address,
+  ];
 
-  const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfileForAddress(profileKeyAddress);
+  const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfileForAddress(profileKeyAddress, {
+    readFallbackAddresses: profileReadFallbacks,
+  });
   const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
   const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
   const [localBio, setLocalBio] = useState(profile?.bio ?? '');
@@ -689,6 +696,9 @@ function GuestProfileView({
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[260px] max-h-[60vh] overflow-y-auto">
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
+                <div className="mb-6">
+                  <DailyClaim chain="CELO" accountKey={guestUser.id} />
+                </div>
                 {!displayStats ? (
                   <EmptyState
                     icon={<BarChart2 className="w-14 h-14 text-cyan-400/70" />}
@@ -1665,6 +1675,7 @@ export default function Profile() {
                           ? 'CELO'
                           : 'BASE'
                     }
+                    accountKey={guestUser?.id ?? walletAddress ?? ''}
                   />
                 </div>
                 {effectiveUserData && (() => {

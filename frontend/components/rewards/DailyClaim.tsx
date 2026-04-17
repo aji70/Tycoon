@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Calendar, Gift, Loader2 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -13,12 +13,18 @@ interface DailyClaimStatus {
 
 type SupportedChain = 'CELO' | 'POLYGON' | 'BASE';
 
-export function DailyClaim({ chain }: { chain?: SupportedChain }) {
+type DailyClaimProps = {
+  chain?: SupportedChain;
+  /** When this changes (e.g. guest id or connected wallet), status is refetched so UI matches the current session. */
+  accountKey?: string | number | null;
+};
+
+export function DailyClaim({ chain, accountKey }: DailyClaimProps) {
   const [status, setStatus] = useState<DailyClaimStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
 
-  const fetchStatus = () => {
+  const fetchStatus = useCallback(() => {
     setLoading(true);
     apiClient
       .get<{ success?: boolean; can_claim?: boolean; streak?: number; last_claim_at?: string | null }>(
@@ -28,19 +34,23 @@ export function DailyClaim({ chain }: { chain?: SupportedChain }) {
       .then((r) => {
         if (r?.data) {
           setStatus({
-            can_claim: r.data.can_claim ?? true,
+            // Only explicit true is claimable — missing/falsey means already claimed or unavailable.
+            can_claim: r.data.can_claim === true,
             streak: r.data.streak ?? 0,
             last_claim_at: r.data.last_claim_at ?? null,
           });
+        } else {
+          setStatus(null);
         }
       })
       .catch(() => setStatus(null))
       .finally(() => setLoading(false));
-  };
+  }, [chain]);
 
   useEffect(() => {
+    setStatus(null);
     fetchStatus();
-  }, [chain]);
+  }, [chain, accountKey, fetchStatus]);
 
   const handleClaim = () => {
     if (!status?.can_claim || claiming) return;

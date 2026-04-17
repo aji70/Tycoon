@@ -19,7 +19,7 @@ import { useProfileAvatar } from '@/context/ProfileContext';
 import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
-import { getProfile, guestProfileStorageKey } from '@/lib/profile-storage';
+import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 
 const PREFETCH_ROUTES = ['/game-shop', '/arena', '/profile', '/leaderboard'] as const;
 
@@ -88,9 +88,7 @@ const NavBar = () => {
 
   const guestNavAvatar = useMemo(() => {
     if (!guestUser) return null;
-    const key = guestProfileStorageKey(guestUser);
-    if (!key) return null;
-    return getProfile(key)?.avatar ?? null;
+    return mergeProfilesFromGuestUser(guestUser)?.avatar ?? null;
   }, [guestUser, pathname, storedProfileTick]);
   const isPrivyAuthed = ready && authenticated;
   /** Game APIs use the backend JWT — Privy alone is not a session until privy-signin completes. */
@@ -365,8 +363,8 @@ const NavBar = () => {
               </button>
               <div className="flex items-center gap-3 px-5 py-3 rounded-[12px] border border-[#0E282A] bg-[#011112] text-[#00F0FF] font-orbitron">
                 <div className="h-8 w-8 rounded-full border-2 border-[#0FF0FC] overflow-hidden shadow-lg shrink-0">
-                  {profileAvatar ? (
-                    <img src={profileAvatar} alt="Profile" className="w-full h-full object-cover" />
+                  {guestNavAvatar || profileAvatar ? (
+                    <img src={(guestNavAvatar || profileAvatar) as string} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
                     <Image src={avatar} alt="Wallet" width={32} height={32} className="object-cover w-full h-full" />
                   )}

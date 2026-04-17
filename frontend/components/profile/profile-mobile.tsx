@@ -131,6 +131,7 @@ function GuestProfileViewMobile({
   connectedWalletMismatchNotice,
 }: {
   guestUser: {
+    id: number;
     address: string;
     username: string;
     linked_wallet_address?: string | null;
@@ -156,7 +157,14 @@ function GuestProfileViewMobile({
   const guestOnChainAddress = linkedWalletAddress ?? smartWalletAddress ?? null;
   const guestGameLookupAddress = smartWalletAddress ?? linkedWalletAddress ?? null;
   const profileKeyAddress = linkedWalletAddress ?? smartWalletAddress ?? guestUser.address;
-  const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfileForAddress(profileKeyAddress);
+  const profileReadFallbacks = [
+    guestUser.linked_wallet_address,
+    guestUser.smart_wallet_address,
+    guestUser.address,
+  ];
+  const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfileForAddress(profileKeyAddress, {
+    readFallbackAddresses: profileReadFallbacks,
+  });
 
   const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
   const [localDisplayName, setLocalDisplayName] = useState('');
@@ -674,7 +682,7 @@ function GuestProfileViewMobile({
                   className="mb-4"
                 />
                 <div className="mb-4">
-                  <DailyClaim chain="CELO" />
+                  <DailyClaim chain="CELO" accountKey={guestUser.id} />
                 </div>
                 {displayStats && !displayStats.isOnChain && (
                   <div className="mb-4 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 flex flex-col gap-1 text-orange-200">
@@ -1592,6 +1600,7 @@ export default function ProfilePageMobile() {
                           ? 'CELO'
                           : 'BASE'
                     }
+                    accountKey={guestUser?.id ?? walletAddress ?? ''}
                   />
                 </div>
                 {statsUser && (() => {

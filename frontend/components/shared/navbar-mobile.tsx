@@ -21,7 +21,7 @@ import { useProfileAvatar } from '@/context/ProfileContext';
 import { isAddress } from 'viem';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
-import { getProfile, guestProfileStorageKey } from '@/lib/profile-storage';
+import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 
 const SCROLL_TOP_THRESHOLD = 40;
 const SCROLL_SENSITIVITY = 8;
@@ -136,9 +136,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
 
   const guestNavAvatar = useMemo(() => {
     if (!guestUser) return null;
-    const key = guestProfileStorageKey(guestUser);
-    if (!key) return null;
-    return getProfile(key)?.avatar ?? null;
+    return mergeProfilesFromGuestUser(guestUser)?.avatar ?? null;
   }, [guestUser, pathname, storedProfileTick]);
 
   // MiniPay detection + auto-connect attempt
