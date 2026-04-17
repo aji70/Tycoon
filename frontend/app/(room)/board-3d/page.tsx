@@ -3211,7 +3211,17 @@ function Board3DPageContent() {
                   <p className="text-xl text-white mb-4">{winner.username} <span className="text-amber-400">wins</span></p>
                   <HeartHandshake className="w-12 h-12 mx-auto text-cyan-400 mb-4" />
                   {endGameReason && <p className="text-slate-400 mb-4 text-sm">{endGameReason}</p>}
-                  <p className="text-slate-300 mb-6">You still get a consolation prize.</p>
+                  <p className="text-slate-300 mb-4">You still get a consolation prize.</p>
+                  {(game?.code ?? gameCode ?? "").trim() ? (
+                    <VictorySocialShare
+                      variant="loss"
+                      gameCode={(game?.code ?? gameCode ?? "").trim()}
+                      winnerUsername={winner.username}
+                      loserUsername={me?.username ?? undefined}
+                      joinPagePath="/game-waiting-3d"
+                      className="mb-5 text-left"
+                    />
+                  ) : null}
                   {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
                     <button
                       type="button"
