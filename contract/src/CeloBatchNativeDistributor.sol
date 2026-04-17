@@ -5,13 +5,6 @@ pragma solidity ^0.8.30;
 /// @dev Caller must set `msg.value` to the exact sum of `amounts`. Deploy on Celo mainnet or Alfajores as needed.
 contract CeloBatchNativeDistributor {
     event Distributed(address indexed recipient, uint256 amount);
-    /// @notice Cheap on-chain signal from many EOAs (admin / MiniPay activity proofs). Redeploy to pick up if upgrading.
-    event Touch(address indexed sender);
-
-    /// @dev Minimal gas; separate from `distribute` so operator batches can get multi-contract interaction.
-    function touch() external {
-        emit Touch(msg.sender);
-    }
 
     /// @param recipients Addresses to receive native token transfers
     /// @param amounts Wei sent to each recipient; must match recipients.length

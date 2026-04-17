@@ -20,13 +20,6 @@ const DISTRIBUTOR_ABI = [
     ],
     outputs: [],
   },
-  {
-    type: "function",
-    name: "touch",
-    stateMutability: "nonpayable",
-    inputs: [],
-    outputs: [],
-  },
 ] as const;
 
 type DistributorFundPayload = {
@@ -176,13 +169,13 @@ export default function AdminCeloOperatorsPage() {
     }
   }
 
-  /** Cheap tx on `CeloBatchNativeDistributor` (not Tycoon) — one `touch()` per wallet; redeploy distributor if `touch` is missing. */
-  async function runTouchDistributor() {
-    setBusy("touch");
+  /** Cheap tx on existing Celo USDC: `approve(Tycoon game, 0)` from each operator wallet (no new contract deploy). */
+  async function runLightChainPing() {
+    setBusy("light");
     setLog("");
     try {
       const { data: body } = await adminApi.post<{ success: boolean; data?: unknown; message?: string }>(
-        "admin/celo-operator/touch-distributor",
+        "admin/celo-operator/light-chain-ping",
         { delayMs },
         { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
       );
@@ -280,7 +273,7 @@ export default function AdminCeloOperatorsPage() {
 
       <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-4 py-3 text-slate-300 text-xs mb-6 space-y-2">
         <p>
-          <strong className="text-slate-200">Execution order:</strong> Register, Create AI games, Distributor touch, and
+          <strong className="text-slate-200">Execution order:</strong> Register, Create AI games, light USDC ping, and
           batch-fund recipient lists all run <strong className="text-cyan-300">highest CELO balance first</strong> so
           better-funded keys are more likely to succeed before balances run low.
         </p>
@@ -290,16 +283,18 @@ export default function AdminCeloOperatorsPage() {
           wallets stay done; failures show in the log.
         </p>
         <p>
-          <strong className="text-slate-200">Cheaper / second contract:</strong>{" "}
-          <strong className="text-violet-300">Touch distributor</strong> calls only{" "}
-          <code className="text-slate-400">touch()</code> on <code className="text-slate-400">CeloBatchNativeDistributor</code>{" "}
-          (event emit). Redeploy that contract from the repo if your on-chain copy does not include{" "}
-          <code className="text-slate-400">touch</code> yet.
+          <strong className="text-slate-200">Cheaper / second contract (no redeploy):</strong>{" "}
+          <strong className="text-violet-300">Light chain ping</strong> calls{" "}
+          <code className="text-slate-400">USDC.approve(tycoonGameAddress, 0)</code> on the{" "}
+          <strong className="text-slate-300">existing</strong> Celo USDC token. Tiny gas, works even with 0 USDC balance,
+          and proves a second contract interaction per wallet. Requires <code className="text-slate-400">CELO_USDC_ADDRESS</code>{" "}
+          (or <code className="text-slate-400">USDC_ADDRESS</code>) on the backend.
         </p>
         <p>
-          <strong className="text-slate-200">Gas ladder (Tycoon contract):</strong>{" "}
-          <code className="text-slate-400">registerPlayer</code> (when needed) then{" "}
-          <code className="text-slate-400">createAIGame</code> (heavier). Touch is the lightest on the distributor.
+          <strong className="text-slate-200">Gas ladder:</strong>{" "}
+          <code className="text-slate-400">USDC.approve(..., 0)</code> (lightest) →{" "}
+          <code className="text-slate-400">registerPlayer</code> (when needed) →{" "}
+          <code className="text-slate-400">createAIGame</code> (heaviest).
         </p>
       </div>
 
@@ -381,11 +376,11 @@ export default function AdminCeloOperatorsPage() {
             <button
               type="button"
               disabled={!!busy}
-              onClick={runTouchDistributor}
+              onClick={runLightChainPing}
               className="rounded-lg bg-slate-700 hover:bg-slate-600 px-4 py-2 text-sm font-medium text-slate-100 border border-slate-500 disabled:opacity-50"
-              title="Cheap touch() on batch distributor — redeploy contract if touch is missing on-chain"
+              title="USDC.approve(game, 0) on existing Celo USDC — low gas, no new deploy"
             >
-              {busy === "touch" ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} Touch distributor
+              {busy === "light" ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} Light ping (USDC approve 0)
             </button>
           </div>
 

@@ -6,7 +6,7 @@ import {
   getOperatorWalletsSortedByBalanceDesc,
   parseWeiFromCeloString,
   registerAllOperatorWallets,
-  touchDistributorFromAllOperatorWallets,
+  usdcApproveGameZeroFromAllOperatorWallets,
 } from "../services/celoOperatorToolsService.js";
 
 export async function getStatus(req, res) {
@@ -70,11 +70,12 @@ export async function postDistributorPayload(req, res) {
   }
 }
 
-export async function postTouchDistributor(req, res) {
+/** Cheap second-contract tx: existing Celo USDC `approve(Tycoon game, 0)` from each operator wallet. */
+export async function postLightChainPing(req, res) {
   try {
     assertOperatorToolsEnabled();
     const delayMs = Number(req.body?.delayMs) || 0;
-    const out = await touchDistributorFromAllOperatorWallets({ delayMs });
+    const out = await usdcApproveGameZeroFromAllOperatorWallets({ delayMs });
     return res.json({ success: true, data: out });
   } catch (err) {
     const code = err.code === "CELO_OPERATOR_DISABLED" || err.code === "CELO_OPERATOR_NO_KEYS" ? 403 : 400;
