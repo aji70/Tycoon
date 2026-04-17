@@ -1,14 +1,11 @@
 // components/AppKitProviderWrapper.tsx
 'use client';
 
+import { wagmiAdapter, projectId, defaultNetwork } from '@/config';
 import { ReactNode, useEffect } from 'react';
 import { createAppKit } from '@reown/appkit/react';
-import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
-import { celo } from '@reown/appkit/networks';
 
-const projectId = process.env.NEXT_PUBLIC_PROJECT_ID || '912f9a3279905a7dd417a7bf68e04209';
-
-/** Canonical app origin for wallet metadata (Reown). Align with `minikit.config.ts` / production: set `NEXT_PUBLIC_URL=https://www.tycoonworld.xyz` on Vercel. */
+/** Canonical app origin for wallet metadata (Reown). Set `NEXT_PUBLIC_URL` on Vercel to your canonical origin (www vs apex). */
 const siteUrl = (() => {
   const fromEnv = process.env.NEXT_PUBLIC_URL || process.env.NEXT_PUBLIC_SITE_URL;
   if (fromEnv?.trim()) return fromEnv.replace(/\/$/, '');
@@ -16,26 +13,40 @@ const siteUrl = (() => {
   return 'https://www.tycoonworld.xyz';
 })();
 
-// Celo only
-const wagmiAdapter = new WagmiAdapter({
-  networks: [celo],
-  projectId,
-  ssr: true, // Important for Next.js
-});
-
 let isInitialized = false;
+
+/** Reown injects #wcm-modal without aria-label; set one for screen readers / Lighthouse. */
+function useWcmModalAccessibleName() {
+  useEffect(() => {
+    const label = "Wallet connection";
+    const apply = () => {
+      const el = document.getElementById("wcm-modal");
+      if (!el) return;
+      if (!el.getAttribute("aria-label") && !el.getAttribute("aria-labelledby")) {
+        el.setAttribute("aria-label", label);
+      }
+    };
+    apply();
+    const obs = new MutationObserver(apply);
+    obs.observe(document.body, { childList: true, subtree: true });
+    return () => obs.disconnect();
+  }, []);
+}
 
 export default function AppKitProviderWrapper({
   children,
 }: {
   children: ReactNode;
 }) {
+  useWcmModalAccessibleName();
+
   useEffect(() => {
     if (!isInitialized) {
       createAppKit({
         adapters: [wagmiAdapter],
-        networks: [celo],
+        networks: [defaultNetwork],
         projectId,
+        defaultNetwork,
         themeVariables: {
           '--w3m-z-index': 10000, // Set high z-index for Reown modal
         },
@@ -44,6 +55,9 @@ export default function AppKitProviderWrapper({
           description: 'Play Monopoly onchain',
           url: siteUrl,
           icons: [`${siteUrl}/logo.png`],
+        },
+        features: {
+          analytics: true,
         },
       });
       isInitialized = true;

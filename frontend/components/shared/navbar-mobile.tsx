@@ -202,10 +202,12 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => setIsMobileMenuOpen(true)}
+                  aria-label="Open main menu"
                   className="w-11 h-11 rounded-xl bg-gradient-to-b from-[#03383a] to-[#011112] border border-[#00F0FF]/35 flex items-center justify-center text-[#00F0FF] shadow-[0_2px_8px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.05)] hover:border-[#00F0FF]/55 hover:shadow-[0_0_18px_rgba(0,240,255,0.2)] active:scale-[0.97] transition-all duration-200"
                 >
-                  <Menu size={21} strokeWidth={2.5} />
+                  <Menu size={21} strokeWidth={2.5} aria-hidden />
                 </button>
               </div>
             </div>
