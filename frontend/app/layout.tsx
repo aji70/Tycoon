@@ -2,7 +2,6 @@ import { dmSans, kronaOne, orbitron } from "@/components/shared/fonts";
 import NavBar from "@/components/shared/navbar"; // Remove if not used elsewhere
 import ScrollToTopBtn from "@/components/shared/scroll-to-top-btn";
 import "@/styles/globals.css";
-import { getMetadata } from "@/utils/getMeatadata";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
 import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
@@ -41,16 +40,26 @@ const BFCACHE_RELOAD_SCRIPT = `
 
 // Remove the duplicate 'cookies' global variable—it's not needed
 
+/** Safe metadataBase — invalid env (missing protocol, spaces) must not 500 the whole site. */
+function resolveMetadataBase(): URL {
+  const fallback = "https://www.tycoonworld.xyz";
+  const raw = (process.env.NEXT_PUBLIC_URL || process.env.NEXT_PUBLIC_SITE_URL || "")
+    .trim()
+    .replace(/\/$/, "");
+  const candidate = raw || fallback;
+  try {
+    if (/^https?:\/\//i.test(candidate)) {
+      return new URL(candidate);
+    }
+    return new URL(`https://${candidate}`);
+  } catch {
+    return new URL(fallback);
+  }
+}
+
 export async function generateMetadata(): Promise<Metadata> {
-  const headersObj = await headers();
-  const cookies = headersObj.get("cookie"); // Local var is fine here
-  const site =
-    process.env.NEXT_PUBLIC_URL ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    "https://www.tycoonworld.xyz";
-  const metadataBase = new URL(site.replace(/\/$/, ""));
   return {
-    metadataBase,
+    metadataBase: resolveMetadataBase(),
     title: {
       default: "Tycoon — On-chain Monopoly on Celo",
       template: "%s | Tycoon",
