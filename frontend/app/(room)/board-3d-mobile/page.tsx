@@ -41,6 +41,7 @@ import { reportAiAction } from "@/lib/agentFeedback";
 import { MONOPOLY_STATS, BUILD_PRIORITY } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
+import { VictorySocialShare } from "@/components/game/modals/VictorySocialShare";
 import RaiseFundsPanel from "@/components/game/modals/RaiseFundsPanel";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
 import { MyAgentToggle } from "@/components/game/MyAgentToggle";
@@ -3219,7 +3220,15 @@ function Board3DMobileContent() {
                     ? "You had the highest net worth when the session ended."
                     : "Congratulations — you won this match."}
                 </p>
-                {endGameReason && <p className="text-slate-400 mb-6 text-sm">{endGameReason}</p>}
+                {endGameReason && <p className="text-slate-400 mb-4 text-sm">{endGameReason}</p>}
+                {(game?.code ?? gameCode ?? "").trim() ? (
+                  <VictorySocialShare
+                    gameCode={(game?.code ?? gameCode ?? "").trim()}
+                    winnerUsername={me?.username ?? undefined}
+                    joinPagePath="/game-waiting-3d"
+                    className="mb-5 text-left"
+                  />
+                ) : null}
                 {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
                   <button
                     type="button"

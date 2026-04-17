@@ -44,8 +44,17 @@ const BFCACHE_RELOAD_SCRIPT = `
 export async function generateMetadata(): Promise<Metadata> {
   const headersObj = await headers();
   const cookies = headersObj.get("cookie"); // Local var is fine here
+  const site =
+    process.env.NEXT_PUBLIC_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "https://www.tycoonworld.xyz";
+  const metadataBase = new URL(site.replace(/\/$/, ""));
   return {
-    title: "Tycoon",
+    metadataBase,
+    title: {
+      default: "Tycoon — On-chain Monopoly on Celo",
+      template: "%s | Tycoon",
+    },
     description:
       "Tycoon is a decentralized on-chain game inspired by the classic Monopoly game, built on Celo. It allows players to buy, sell, and trade digital properties in a trustless gaming environment.",
     other: {

@@ -31,6 +31,7 @@ import { Toaster, toast } from "react-hot-toast";
 import { MONOPOLY_STATS } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
+import { VictorySocialShare } from "@/components/game/modals/VictorySocialShare";
 import RaiseFundsPanel from "@/components/game/modals/RaiseFundsPanel";
 import { useAgentAutoLiquidate } from "@/hooks/useAgentAutoLiquidate";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
@@ -3004,7 +3005,15 @@ function Board3DMobilePageContent() {
                 <p className="text-slate-200 mb-2">
                   You had the highest net worth when time ran out. Prizes were distributed when the game ended.
                 </p>
-                {endGameReason && <p className="text-slate-400 mb-6 text-sm">{endGameReason}</p>}
+                {endGameReason && <p className="text-slate-400 mb-4 text-sm">{endGameReason}</p>}
+                {(game?.code ?? gameCode ?? "").trim() ? (
+                  <VictorySocialShare
+                    gameCode={(game?.code ?? gameCode ?? "").trim()}
+                    winnerUsername={me?.username ?? undefined}
+                    joinPagePath="/game-waiting-3d"
+                    className="mb-5 text-left"
+                  />
+                ) : null}
                 <button
                   type="button"
                   onClick={() => handleFinalizeAndLeave()}

@@ -107,7 +107,12 @@ const GameModals: React.FC<GameModalsProps> = ({
     <>
       {/* Winner / Loser — shared with desktop multiplayer */}
       {winner && (
-        <VictoryDefeatModal winner={winner} me={me} myPosition={myPosition} />
+        <VictoryDefeatModal
+          winner={winner}
+          me={me}
+          myPosition={myPosition}
+          gameCode={currentGame.code}
+        />
       )}
 
       {/* Exit Prompt */}
