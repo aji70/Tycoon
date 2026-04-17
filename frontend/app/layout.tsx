@@ -82,10 +82,10 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="dns-prefetch" href="https://auth.privy.io" />
         <link rel="dns-prefetch" href="https://api.web3modal.org" />
+        <link rel="dns-prefetch" href="https://pulse.walletconnect.org" />
         <link rel="dns-prefetch" href="https://fonts.reown.com" />
-        <link rel="preconnect" href="https://auth.privy.io" crossOrigin="anonymous" />
-        <link rel="preconnect" href="https://api.web3modal.org" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://fonts.reown.com" crossOrigin="anonymous" />
       </head>
       <body className="antialiased bg-[#010F10] w-full">

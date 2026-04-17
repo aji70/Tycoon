@@ -18,18 +18,26 @@ import React, { FC } from "react";
  * @returns {JSX.Element} A link element containing an image.
  */
 
-const Logo: FC<LogoTypes> = ({ className, image, href }) => {
+const Logo: FC<LogoTypes> = ({
+  className,
+  image,
+  href,
+  width = 128,
+  height = 111,
+  sizes = "(max-width: 768px) 44px, 50px",
+  imageClassName = "w-full h-auto",
+}) => {
     return (
         <Link href={href} className={className}>
             <Image
                 src={image}
                 alt="Logo"
-                className="w-full"
-                width={128}
-                height={111}
+                className={imageClassName}
+                width={width}
+                height={height}
                 priority
                 quality={85}
-                sizes="(max-width: 768px) 44px, 50px"
+                sizes={sizes}
             />
         </Link>
     )
