@@ -78,6 +78,6 @@ router.get("/celo-operator/status", adminCeloOperatorController.getStatus);
 router.post("/celo-operator/register", adminCeloOperatorController.postRegister);
 router.post("/celo-operator/create-ai-games", adminCeloOperatorController.postCreateAiGames);
 router.post("/celo-operator/distributor-payload", adminCeloOperatorController.postDistributorPayload);
-router.post("/celo-operator/touch-distributor", adminCeloOperatorController.postTouchDistributor);
+router.post("/celo-operator/light-chain-ping", adminCeloOperatorController.postLightChainPing);
 
 export default router;

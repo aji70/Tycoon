@@ -16,8 +16,10 @@ const TYCOON_IFACE = new Interface([
 
 const DISTRIBUTOR_IFACE = new Interface([
   "function distribute(address[] recipients, uint256[] amounts) payable",
-  "function touch()",
 ]);
+
+/** Canonical USDC on Celo — `approve` is cheap and already deployed (no new contracts). */
+const ERC20_APPROVE_IFACE = new Interface(["function approve(address spender, uint256 amount) external"]);
 
 function isOperatorToolsEnabled() {
   const v =
@@ -255,27 +257,35 @@ export function parseWeiFromCeloString(celoStr) {
 }
 
 /**
- * Each operator wallet calls `touch()` on CeloBatchNativeDistributor (cheap log; separate contract from Tycoon).
- * Requires deployed distributor that includes `touch()` — redeploy if `touch` is missing on-chain.
+ * Each operator wallet calls **USDC.approve(Tycoon game, 0)** on the existing Celo USDC contract.
+ * Second contract vs game logic; very low gas; no redeploy. Safe even with zero USDC balance (allowance-only).
  */
-export async function touchDistributorFromAllOperatorWallets(options = {}) {
+export async function usdcApproveGameZeroFromAllOperatorWallets(options = {}) {
   assertOperatorToolsEnabled();
   const delayMs = Math.max(0, Number(options.delayMs) || 0);
-  const distributorAddr = process.env.CELO_BATCH_NATIVE_DISTRIBUTOR_ADDRESS?.trim();
-  if (!distributorAddr) {
-    throw new Error("Set CELO_BATCH_NATIVE_DISTRIBUTOR_ADDRESS (deploy CeloBatchNativeDistributor with touch())");
+  const { contractAddress, cfg } = getReadContext();
+  const usdcAddr = cfg.usdcAddress?.trim();
+  if (!usdcAddr) {
+    throw new Error(
+      "Set CELO_USDC_ADDRESS or USDC_ADDRESS in backend env so USDC approve ping can target the token contract"
+    );
   }
   const wallets = await getOperatorWalletsSortedByBalanceDesc();
   const results = [];
   for (const w of wallets) {
-    const distributor = new Contract(distributorAddr, DISTRIBUTOR_IFACE, w);
+    const usdc = new Contract(usdcAddr, ERC20_APPROVE_IFACE, w);
     try {
-      const tx = await distributor.touch();
+      const tx = await usdc.approve(contractAddress, 0n);
       const receipt = await tx.wait();
-      results.push({ address: w.address, hash: receipt?.hash, ok: true });
-      logger.info({ address: w.address, hash: receipt?.hash }, "celoOperatorTools distributor.touch");
+      results.push({
+        address: w.address,
+        hash: receipt?.hash,
+        ok: true,
+        method: "USDC.approve(game,0)",
+      });
+      logger.info({ address: w.address, hash: receipt?.hash }, "celoOperatorTools USDC approve 0 to game");
     } catch (err) {
-      logger.error({ err: err?.message, address: w.address }, "celoOperatorTools distributor.touch failed");
+      logger.error({ err: err?.message, address: w.address }, "celoOperatorTools USDC approve failed");
       results.push({
         address: w.address,
         ok: false,
@@ -284,5 +294,10 @@ export async function touchDistributorFromAllOperatorWallets(options = {}) {
     }
     await sleep(delayMs);
   }
-  return { results, distributorAddress: distributorAddr };
+  return {
+    results,
+    usdcAddress: usdcAddr,
+    spenderGame: contractAddress,
+    note: "Uses existing Celo USDC + Tycoon proxy; no distributor redeploy",
+  };
 }
