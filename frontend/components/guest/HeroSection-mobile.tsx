@@ -511,8 +511,8 @@ const HeroSectionMobile: React.FC = () => {
           Play against AI • Become the top tycoon
         </p>
 
-        {/* Main action area */}
-        <div className="mt-8 sm:mt-10 w-full max-w-[380px] flex flex-col items-center gap-5 sm:gap-6 flex-1">
+        {/* Main action area — min-height avoids CLS when Privy / registration UI hydrates */}
+        <div className="mt-8 sm:mt-10 w-full max-w-[380px] flex min-h-[220px] flex-col items-center gap-5 sm:gap-6 flex-1">
           {/* EOA mandatory Privy: wallet connected but not signed in with Privy */}
           {address && !isPrivyAuthed && !loading && (
             <div className="w-full max-w-[300px] flex flex-col gap-3 items-center">

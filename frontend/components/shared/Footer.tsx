@@ -10,7 +10,15 @@ const Footer = () => {
   return (
     <footer className="w-full md:pb-12 pb-8 px-4">
       <div className="w-full max-w-[1120px] mx-auto flex flex-col md:flex-row items-center md:justify-between justify-center md:gap-0 gap-4 bg-[#0B191A] rounded-[16px] p-[20px] border border-[#003B3E]/50 game-panel">
-        <Logo className="md:w-[60px] w-[55px]" image={logo} href="/" />
+        <Logo
+          className="block md:w-[60px] w-[55px] shrink-0"
+          image={logo}
+          href="/"
+          width={64}
+          height={64}
+          sizes="(max-width: 768px) 55px, 60px"
+          imageClassName="h-auto w-full max-h-[60px] object-contain"
+        />
 
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
           <Link

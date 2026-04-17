@@ -569,7 +569,7 @@ const HeroSection: React.FC = () => {
           </p>
         </div>
 
-        <div className="z-1 w-full flex flex-col justify-center items-center mt-6 gap-4">
+        <div className="z-1 w-full flex min-h-[152px] flex-col justify-center items-center mt-6 gap-4">
           {/* EOA mandatory Privy: wallet connected but not signed in with Privy — must sign in with Privy to continue */}
           {address && !isPrivyAuthed && !loading && (
             <div className="w-[80%] md:w-[400px] flex flex-col gap-4 items-center">
