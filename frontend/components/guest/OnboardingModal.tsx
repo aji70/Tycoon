@@ -115,7 +115,7 @@ export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
                   </span>
                   <div>
                     <p className="font-medium text-white font-dmSans">Sign in or connect wallet</p>
-                    <p className="text-slate-400 text-sm mt-0.5">Use email/social (no password) or connect a Web3 wallet to play.</p>
+                    <p className="text-slate-400 text-sm mt-0.5">Use email (magic link, no password) or connect a Web3 wallet to play.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 rounded-xl bg-[#0E1415]/80 border border-[#003B3E] p-4">
