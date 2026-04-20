@@ -70,12 +70,18 @@ export async function postDistributorPayload(req, res) {
   }
 }
 
-/** Cheap second-contract tx: existing Celo USDC `approve(Tycoon game, 0)` from each operator wallet. */
+/** Cheap second-contract tx: TYC (or USDC) `approve(Tycoon game, 0)` from each operator wallet; optional repeats per wallet. */
 export async function postLightChainPing(req, res) {
   try {
     assertOperatorToolsEnabled();
     const delayMs = Number(req.body?.delayMs) || 0;
-    const out = await lightTokenApproveGameZeroFromAllOperatorWallets({ delayMs });
+    const approvalsPerWallet = Number(req.body?.approvalsPerWallet);
+    const parallelWallets = req.body?.parallelWallets;
+    const out = await lightTokenApproveGameZeroFromAllOperatorWallets({
+      delayMs,
+      ...(Number.isFinite(approvalsPerWallet) ? { approvalsPerWallet } : {}),
+      ...(parallelWallets !== undefined ? { parallelWallets: Boolean(parallelWallets) } : {}),
+    });
     return res.json({ success: true, data: out });
   } catch (err) {
     const code = err.code === "CELO_OPERATOR_DISABLED" || err.code === "CELO_OPERATOR_NO_KEYS" ? 403 : 400;
