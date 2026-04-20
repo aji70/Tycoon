@@ -262,7 +262,7 @@ async burnForCash(req, res) {
     await trx("game_players")
       .where({ id: player.id })
       .update({
-        balance: player.balance + reward,
+        balance: Number(player.balance) + reward,
         active_perks: from_collectible ? player.active_perks : JSON.stringify(updatedPerks),
         updated_at: new Date(),
       });
@@ -398,7 +398,7 @@ async burnForCash(req, res) {
       await trx("game_players")
         .where({ id: player.id })
         .update({
-          balance: player.balance + value,
+          balance: Number(player.balance) + value,
           active_perks: from_collectible ? player.active_perks : JSON.stringify(updatedPerks),
           updated_at: new Date(),
         });

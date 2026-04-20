@@ -49,7 +49,7 @@ import referralRoutes from "./routes/referral.js";
 import questsRoutes from "./routes/quests.js";
 import { requireAdminIpAllowlist, adminApiRateLimiter } from "./middleware/adminDashboardGate.js";
 
-import gamePerkController from "./controllers/gamePerkController.js";
+import gamePerkRoutes from "./routes/game-perks.js";
 import * as shopController from "./controllers/shopController.js";
 import * as dailyClaimController from "./controllers/dailyClaimController.js";
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
@@ -379,12 +379,7 @@ app.use("/api/arena", arenaRoutes);
 app.use("/api/shop-admin", shopAdminRoutes);
 app.use("/api/admin", requireAdminIpAllowlist, adminApiRateLimiter, adminDashboardRoutes);
 
-app.post("/api/perks/activate", gamePerkController.activatePerk);
-  app.post("/api/perks/teleport", gamePerkController.teleport);
-  app.post("/api/perks/exact-roll", gamePerkController.exactRoll);
-  app.post("/api/perks/burn-cash", gamePerkController.burnForCash);
-  app.post("/api/perks/use-jail-free", gamePerkController.useJailFree);
-  app.post("/api/perks/apply-cash", gamePerkController.applyCash);
+app.use("/api/perks", gamePerkRoutes);
 
   app.get("/api/shop/bundles", shopController.listBundles);
   app.post("/api/shop/paystack/initialize", requireAuth, shopController.paystackInitialize);

@@ -9,8 +9,8 @@ const Game = {
     return this.findById(id);
   },
 
-  async findById(id) {
-    return db("games").where({ id }).first();
+  async findById(id, trx = db) {
+    return trx("games").where({ id }).first();
   },
 
   async findAll({ limit = 100, offset = 0 } = {}) {
@@ -21,11 +21,11 @@ const Game = {
       .orderBy("created_at", "desc");
   },
 
-  async update(id, data) {
-    await db("games")
+  async update(id, data, trx = db) {
+    await trx("games")
       .where({ id })
       .update({ ...data, updated_at: db.fn.now() });
-    return this.findById(id);
+    return this.findById(id, trx);
   },
 
   async delete(id) {
@@ -36,10 +36,10 @@ const Game = {
   // 🔹 Extra Queries
   // -------------------------
 
-  async findByCode(code) {
+  async findByCode(code, trx = db) {
     if (code == null || String(code).trim() === "") return null;
     const normalized = String(code).trim().toUpperCase();
-    return db("games").where({ code: normalized }).first();
+    return trx("games").where({ code: normalized }).first();
   },
 
   async findByWinner(userId, { limit = 50, offset = 0 } = {}) {

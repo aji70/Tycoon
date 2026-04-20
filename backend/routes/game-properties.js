@@ -1,16 +1,21 @@
 import { Router } from "express";
 import gamePropertyController from "../controllers/gamePropertyController.js";
+import { dispatch } from "../utils/dispatch.js";
 
 const router = Router();
 
+// POST /api/game-properties/:action  (buy | sell | development | downgrade | mortgage | unmortgage)
+router.post("/:action", dispatch(gamePropertyController, [
+  "buy",
+  "sell",
+  "development",
+  "downgrade",
+  "mortgage",
+  "unmortgage",
+]));
+
 // CRUD
 router.post("/", gamePropertyController.create);
-router.post("/buy", gamePropertyController.buy);
-router.post("/sell", gamePropertyController.sell);
-router.post("/development", gamePropertyController.development);
-router.post("/downgrade", gamePropertyController.downgrade);
-router.post("/mortgage", gamePropertyController.mortgage);
-router.post("/unmortgage", gamePropertyController.unmortgage);
 router.get("/", gamePropertyController.findAll);
 router.get("/:id", gamePropertyController.findById);
 router.put("/:id", gamePropertyController.update);
@@ -21,5 +26,3 @@ router.get("/game/:gameId", gamePropertyController.findByGame);
 router.get("/player/:playerId", gamePropertyController.findByPlayer);
 
 export default router;
-
-

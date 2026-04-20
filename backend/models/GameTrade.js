@@ -109,8 +109,9 @@ const GameTrade = {
         "fu.username as from_username",
         "tu.username as to_username"
       )
-      .where("t.from_player_id", playerId)
-      .orWhere("t.to_player_id", playerId)
+      .where(function () {
+        this.where("t.from_player_id", playerId).orWhere("t.to_player_id", playerId);
+      })
       .orderBy("t.created_at", "desc");
   },
 
@@ -200,7 +201,7 @@ const GameTrade = {
       // Mark trade as accepted
       await trx("game_trades")
         .where({ id: tradeId })
-        .update({ status: "accepted", updated_at: trx.fn.now() });
+        .update({ status: "ACCEPTED", updated_at: trx.fn.now() });
 
       return { success: true, tradeId };
     });

@@ -26,7 +26,7 @@ const GamePlayer = {
           .max("turn_order as maxOrder")
           .first();
 
-        data.turn_order = (maxTurn.maxOrder || 0) + 1;
+        data.turn_order = (maxTurn?.maxOrder || 0) + 1;
       }
 
       // 3. Insert player
@@ -73,8 +73,8 @@ const GamePlayer = {
       .first();
   },
 
-  async findByGameId(gameId) {
-    return db("game_players as gp")
+  async findByGameId(gameId, trx = db) {
+    return trx("game_players as gp")
       .leftJoin("users as u", "gp.user_id", "u.id")
       .leftJoin("games as g", "gp.game_id", "g.id")
       .select(
@@ -154,6 +154,7 @@ const GamePlayer = {
       // Prevent duplicate symbol when updating
       if (data.symbol) {
         const current = await trx("game_players").where({ id }).first();
+        if (!current) throw new Error("Player not found");
 
         const conflict = await trx("game_players")
           .where({ game_id: current.game_id, symbol: data.symbol })
@@ -179,13 +180,13 @@ const GamePlayer = {
     return db("game_players").where({ id }).del();
   },
 
-  async leave(game_id, user_id) {
-    return db("game_players").where({ game_id, user_id }).del();
+  async leave(game_id, user_id, trx = db) {
+    return trx("game_players").where({ game_id, user_id }).del();
   },
 
-  async setTurnStart(game_id, user_id) {
+  async setTurnStart(game_id, user_id, trx = db) {
     const turnStartSeconds = String(Math.floor(Date.now() / 1000));
-    await db("game_players")
+    await trx("game_players")
       .where({ game_id, user_id })
       .update({ turn_start: turnStartSeconds, updated_at: db.fn.now() });
   },

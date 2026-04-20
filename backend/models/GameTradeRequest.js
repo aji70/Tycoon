@@ -55,56 +55,44 @@ export default {
 
   // ✅ Get all trades involving a specific player (as initiator or target)
   async getByPlayer(game_id, player_id) {
-    return await db(TABLE)
+    const records = await db(TABLE)
       .where({ game_id })
       .andWhere(function () {
-        this.where("player_id", player_id).orWhere(
-          "target_player_id",
-          player_id
-        );
+        this.where("player_id", player_id).orWhere("target_player_id", player_id);
       });
-    return records.map(this._parseJsonFields);
+    return records.map((r) => this._parseJsonFields(r));
   },
 
   async getByGameIdAndPlayerId(game_id, player_id, status) {
-    return await db(TABLE)
+    const records = await db(TABLE)
       .where("game_id", game_id)
       .andWhere(function () {
-        this.where("player_id", player_id).orWhere(
-          "target_player_id",
-          player_id
-        );
+        this.where("player_id", player_id).orWhere("target_player_id", player_id);
       })
       .modify(function (query) {
-        if (status) {
-          query.andWhere("status", status);
-        }
+        if (status) query.andWhere("status", status);
       });
-
-    return records.map(this._parseJsonFields);
+    return records.map((r) => this._parseJsonFields(r));
   },
 
   async myTradeRequests(game_id, player_id) {
-    return await db(TABLE)
+    const records = await db(TABLE)
       .where("game_id", game_id)
       .where("player_id", player_id);
-
-    return records.map(this._parseJsonFields);
+    return records.map((r) => this._parseJsonFields(r));
   },
 
   async incomingTradeRequests(game_id, player_id) {
-    return await db(TABLE)
+    const records = await db(TABLE)
       .where("game_id", game_id)
       .where("target_player_id", player_id)
       .where("status", "pending");
-
-    return records.map(this._parseJsonFields);
+    return records.map((r) => this._parseJsonFields(r));
   },
 
-  // ✅ Get all trades for a game with a specific status
   async getByStatus(game_id, status) {
-    return await db(TABLE).where({ game_id, status });
-    return records.map(this._parseJsonFields);
+    const records = await db(TABLE).where({ game_id, status });
+    return records.map((r) => this._parseJsonFields(r));
   },
 
   // ✅ Helper: parse JSON fields

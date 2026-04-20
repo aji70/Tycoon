@@ -238,25 +238,13 @@ export async function patchPlayerStatus(req, res) {
     }
 
     const prev = String(user.account_status || "active").toLowerCase();
-    await db("users").where({ id }).update({ account_status: status, updated_at: new Date() });
 
-    await appendAdminAuditLog({
-      action: "players.status",
-      targetType: "user",
-      targetId: String(id),
-      payload: {
-        username: user.username,
-        previousStatus: prev,
-        nextStatus: status,
-        reason: reason || null,
-      },
-      req,
+    await db.transaction(async (trx) => {
+      await trx("users").where({ id }).update({ account_status: status, updated_at: new Date() });
+      await appendAdminAuditLog({ action: "players.status", targetType: "user", targetId: String(id), payload: { username: user.username, previousStatus: prev, nextStatus: status, reason: reason || null }, req });
     });
 
-    res.json({
-      success: true,
-      data: { id, account_status: status, previousStatus: prev },
-    });
+    res.json({ success: true, data: { id, account_status: status, previousStatus: prev } });
   } catch (err) {
     logger.error({ err }, "admin patchPlayerStatus error");
     res.status(500).json({ success: false, error: "Failed to update player status" });

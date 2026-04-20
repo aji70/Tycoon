@@ -51,16 +51,19 @@ export async function getPublicLeaderboard(req, res) {
 export async function getMe(req, res) {
   try {
     const userId = req.userId;
+
+    // ensureUserReferralCode writes if missing; read the user once after to get the final code.
     await ensureUserReferralCode(userId);
-    const user = await db("users")
-      .where({ id: userId })
-      .first("id", "username", "referral_code", "referred_by_user_id", "referred_at");
+
+    const [user, countRow] = await Promise.all([
+      db("users").where({ id: userId }).first("id", "username", "referral_code", "referred_by_user_id", "referred_at"),
+      db("users").where({ referred_by_user_id: userId }).count("* as c").first(),
+    ]);
 
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    const countRow = await db("users").where({ referred_by_user_id: userId }).count("* as c").first();
     const directReferrals = Number(countRow?.c ?? 0);
 
     let referredByUsername = null;

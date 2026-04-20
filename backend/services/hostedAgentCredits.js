@@ -54,13 +54,12 @@ export async function hasCredits(userId) {
  */
 export async function deductCredit(userId) {
   if (!userId) return false;
-  const row = await getOrCreateRow(userId);
-  const current = Number(row.balance) || 0;
-  if (current < 1) return false;
-  await db("hosted_agent_credits")
+  // Atomic decrement with floor guard — avoids read-then-write race
+  const updated = await db("hosted_agent_credits")
     .where({ user_id: userId })
-    .update({ balance: current - 1, updated_at: db.fn.now() });
-  return true;
+    .where("balance", ">=", 1)
+    .update({ balance: db.raw("balance - 1"), updated_at: db.fn.now() });
+  return updated > 0;
 }
 
 /**
@@ -72,22 +71,26 @@ export async function deductCredit(userId) {
  */
 export async function addCredits(userId, credits, purchase = {}) {
   if (!userId || credits < 1) throw new Error("Invalid addCredits call");
-  const row = await getOrCreateRow(userId);
-  const current = Number(row.balance) || 0;
-  const newBalance = current + credits;
-  await db("hosted_agent_credits")
-    .where({ user_id: userId })
-    .update({ balance: newBalance, updated_at: db.fn.now() });
-
-  await db("hosted_agent_credit_purchases").insert({
-    user_id: userId,
-    credits,
-    price_usdc: purchase.price_usdc ?? null,
-    price_ngn: purchase.price_ngn ?? null,
-    source: purchase.source || "unknown",
-    tx_hash: purchase.tx_hash ?? null,
-    tx_ref: purchase.tx_ref ?? null,
+  return db.transaction(async (trx) => {
+    // Upsert balance row
+    const row = await trx("hosted_agent_credits").where({ user_id: userId }).first();
+    if (row) {
+      await trx("hosted_agent_credits")
+        .where({ user_id: userId })
+        .update({ balance: db.raw("balance + ?", [credits]), updated_at: db.fn.now() });
+    } else {
+      await trx("hosted_agent_credits").insert({ user_id: userId, balance: credits });
+    }
+    await trx("hosted_agent_credit_purchases").insert({
+      user_id: userId,
+      credits,
+      price_usdc: purchase.price_usdc ?? null,
+      price_ngn: purchase.price_ngn ?? null,
+      source: purchase.source || "unknown",
+      tx_hash: purchase.tx_hash ?? null,
+      tx_ref: purchase.tx_ref ?? null,
+    });
+    const updated = await trx("hosted_agent_credits").where({ user_id: userId }).first();
+    return { balance: Number(updated?.balance) || credits };
   });
-
-  return { balance: newBalance };
 }

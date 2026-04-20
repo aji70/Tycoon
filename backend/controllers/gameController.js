@@ -263,7 +263,7 @@ export async function finishGameByNetWorthAndNotify(io, game) {
       const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
       const playerRows = await db("game_players").where({ game_id: game.id }).select("user_id", "turn_count");
       const turnCountByUser = Object.fromEntries(playerRows.map((r) => [r.user_id, Number(r.turn_count ?? 0)]));
-      for (const { user_id } of sortedByNetWorth) {
+      for (const { user_id } of (result.net_worths || [])) {
         const user = await db("users").where({ id: user_id }).select("address").first();
         if (!user?.address) continue;
         const turnCount = turnCountByUser[user_id];
@@ -422,14 +422,15 @@ const gameController = {
       const aiDiff = req.body.ai_difficulty || settings?.ai_difficulty || "boss";
       const aiDiffMode = req.body.ai_difficulty_mode || settings?.ai_difficulty_mode || "random";
       const aiCount = game.is_ai ? Math.max(0, (number_of_players || 2) - 1) : 0;
+      const s = settings || {};
       const gameSettingsPayload = {
         game_id: game.id,
-        auction: settings.auction,
-        rent_in_prison: settings.rent_in_prison,
-        mortgage: settings.mortgage,
-        even_build: settings.even_build,
-        randomize_play_order: settings?.randomize_play_order ?? true,
-        starting_cash: settings.starting_cash,
+        auction: s.auction,
+        rent_in_prison: s.rent_in_prison,
+        mortgage: s.mortgage,
+        even_build: s.even_build,
+        randomize_play_order: s.randomize_play_order ?? true,
+        starting_cash: s.starting_cash,
         ...buildAiDifficultyPayload(aiDiff, aiDiffMode, aiCount, game.is_ai),
       };
 
@@ -439,7 +440,7 @@ const gameController = {
         game_id: game.id,
         user_id: user.id,
         address: user.address,
-        balance: settings.starting_cash,
+        balance: s.starting_cash,
         position: 0,
         turn_order: 1,
         symbol: symbol,
