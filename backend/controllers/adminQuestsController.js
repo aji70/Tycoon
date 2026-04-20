@@ -120,24 +120,17 @@ export async function createQuest(req, res) {
     const slug = normalizeSlug(body.slug);
     const title = body.title != null ? String(body.title).trim().slice(0, 200) : "";
 
-    if (!title) {
-      return res.status(400).json({ success: false, error: "title is required" });
-    }
+    if (!title) return res.status(400).json({ success: false, error: "title is required" });
     if (!isValidSlug(slug)) {
-      return res.status(400).json({
-        success: false,
-        error: "slug must be 1–64 chars: lowercase letters, digits, hyphens (no leading/trailing hyphen)",
-      });
+      return res.status(400).json({ success: false, error: "slug must be 1–64 chars: lowercase letters, digits, hyphens (no leading/trailing hyphen)" });
     }
 
     const active = body.active === false ? false : true;
     const sortOrder = Number(body.sortOrder ?? body.sort_order);
     const sort_order = Number.isFinite(sortOrder) ? Math.trunc(sortOrder) : 0;
     const description = body.description != null ? String(body.description).slice(0, 16000) : null;
-    const reward_hint =
-      body.rewardHint != null || body.reward_hint != null
-        ? String(body.rewardHint ?? body.reward_hint).slice(0, 200)
-        : null;
+    const reward_hint = body.rewardHint != null || body.reward_hint != null
+      ? String(body.rewardHint ?? body.reward_hint).slice(0, 200) : null;
 
     let rules_json = null;
     if (body.rulesJson != null || body.rules_json != null) {
@@ -145,54 +138,22 @@ export async function createQuest(req, res) {
       if (raw !== null && typeof raw === "object") {
         rules_json = raw;
       } else if (typeof raw === "string" && raw.trim()) {
-        try {
-          rules_json = JSON.parse(raw);
-        } catch {
-          return res.status(400).json({ success: false, error: "rulesJson must be valid JSON object" });
-        }
+        try { rules_json = JSON.parse(raw); }
+        catch { return res.status(400).json({ success: false, error: "rulesJson must be valid JSON object" }); }
       }
     }
 
-    const [insertId] = await db("quest_definitions").insert({
-      slug,
-      title,
-      description: description || null,
-      active,
-      sort_order,
-      rules_json,
-      reward_hint: reward_hint || null,
+    const row = await db.transaction(async (trx) => {
+      const [insertId] = await trx("quest_definitions").insert({
+        slug, title, description: description || null, active, sort_order, rules_json, reward_hint: reward_hint || null,
+      });
+      await appendAdminAuditLog({ action: "quests.create", targetType: "quest_definition", targetId: String(insertId), payload: { slug, title, active }, req });
+      return trx("quest_definitions").where({ id: insertId }).first();
     });
 
-    await appendAdminAuditLog({
-      action: "quests.create",
-      targetType: "quest_definition",
-      targetId: String(insertId),
-      payload: { slug, title, active },
-      req,
-    });
-
-    const row = await db("quest_definitions").where({ id: insertId }).first();
-    res.status(201).json({
-      success: true,
-      data: {
-        quest: {
-          id: row.id,
-          slug: row.slug,
-          title: row.title,
-          description: row.description,
-          active: !!row.active,
-          sortOrder: row.sort_order,
-          rulesJson: row.rules_json,
-          rewardHint: row.reward_hint,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-        },
-      },
-    });
+    res.status(201).json({ success: true, data: { quest: { id: row.id, slug: row.slug, title: row.title, description: row.description, active: !!row.active, sortOrder: row.sort_order, rulesJson: row.rules_json, rewardHint: row.reward_hint, createdAt: row.created_at, updatedAt: row.updated_at } } });
   } catch (err) {
-    if (err.code === "ER_DUP_ENTRY") {
-      return res.status(409).json({ success: false, error: "Slug already exists" });
-    }
+    if (err.code === "ER_DUP_ENTRY") return res.status(409).json({ success: false, error: "Slug already exists" });
     logger.error({ err }, "admin createQuest error");
     res.status(500).json({ success: false, error: "Failed to create quest" });
   }
@@ -262,34 +223,14 @@ export async function patchQuest(req, res) {
     }
 
     patch.updated_at = db.fn.now();
-    await db("quest_definitions").where({ id }).update(patch);
 
-    await appendAdminAuditLog({
-      action: "quests.patch",
-      targetType: "quest_definition",
-      targetId: String(id),
-      payload: { keys: Object.keys(patch).filter((k) => k !== "updated_at") },
-      req,
+    const row = await db.transaction(async (trx) => {
+      await trx("quest_definitions").where({ id }).update(patch);
+      await appendAdminAuditLog({ action: "quests.patch", targetType: "quest_definition", targetId: String(id), payload: { keys: Object.keys(patch).filter((k) => k !== "updated_at") }, req });
+      return trx("quest_definitions").where({ id }).first();
     });
 
-    const row = await db("quest_definitions").where({ id }).first();
-    res.json({
-      success: true,
-      data: {
-        quest: {
-          id: row.id,
-          slug: row.slug,
-          title: row.title,
-          description: row.description,
-          active: !!row.active,
-          sortOrder: row.sort_order,
-          rulesJson: row.rules_json,
-          rewardHint: row.reward_hint,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-        },
-      },
-    });
+    res.json({ success: true, data: { quest: { id: row.id, slug: row.slug, title: row.title, description: row.description, active: !!row.active, sortOrder: row.sort_order, rulesJson: row.rules_json, rewardHint: row.reward_hint, createdAt: row.created_at, updatedAt: row.updated_at } } });
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
       return res.status(409).json({ success: false, error: "Slug already exists" });
@@ -310,18 +251,11 @@ export async function deleteQuest(req, res) {
     }
 
     const existing = await db("quest_definitions").where({ id }).first();
-    if (!existing) {
-      return res.status(404).json({ success: false, error: "Quest not found" });
-    }
+    if (!existing) return res.status(404).json({ success: false, error: "Quest not found" });
 
-    await db("quest_definitions").where({ id }).delete();
-
-    await appendAdminAuditLog({
-      action: "quests.delete",
-      targetType: "quest_definition",
-      targetId: String(id),
-      payload: { slug: existing.slug, title: existing.title },
-      req,
+    await db.transaction(async (trx) => {
+      await trx("quest_definitions").where({ id }).delete();
+      await appendAdminAuditLog({ action: "quests.delete", targetType: "quest_definition", targetId: String(id), payload: { slug: existing.slug, title: existing.title }, req });
     });
 
     res.json({ success: true, data: { deletedId: id } });

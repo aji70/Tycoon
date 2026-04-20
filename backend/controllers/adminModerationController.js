@@ -185,42 +185,16 @@ export async function patchReport(req, res) {
       return res.status(400).json({ success: false, error: "No valid fields to update" });
     }
 
-    const updated = await db("moderation_reports").where("id", id).update(patch);
-    if (!updated) {
-      return res.status(404).json({ success: false, error: "Report not found" });
-    }
-
-    await appendAdminAuditLog({
-      action: "moderation.report_patch",
-      targetType: "moderation_report",
-      targetId: String(id),
-      payload: { updatedFields: Object.keys(patch) },
-      req,
+    const row = await db.transaction(async (trx) => {
+      const updated = await trx("moderation_reports").where("id", id).update(patch);
+      if (!updated) throw Object.assign(new Error("Report not found"), { notFound: true });
+      await appendAdminAuditLog({ action: "moderation.report_patch", targetType: "moderation_report", targetId: String(id), payload: { updatedFields: Object.keys(patch) }, req });
+      return baseSelect().where("moderation_reports.id", id).transacting(trx).first();
     });
 
-    const row = await baseSelect().where("moderation_reports.id", id).first();
-    res.json({
-      success: true,
-      data: {
-        report: {
-          id: row.id,
-          reporterUserId: row.reporter_user_id,
-          reporterUsername: row.reporter_username ?? null,
-          targetUserId: row.target_user_id,
-          targetUsername: row.target_username ?? null,
-          targetType: row.target_type,
-          targetRef: row.target_ref,
-          category: row.category,
-          details: row.details,
-          status: row.status,
-          adminNote: row.admin_note,
-          resolvedAt: row.resolved_at,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-        },
-      },
-    });
+    res.json({ success: true, data: { report: { id: row.id, reporterUserId: row.reporter_user_id, reporterUsername: row.reporter_username ?? null, targetUserId: row.target_user_id, targetUsername: row.target_username ?? null, targetType: row.target_type, targetRef: row.target_ref, category: row.category, details: row.details, status: row.status, adminNote: row.admin_note, resolvedAt: row.resolved_at, createdAt: row.created_at, updatedAt: row.updated_at } } });
   } catch (err) {
+    if (err.notFound) return res.status(404).json({ success: false, error: "Report not found" });
     logger.error({ err }, "admin patchReport error");
     res.status(500).json({ success: false, error: "Failed to update report" });
   }
@@ -271,52 +245,16 @@ export async function createReport(req, res) {
       targetUserId = tid;
     }
 
-    const [insertId] = await db("moderation_reports").insert({
-      reporter_user_id: reporterUserId,
-      target_user_id: targetUserId,
-      target_type: targetType,
-      target_ref: targetRef,
-      category,
-      details,
-      status: "open",
+    const row = await db.transaction(async (trx) => {
+      const [insertId] = await trx("moderation_reports").insert({
+        reporter_user_id: reporterUserId, target_user_id: targetUserId,
+        target_type: targetType, target_ref: targetRef, category, details, status: "open",
+      });
+      await appendAdminAuditLog({ action: "moderation.report_create", targetType: "moderation_report", targetId: String(insertId), payload: { category, reporterUserId, targetUserId, targetType, targetRef }, req });
+      return baseSelect().where("moderation_reports.id", insertId).transacting(trx).first();
     });
 
-    await appendAdminAuditLog({
-      action: "moderation.report_create",
-      targetType: "moderation_report",
-      targetId: String(insertId),
-      payload: {
-        category,
-        reporterUserId,
-        targetUserId,
-        targetType,
-        targetRef,
-      },
-      req,
-    });
-
-    const row = await baseSelect().where("moderation_reports.id", insertId).first();
-    res.status(201).json({
-      success: true,
-      data: {
-        report: {
-          id: row.id,
-          reporterUserId: row.reporter_user_id,
-          reporterUsername: row.reporter_username ?? null,
-          targetUserId: row.target_user_id,
-          targetUsername: row.target_username ?? null,
-          targetType: row.target_type,
-          targetRef: row.target_ref,
-          category: row.category,
-          details: row.details,
-          status: row.status,
-          adminNote: row.admin_note,
-          resolvedAt: row.resolved_at,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-        },
-      },
-    });
+    res.status(201).json({ success: true, data: { report: { id: row.id, reporterUserId: row.reporter_user_id, reporterUsername: row.reporter_username ?? null, targetUserId: row.target_user_id, targetUsername: row.target_username ?? null, targetType: row.target_type, targetRef: row.target_ref, category: row.category, details: row.details, status: row.status, adminNote: row.admin_note, resolvedAt: row.resolved_at, createdAt: row.created_at, updatedAt: row.updated_at } } });
   } catch (err) {
     logger.error({ err }, "admin createReport error");
     res.status(500).json({ success: false, error: "Failed to create report" });

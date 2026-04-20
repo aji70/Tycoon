@@ -18,14 +18,17 @@ function toDateOnly(d) {
  * Requires auth. Claims daily reward: updates streak and mints voucher if contract is configured.
  */
 export async function dailyClaim(req, res) {
+  const trx = await db.transaction();
   try {
     const user_id = req.user?.id;
     if (!user_id) {
+      await trx.rollback();
       return res.status(401).json({ success: false, message: "Not authenticated" });
     }
 
-    const user = await db("users").where({ id: user_id }).first();
+    const user = await trx("users").where({ id: user_id }).forUpdate().first();
     if (!user) {
+      await trx.rollback();
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
@@ -38,6 +41,7 @@ export async function dailyClaim(req, res) {
     })();
 
     if (lastClaim === today) {
+      await trx.rollback();
       return res.json({
         success: true,
         already_claimed: true,
@@ -55,8 +59,6 @@ export async function dailyClaim(req, res) {
     const chain = (req.body?.chain || user.chain || "BASE").trim().toUpperCase();
     const normalizedChain = ["CELO", "POLYGON", "BASE"].includes(chain) ? chain : "BASE";
 
-    // IMPORTANT: rewards/perks are typically held on the user's smart wallet.
-    // If present, mint vouchers to smart_wallet_address so they show up in the profile (which reads smart wallet holdings).
     const mintToAddress =
       (user.smart_wallet_address && String(user.smart_wallet_address).trim() && String(user.smart_wallet_address).trim() !== "0x0000000000000000000000000000000000000000")
         ? String(user.smart_wallet_address).trim()
@@ -79,6 +81,7 @@ export async function dailyClaim(req, res) {
         txHash = hash;
         rewardTyc = Number(totalWei) / 1e18;
       } catch (mintErr) {
+        await trx.rollback();
         const rawMsg = String(mintErr?.shortMessage || mintErr?.reason || mintErr?.message || "");
         const msg = rawMsg.toLowerCase().includes("not minter")
           ? "Daily reward mint failed: backend wallet is not authorized (Not minter). Ask admin to call setBackendMinter() on TycoonRewardSystem."
@@ -97,13 +100,15 @@ export async function dailyClaim(req, res) {
       }
     }
 
-    await db("users")
+    await trx("users")
       .where({ id: user_id })
       .update({
         last_daily_claim_at: new Date(),
         login_streak: newStreak,
         updated_at: new Date(),
       });
+
+    await trx.commit();
 
     return res.json({
       success: true,
@@ -115,6 +120,7 @@ export async function dailyClaim(req, res) {
       mint_to: mintToAddress,
     });
   } catch (err) {
+    await trx.rollback();
     logger.error({ err: err?.message }, "dailyClaim error");
     return res.status(500).json({ success: false, message: "Daily claim failed" });
   }

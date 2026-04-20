@@ -14,14 +14,15 @@ const GameSetting = {
     return db("game_settings").where({ id }).first();
   },
 
-  async findByGameId(gameId) {
-    return db("game_settings")
+  async findByGameId(gameId, trx = db) {
+    return trx("game_settings")
       .select(
         "auction",
         "mortgage",
         "even_build",
         "randomize_play_order",
         "starting_cash",
+        "rent_in_prison",
         "ai_difficulty",
         "ai_difficulty_mode",
         "ai_difficulty_per_slot"

@@ -68,14 +68,14 @@ const gamePropertyController = {
   },
 
   async update(req, res) {
+    const trx = await db.transaction();
     try {
       const { game_id, player_id: newPlayerId } = req.body;
       const idParam = req.params.id;
 
-      // Resolve the game_property row: frontend may send game_properties.id (gp.id) or property_id (board 1–40) with game_id
       let current = null;
       if (game_id && idParam) {
-        const byGameAndProperty = await db("game_properties as gp")
+        const byGameAndProperty = await trx("game_properties as gp")
           .join("game_players as p", "gp.player_id", "p.id")
           .join("users as u", "p.user_id", "u.id")
           .where("gp.game_id", game_id)
@@ -85,7 +85,7 @@ const gamePropertyController = {
         if (byGameAndProperty) current = { id: byGameAndProperty.id, player_id: byGameAndProperty.player_id, property_id: byGameAndProperty.property_id, seller_user_id: byGameAndProperty.seller_user_id, seller_username: byGameAndProperty.seller_username };
       }
       if (!current) {
-        const byId = await db("game_properties as gp")
+        const byId = await trx("game_properties as gp")
           .join("game_players as p", "gp.player_id", "p.id")
           .join("users as u", "p.user_id", "u.id")
           .where("gp.id", idParam)
@@ -95,11 +95,10 @@ const gamePropertyController = {
       }
 
       const isTransfer = current && newPlayerId != null && Number(current.player_id) !== Number(newPlayerId);
-      let sellerUsername = current?.seller_username ?? null;
       let buyerUsername = null;
       let buyerUserId = null;
       if (isTransfer && newPlayerId) {
-        const buyer = await db("game_players as p")
+        const buyer = await trx("game_players as p")
           .join("users as u", "p.user_id", "u.id")
           .where("p.id", newPlayerId)
           .select("u.id as user_id", "u.username")
@@ -109,41 +108,31 @@ const gamePropertyController = {
       }
 
       const updateId = current ? current.id : idParam;
-      const property = await GameProperty.update(updateId, req.body);
+      await trx("game_properties")
+        .where({ id: updateId })
+        .update({ ...req.body, updated_at: db.fn.now() });
+
+      const property = await trx("game_properties").where({ id: updateId }).first();
+
+      await trx.commit();
+
       res.json({ success: true, message: "successful", data: property });
 
-      // On-chain: update stats when ownership transferred (P2P sale)
       const gameForChain = game_id ? await Game.findById(game_id) : null;
       const chainForUpdate = gameForChain ? User.normalizeChain(gameForChain.chain || "CELO") : "CELO";
       const contractConfigured = isContractConfigured(chainForUpdate);
-      logger.info({
-        idParam,
-        game_id,
-        newPlayerId,
-        currentFound: !!current,
-        currentPlayerId: current?.player_id,
-        isTransfer,
-        sellerUsername,
-        buyerUsername,
-        contractConfigured,
-      }, "game_properties/update: transfer and contract check");
 
-      if (isTransfer && sellerUsername && buyerUsername && contractConfigured) {
-        logger.info({ sellerUsername, buyerUsername }, "Calling transferPropertyOwnership(seller, buyer)");
-        transferPropertyOwnership(sellerUsername, buyerUsername, chainForUpdate).catch((err) => {
-          logger.warn({ err, sellerUsername, buyerUsername }, "Tycoon transferPropertyOwnership failed");
+      if (isTransfer && current?.seller_username && buyerUsername && contractConfigured) {
+        transferPropertyOwnership(current.seller_username, buyerUsername, chainForUpdate).catch((err) => {
+          logger.warn({ err, seller: current.seller_username, buyer: buyerUsername }, "Tycoon transferPropertyOwnership failed");
         });
-      }
-      if (isTransfer && !contractConfigured) {
-        logger.warn("Skipping transferPropertyOwnership: contract not configured (set CELO_RPC_URL, TYCOON_CELO_CONTRACT_ADDRESS, BACKEND_GAME_CONTROLLER_PRIVATE_KEY)");
-      } else if (isTransfer && (!sellerUsername || !buyerUsername)) {
-        logger.warn({ sellerUsername, buyerUsername }, "Skipping transferPropertyOwnership: missing seller or buyer username");
       }
       if (isTransfer && current?.seller_user_id && buyerUserId && current?.property_id && game_id) {
         incrementPropertiesSold(current.seller_user_id).catch(() => {});
         recordPropertyPurchase(buyerUserId, current.property_id, game_id, "trade").catch(() => {});
       }
     } catch (error) {
+      await trx.rollback();
       res.status(400).json({ success: false, message: error.message });
     }
   },
@@ -375,7 +364,7 @@ const gamePropertyController = {
       }
 
       // House rule: even build — only enforce "within 1 level" when enabled
-      const game_settings_dev = await GameSetting.findByGameId(game.id);
+      const game_settings_dev = await GameSetting.findByGameId(game.id, trx);
       if (game_settings_dev && game_settings_dev.even_build) {
         const groupDevelopments = await trx("game_properties")
           .whereIn("property_id", groupProperties)
@@ -666,7 +655,7 @@ const gamePropertyController = {
         });
       }
 
-      const game_settings = await GameSetting.findByGameId(game.id);
+      const game_settings = await GameSetting.findByGameId(game.id, trx);
       if (game_settings && !game_settings.mortgage) {
         await trx.rollback();
         return res.status(422).json({
@@ -799,7 +788,7 @@ const gamePropertyController = {
         });
       }
 
-      const game_settingsUnmort = await GameSetting.findByGameId(game.id);
+      const game_settingsUnmort = await GameSetting.findByGameId(game.id, trx);
       if (game_settingsUnmort && !game_settingsUnmort.mortgage) {
         await trx.rollback();
         return res.status(422).json({

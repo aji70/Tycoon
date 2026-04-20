@@ -20,7 +20,6 @@ export const GameTradeRequestController = {
     const trx = await db.transaction();
     try {
       const {
-        id,
         game_id,
         player_id,
         target_player_id,
@@ -108,7 +107,6 @@ export const GameTradeRequestController = {
 
       // 5️⃣ Create trade request entry
       const [tradeId] = await trx("game_trade_requests").insert({
-        id,
         game_id,
         player_id,
         target_player_id,
@@ -212,6 +210,15 @@ export const GameTradeRequestController = {
       const targetNewBalance =
         Number(target_player.balance) + offer_amount - requested_amount;
 
+      if (playerNewBalance < 0) {
+        await trx.rollback();
+        return res.status(400).json({ success: false, message: "Proposer has insufficient balance" });
+      }
+      if (targetNewBalance < 0) {
+        await trx.rollback();
+        return res.status(400).json({ success: false, message: "Acceptor has insufficient balance" });
+      }
+
       await trx("game_players")
         .where({ id: player.id })
         .update({ balance: playerNewBalance, updated_at: new Date() });
@@ -312,16 +319,17 @@ export const GameTradeRequestController = {
   async decline(req, res) {
     try {
       const { id } = req.body;
-      await db("game_trade_requests").where({ id }).update({
-        status: "declined",
-        updated_at: new Date(),
-      });
+      const updated = await db("game_trade_requests")
+        .where({ id })
+        .whereIn("status", ["pending", "counter"])
+        .update({ status: "declined", updated_at: new Date() });
+      if (!updated) {
+        return res.status(409).json({ success: false, message: "Trade already resolved" });
+      }
       res.json({ success: true, message: "Trade declined" });
     } catch (error) {
       console.error("Decline Trade Error:", error);
-      res
-        .status(500)
-        .json({ success: false, message: "Failed to decline trade" });
+      res.status(500).json({ success: false, message: "Failed to decline trade" });
     }
   },
 
@@ -397,7 +405,7 @@ export const GameTradeRequestController = {
         updated_at: new Date(),
       });
 
-      await trx("game_trade_requests").insert({
+      const [newTradeId] = await trx("game_trade_requests").insert({
         game_id: original.game_id,
         player_id: aiUserId,
         target_player_id: humanUserId,
@@ -412,15 +420,7 @@ export const GameTradeRequestController = {
 
       await trx.commit();
 
-      const newTrade = await db("game_trade_requests")
-        .where({
-          game_id: original.game_id,
-          player_id: aiUserId,
-          target_player_id: humanUserId,
-          status: "pending",
-        })
-        .orderBy("created_at", "desc")
-        .first();
+      const newTrade = await db("game_trade_requests").where({ id: newTradeId }).first();
       const io = req.app.get("io");
       if (io && original.game_id) await emitGameUpdateByGameId(io, original.game_id);
       await invalidateGameById(original.game_id);

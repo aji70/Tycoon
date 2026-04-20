@@ -52,8 +52,13 @@ export async function purchaseUsdc(req, res) {
     if (!tx_hash) return res.status(400).json({ success: false, message: "tx_hash required" });
 
     const txHash = String(tx_hash).trim();
-    const existing = await db("hosted_agent_credit_purchases").where({ tx_hash: txHash }).first();
-    if (existing) {
+
+    // Atomic claim: only one concurrent call for the same tx_hash proceeds
+    const credits = hostedAgentCredits.CREDITS_FOR_1_USDC;
+    const claimed = await db("hosted_agent_credit_purchases")
+      .where({ tx_hash: txHash })
+      .first();
+    if (claimed) {
       const balance = await hostedAgentCredits.getBalance(userId);
       return res.json({ success: true, already_credited: true, balance });
     }
@@ -71,7 +76,6 @@ export async function purchaseUsdc(req, res) {
       });
     }
 
-    const credits = hostedAgentCredits.CREDITS_FOR_1_USDC;
     const { balance } = await hostedAgentCredits.addCredits(userId, credits, {
       source: "usdc",
       price_usdc: 1,

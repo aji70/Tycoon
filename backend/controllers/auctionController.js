@@ -8,31 +8,42 @@ import logger from "../config/logger.js";
  * Get active auction for a game (status = open). Returns null if none.
  */
 export async function getActiveByGameId(gameId) {
-  const row = await db("game_auctions").where({ game_id: gameId, status: "open" }).first();
-  if (!row) return null;
-  const bids = await db("game_auction_bids as b")
-    .join("game_players as p", "b.game_player_id", "p.id")
-    .where("b.auction_id", row.id)
-    .select("b.id", "b.game_player_id", "b.amount", "p.user_id", "p.address");
-  const property = await db("properties").where({ id: row.property_id }).first();
-  const startedBy = await db("game_players").where({ id: row.started_by_player_id }).first();
-  const players = await GamePlayer.findByGameId(gameId);
-  const turnOrder = (players || []).map((p) => p.id);
-  const bidderIds = new Set(bids.map((b) => b.game_player_id));
-  const nextBidderId = turnOrder.find((id) => !bidderIds.has(id)) ?? null;
-  return {
-    id: row.id,
-    game_id: row.game_id,
-    property_id: row.property_id,
-    property,
-    started_by_player_id: row.started_by_player_id,
-    started_by: startedBy,
-    status: row.status,
-    bids: bids.map((b) => ({ game_player_id: b.game_player_id, user_id: b.user_id, address: b.address, amount: b.amount })),
-    current_high: bids.reduce((max, b) => (b.amount != null && (max == null || b.amount > max) ? b.amount : max), null),
-    next_bidder_player_id: nextBidderId,
-    players,
-  };
+  return db.transaction(async (trx) => {
+    const row = await trx("game_auctions").where({ game_id: gameId, status: "open" }).first();
+    if (!row) return null;
+
+    const [bids, property, startedBy, players] = await Promise.all([
+      trx("game_auction_bids as b")
+        .join("game_players as p", "b.game_player_id", "p.id")
+        .where("b.auction_id", row.id)
+        .select("b.id", "b.game_player_id", "b.amount", "p.user_id", "p.address"),
+      trx("properties").where({ id: row.property_id }).first(),
+      trx("game_players").where({ id: row.started_by_player_id }).first(),
+      trx("game_players").where({ game_id: gameId }).orderBy("turn_order", "asc")
+        .select("id", "user_id", "address", "chance_jail_card", "community_chest_jail_card",
+          "balance", "position", "turn_order", "symbol", "rolls", "rolled", "circle",
+          "in_jail", "in_jail_rolls", "turn_start", "consecutive_timeouts", "turn_count",
+          "active_perks", "pending_exact_roll", "created_at"),
+    ]);
+
+    const turnOrder = players.map((p) => p.id);
+    const bidderIds = new Set(bids.map((b) => b.game_player_id));
+    const nextBidderId = turnOrder.find((id) => !bidderIds.has(id)) ?? null;
+
+    return {
+      id: row.id,
+      game_id: row.game_id,
+      property_id: row.property_id,
+      property,
+      started_by_player_id: row.started_by_player_id,
+      started_by: startedBy,
+      status: row.status,
+      bids: bids.map((b) => ({ game_player_id: b.game_player_id, user_id: b.user_id, address: b.address, amount: b.amount })),
+      current_high: bids.reduce((max, b) => (b.amount != null && (max == null || b.amount > max) ? b.amount : max), null),
+      next_bidder_player_id: nextBidderId,
+      players,
+    };
+  });
 }
 
 /**

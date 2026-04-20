@@ -389,21 +389,40 @@ export async function flutterwaveWebhook(_req, res) {
 
 async function fulfillFlutterwavePayment(txRef, source, trigger) {
   const table = source === "perk" ? "flutterwave_perk_payments" : "flutterwave_payments";
+
+  // Atomically claim the row: only one concurrent call wins the status transition pending→processing.
+  const claimed = await db(table)
+    .where({ tx_ref: txRef, status: "pending" })
+    .update({ status: "processing", updated_at: db.fn.now() });
+
+  // If nothing was updated, either already completed/processing or doesn't exist.
+  if (claimed === 0) {
+    const row = await db(table).where({ tx_ref: txRef }).first();
+    if (!row) return false;
+    if (row.status === "completed") return true;
+    // Another concurrent call is processing — treat as success to avoid double-delivery.
+    return row.status === "processing";
+  }
+
   const row = await db(table).where({ tx_ref: txRef }).first();
-  if (!row) return false;
-  if (row.status === "completed" && row.fulfilled_at) return true;
 
   const user = await db("users").where({ id: row.user_id }).first();
   const smartWallet = String(user?.smart_wallet_address || "").trim();
   if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
-    await db(table).where({ tx_ref: txRef, status: "pending" }).update({ status: "failed", updated_at: db.fn.now() });
+    await db(table).where({ tx_ref: txRef }).update({ status: "failed", updated_at: db.fn.now() });
     throw new Error("User has no smart wallet for fulfillment");
   }
 
-  if (source === "perk") {
-    await deliverCollectibleToUser(smartWallet, row.token_id, "CELO");
-  } else {
-    await deliverBundleToUser(smartWallet, row.bundle_id, "CELO");
+  try {
+    if (source === "perk") {
+      await deliverCollectibleToUser(smartWallet, row.token_id, "CELO");
+    } else {
+      await deliverBundleToUser(smartWallet, row.bundle_id, "CELO");
+    }
+  } catch (err) {
+    // Revert to pending so a retry can attempt delivery again.
+    await db(table).where({ tx_ref: txRef }).update({ status: "pending", updated_at: db.fn.now() });
+    throw err;
   }
 
   await db(table)

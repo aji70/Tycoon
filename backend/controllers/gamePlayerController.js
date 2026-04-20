@@ -7,19 +7,32 @@ import Property from "../models/Property.js";
 import { PROPERTY_ACTION } from "../utils/properties.js";
 import db from "../config/database.js";
 import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
-import { invalidateGameById, invalidateGameByCode } from "../utils/gameCache.js";
+import {
+  invalidateGameById,
+  invalidateGameByCode,
+} from "../utils/gameCache.js";
 import { emitGameUpdate } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";
-import { removePlayerFromGame, exitGameByBackend, endAIGameByBackend, isContractConfigured, callContractRead } from "../services/tycoonContract.js";
+import {
+  removePlayerFromGame,
+  exitGameByBackend,
+  endAIGameByBackend,
+  isContractConfigured,
+  callContractRead,
+} from "../services/tycoonContract.js";
 import { finishGameByNetWorthAndNotify } from "./gameController.js";
 import { settleStakedArenaForFinishedGame } from "../services/arenaStakeSettlement.js";
 import { onGameFinished as tournamentOnGameFinished } from "../services/tournamentService.js";
 import { getActiveByGameId } from "./auctionController.js";
 import { recordEvent } from "../services/analytics.js";
-import { ACTIVITY_XP, awardActivityXpByGameUser } from "../services/eloService.js";
+import {
+  ACTIVITY_XP,
+  awardActivityXpByGameUser,
+} from "../services/eloService.js";
 
 /** Pass to removePlayerFromGame so contract uses on-chain turnsPlayed (voluntary exit behavior). */
-const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
+const MAX_UINT256 =
+  "115792089237316195423570985008687907853269984665640564039457584007913129639935";
 import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
 
 /**
@@ -30,7 +43,9 @@ function toAddressArray(val) {
   if (Array.isArray(val)) return val;
   if (val != null && typeof val === "object") {
     if (typeof val.length === "number") return Array.from(val);
-    const keys = Object.keys(val).filter((k) => /^\d+$/.test(k)).sort((a, b) => Number(a) - Number(b));
+    const keys = Object.keys(val)
+      .filter((k) => /^\d+$/.test(k))
+      .sort((a, b) => Number(a) - Number(b));
     return keys.map((k) => val[k]);
   }
   return [];
@@ -55,13 +70,16 @@ async function executePlayerRemoval(trx, game_id, target_user_id) {
     .where({ game_id })
     .forUpdate()
     .orderBy("turn_order", "asc");
-  
+
   const target = players.find((p) => p.user_id === target_user_id);
   if (!target) return null;
 
   // Capture before deletion (for contract call)
   const targetTurnCount = Number(target.turn_count ?? 0);
-  const targetUser = await trx("users").where({ id: target_user_id }).select("address").first();
+  const targetUser = await trx("users")
+    .where({ id: target_user_id })
+    .select("address")
+    .first();
   const targetAddress = targetUser?.address ?? null;
 
   // Return target's properties to bank (delete ownership rows; player_id is NOT NULL so we delete instead of setting null)
@@ -80,7 +98,9 @@ async function executePlayerRemoval(trx, game_id, target_user_id) {
 
   if (game.next_player_id === target_user_id && remaining.length > 0) {
     const targetTurnOrder = Number(target.turn_order ?? 0);
-    const nextInOrder = remaining.find((p) => Number(p.turn_order ?? 0) > targetTurnOrder);
+    const nextInOrder = remaining.find(
+      (p) => Number(p.turn_order ?? 0) > targetTurnOrder,
+    );
     next_player_id = nextInOrder ? nextInOrder.user_id : remaining[0].user_id;
   }
   if (remaining.length === 1) {
@@ -88,14 +108,12 @@ async function executePlayerRemoval(trx, game_id, target_user_id) {
     winner_id = remaining[0].user_id;
   }
 
-  await trx("games")
-    .where({ id: game_id })
-    .update({
-      next_player_id,
-      status,
-      winner_id,
-      updated_at: db.fn.now(),
-    });
+  await trx("games").where({ id: game_id }).update({
+    next_player_id,
+    status,
+    winner_id,
+    updated_at: db.fn.now(),
+  });
 
   if (status === "RUNNING" && next_player_id) {
     const turnStartSeconds = String(Math.floor(Date.now() / 1000));
@@ -113,7 +131,9 @@ async function executePlayerRemoval(trx, game_id, target_user_id) {
     target_address: targetAddress,
     target_turn_count: targetTurnCount,
     chain: game.chain || "BASE",
-    ...(remaining.length === 1 && { player_user_ids: players.map((p) => p.user_id) }),
+    ...(remaining.length === 1 && {
+      player_user_ids: players.map((p) => p.user_id),
+    }),
   };
 }
 
@@ -132,13 +152,21 @@ const AGENT_RUNNER_GAME_TYPES = new Set([
  * @param {number} gameId
  * @param {import("express").Application | null} app - optional; if set, emits socket game-update
  */
-export async function eliminateNegativeBalancePlayersForAgentGames(gameId, app = null) {
+export async function eliminateNegativeBalancePlayersForAgentGames(
+  gameId,
+  app = null,
+) {
   const id = Number(gameId);
   if (!id) return;
 
   const game = await db("games").where({ id }).first();
-  const gameActive = game?.status === "RUNNING" || game?.status === "IN_PROGRESS";
-  if (!game?.id || !gameActive || !AGENT_RUNNER_GAME_TYPES.has(String(game.game_type || ""))) {
+  const gameActive =
+    game?.status === "RUNNING" || game?.status === "IN_PROGRESS";
+  if (
+    !game?.id ||
+    !gameActive ||
+    !AGENT_RUNNER_GAME_TYPES.has(String(game.game_type || ""))
+  ) {
     return;
   }
 
@@ -159,28 +187,44 @@ export async function eliminateNegativeBalancePlayersForAgentGames(gameId, app =
         removalResult = await executePlayerRemoval(trx, id, targetUserId);
       });
     } catch (err) {
-      logger.warn({ err: err?.message, gameId: id, targetUserId }, "executePlayerRemoval (negative balance) failed");
+      logger.warn(
+        { err: err?.message, gameId: id, targetUserId },
+        "executePlayerRemoval (negative balance) failed",
+      );
       continue;
     }
 
     if (!removalResult) continue;
 
-    logger.info({ gameId: id, targetUserId, balance: loser.balance }, "Eliminated bankrupt player (balance < 0) from agent game");
+    logger.info(
+      { gameId: id, targetUserId, balance: loser.balance },
+      "Eliminated bankrupt player (balance < 0) from agent game",
+    );
 
     if (removalResult.winner_user_id && removalResult.player_user_ids) {
       User.recordChainGameResult(
         removalResult.chain || "BASE",
         removalResult.winner_user_id,
-        removalResult.player_user_ids
-      ).catch((err) => logger.warn({ err: err?.message, gameId: id }, "recordChainGameResult (bankruptcy) failed"));
+        removalResult.player_user_ids,
+      ).catch((err) =>
+        logger.warn(
+          { err: err?.message, gameId: id },
+          "recordChainGameResult (bankruptcy) failed",
+        ),
+      );
       try {
         await settleStakedArenaForFinishedGame(id);
       } catch (err) {
-        logger.error({ err: err?.message, gameId: id }, "settleStakedArenaForFinishedGame after bankruptcy FINISHED failed");
+        logger.error(
+          { err: err?.message, gameId: id },
+          "settleStakedArenaForFinishedGame after bankruptcy FINISHED failed",
+        );
       }
     }
 
-    const chainFor = User.normalizeChain(removalResult.chain || game.chain || "CELO");
+    const chainFor = User.normalizeChain(
+      removalResult.chain || game.chain || "CELO",
+    );
     if (
       isContractConfigured(chainFor) &&
       removalResult.contract_game_id &&
@@ -194,11 +238,15 @@ export async function eliminateNegativeBalancePlayersForAgentGames(gameId, app =
         removalResult.contract_game_id,
         removalResult.target_address,
         turnForContract,
-        chainFor
+        chainFor,
       )
         .then(async () => {
           if (!removalResult.winner_user_id) return null;
-          const u = await ensureUserHasContractPassword(db, removalResult.winner_user_id, chainFor);
+          const u = await ensureUserHasContractPassword(
+            db,
+            removalResult.winner_user_id,
+            chainFor,
+          );
           return (
             u ||
             (await db("users")
@@ -219,12 +267,15 @@ export async function eliminateNegativeBalancePlayersForAgentGames(gameId, app =
               winnerUser.username || "",
               winnerUser.password_hash,
               removalResult.contract_game_id,
-              chainFor
+              chainFor,
             );
           }
         })
         .catch((err) => {
-          logger.warn({ err: err?.message, gameId: id, targetUserId }, "bankruptcy on-chain removePlayer/exit failed");
+          logger.warn(
+            { err: err?.message, gameId: id, targetUserId },
+            "bankruptcy on-chain removePlayer/exit failed",
+          );
         });
     }
 
@@ -232,7 +283,12 @@ export async function eliminateNegativeBalancePlayersForAgentGames(gameId, app =
     await invalidateGameById(id);
 
     const stillRunning = await db("games").where({ id }).first();
-    if (!stillRunning || (stillRunning.status !== "RUNNING" && stillRunning.status !== "IN_PROGRESS")) return;
+    if (
+      !stillRunning ||
+      (stillRunning.status !== "RUNNING" &&
+        stillRunning.status !== "IN_PROGRESS")
+    )
+      return;
   }
 }
 
@@ -279,7 +335,7 @@ async function applyTurnStartPerks(trx, game_id, user_id) {
 
 const payRent = async (
   { game_id, property_id, player_id, old_position, new_position, rolled },
-  trx
+  trx,
 ) => {
   try {
     const now = new Date();
@@ -295,7 +351,7 @@ const payRent = async (
           .where({ id: player_id })
           .first()
           .then((gp) =>
-            gp ? trx("users").where({ id: gp.user_id }).first() : null
+            gp ? trx("users").where({ id: gp.user_id }).first() : null,
           ),
       ]);
 
@@ -392,7 +448,12 @@ const payRent = async (
         },
       };
 
-      rent = { player: 0, owner: 0, players: 0, ...(rentConfig[cardType] || {}) };
+      rent = {
+        player: 0,
+        owner: 0,
+        players: 0,
+        ...(rentConfig[cardType] || {}),
+      };
       if (rent.position !== undefined) position = rent.position;
 
       if (extra?.rule) {
@@ -406,7 +467,10 @@ const payRent = async (
             PROPERTY_TYPES.RAILWAY.find((id) => id > new_position) ??
             PROPERTY_TYPES.RAILWAY[0];
         } else if (rule === "get_out_of_jail_free") {
-          const jailCardCol = typeName === "community chest" ? "community_chest_jail_card" : "chance_jail_card";
+          const jailCardCol =
+            typeName === "community chest"
+              ? "community_chest_jail_card"
+              : "chance_jail_card";
           await trx("game_players")
             .where({ id: game_player.id })
             .update({ [jailCardCol]: 1 });
@@ -450,7 +514,10 @@ const payRent = async (
       }
 
       // Repair cards: "Make general repairs" / "Street repairs" — pay per house and per hotel owned
-      if ((extra.per_house != null || extra.per_hotel != null) && (cardType === "debit" || cardType === "credit")) {
+      if (
+        (extra.per_house != null || extra.per_hotel != null) &&
+        (cardType === "debit" || cardType === "credit")
+      ) {
         const allPlayerProps = await trx("game_properties")
           .where({ game_id: game.id, player_id: game_player.id })
           .select("development");
@@ -494,24 +561,43 @@ const payRent = async (
 
       // Resolve card text using property name from backend (matches board). Only when the card actually moves the player to a different square (avoids showing "Advance to Community Chest" for credit/debit cards drawn on Community Chest).
       let displayInstruction = card.instruction;
-      const actuallyMoved = position !== new_position && position != null && position >= 0 && position !== 10;
-      const moveDest = actuallyMoved && (card.position != null && card.position >= 0 || extra?.rule === "nearest_utility" || extra?.rule === "nearest_railroad");
+      const actuallyMoved =
+        position !== new_position &&
+        position != null &&
+        position >= 0 &&
+        position !== 10;
+      const moveDest =
+        actuallyMoved &&
+        ((card.position != null && card.position >= 0) ||
+          extra?.rule === "nearest_utility" ||
+          extra?.rule === "nearest_railroad");
       if (moveDest) {
-        const destProp = await trx("properties").where({ id: position }).first();
+        const destProp = await trx("properties")
+          .where({ id: position })
+          .first();
         if (destProp && destProp.name) {
           const name = destProp.name;
-          if (position === 0) displayInstruction = `Advance to ${name} (Collect $200)`;
+          if (position === 0)
+            displayInstruction = `Advance to ${name} (Collect $200)`;
           else if (PROPERTY_TYPES.RAILWAY.includes(position))
             displayInstruction = `Take a trip to ${name}. If you pass Go, collect $200`;
           else if (PROPERTY_TYPES.UTILITY.includes(position))
             displayInstruction = `Advance token to nearest Utility: ${name}. If unowned, you may buy it from the Bank. If owned, throw dice and pay owner a total ten times the amount thrown.`;
-          else if (position === 39) displayInstruction = `Take a walk on the ${name}. Advance token to ${name}.`;
-          else if (!PROPERTY_TYPES.COMMUNITY_CHEST.includes(position) && !PROPERTY_TYPES.CHANCE.includes(position))
+          else if (position === 39)
+            displayInstruction = `Take a walk on the ${name}. Advance token to ${name}.`;
+          else if (
+            !PROPERTY_TYPES.COMMUNITY_CHEST.includes(position) &&
+            !PROPERTY_TYPES.CHANCE.includes(position)
+          )
             displayInstruction = `Advance to ${name}. If you pass Go, collect $200`;
-          chanceCard = { ...chanceCard, display_instruction: displayInstruction };
+          chanceCard = {
+            ...chanceCard,
+            display_instruction: displayInstruction,
+          };
         }
       }
-      const fallbackText = displayInstruction || card.instruction || "Card drawn";
+      const fallbackText =
+        displayInstruction || card.instruction || "Card drawn";
       comment = `drew ${typeName}: ${fallbackText}`;
     };
 
@@ -543,7 +629,9 @@ const payRent = async (
         if (property.id === 20 && game_player) {
           let fpPerks = [];
           try {
-            fpPerks = game_player.active_perks ? JSON.parse(game_player.active_perks) : [];
+            fpPerks = game_player.active_perks
+              ? JSON.parse(game_player.active_perks)
+              : [];
           } catch (_) {}
           if (fpPerks.some((p) => p.id === 14)) {
             const fpBonus = 500;
@@ -556,7 +644,11 @@ const payRent = async (
                 updated_at: now,
               });
             await trx("game_play_history").insert(
-              createHistory(game_player.id, fpBonus, "Free Parking bonus +$500")
+              createHistory(
+                game_player.id,
+                fpBonus,
+                "Free Parking bonus +$500",
+              ),
             );
             return {
               success: true,
@@ -591,7 +683,7 @@ const payRent = async (
           .where({ id: game_property.player_id })
           .first()
           .then((po) =>
-            po ? trx("users").where({ id: po.user_id }).first() : null
+            po ? trx("users").where({ id: po.user_id }).first() : null,
           ),
       ]);
 
@@ -647,15 +739,17 @@ const payRent = async (
           development === 0
             ? "site only"
             : development === 5
-            ? "hotel"
-            : `${development} house${development > 1 ? "s" : ""}`
+              ? "hotel"
+              : `${development} house${development > 1 ? "s" : ""}`
         }`;
       }
     }
 
     // When a Chance/Community Chest card moved the player, handle destination: rent if owned, or require buy if bank-owned
     if (chanceCard && position !== new_position) {
-      const destProperty = await trx("properties").where({ id: position }).first();
+      const destProperty = await trx("properties")
+        .where({ id: position })
+        .first();
       const isOwnable =
         destProperty &&
         !PROPERTY_TYPES.CHANCE.includes(position) &&
@@ -673,11 +767,16 @@ const payRent = async (
           !destGameProperty.mortgaged
         ) {
           const [destOwnerRow, destOwnerUser] = await Promise.all([
-            trx("game_players").where({ id: destGameProperty.player_id }).forUpdate().first(),
+            trx("game_players")
+              .where({ id: destGameProperty.player_id })
+              .forUpdate()
+              .first(),
             trx("game_players")
               .where({ id: destGameProperty.player_id })
               .first()
-              .then((po) => (po ? trx("users").where({ id: po.user_id }).first() : null)),
+              .then((po) =>
+                po ? trx("users").where({ id: po.user_id }).first() : null,
+              ),
           ]);
           if (destOwnerRow && destOwnerUser) {
             game_property = destGameProperty;
@@ -700,7 +799,8 @@ const payRent = async (
                 .count({ cnt: "*" })
                 .first()
                 .then((res) => Number(res?.cnt || 0));
-              destRentAmount = Number(rolled || 0) * (UTILITY_MULTIPLIER[owned] || 0);
+              destRentAmount =
+                Number(rolled || 0) * (UTILITY_MULTIPLIER[owned] || 0);
               destComment = `paid ${destRentAmount} to ${destOwnerUser.username} for ${owned} utility${owned > 1 ? "ies" : "y"}`;
             } else {
               const dev = Number(destGameProperty?.development || 0);
@@ -712,7 +812,8 @@ const payRent = async (
                 destProperty.rent_four_houses,
                 destProperty.rent_hotel,
               ];
-              destRentAmount = dev >= 0 && dev <= 5 ? Number(rentFields[dev] || 0) : 0;
+              destRentAmount =
+                dev >= 0 && dev <= 5 ? Number(rentFields[dev] || 0) : 0;
               destComment = `paid ${destRentAmount} rent to ${destOwnerUser.username}`;
             }
             rent = {
@@ -720,7 +821,9 @@ const payRent = async (
               owner: Number(rent?.owner ?? 0) + destRentAmount,
               players: rent?.players ?? 0,
             };
-            comment = comment ? `${comment} Landed on ${destProperty.name}: ${destComment}` : `drew card. Landed on ${destProperty.name}: ${destComment}`;
+            comment = comment
+              ? `${comment} Landed on ${destProperty.name}: ${destComment}`
+              : `drew card. Landed on ${destProperty.name}: ${destComment}`;
           }
         } else if (!destGameProperty) {
           requires_buy = true;
@@ -735,7 +838,9 @@ const payRent = async (
     if (rent && game_player) {
       let activePerks = [];
       try {
-        activePerks = game_player.active_perks ? JSON.parse(game_player.active_perks) : [];
+        activePerks = game_player.active_perks
+          ? JSON.parse(game_player.active_perks)
+          : [];
       } catch (_) {
         activePerks = [];
       }
@@ -753,18 +858,25 @@ const payRent = async (
             owner: rent.owner * 2,
             players: rent.players ?? 0,
           };
-          comment = comment ? `${comment} (Double Rent!)` : "Double Rent applied";
+          comment = comment
+            ? `${comment} (Double Rent!)`
+            : "Double Rent applied";
           toRemove.push(3);
         }
       }
       // Rent Cashback (11): when owner receives rent, they get +25% and lose the perk
       const ownerAmountBefore = Number(rent?.owner ?? 0);
       if (ownerAmountBefore > 0 && game_property?.player_id) {
-        const ownerGp = await trx("game_players").where({ id: game_property.player_id }).forUpdate().first();
+        const ownerGp = await trx("game_players")
+          .where({ id: game_property.player_id })
+          .forUpdate()
+          .first();
         if (ownerGp) {
           let ownerPerks = [];
           try {
-            ownerPerks = ownerGp.active_perks ? JSON.parse(ownerGp.active_perks) : [];
+            ownerPerks = ownerGp.active_perks
+              ? JSON.parse(ownerGp.active_perks)
+              : [];
           } catch (_) {}
           if (ownerPerks.some((p) => p.id === 11)) {
             const bonus = Math.floor(ownerAmountBefore * 0.25);
@@ -785,10 +897,14 @@ const payRent = async (
           players: rent?.players ?? 0,
         };
         toRemove.push(14);
-        comment = comment ? `${comment}; Free Parking bonus +$500!` : "Free Parking bonus +$500!";
+        comment = comment
+          ? `${comment}; Free Parking bonus +$500!`
+          : "Free Parking bonus +$500!";
       }
       if (toRemove.length > 0) {
-        activePerksAfterRent = activePerks.filter((p) => !toRemove.includes(p.id));
+        activePerksAfterRent = activePerks.filter(
+          (p) => !toRemove.includes(p.id),
+        );
       }
     }
 
@@ -805,7 +921,7 @@ const payRent = async (
         updates.push(
           trx("game_players")
             .where({ id: game_player.id })
-            .increment("balance", playerAmount)
+            .increment("balance", playerAmount),
         );
         if (!chanceCard) {
           const absAmount = Math.abs(playerAmount);
@@ -813,25 +929,31 @@ const payRent = async (
             createHistory(
               game_player.id,
               playerAmount,
-              playerAmount > 0 ? `received ${playerAmount}` : `paid ${absAmount} rent`
-            )
+              playerAmount > 0
+                ? `received ${playerAmount}`
+                : `paid ${absAmount} rent`,
+            ),
           );
         }
       }
 
-      if (ownerAmount !== 0 && Number.isFinite(ownerAmount) && game_property?.player_id) {
+      if (
+        ownerAmount !== 0 &&
+        Number.isFinite(ownerAmount) &&
+        game_property?.player_id
+      ) {
         updates.push(
           trx("game_players")
             .where({ id: game_property.player_id })
-            .increment("balance", ownerAmount)
+            .increment("balance", ownerAmount),
         );
         if (!chanceCard) {
           historyInserts.push(
             createHistory(
               game_property.player_id,
               ownerAmount,
-              `${ownerAmount > 0 ? "received" : "paid"} ${Math.abs(ownerAmount)} rent`
-            )
+              `${ownerAmount > 0 ? "received" : "paid"} ${Math.abs(ownerAmount)} rent`,
+            ),
           );
         }
       }
@@ -841,15 +963,15 @@ const payRent = async (
           trx("game_players")
             .where("game_id", game_id)
             .where("id", "!=", game_player.id)
-            .increment("balance", playersAmount)
+            .increment("balance", playersAmount),
         );
         if (!chanceCard) {
           historyInserts.push(
             createHistory(
               game_player.id,
               playersAmount * (await getPlayersCount()),
-              `Other players ${playersAmount > 0 ? "received" : "paid"} ${playersAmount} each`
-            )
+              `Other players ${playersAmount > 0 ? "received" : "paid"} ${playersAmount} each`,
+            ),
           );
         }
       }
@@ -858,15 +980,15 @@ const payRent = async (
         updates.push(
           trx("game_players")
             .where({ id: game_player.id })
-            .update({ position, updated_at: now })
+            .update({ position, updated_at: now }),
         );
         if (!chanceCard) {
           historyInserts.push(
             createHistory(
               game_player.id,
               0,
-              `Moved from position ${new_position} to ${position}`
-            )
+              `Moved from position ${new_position} to ${position}`,
+            ),
           );
         }
       }
@@ -890,7 +1012,7 @@ const payRent = async (
             receiving_amount: ownerAmount,
             created_at: now,
             updated_at: now,
-          })
+          }),
         );
       }
 
@@ -898,14 +1020,20 @@ const payRent = async (
         updates.push(
           trx("game_players")
             .where({ id: game_player.id })
-            .update({ active_perks: JSON.stringify(activePerksAfterRent), updated_at: now })
+            .update({
+              active_perks: JSON.stringify(activePerksAfterRent),
+              updated_at: now,
+            }),
         );
       }
       if (ownerActivePerksAfterRent !== null && game_property?.player_id) {
         updates.push(
           trx("game_players")
             .where({ id: game_property.player_id })
-            .update({ active_perks: JSON.stringify(ownerActivePerksAfterRent), updated_at: now })
+            .update({
+              active_perks: JSON.stringify(ownerActivePerksAfterRent),
+              updated_at: now,
+            }),
         );
       }
 
@@ -984,7 +1112,11 @@ const gamePlayerController = {
       if (!user) {
         return res
           .status(404)
-          .json({ success: false, message: "User not found. Register your wallet first (connect wallet and set a username), then try joining again." });
+          .json({
+            success: false,
+            message:
+              "User not found. Register your wallet first (connect wallet and set a username), then try joining again.",
+          });
       }
 
       // find game
@@ -996,21 +1128,32 @@ const gamePlayerController = {
       }
 
       if (game.status !== "PENDING") {
-        return res.status(400).json({ success: false, message: "Game is not open for join" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Game is not open for join" });
       }
 
       // Wallet join: player must have joined on-chain first (frontend calls joinGame then this API).
       // Look up game by code (same as waiting room / guest flow) so we verify against the correct on-chain game.
-      const gameCodeForContract = (code || game.code || "").trim().toUpperCase();
+      const gameCodeForContract = (code || game.code || "")
+        .trim()
+        .toUpperCase();
       const chainForJoin = User.normalizeChain(game.chain || "CELO");
       if (isContractConfigured(chainForJoin) && gameCodeForContract) {
         let contractGame;
         try {
-          contractGame = await callContractRead("getGameByCode", [gameCodeForContract], chainForJoin);
+          contractGame = await callContractRead(
+            "getGameByCode",
+            [gameCodeForContract],
+            chainForJoin,
+          );
         } catch (err) {
           const errMsg = err?.message || String(err);
           const notFound = /not found|Not found/i.test(errMsg);
-          logger.warn({ err: errMsg, gameId: game.id, code: gameCodeForContract }, "getGameByCode failed in wallet join");
+          logger.warn(
+            { err: errMsg, gameId: game.id, code: gameCodeForContract },
+            "getGameByCode failed in wallet join",
+          );
           return res.status(400).json({
             success: false,
             message: notFound
@@ -1021,67 +1164,122 @@ const gamePlayerController = {
         const onChainGameId = contractGame?.id ?? contractGame?.[0];
         if (onChainGameId != null && onChainGameId !== "") {
           try {
-            const onChainPlayers = await callContractRead("getPlayersInGame", [onChainGameId], chainForJoin);
+            const onChainPlayers = await callContractRead(
+              "getPlayersInGame",
+              [onChainGameId],
+              chainForJoin,
+            );
             const addresses = toAddressArray(onChainPlayers);
             const normalizedJoin = String(address || "").toLowerCase();
             const isOnContract = addresses.some(
-              (a) => String(a || "").toLowerCase() === normalizedJoin
+              (a) => String(a || "").toLowerCase() === normalizedJoin,
             );
             if (!isOnContract) {
               return res.status(400).json({
                 success: false,
-                message: "Join the game on-chain first. Sign the transaction in your wallet, then try again.",
+                message:
+                  "Join the game on-chain first. Sign the transaction in your wallet, then try again.",
               });
             }
           } catch (err) {
-            logger.warn({ err: err?.message, gameId: game.id, onChainGameId }, "getPlayersInGame failed in wallet join");
+            logger.warn(
+              { err: err?.message, gameId: game.id, onChainGameId },
+              "getPlayersInGame failed in wallet join",
+            );
             return res.status(400).json({
               success: false,
-              message: "Could not verify on-chain join. Sign the join transaction and wait for confirmation, then try again.",
+              message:
+                "Could not verify on-chain join. Sign the join transaction and wait for confirmation, then try again.",
             });
           }
           // Keep DB in sync: ensure game has contract_game_id set (for gameplay / finish flows)
-          if (!game.contract_game_id || String(game.contract_game_id) !== String(onChainGameId)) {
+          if (
+            !game.contract_game_id ||
+            String(game.contract_game_id) !== String(onChainGameId)
+          ) {
             try {
-              await Game.update(game.id, { contract_game_id: String(onChainGameId) });
+              await Game.update(game.id, {
+                contract_game_id: String(onChainGameId),
+              });
             } catch (e) {
-              logger.warn({ err: e?.message, gameId: game.id }, "Failed to update game.contract_game_id");
+              logger.warn(
+                { err: e?.message, gameId: game.id },
+                "Failed to update game.contract_game_id",
+              );
             }
           }
         }
       }
 
-      // find settings
-      const settings = await GameSetting.findByGameId(game.id);
-      if (!settings) {
-        return res
-          .status(200)
-          .json({ success: false, message: "Game settings not found" });
-      }
-
-      // fetch players in game
-      const players = await GamePlayer.findByGameId(game.id);
-      if (!players) {
-        return res
-          .status(500)
-          .json({ success: false, message: "Game players not found" });
-      }
-
-      if (players.length >= game.number_of_players) {
-        return res.status(400).json({ success: false, message: "Game is full" });
-      }
-
-      const alreadyInGame = players.some(
-        (p) => p.user_id === user.id || (p.address && address && String(p.address).toLowerCase() === String(address).toLowerCase())
-      );
-      if (alreadyInGame) {
-        return res.status(400).json({ success: false, message: "Already in game" });
-      }
-
-      // create new player (GamePlayer.join enforces symbol uniqueness per game)
+      const trx = await db.transaction();
       let player;
+      let updatedPlayers;
+      let updatedGame;
+      let playersWithTurnStart;
+
       try {
-        player = await GamePlayer.join({
+        // find settings
+        const settings = await GameSetting.findByGameId(game.id, trx);
+        if (!settings) {
+          await trx.rollback();
+          return res
+            .status(200)
+            .json({ success: false, message: "Game settings not found" });
+        }
+
+        // fetch players in game
+        const players = await GamePlayer.findByGameId(game.id, trx);
+        if (!players) {
+          await trx.rollback();
+          return res
+            .status(500)
+            .json({ success: false, message: "Game players not found" });
+        }
+
+        if (players.length >= game.number_of_players) {
+          await trx.rollback();
+          return res
+            .status(400)
+            .json({ success: false, message: "Game is full" });
+        }
+
+        const alreadyInGame = players.some(
+          (p) =>
+            p.user_id === user.id ||
+            (p.address &&
+              address &&
+              String(p.address).toLowerCase() === String(address).toLowerCase()),
+        );
+        if (alreadyInGame) {
+          await trx.rollback();
+          return res
+            .status(400)
+            .json({ success: false, message: "Already in game" });
+        }
+
+        // create new player (symbol uniqueness enforced inside join)
+        if (symbol != null) {
+          const normalized = String(symbol).trim().toLowerCase();
+          const existing = await trx("game_players")
+            .where({ game_id: game.id })
+            .whereRaw("LOWER(TRIM(symbol)) = ?", [normalized])
+            .first();
+          if (existing) {
+            await trx.rollback();
+            return res.status(400).json({
+              success: false,
+              message: `Symbol "${symbol}" is already taken in this game. Please choose another token.`,
+            });
+          }
+        }
+
+        const maxTurn = await trx("game_players")
+          .where({ game_id: game.id })
+          .max("turn_order as maxOrder")
+          .first();
+        const turn_order = (maxTurn?.maxOrder || 0) + 1;
+
+        const [playerId] = await trx("game_players").insert({
           address,
           symbol: symbol != null ? String(symbol).trim().toLowerCase() : undefined,
           user_id: user.id,
@@ -1090,8 +1288,36 @@ const gamePlayerController = {
           position: 0,
           chance_jail_card: false,
           community_chest_jail_card: false,
+          turn_order,
         });
+        player = await GamePlayer.findById(playerId, trx);
+
+        updatedPlayers = await GamePlayer.findByGameId(game.id, trx);
+
+        if (updatedPlayers.length >= game.number_of_players) {
+          const isTournamentGame = /^T\d+-R\d+-M\d+$/i.test(
+            String(game.code || "").trim(),
+          );
+          if (isTournamentGame) {
+            await Game.update(game.id, { ready_window_opens_at: db.fn.now() }, trx);
+          } else {
+            await Game.update(game.id, {
+              status: "RUNNING",
+              started_at: db.fn.now(),
+            }, trx);
+            updatedGame = await Game.findByCode(game.code, trx);
+            if (updatedGame?.next_player_id) {
+              await GamePlayer.setTurnStart(game.id, updatedGame.next_player_id, trx);
+            }
+          }
+        }
+
+        updatedGame = await Game.findByCode(game.code, trx);
+        playersWithTurnStart = await GamePlayer.findByGameId(game.id, trx);
+
+        await trx.commit();
       } catch (err) {
+        await trx.rollback();
         const msg = err?.message || String(err);
         if (/already taken|symbol.*taken/i.test(msg)) {
           return res.status(400).json({
@@ -1102,35 +1328,41 @@ const gamePlayerController = {
         throw err;
       }
 
-      // Invalidate cache and notify waiting room (same as join-as-guest)
-      const updatedPlayers = await GamePlayer.findByGameId(game.id);
-      const io = req.app.get("io");
+      // Invalidate cache and notify waiting room
       await invalidateGameByCode(game.code);
+      const io = req.app.get("io");
       if (io) {
         emitGameUpdate(io, game.code);
-        io.to(game.code).emit("player-joined", { player: updatedPlayers[updatedPlayers.length - 1], players: updatedPlayers, game });
+        io.to(game.code).emit("player-joined", {
+          player: updatedPlayers[updatedPlayers.length - 1],
+          players: updatedPlayers,
+          game,
+        });
       }
-      await recordEvent("game_joined", { entityType: "game", entityId: game.id, payload: { user_id: user.id } });
+      await recordEvent("game_joined", {
+        entityType: "game",
+        entityId: game.id,
+        payload: { user_id: user.id },
+      });
 
       if (updatedPlayers.length >= game.number_of_players) {
-        const isTournamentGame = /^T\d+-R\d+-M\d+$/i.test(String(game.code || "").trim());
-        if (isTournamentGame) {
-          // Tournament: game stays PENDING until all players click "Start now" within 30s on the board.
-          await Game.update(game.id, { ready_window_opens_at: db.fn.now() });
-        } else {
-          await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
-          await recordEvent("game_started", { entityType: "game", entityId: game.id, payload: {} });
-          const updatedGame = await Game.findByCode(game.code);
-          if (updatedGame?.next_player_id) {
-            await GamePlayer.setTurnStart(game.id, updatedGame.next_player_id);
-          }
+        const isTournamentGame = /^T\d+-R\d+-M\d+$/i.test(
+          String(game.code || "").trim(),
+        );
+        if (!isTournamentGame) {
+          await recordEvent("game_started", {
+            entityType: "game",
+            entityId: game.id,
+            payload: {},
+          });
         }
         await invalidateGameById(game.id);
-        const updatedGame = await Game.findByCode(game.code);
-        const playersWithTurnStart = await GamePlayer.findByGameId(game.id);
         if (io) {
           emitGameUpdate(io, game.code);
-          io.to(game.code).emit("game-ready", { game: updatedGame, players: playersWithTurnStart });
+          io.to(game.code).emit("game-ready", {
+            game: updatedGame,
+            players: playersWithTurnStart,
+          });
         }
       }
 
@@ -1141,24 +1373,39 @@ const gamePlayerController = {
       });
     } catch (error) {
       logger.error({ err: error }, "Error creating game player");
-      return res.status(500).json({ success: false, message: error?.message || "Failed to join game" });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error?.message || "Failed to join game",
+        });
     }
   },
   async leave(req, res) {
+    const trx = await db.transaction();
     try {
       const { address, code, chain } = req.body;
       const user = await User.resolveUserByAddress(address, chain || "BASE");
       if (!user) {
-        return res.status(404).json({ success: false, message: "User not found" });
+        await trx.rollback();
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found" });
       }
-      const game = await Game.findByCode(code);
+      const game = await Game.findByCode(code, trx);
       if (!game) {
-        return res.status(404).json({ success: false, message: "Game not found" });
+        await trx.rollback();
+        return res
+          .status(404)
+          .json({ success: false, message: "Game not found" });
       }
 
-      const playersBeforeLeave = await db("game_players").where({ game_id: game.id }).select("user_id", "turn_count");
+      const playersBeforeLeave = await trx("game_players")
+        .where({ game_id: game.id })
+        .select("user_id", "turn_count");
       const chainForLeave = User.normalizeChain(game.chain || "CELO");
-      const gameContinues = game.status === "RUNNING" && playersBeforeLeave.length > 2;
+      const gameContinues =
+        game.status === "RUNNING" && playersBeforeLeave.length > 2;
 
       // Remove leaver from contract whenever game is on-chain (bankruptcy, voluntary leave, etc.) so contract stays in sync.
       // When 2 players and one leaves: contract removes leaver and ends game (pays winner). When 4→3: contract just removes leaver.
@@ -1166,57 +1413,106 @@ const gamePlayerController = {
         let contractGameIdToUse = game.contract_game_id;
         if (!contractGameIdToUse && game.code) {
           try {
-            const contractGame = await callContractRead("getGameByCode", [(game.code || "").trim().toUpperCase()], chainForLeave);
+            const contractGame = await callContractRead(
+              "getGameByCode",
+              [(game.code || "").trim().toUpperCase()],
+              chainForLeave,
+            );
             const onChainId = contractGame?.id ?? contractGame?.[0];
             if (onChainId != null && onChainId !== "") {
               contractGameIdToUse = String(onChainId);
-              await Game.update(game.id, { contract_game_id: contractGameIdToUse });
+              await Game.update(game.id, {
+                contract_game_id: contractGameIdToUse,
+              }, trx);
             }
           } catch (err) {
-            logger.warn({ err: err?.message, gameId: game.id, code: game.code }, "getGameByCode in leave failed");
+            logger.warn(
+              { err: err?.message, gameId: game.id, code: game.code },
+              "getGameByCode in leave failed",
+            );
           }
         }
         if (contractGameIdToUse) {
           const leaverAddress = user.address;
           if (leaverAddress) {
-            const leaverRow = playersBeforeLeave.find((p) => p.user_id === user.id);
-            const turnCount = leaverRow != null ? Number(leaverRow.turn_count ?? 0) : 0;
-            const turnCountForContract = turnCount >= 20 ? turnCount : MAX_UINT256;
+            const leaverRow = playersBeforeLeave.find(
+              (p) => p.user_id === user.id,
+            );
+            const turnCount =
+              leaverRow != null ? Number(leaverRow.turn_count ?? 0) : 0;
+            const turnCountForContract =
+              turnCount >= 20 ? turnCount : MAX_UINT256;
             try {
-              await removePlayerFromGame(contractGameIdToUse, leaverAddress, turnCountForContract, chainForLeave);
+              await removePlayerFromGame(
+                contractGameIdToUse,
+                leaverAddress,
+                turnCountForContract,
+                chainForLeave,
+              );
             } catch (contractErr) {
               if (!gameContinues) {
                 logger.warn(
-                  { err: contractErr?.message, gameId: game.id, code: game.code, leaverId: user.id },
-                  "leave: contract removePlayerFromGame failed; continuing with DB leave and winner set"
+                  {
+                    err: contractErr?.message,
+                    gameId: game.id,
+                    code: game.code,
+                    leaverId: user.id,
+                  },
+                  "leave: contract removePlayerFromGame failed; continuing with DB leave and winner set",
                 );
               } else {
                 logger.warn(
-                  { err: contractErr?.message, gameId: game.id, code: game.code, leaverId: user.id },
-                  "leave: contract removePlayerFromGame failed (game continues); DB already in sync"
+                  {
+                    err: contractErr?.message,
+                    gameId: game.id,
+                    code: game.code,
+                    leaverId: user.id,
+                  },
+                  "leave: contract removePlayerFromGame failed (game continues); DB already in sync",
                 );
               }
             }
           } else {
-            logger.warn({ gameId: game.id, leaverId: user.id }, "leave: missing leaver address, skipping contract");
+            logger.warn(
+              { gameId: game.id, leaverId: user.id },
+              "leave: missing leaver address, skipping contract",
+            );
           }
         }
       }
 
-      await GamePlayer.leave(game.id, user.id);
+      await GamePlayer.leave(game.id, user.id, trx);
 
-      const remaining = await db("game_players").where({ game_id: game.id }).select("user_id");
+      const remaining = await trx("game_players")
+        .where({ game_id: game.id })
+        .select("user_id");
+
+      let winnerId = null;
       if (remaining.length === 1 && game.status === "RUNNING") {
-        const winnerId = remaining[0].user_id;
+        winnerId = remaining[0].user_id;
         const playerUserIds = remaining.map((r) => r.user_id).concat(user.id);
         await Game.update(game.id, {
           status: "FINISHED",
           winner_id: winnerId,
           next_player_id: winnerId,
+        }, trx);
+
+        await trx.commit();
+
+        await recordEvent("game_finished", {
+          entityType: "game",
+          entityId: game.id,
+          payload: { winner_id: winnerId },
         });
-        await recordEvent("game_finished", { entityType: "game", entityId: game.id, payload: { winner_id: winnerId } });
-        User.recordChainGameResult(game.chain || "BASE", winnerId, playerUserIds).catch((err) =>
-          logger.warn({ err: err?.message, gameId: game.id }, "recordChainGameResult failed")
+        User.recordChainGameResult(
+          game.chain || "BASE",
+          winnerId,
+          playerUserIds,
+        ).catch((err) =>
+          logger.warn(
+            { err: err?.message, gameId: game.id },
+            "recordChainGameResult failed",
+          ),
         );
         await invalidateGameById(game.id);
         const io = req.app.get("io");
@@ -1226,7 +1522,7 @@ const gamePlayerController = {
         } catch (err) {
           logger.error(
             { err: err?.message, gameId: game.id },
-            "settleStakedArenaForFinishedGame after leave FINISHED failed"
+            "settleStakedArenaForFinishedGame after leave FINISHED failed",
           );
         }
         try {
@@ -1234,9 +1530,11 @@ const gamePlayerController = {
         } catch (err) {
           logger.error(
             { err: err?.message, gameId: game.id },
-            "tournament onGameFinished after leave FINISHED failed"
+            "tournament onGameFinished after leave FINISHED failed",
           );
         }
+      } else {
+        await trx.commit();
       }
 
       return res.status(200).json({
@@ -1244,8 +1542,14 @@ const gamePlayerController = {
         message: "Player removed from game successfully",
       });
     } catch (error) {
+      try { await trx.rollback(); } catch (_) {}
       logger.error({ err: error }, "Error in leave");
-      return res.status(500).json({ success: false, message: error?.message || "Failed to leave game" });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error?.message || "Failed to leave game",
+        });
     }
   },
   async findById(req, res) {
@@ -1286,7 +1590,7 @@ const gamePlayerController = {
       res.status(200).json({ success: false, message: error.message });
     }
   },
-  
+
   async update(req, res) {
     try {
       const player = await GamePlayer.update(req.params.id, req.body);
@@ -1310,12 +1614,21 @@ const gamePlayerController = {
     };
 
     // Emit player-rolled so all clients (including opponents) can show the dice result
-    const emitPlayerRolledIfPresent = async (gameObj, userId, d1, d2, rolledTotal) => {
+    const emitPlayerRolledIfPresent = async (
+      gameObj,
+      userId,
+      d1,
+      d2,
+      rolledTotal,
+    ) => {
       if (d1 == null || d2 == null || !gameObj?.code) return;
       const io = req.app.get("io");
       if (!io) return;
       try {
-        const userRow = await db("users").where({ id: userId }).select("username").first();
+        const userRow = await db("users")
+          .where({ id: userId })
+          .select("username")
+          .first();
         io.to(gameObj.code).emit("player-rolled", {
           user_id: userId,
           username: userRow?.username ?? "Player",
@@ -1415,14 +1728,21 @@ const gamePlayerController = {
         const next_player = players[nextIdx];
         if (!next_player) {
           await trx.rollback();
-          return res.status(200).json({ success: false, message: "You already rolled this round." });
+          return res
+            .status(200)
+            .json({
+              success: false,
+              message: "You already rolled this round.",
+            });
         }
         const last_active = await trx("game_play_history")
           .where({ game_id, active: 1 })
           .orderBy("id", "desc")
           .first();
         if (last_active) {
-          await trx("game_play_history").where({ id: last_active.id }).update({ active: 0 });
+          await trx("game_play_history")
+            .where({ id: last_active.id })
+            .update({ active: 0 });
         }
         await trx("game_players")
           .where({ game_id, user_id: game.next_player_id })
@@ -1456,7 +1776,9 @@ const gamePlayerController = {
       let effectiveRolled = rolled != null ? Number(rolled) : null;
       let activePerksRoll = [];
       try {
-        activePerksRoll = game_player.active_perks ? JSON.parse(game_player.active_perks) : [];
+        activePerksRoll = game_player.active_perks
+          ? JSON.parse(game_player.active_perks)
+          : [];
       } catch (_) {
         activePerksRoll = [];
       }
@@ -1514,7 +1836,12 @@ const gamePlayerController = {
         await notifyGameUpdate(req, game_id);
         await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
         if (is_double) {
-          awardActivityXpByGameUser(game_id, user_id, ACTIVITY_XP.ROLLED_DOUBLE, "rolled_double").catch(() => {});
+          awardActivityXpByGameUser(
+            game_id,
+            user_id,
+            ACTIVITY_XP.ROLLED_DOUBLE,
+            "rolled_double",
+          ).catch(() => {});
         }
         return res.json({
           success: true,
@@ -1529,7 +1856,11 @@ const gamePlayerController = {
 
       // In jail, rolled but no doubles (and not yet 3 stays): return choice — Pay $50, Use card, or Stay
       const JAIL_POSITION = 10;
-      if (game_player.in_jail && new_position === JAIL_POSITION && !canLeaveJail) {
+      if (
+        game_player.in_jail &&
+        new_position === JAIL_POSITION &&
+        !canLeaveJail
+      ) {
         await trx("game_players")
           .where({ id: game_player.id })
           .update({
@@ -1539,19 +1870,25 @@ const gamePlayerController = {
           });
         await insertPlayHistory(
           { stayed_in_jail: true, choice_required: true },
-          "Rolled from jail (no doubles). Choose: Pay $50, Use Get Out of Jail Free, or Stay."
+          "Rolled from jail (no doubles). Choose: Pay $50, Use Get Out of Jail Free, or Stay.",
         );
         await trx.commit();
         await notifyGameUpdate(req, game_id);
         await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
         if (is_double) {
-          awardActivityXpByGameUser(game_id, user_id, ACTIVITY_XP.ROLLED_DOUBLE, "rolled_double").catch(() => {});
+          awardActivityXpByGameUser(
+            game_id,
+            user_id,
+            ACTIVITY_XP.ROLLED_DOUBLE,
+            "rolled_double",
+          ).catch(() => {});
         }
         return res.json({
           success: true,
           still_in_jail: true,
           rolled: effectiveRolled ?? null,
-          message: "Choose: Pay $50, Use Get Out of Jail Free, or Stay in jail.",
+          message:
+            "Choose: Pay $50, Use Get Out of Jail Free, or Stay in jail.",
         });
       }
 
@@ -1594,7 +1931,7 @@ const gamePlayerController = {
             new_position: new_position,
             rolled: effectiveRolled,
           },
-          trx // Pass transaction to prevent nested transactions
+          trx, // Pass transaction to prevent nested transactions
         );
 
         // Check rent payment result
@@ -1625,14 +1962,17 @@ const gamePlayerController = {
             .forUpdate()
             .orderBy("turn_order", "asc");
           const currentIdx = players.findIndex((p) => p.user_id === user_id);
-          const nextIdx = currentIdx === players.length - 1 ? 0 : currentIdx + 1;
+          const nextIdx =
+            currentIdx === players.length - 1 ? 0 : currentIdx + 1;
           const next_player = players[nextIdx];
           const last_active = await trx("game_play_history")
             .where({ game_id, active: 1 })
             .orderBy("id", "desc")
             .first();
           if (last_active) {
-            await trx("game_play_history").where({ id: last_active.id }).update({ active: 0 });
+            await trx("game_play_history")
+              .where({ id: last_active.id })
+              .update({ active: 0 });
           }
           await trx("game_players")
             .where({ game_id, user_id })
@@ -1656,7 +1996,12 @@ const gamePlayerController = {
         await notifyGameUpdate(req, game_id);
         await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
         if (is_double) {
-          awardActivityXpByGameUser(game_id, user_id, ACTIVITY_XP.ROLLED_DOUBLE, "rolled_double").catch(() => {});
+          awardActivityXpByGameUser(
+            game_id,
+            user_id,
+            ACTIVITY_XP.ROLLED_DOUBLE,
+            "rolled_double",
+          ).catch(() => {});
         }
         return res.json({
           success: true,
@@ -1683,7 +2028,7 @@ const gamePlayerController = {
 
         await insertPlayHistory(
           { stayed_in_jail: true },
-          "You are still in jail"
+          "You are still in jail",
         );
         // Decline only incoming trades for this player — they rolled without responding. Do NOT decline outgoing.
         await trx("game_trade_requests")
@@ -1693,7 +2038,12 @@ const gamePlayerController = {
         await notifyGameUpdate(req, game_id);
         await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
         if (is_double) {
-          awardActivityXpByGameUser(game_id, user_id, ACTIVITY_XP.ROLLED_DOUBLE, "rolled_double").catch(() => {});
+          awardActivityXpByGameUser(
+            game_id,
+            user_id,
+            ACTIVITY_XP.ROLLED_DOUBLE,
+            "rolled_double",
+          ).catch(() => {});
         }
         return res.json({
           success: true,
@@ -1738,10 +2088,15 @@ const gamePlayerController = {
         });
       }
 
-      const game = await trx("games").where({ id: game_id }).forUpdate().first();
+      const game = await trx("games")
+        .where({ id: game_id })
+        .forUpdate()
+        .first();
       if (!game) {
         await trx.rollback();
-        return res.status(404).json({ success: false, message: "Game not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Game not found" });
       }
       if (game.status !== "RUNNING") {
         await trx.rollback();
@@ -1764,7 +2119,9 @@ const gamePlayerController = {
         .first();
       if (!game_player) {
         await trx.rollback();
-        return res.status(404).json({ success: false, message: "Player not found in game" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Player not found in game" });
       }
 
       // Prevent double rolls in same round (they already rolled 3 times client-side; we're recording the outcome)
@@ -1777,15 +2134,13 @@ const gamePlayerController = {
       }
 
       // Send to jail: position 10, in_jail true, count as having rolled this round
-      await trx("game_players")
-        .where({ id: game_player.id })
-        .update({
-          position: JAIL_POSITION,
-          in_jail: true,
-          in_jail_rolls: 0,
-          rolls: 1,
-          updated_at: now,
-        });
+      await trx("game_players").where({ id: game_player.id }).update({
+        position: JAIL_POSITION,
+        in_jail: true,
+        in_jail_rolls: 0,
+        rolls: 1,
+        updated_at: now,
+      });
 
       // History
       await trx("game_play_history").insert({
@@ -1832,7 +2187,7 @@ const gamePlayerController = {
       await applyTurnStartPerks(trx, game_id, next_player.user_id);
 
       const allRolled = players.every((p) =>
-        p.user_id === user_id ? true : Number(p.rolls || 0) >= 1
+        p.user_id === user_id ? true : Number(p.rolls || 0) >= 1,
       );
       if (allRolled) {
         await trx("game_players").where({ game_id }).update({ rolls: 0 });
@@ -1878,10 +2233,15 @@ const gamePlayerController = {
         });
       }
 
-      const game = await trx("games").where({ id: game_id }).forUpdate().first();
+      const game = await trx("games")
+        .where({ id: game_id })
+        .forUpdate()
+        .first();
       if (!game) {
         await trx.rollback();
-        return res.status(404).json({ success: false, message: "Game not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Game not found" });
       }
       if (game.status !== "RUNNING") {
         await trx.rollback();
@@ -1904,7 +2264,9 @@ const gamePlayerController = {
         .first();
       if (!game_player) {
         await trx.rollback();
-        return res.status(404).json({ success: false, message: "Player not found in game" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Player not found in game" });
       }
 
       const inJail = Boolean(game_player.in_jail);
@@ -1981,26 +2343,42 @@ const gamePlayerController = {
       const { user_id, game_id } = req.body;
       if (!user_id || !game_id) {
         await trx.rollback();
-        return res.status(200).json({ success: false, message: "Missing user_id or game_id." });
+        return res
+          .status(200)
+          .json({ success: false, message: "Missing user_id or game_id." });
       }
-      const game = await trx("games").where({ id: game_id }).forUpdate().first();
+      const game = await trx("games")
+        .where({ id: game_id })
+        .forUpdate()
+        .first();
       if (!game) {
         await trx.rollback();
-        return res.status(200).json({ success: false, message: "Game not found." });
+        return res
+          .status(200)
+          .json({ success: false, message: "Game not found." });
       }
       if (game.next_player_id !== user_id) {
         await trx.rollback();
-        return res.status(200).json({ success: false, message: "Not your turn." });
+        return res
+          .status(200)
+          .json({ success: false, message: "Not your turn." });
       }
-      const players = await trx("game_players").where({ game_id }).forUpdate().orderBy("turn_order", "asc");
+      const players = await trx("game_players")
+        .where({ game_id })
+        .forUpdate()
+        .orderBy("turn_order", "asc");
       if (!players.length) {
         await trx.rollback();
-        return res.status(200).json({ success: false, message: "No players in game." });
+        return res
+          .status(200)
+          .json({ success: false, message: "No players in game." });
       }
       const game_player = players.find((p) => p.user_id === user_id);
       if (!game_player || !game_player.in_jail) {
         await trx.rollback();
-        return res.status(200).json({ success: false, message: "You are not in jail." });
+        return res
+          .status(200)
+          .json({ success: false, message: "You are not in jail." });
       }
       const currentIdx = players.findIndex((p) => p.user_id === user_id);
       const nextIdx = currentIdx === players.length - 1 ? 0 : currentIdx + 1;
@@ -2026,8 +2404,14 @@ const gamePlayerController = {
         new_position: 10,
         action: "stay_in_jail",
         amount: 0,
-        extra: JSON.stringify({ stayed_in_jail: true, in_jail_rolls: newInJailRolls, released: release }),
-        comment: release ? "Stayed in jail; released after 3 turns." : "Stayed in jail.",
+        extra: JSON.stringify({
+          stayed_in_jail: true,
+          in_jail_rolls: newInJailRolls,
+          released: release,
+        }),
+        comment: release
+          ? "Stayed in jail; released after 3 turns."
+          : "Stayed in jail.",
         active: 1,
         created_at: now,
         updated_at: now,
@@ -2038,7 +2422,9 @@ const gamePlayerController = {
         .orderBy("id", "desc")
         .first();
       if (last_active) {
-        await trx("game_play_history").where({ id: last_active.id }).update({ active: 0 });
+        await trx("game_play_history")
+          .where({ id: last_active.id })
+          .update({ active: 0 });
       }
 
       await trx("games").where({ id: game.id }).update({
@@ -2059,13 +2445,20 @@ const gamePlayerController = {
       await notifyGameUpdate(req, game_id);
       return res.json({
         success: true,
-        message: release ? "Released after 3 turns in jail. Next player's turn." : "Stayed in jail. Next player's turn.",
+        message: release
+          ? "Released after 3 turns in jail. Next player's turn."
+          : "Stayed in jail. Next player's turn.",
         released: release,
       });
     } catch (error) {
       await trx.rollback();
       logger.error({ err: error }, "stayInJail error");
-      return res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error?.message || "Internal server error",
+        });
     }
   },
 
@@ -2080,40 +2473,68 @@ const gamePlayerController = {
       const { user_id, game_id, property_id } = req.body;
       if (!user_id || !game_id || !property_id) {
         await trx.rollback();
-        return res.status(400).json({ success: false, message: "Missing game_id, user_id, or property_id" });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Missing game_id, user_id, or property_id",
+          });
       }
-      const game = await trx("games").where({ id: game_id }).forUpdate().first();
+      const game = await trx("games")
+        .where({ id: game_id })
+        .forUpdate()
+        .first();
       if (!game) {
         await trx.rollback();
-        return res.status(404).json({ success: false, message: "Game not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Game not found" });
       }
       if (game.status !== "RUNNING") {
         await trx.rollback();
-        return res.status(422).json({ success: false, message: "Game is not running" });
+        return res
+          .status(422)
+          .json({ success: false, message: "Game is not running" });
       }
       if (game.next_player_id !== user_id) {
         await trx.rollback();
-        return res.status(422).json({ success: false, message: "Not your turn" });
+        return res
+          .status(422)
+          .json({ success: false, message: "Not your turn" });
       }
-      const game_player = await trx("game_players").where({ game_id, user_id }).first();
+      const game_player = await trx("game_players")
+        .where({ game_id, user_id })
+        .first();
       if (!game_player) {
         await trx.rollback();
-        return res.status(404).json({ success: false, message: "Player not in game" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Player not in game" });
       }
       const playerPosition = Number(game_player.position);
-      const property = await trx("properties").where({ id: property_id }).first();
+      const property = await trx("properties")
+        .where({ id: property_id })
+        .first();
       if (!property) {
         await trx.rollback();
-        return res.status(404).json({ success: false, message: "Property not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Property not found" });
       }
       if (property.id !== playerPosition) {
         await trx.rollback();
-        return res.status(422).json({ success: false, message: "You are not on this property" });
+        return res
+          .status(422)
+          .json({ success: false, message: "You are not on this property" });
       }
-      const existing = await trx("game_properties").where({ property_id, game_id }).first();
+      const existing = await trx("game_properties")
+        .where({ property_id, game_id })
+        .first();
       if (existing) {
         await trx.rollback();
-        return res.status(422).json({ success: false, message: "Property is already owned" });
+        return res
+          .status(422)
+          .json({ success: false, message: "Property is already owned" });
       }
       const settings = await trx("game_settings").where({ game_id }).first();
       if (settings && settings.auction) {
@@ -2132,25 +2553,40 @@ const gamePlayerController = {
           auction: active,
         });
       }
-      const players = await trx("game_players").where({ game_id }).forUpdate().orderBy("turn_order", "asc");
+      const players = await trx("game_players")
+        .where({ game_id })
+        .forUpdate()
+        .orderBy("turn_order", "asc");
       const currentIdx = players.findIndex((p) => p.user_id === user_id);
       const nextIdx = currentIdx === players.length - 1 ? 0 : currentIdx + 1;
       const next_player = players[nextIdx];
       const now = new Date();
-      await trx("game_players").where({ game_id, user_id }).update({ rolled: null, updated_at: now });
-      await trx("games").where({ id: game_id }).update({ next_player_id: next_player.user_id, updated_at: now });
+      await trx("game_players")
+        .where({ game_id, user_id })
+        .update({ rolled: null, updated_at: now });
+      await trx("games")
+        .where({ id: game_id })
+        .update({ next_player_id: next_player.user_id, updated_at: now });
       const turnStartSeconds = String(Math.floor(Date.now() / 1000));
-      await trx("game_players").where({ game_id, user_id: next_player.user_id }).update({ turn_start: turnStartSeconds, updated_at: now });
+      await trx("game_players")
+        .where({ game_id, user_id: next_player.user_id })
+        .update({ turn_start: turnStartSeconds, updated_at: now });
       await applyTurnStartPerks(trx, game_id, next_player.user_id);
       const allRolled = players.every((p) => Number(p.rolls || 0) >= 1);
-      if (allRolled) await trx("game_players").where({ game_id }).update({ rolls: 0 });
+      if (allRolled)
+        await trx("game_players").where({ game_id }).update({ rolls: 0 });
       await trx.commit();
       await notifyGameUpdate(req, game_id);
       return res.json({ success: true, message: "Turn passed. Next player." });
     } catch (error) {
       await trx.rollback();
       logger.error({ err: error }, "declineBuy error");
-      return res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error?.message || "Internal server error",
+        });
     }
   },
 
@@ -2163,20 +2599,37 @@ const gamePlayerController = {
       const { user_id, game_id, card_type } = req.body; // card_type: "chance" | "community_chest"
       if (!user_id || !game_id || !card_type) {
         await trx.rollback();
-        return res.status(200).json({ success: false, message: "Missing user_id, game_id, or card_type." });
+        return res
+          .status(200)
+          .json({
+            success: false,
+            message: "Missing user_id, game_id, or card_type.",
+          });
       }
       if (!["chance", "community_chest"].includes(card_type)) {
         await trx.rollback();
-        return res.status(200).json({ success: false, message: "card_type must be 'chance' or 'community_chest'." });
+        return res
+          .status(200)
+          .json({
+            success: false,
+            message: "card_type must be 'chance' or 'community_chest'.",
+          });
       }
-      const game = await trx("games").where({ id: game_id }).forUpdate().first();
+      const game = await trx("games")
+        .where({ id: game_id })
+        .forUpdate()
+        .first();
       if (!game) {
         await trx.rollback();
-        return res.status(200).json({ success: false, message: "Game not found." });
+        return res
+          .status(200)
+          .json({ success: false, message: "Game not found." });
       }
       if (game.next_player_id !== user_id) {
         await trx.rollback();
-        return res.status(200).json({ success: false, message: "Not your turn." });
+        return res
+          .status(200)
+          .json({ success: false, message: "Not your turn." });
       }
       const game_player = await trx("game_players")
         .where({ game_id, user_id })
@@ -2184,17 +2637,30 @@ const gamePlayerController = {
         .first();
       if (!game_player || !game_player.in_jail) {
         await trx.rollback();
-        return res.status(200).json({ success: false, message: "You are not in jail." });
+        return res
+          .status(200)
+          .json({ success: false, message: "You are not in jail." });
       }
       const hasChance = Number(game_player.chance_jail_card || 0) >= 1;
       const hasChest = Number(game_player.community_chest_jail_card || 0) >= 1;
       if (card_type === "chance" && !hasChance) {
         await trx.rollback();
-        return res.status(200).json({ success: false, message: "You do not have a Get Out of Jail Free (Chance) card." });
+        return res
+          .status(200)
+          .json({
+            success: false,
+            message: "You do not have a Get Out of Jail Free (Chance) card.",
+          });
       }
       if (card_type === "community_chest" && !hasChest) {
         await trx.rollback();
-        return res.status(200).json({ success: false, message: "You do not have a Get Out of Jail Free (Community Chest) card." });
+        return res
+          .status(200)
+          .json({
+            success: false,
+            message:
+              "You do not have a Get Out of Jail Free (Community Chest) card.",
+          });
       }
       const now = new Date();
       const updates = {
@@ -2203,9 +2669,15 @@ const gamePlayerController = {
         updated_at: now,
       };
       if (card_type === "chance") {
-        updates.chance_jail_card = Math.max(0, Number(game_player.chance_jail_card || 0) - 1);
+        updates.chance_jail_card = Math.max(
+          0,
+          Number(game_player.chance_jail_card || 0) - 1,
+        );
       } else {
-        updates.community_chest_jail_card = Math.max(0, Number(game_player.community_chest_jail_card || 0) - 1);
+        updates.community_chest_jail_card = Math.max(
+          0,
+          Number(game_player.community_chest_jail_card || 0) - 1,
+        );
       }
       await trx("game_players").where({ id: game_player.id }).update(updates);
 
@@ -2233,7 +2705,12 @@ const gamePlayerController = {
     } catch (error) {
       await trx.rollback();
       logger.error({ err: error }, "useGetOutOfJailFree error");
-      return res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error?.message || "Internal server error",
+        });
     }
   },
 
@@ -2282,7 +2759,9 @@ const gamePlayerController = {
       const next_player = players[nextIdx];
 
       // 2b️⃣ Consecutive timeouts: if turn ended by 2 min timeout, increment; else reset
-      const currentStrikes = Number(players[currentIdx].consecutive_timeouts || 0);
+      const currentStrikes = Number(
+        players[currentIdx].consecutive_timeouts || 0,
+      );
       const currentTurnCount = Number(players[currentIdx].turn_count || 0);
       if (timed_out) {
         await trx("game_players")
@@ -2309,7 +2788,7 @@ const gamePlayerController = {
         const eliminatedUserId = currentPlayerRow.user_id;
         await trx("game_properties")
           .where({ game_id, player_id: currentPlayerRow.id })
-          .update({ player_id: null, mortgaged: false, development: 0, updated_at: db.fn.now() });
+          .del();
         await trx("game_players").where({ id: currentPlayerRow.id }).del();
         const winner = players.find((p) => p.user_id !== user_id);
         await trx("games")
@@ -2321,30 +2800,50 @@ const gamePlayerController = {
             updated_at: new Date(),
           });
         await trx.commit();
-        await recordEvent("game_finished", { entityType: "game", entityId: game_id, payload: { winner_id: winner ? winner.user_id : null } });
+
+        // Post-commit side effects (outside try/catch to avoid rollback on committed trx)
+        recordEvent("game_finished", {
+          entityType: "game",
+          entityId: game_id,
+          payload: { winner_id: winner ? winner.user_id : null },
+        }).catch(() => {});
         if (winner && game.chain) {
           const playerUserIds = players.map((p) => p.user_id);
-          User.recordChainGameResult(game.chain || "BASE", winner.user_id, playerUserIds).catch((err) =>
-            logger.warn({ err: err?.message, game_id }, "recordChainGameResult failed")
+          User.recordChainGameResult(
+            game.chain || "BASE",
+            winner.user_id,
+            playerUserIds,
+          ).catch((err) =>
+            logger.warn(
+              { err: err?.message, game_id },
+              "recordChainGameResult failed",
+            ),
           );
         }
         // End AI game on contract so human gets consolation (guest or wallet when we have contract auth)
         const chainForAI = User.normalizeChain(game.chain || "CELO");
         if (game.contract_game_id && isContractConfigured(chainForAI)) {
-          const eliminatedUser = await ensureUserHasContractPassword(db, eliminatedUserId, chainForAI) ||
-            (await db("users").where({ id: eliminatedUserId }).select("address", "username", "password_hash").first());
-          if (eliminatedUser?.address && eliminatedUser?.password_hash) {
-            endAIGameByBackend(
-              eliminatedUser.address,
-              eliminatedUser.username || "",
-              eliminatedUser.password_hash,
-              game.contract_game_id,
-              Number(currentPlayerRow.position ?? 0),
-              String(currentPlayerRow.balance ?? 0),
-              false,
-              chainForAI
-            ).catch((err) => logger.warn({ err: err?.message, game_id }, "endAIGameByBackend (eliminated) failed"));
-          }
+          (async () => {
+            try {
+              const eliminatedUser =
+                (await ensureUserHasContractPassword(db, eliminatedUserId, chainForAI)) ||
+                (await db("users").where({ id: eliminatedUserId }).select("address", "username", "password_hash").first());
+              if (eliminatedUser?.address && eliminatedUser?.password_hash) {
+                await endAIGameByBackend(
+                  eliminatedUser.address,
+                  eliminatedUser.username || "",
+                  eliminatedUser.password_hash,
+                  game.contract_game_id,
+                  Number(currentPlayerRow.position ?? 0),
+                  String(currentPlayerRow.balance ?? 0),
+                  false,
+                  chainForAI,
+                );
+              }
+            } catch (err) {
+              logger.warn({ err: err?.message, game_id }, "endAIGameByBackend (eliminated) failed");
+            }
+          })();
         }
         return res.status(200).json({
           success: true,
@@ -2392,7 +2891,12 @@ const gamePlayerController = {
       await trx.commit();
       await notifyGameUpdate(req, game_id);
       if (!timed_out) {
-        awardActivityXpByGameUser(game_id, user_id, ACTIVITY_XP.TURN_COMPLETED, "turn_completed").catch(() => {});
+        awardActivityXpByGameUser(
+          game_id,
+          user_id,
+          ACTIVITY_XP.TURN_COMPLETED,
+          "turn_completed",
+        ).catch(() => {});
       }
       res.json({
         success: true,
@@ -2453,20 +2957,11 @@ const gamePlayerController = {
       }
 
       // 4️⃣ Optional checks: jailed, bankrupt, inactive
-      if (player.is_jailed) {
+      if (player.in_jail) {
         await trx.rollback();
         return res.status(200).json({
           success: false,
           message: "You cannot roll while jailed.",
-          data: { canRoll: false },
-        });
-      }
-
-      if (player.is_bankrupt) {
-        await trx.rollback();
-        return res.status(200).json({
-          success: false,
-          message: "You are bankrupt and cannot roll.",
           data: { canRoll: false },
         });
       }
@@ -2507,7 +3002,6 @@ const gamePlayerController = {
     }
   },
 
-
   /**
    * Record a "soft" timeout for the current player (multiplayer 3+ players).
    * Does NOT end the turn - just increments consecutive_timeouts so others can vote.
@@ -2526,7 +3020,9 @@ const gamePlayerController = {
 
       const game = await db("games").where({ id: game_id }).first();
       if (!game) {
-        return res.status(404).json({ success: false, message: "Game not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Game not found" });
       }
       if (game.status !== "RUNNING") {
         return res.status(400).json({
@@ -2546,10 +3042,14 @@ const gamePlayerController = {
       const caller = players.find((p) => p.user_id === caller_user_id);
       const target = players.find((p) => p.user_id === target_user_id);
       if (!caller) {
-        return res.status(403).json({ success: false, message: "You are not in this game" });
+        return res
+          .status(403)
+          .json({ success: false, message: "You are not in this game" });
       }
       if (!target) {
-        return res.status(404).json({ success: false, message: "Target not in game" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Target not in game" });
       }
 
       const TURN_ROLL_SECONDS = 90;
@@ -2627,10 +3127,15 @@ const gamePlayerController = {
         });
       }
 
-      const game = await trx("games").where({ id: game_id }).forUpdate().first();
+      const game = await trx("games")
+        .where({ id: game_id })
+        .forUpdate()
+        .first();
       if (!game) {
         await trx.rollback();
-        return res.status(404).json({ success: false, message: "Game not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Game not found" });
       }
       if (game.status !== "RUNNING") {
         await trx.rollback();
@@ -2656,16 +3161,22 @@ const gamePlayerController = {
       const target = players.find((p) => p.user_id === target_user_id);
       if (!voter) {
         await trx.rollback();
-        return res.status(403).json({ success: false, message: "You are not in this game" });
+        return res
+          .status(403)
+          .json({ success: false, message: "You are not in this game" });
       }
       if (!target) {
         await trx.rollback();
-        return res.status(404).json({ success: false, message: "Target player not in game" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Target player not in game" });
       }
 
       // Check if target is eligible for removal
       const strikes = Number(target.consecutive_timeouts || 0);
-      const otherPlayersCount = players.filter((p) => p.user_id !== target_user_id).length;
+      const otherPlayersCount = players.filter(
+        (p) => p.user_id !== target_user_id,
+      ).length;
 
       // Soft timeout: if target is current player and 90s has elapsed, allow vote (3+ players only)
       const TURN_ROLL_SECONDS = 90;
@@ -2673,19 +3184,24 @@ const gamePlayerController = {
       const nowSec = Math.floor(Date.now() / 1000);
       const timeElapsed = nowSec - turnStartSec;
       const isCurrentPlayer = game.next_player_id === target_user_id;
-      const softTimeout = otherPlayersCount > 1 && isCurrentPlayer && timeElapsed >= TURN_ROLL_SECONDS;
-      
+      const softTimeout =
+        otherPlayersCount > 1 &&
+        isCurrentPlayer &&
+        timeElapsed >= TURN_ROLL_SECONDS;
+
       // With 2 players: need 3+ consecutive timeouts (from end-turn timed_out)
       // With more players: strikes > 0 OR soft timeout (current player's 2 min elapsed)
-      const canBeVotedOut = otherPlayersCount === 1 
-        ? strikes >= 3  // 2-player game: need 3 timeouts
-        : (strikes > 0 || softTimeout);
+      const canBeVotedOut =
+        otherPlayersCount === 1
+          ? strikes >= 3 // 2-player game: need 3 timeouts
+          : strikes > 0 || softTimeout;
 
       if (!canBeVotedOut) {
         await trx.rollback();
-        const requiredMsg = otherPlayersCount === 1 
-          ? "Player needs 3+ consecutive timeouts to be voted out (2-player game)"
-          : "Player must have timed out to be voted out";
+        const requiredMsg =
+          otherPlayersCount === 1
+            ? "Player needs 3+ consecutive timeouts to be voted out (2-player game)"
+            : "Player must have timed out to be voted out";
         return res.status(400).json({
           success: false,
           message: requiredMsg,
@@ -2731,44 +3247,86 @@ const gamePlayerController = {
         if (result) {
           removed = true;
           removalResultForContract = result;
-          await notifyGameUpdate(req, game_id);
         }
       }
 
       await trx.commit();
 
-      if (removalResultForContract?.winner_user_id && removalResultForContract?.player_user_ids) {
+      if (removed) await notifyGameUpdate(req, game_id);
+
+      if (
+        removalResultForContract?.winner_user_id &&
+        removalResultForContract?.player_user_ids
+      ) {
         User.recordChainGameResult(
           removalResultForContract.chain || "BASE",
           removalResultForContract.winner_user_id,
-          removalResultForContract.player_user_ids
-        ).catch((err) => logger.warn({ err: err?.message, game_id }, "recordChainGameResult failed"));
+          removalResultForContract.player_user_ids,
+        ).catch((err) =>
+          logger.warn(
+            { err: err?.message, game_id },
+            "recordChainGameResult failed",
+          ),
+        );
       }
 
       // On-chain: remove player from game, then if game ended (1 winner left) end game on contract for winner
-      const chainForVote = User.normalizeChain(removalResultForContract?.chain || game.chain || "CELO");
-      if (removed && removalResultForContract && isContractConfigured(chainForVote)) {
-        const { contract_game_id, target_address, target_turn_count, winner_user_id } = removalResultForContract;
+      const chainForVote = User.normalizeChain(
+        removalResultForContract?.chain || game.chain || "CELO",
+      );
+      if (
+        removed &&
+        removalResultForContract &&
+        isContractConfigured(chainForVote)
+      ) {
+        const {
+          contract_game_id,
+          target_address,
+          target_turn_count,
+          winner_user_id,
+        } = removalResultForContract;
         if (contract_game_id && target_address) {
-          removePlayerFromGame(contract_game_id, target_address, target_turn_count, chainForVote)
+          removePlayerFromGame(
+            contract_game_id,
+            target_address,
+            target_turn_count,
+            chainForVote,
+          )
             .then(async () => {
               if (!winner_user_id || !contract_game_id) return null;
-              const u = await ensureUserHasContractPassword(db, winner_user_id, chainForVote);
-              return u || (await db("users").where({ id: winner_user_id }).select("address", "username", "password_hash").first());
+              const u = await ensureUserHasContractPassword(
+                db,
+                winner_user_id,
+                chainForVote,
+              );
+              return (
+                u ||
+                (await db("users")
+                  .where({ id: winner_user_id })
+                  .select("address", "username", "password_hash")
+                  .first())
+              );
             })
             .then((winnerUser) => {
-              if (winnerUser?.address && winnerUser?.password_hash && removalResultForContract.contract_game_id) {
+              if (
+                winnerUser?.address &&
+                winnerUser?.password_hash &&
+                removalResultForContract.contract_game_id
+              ) {
                 return exitGameByBackend(
                   winnerUser.address,
                   winnerUser.username || "",
                   winnerUser.password_hash,
                   removalResultForContract.contract_game_id,
-                  chainForVote
+                  chainForVote,
                 );
               }
             })
             .catch((err) => {
-              logger.warn({ err, target_user_id }, "Tycoon removePlayerFromGame / exitGameByBackend failed");
+              logger.warn(
+                { err, target_user_id },
+                "Tycoon removePlayerFromGame / exitGameByBackend failed",
+              );
             });
         }
       }
@@ -2826,7 +3384,9 @@ const gamePlayerController = {
 
       const game = await db("games").where({ id: game_id }).first();
       if (!game) {
-        return res.status(404).json({ success: false, message: "Game not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Game not found" });
       }
 
       const players = await db("game_players").where({ game_id });
@@ -2838,7 +3398,10 @@ const gamePlayerController = {
         .select("voter_user_id", "created_at");
 
       const voters = await db("users")
-        .whereIn("id", votes.map((v) => v.voter_user_id))
+        .whereIn(
+          "id",
+          votes.map((v) => v.voter_user_id),
+        )
         .select("id", "username");
 
       return res.status(200).json({
@@ -2877,7 +3440,9 @@ const gamePlayerController = {
 
       const game = await db("games").where({ id: game_id }).first();
       if (!game) {
-        return res.status(404).json({ success: false, message: "Game not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Game not found" });
       }
       if (game.status !== "RUNNING") {
         return res.status(400).json({
@@ -2890,22 +3455,29 @@ const gamePlayerController = {
       if (durationMinutes > 0) {
         return res.status(400).json({
           success: false,
-          message: "Vote to end by net worth is only available in untimed games",
+          message:
+            "Vote to end by net worth is only available in untimed games",
         });
       }
 
       const players = await db("game_players").where({ game_id });
       const isInGame = players.some((p) => p.user_id === user_id);
       if (!isInGame) {
-        return res.status(403).json({ success: false, message: "You are not in this game" });
+        return res
+          .status(403)
+          .json({ success: false, message: "You are not in this game" });
       }
 
-      const existing = await db("end_by_networth_votes").where({ game_id, user_id }).first();
+      const existing = await db("end_by_networth_votes")
+        .where({ game_id, user_id })
+        .first();
       if (!existing) {
         await db("end_by_networth_votes").insert({ game_id, user_id });
       }
 
-      const votes = await db("end_by_networth_votes").where({ game_id }).select("user_id");
+      const votes = await db("end_by_networth_votes")
+        .where({ game_id })
+        .select("user_id");
       const voteCount = votes.length;
       // AI games: only human needs to vote (1 vote). Multiplayer: all players must vote.
       const requiredVotes = game.is_ai ? 1 : players.length;
@@ -2930,7 +3502,10 @@ const gamePlayerController = {
       }
 
       const voters = await db("users")
-        .whereIn("id", votes.map((v) => v.user_id))
+        .whereIn(
+          "id",
+          votes.map((v) => v.user_id),
+        )
         .select("id", "username");
 
       const io = req.app.get("io");
@@ -2944,7 +3519,10 @@ const gamePlayerController = {
 
       return res.status(200).json({
         success: true,
-        message: voteCount >= requiredVotes ? "Game ended by net worth" : `Vote recorded. ${voteCount}/${requiredVotes} to end by net worth.`,
+        message:
+          voteCount >= requiredVotes
+            ? "Game ended by net worth"
+            : `Vote recorded. ${voteCount}/${requiredVotes} to end by net worth.`,
         data: {
           vote_count: voteCount,
           required_votes: requiredVotes,
@@ -2977,14 +3555,20 @@ const gamePlayerController = {
 
       const game = await db("games").where({ id: game_id }).first();
       if (!game) {
-        return res.status(404).json({ success: false, message: "Game not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Game not found" });
       }
 
       const players = await db("game_players").where({ game_id });
       const requiredVotes = game.is_ai ? 1 : players.length;
-      const votes = await db("end_by_networth_votes").where({ game_id }).select("user_id");
+      const votes = await db("end_by_networth_votes")
+        .where({ game_id })
+        .select("user_id");
       const voterIds = votes.map((v) => v.user_id);
-      const voters = await db("users").whereIn("id", voterIds).select("id", "username");
+      const voters = await db("users")
+        .whereIn("id", voterIds)
+        .select("id", "username");
 
       return res.status(200).json({
         success: true,
@@ -3027,10 +3611,15 @@ const gamePlayerController = {
         });
       }
 
-      const game = await trx("games").where({ id: game_id }).forUpdate().first();
+      const game = await trx("games")
+        .where({ id: game_id })
+        .forUpdate()
+        .first();
       if (!game) {
         await trx.rollback();
-        return res.status(404).json({ success: false, message: "Game not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Game not found" });
       }
       if (game.status !== "RUNNING") {
         await trx.rollback();
@@ -3056,11 +3645,15 @@ const gamePlayerController = {
       const target = players.find((p) => p.user_id === target_user_id);
       if (!requester) {
         await trx.rollback();
-        return res.status(403).json({ success: false, message: "You are not in this game" });
+        return res
+          .status(403)
+          .json({ success: false, message: "You are not in this game" });
       }
       if (!target) {
         await trx.rollback();
-        return res.status(404).json({ success: false, message: "Target player not in game" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Target player not in game" });
       }
 
       const strikes = Number(target.consecutive_timeouts || 0);
@@ -3068,7 +3661,8 @@ const gamePlayerController = {
         await trx.rollback();
         return res.status(400).json({
           success: false,
-          message: "Player has not reached 3 consecutive timeouts and cannot be removed",
+          message:
+            "Player has not reached 3 consecutive timeouts and cannot be removed",
         });
       }
 
@@ -3082,30 +3676,71 @@ const gamePlayerController = {
         });
       }
 
-      await notifyGameUpdate(req, game_id);
       await trx.commit();
+      await notifyGameUpdate(req, game_id);
 
       if (result.winner_user_id && result.player_user_ids) {
-        User.recordChainGameResult(result.chain || "BASE", result.winner_user_id, result.player_user_ids).catch((err) =>
-          logger.warn({ err: err?.message, game_id }, "recordChainGameResult failed")
+        User.recordChainGameResult(
+          result.chain || "BASE",
+          result.winner_user_id,
+          result.player_user_ids,
+        ).catch((err) =>
+          logger.warn(
+            { err: err?.message, game_id },
+            "recordChainGameResult failed",
+          ),
         );
       }
 
       // On-chain: remove player, then if game ended (1 winner) end game on contract for winner
       const chainForInactive = User.normalizeChain(result.chain || "CELO");
-      if (isContractConfigured(chainForInactive) && result.contract_game_id && result.target_address) {
-        removePlayerFromGame(result.contract_game_id, result.target_address, result.target_turn_count, chainForInactive)
+      if (
+        isContractConfigured(chainForInactive) &&
+        result.contract_game_id &&
+        result.target_address
+      ) {
+        removePlayerFromGame(
+          result.contract_game_id,
+          result.target_address,
+          result.target_turn_count,
+          chainForInactive,
+        )
           .then(async () => {
             if (!result.winner_user_id || !result.contract_game_id) return null;
-            const u = await ensureUserHasContractPassword(db, result.winner_user_id, chainForInactive);
-            return u || (await db("users").where({ id: result.winner_user_id }).select("address", "username", "password_hash").first());
+            const u = await ensureUserHasContractPassword(
+              db,
+              result.winner_user_id,
+              chainForInactive,
+            );
+            return (
+              u ||
+              (await db("users")
+                .where({ id: result.winner_user_id })
+                .select("address", "username", "password_hash")
+                .first())
+            );
           })
           .then((winnerUser) => {
-            if (winnerUser?.address && winnerUser?.password_hash && result.contract_game_id) {
-              return exitGameByBackend(winnerUser.address, winnerUser.username || "", winnerUser.password_hash, result.contract_game_id, chainForInactive);
+            if (
+              winnerUser?.address &&
+              winnerUser?.password_hash &&
+              result.contract_game_id
+            ) {
+              return exitGameByBackend(
+                winnerUser.address,
+                winnerUser.username || "",
+                winnerUser.password_hash,
+                result.contract_game_id,
+                chainForInactive,
+              );
             }
           })
-          .catch((err) => logger.warn({ err, target_user_id }, "Tycoon removePlayerFromGame / exitGameByBackend failed (inactive)"));
+          .catch((err) =>
+            logger.warn(
+              { err, target_user_id },
+              "Tycoon removePlayerFromGame / exitGameByBackend failed (inactive)",
+            ),
+          );
       }
 
       return res.status(200).json({
@@ -3124,69 +3759,63 @@ const gamePlayerController = {
   },
 
   async remov(req, res) {
-  const trx = await db.transaction();
+    const trx = await db.transaction();
 
-  try {
-    const { id } = req.params;
+    try {
+      const { id } = req.params;
 
-    if (!id || isNaN(Number(id))) {
+      if (!id || isNaN(Number(id))) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Invalid player ID",
+        });
+      }
+
+      // 1. Find player (with lock)
+      const player = await trx("game_players").where({ id }).first();
+
+      if (!player) {
+        await trx.rollback();
+        return res.status(404).json({
+          success: false,
+          message: "Player not found",
+        });
+      }
+
+      // Return properties to bank (critical!)
+      await trx("game_properties")
+        .where({
+          game_id: player.game_id,
+          player_id: player.id,
+        })
+        .update({
+          player_id: null,
+          mortgaged: false,
+          development: 0,
+          updated_at: new Date(),
+        });
+
+      // Delete player
+      await trx("game_players").where({ id }).delete();
+
+      await trx.commit();
+
+      return res.json({
+        success: true,
+        message: "AI player removed successfully",
+        playerId: id,
+      });
+    } catch (error) {
       await trx.rollback();
-      return res.status(400).json({
+      logger.error({ err: error }, "remove player error");
+
+      return res.status(500).json({
         success: false,
-        message: "Invalid player ID"
+        message: error.message || "Failed to remove player",
       });
     }
-
-    // 1. Find player (with lock)
-    const player = await trx("game_players")
-      .where({ id })
-      .first();
-
-    if (!player) {
-      await trx.rollback();
-      return res.status(404).json({
-        success: false,
-        message: "Player not found"
-      });
-    }
-
-
-    // Return properties to bank (critical!)
-    await trx("game_properties")
-      .where({
-        game_id: player.game_id,
-        player_id: player.id
-      })
-      .update({
-        player_id: null,
-        mortgaged: false,
-        development: 0,
-        updated_at: new Date()
-      });
-
-    // Delete player
-    await trx("game_players")
-      .where({ id })
-      .delete();
-
-    await trx.commit();
-
-    return res.json({
-      success: true,
-      message: "AI player removed successfully",
-      playerId: id
-    });
-
-  } catch (error) {
-    await trx.rollback();
-    logger.error({ err: error }, "remove player error");
-
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to remove player"
-    });
-  }
-}
+  },
 };
 
 export default gamePlayerController;
