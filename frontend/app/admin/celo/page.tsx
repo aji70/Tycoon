@@ -46,9 +46,11 @@ type StatusPayload = {
   chain: string;
   contractAddress: string;
   distributorAddress: string | null;
-  /** TYC preferred for light ping; USDC if TYC env unset */
+  /** TYC preferred for light ping; USDC only if TYC cannot be resolved */
   lightPingTokenAddress?: string | null;
   lightPingTokenSymbol?: "TYC" | "USDC" | null;
+  /** "env" = CELO_TYC_TOKEN_ADDRESS / TYCOON_CELO_TYC; "onchain" = rewardSystem().tycToken() */
+  lightPingTycResolvedFrom?: "env" | "onchain" | null;
   walletCount: number;
   wallets: WalletRow[];
 };
@@ -69,6 +71,8 @@ export default function AdminCeloOperatorsPage() {
   const [log, setLog] = useState<string>("");
 
   const [delayMs, setDelayMs] = useState(1500);
+  const [approvalsPerWallet, setApprovalsPerWallet] = useState(1);
+  const [parallelLightPing, setParallelLightPing] = useState(true);
   const [gamesPerWallet, setGamesPerWallet] = useState(1);
   const [startingBalance, setStartingBalance] = useState(1500);
   const [celoPerWallet, setCeloPerWallet] = useState("0.5");
@@ -172,15 +176,19 @@ export default function AdminCeloOperatorsPage() {
     }
   }
 
-  /** Cheap tx on existing Celo USDC: `approve(Tycoon game, 0)` from each operator wallet (no new contract deploy). */
+  /** Cheap tx: TYC (or USDC) `approve(Tycoon game, 0)` from each operator wallet; optional N repeats per wallet. */
   async function runLightChainPing() {
     setBusy("light");
     setLog("");
+    const n = Math.max(1, Math.min(100, approvalsPerWallet || 1));
+    const perApprovalMs = 14000 + delayMs;
+    const wallMs = parallelLightPing ? n * perApprovalMs : n * perApprovalMs * (status?.walletCount ?? 1);
+    const lightPingTimeout = Math.min(45 * 60 * 1000, Math.max(ONCHAIN_BATCH_REQUEST_TIMEOUT_MS, wallMs + 120_000));
     try {
       const { data: body } = await adminApi.post<{ success: boolean; data?: unknown; message?: string }>(
         "admin/celo-operator/light-chain-ping",
-        { delayMs },
-        { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
+        { delayMs, approvalsPerWallet: n, parallelWallets: parallelLightPing },
+        { timeout: lightPingTimeout }
       );
       if (!body?.success) throw new Error(body?.message || "Failed");
       setLog(JSON.stringify(body.data, null, 2));
@@ -290,8 +298,12 @@ export default function AdminCeloOperatorsPage() {
           <strong className="text-violet-300">Light chain ping</strong> calls{" "}
           <code className="text-slate-400">ERC20.approve(tycoonGameAddress, 0)</code> on your{" "}
           <strong className="text-slate-300">TYC</strong> token when{" "}
-          <code className="text-slate-400">CELO_TYC_TOKEN_ADDRESS</code> / <code className="text-slate-400">TYCOON_CELO_TYC</code>{" "}
-          is set; otherwise it uses <strong className="text-slate-300">USDC</strong>. Tiny gas, no token balance required.
+          <code className="text-slate-400">CELO_TYC_TOKEN_ADDRESS</code> / <code className="text-slate-400">TYCOON_CELO_TYC</code>, or
+          from <code className="text-slate-400">rewardSystem().tycToken()</code> on the game proxy. Only if TYC cannot be resolved does it fall back to{" "}
+          <strong className="text-slate-300">USDC</strong>. Tiny gas, no token balance required.
+          You can repeat that approve up to <strong className="text-slate-300">100× per wallet</strong> from the inputs
+          below (same allowance each time — only useful for stress / RPC checks; prefer{" "}
+          <strong className="text-slate-300">parallel wallets</strong> when N× is large).
         </p>
         <p>
           <strong className="text-slate-200">Gas ladder:</strong>{" "}
@@ -328,6 +340,11 @@ export default function AdminCeloOperatorsPage() {
               <div>
                 Light ping token ({status.lightPingTokenSymbol}):{" "}
                 <code className="text-xs text-slate-200">{status.lightPingTokenAddress}</code>
+                {status.lightPingTokenSymbol === "TYC" && status.lightPingTycResolvedFrom ? (
+                  <span className="text-slate-500 ml-2">
+                    (from {status.lightPingTycResolvedFrom === "onchain" ? "game rewardSystem" : ".env"})
+                  </span>
+                ) : null}
               </div>
             )}
             <div>Configured wallets: {status.walletCount}</div>
@@ -344,6 +361,26 @@ export default function AdminCeloOperatorsPage() {
                 onChange={(e) => setDelayMs(Number(e.target.value) || 0)}
                 className="mt-1 block w-36 rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-white"
               />
+            </label>
+            <label className="text-xs text-slate-400 block">
+              Light ping: approves per wallet (1–100)
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={approvalsPerWallet}
+                onChange={(e) => setApprovalsPerWallet(Number(e.target.value) || 1)}
+                className="mt-1 block w-40 rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-white"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={parallelLightPing}
+                onChange={(e) => setParallelLightPing(e.target.checked)}
+                className="rounded border-slate-600"
+              />
+              Parallel wallets (recommended if many repeats per wallet)
             </label>
             <label className="text-xs text-slate-400 block">
               AI games per operator wallet
@@ -387,10 +424,10 @@ export default function AdminCeloOperatorsPage() {
               disabled={!!busy}
               onClick={runLightChainPing}
               className="rounded-lg bg-slate-700 hover:bg-slate-600 px-4 py-2 text-sm font-medium text-slate-100 border border-slate-500 disabled:opacity-50"
-              title="approve(game, 0) on TYC (preferred) or USDC — low gas"
+              title="approve(game, 0) on TYC (preferred) or USDC — low gas; optional repeats per wallet"
             >
               {busy === "light" ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} Light ping (
-              {status.lightPingTokenSymbol ?? "TYC"} approve 0)
+              {status.lightPingTokenSymbol ?? "TYC"} approve 0 × {Math.max(1, Math.min(100, approvalsPerWallet || 1))})
             </button>
           </div>
 

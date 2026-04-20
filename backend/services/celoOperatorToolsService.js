@@ -2,7 +2,7 @@
  * Celo-only admin operator tools: EOAs in CELO_OPERATOR_WALLET_PRIVATE_KEYS (or legacy CELO_BOT_FARM_PRIVATE_KEYS)
  * call registerPlayer / createAIGame on-chain. Gated by CELO_OPERATOR_TOOLS_ENABLED (or legacy CELO_BOT_FARM_ENABLED).
  */
-import { Contract, Interface, JsonRpcProvider, Network, Wallet, formatEther, parseEther } from "ethers";
+import { Contract, Interface, JsonRpcProvider, Network, Wallet, ZeroAddress, formatEther, parseEther } from "ethers";
 import { getChainConfig } from "../config/chains.js";
 import logger from "../config/logger.js";
 
@@ -20,6 +20,32 @@ const DISTRIBUTOR_IFACE = new Interface([
 
 /** Canonical USDC on Celo — `approve` is cheap and already deployed (no new contracts). */
 const ERC20_APPROVE_IFACE = new Interface(["function approve(address spender, uint256 amount) external"]);
+
+const TYCOON_REWARD_READ_ABI = ["function rewardSystem() view returns (address)"];
+const REWARD_SYSTEM_TYC_READ_ABI = ["function tycToken() view returns (address)"];
+
+/**
+ * TYC ERC20 for operator light-ping: env vars first, else `game.rewardSystem().tycToken()` (same token as shop).
+ * @returns {Promise<{ address: string, source: "env" | "onchain" } | null>}
+ */
+async function resolveLightPingTycAddress(cfg, provider, gameProxyAddress) {
+  const fromEnv = cfg.tycTokenAddress?.trim();
+  if (fromEnv) return { address: fromEnv, source: "env" };
+
+  if (!gameProxyAddress) return null;
+  try {
+    const tycoon = new Contract(gameProxyAddress, TYCOON_REWARD_READ_ABI, provider);
+    const rsAddr = await tycoon.rewardSystem();
+    if (!rsAddr || rsAddr === ZeroAddress) return null;
+    const reward = new Contract(rsAddr, REWARD_SYSTEM_TYC_READ_ABI, provider);
+    const tyc = await reward.tycToken();
+    if (!tyc || tyc === ZeroAddress) return null;
+    return { address: String(tyc), source: "onchain" };
+  } catch (e) {
+    logger.warn({ err: e?.message }, "resolveLightPingTycAddress: on-chain read failed");
+    return null;
+  }
+}
 
 function isOperatorToolsEnabled() {
   const v =
@@ -105,7 +131,8 @@ export async function getOperatorToolsStatus() {
   const { provider, contractAddress, cfg } = getReadContext();
   const keys = parsePrivateKeys();
   const distributor = process.env.CELO_BATCH_NATIVE_DISTRIBUTOR_ADDRESS?.trim() || null;
-  const tycTok = cfg.tycTokenAddress?.trim();
+  const tycResolved = await resolveLightPingTycAddress(cfg, provider, contractAddress);
+  const tycTok = tycResolved?.address ?? null;
   const usdcTok = cfg.usdcAddress?.trim();
   const lightPingTokenAddress = tycTok || usdcTok || null;
   const lightPingTokenSymbol = tycTok ? "TYC" : usdcTok ? "USDC" : null;
@@ -145,6 +172,7 @@ export async function getOperatorToolsStatus() {
     distributorAddress: distributor,
     lightPingTokenAddress,
     lightPingTokenSymbol,
+    lightPingTycResolvedFrom: tycResolved?.source ?? null,
     walletCount: wallets.length,
     wallets,
   };
@@ -263,54 +291,94 @@ export function parseWeiFromCeloString(celoStr) {
 }
 
 /**
- * Each operator wallet calls **ERC20.approve(Tycoon game, 0)** on your token.
- * Prefers **TYC** (`CELO_TYC_TOKEN_ADDRESS` / `TYCOON_CELO_TYC` / `TYCOON_CELO_TOKEN`); falls back to **USDC** if TYC unset.
+ * Each operator wallet calls **ERC20.approve(Tycoon game, 0)** on your token (repeatable for stress tests).
+ * Prefers **TYC**: env (`CELO_TYC_TOKEN_ADDRESS` / `TYCOON_CELO_TYC` / `TYCOON_CELO_TOKEN`), else reads `rewardSystem().tycToken()` from the game proxy. **USDC** only if TYC cannot be resolved.
  * Low gas; no token balance required.
+ *
+ * @param {object} [options]
+ * @param {number} [options.delayMs] Delay after each approve for this wallet (nonce ordering).
+ * @param {number} [options.approvalsPerWallet] 1–100; default 1. Same allowance each time — extra txs only burn gas (stress / RPC test).
+ * @param {boolean} [options.parallelWallets] If true (default when approvalsPerWallet > 1), run all wallets concurrently; if false, one wallet at a time.
  */
 export async function lightTokenApproveGameZeroFromAllOperatorWallets(options = {}) {
   assertOperatorToolsEnabled();
   const delayMs = Math.max(0, Number(options.delayMs) || 0);
-  const { contractAddress, cfg } = getReadContext();
-  const tycAddr = cfg.tycTokenAddress?.trim();
+  const approvalsPerWallet = Math.max(1, Math.min(100, Number(options.approvalsPerWallet) || 1));
+  const parallelWalletsExplicit = options.parallelWallets;
+  const parallelWallets =
+    parallelWalletsExplicit !== undefined && parallelWalletsExplicit !== null
+      ? Boolean(parallelWalletsExplicit)
+      : approvalsPerWallet > 1;
+
+  const { provider, contractAddress, cfg } = getReadContext();
+  const tycResolved = await resolveLightPingTycAddress(cfg, provider, contractAddress);
+  const tycAddr = tycResolved?.address ?? null;
   const usdcAddr = cfg.usdcAddress?.trim();
   const tokenAddr = tycAddr || usdcAddr;
   const tokenSymbol = tycAddr ? "TYC" : "USDC";
   if (!tokenAddr) {
     throw new Error(
-      "Set CELO_TYC_TOKEN_ADDRESS (or TYCOON_CELO_TYC / TYCOON_CELO_TOKEN) for TYC, or CELO_USDC_ADDRESS / USDC_ADDRESS for USDC fallback"
+      "Could not resolve TYC (set CELO_TYC_TOKEN_ADDRESS / TYCOON_CELO_TYC, or fix game proxy rewardSystem) and CELO_USDC_ADDRESS / USDC_ADDRESS is unset"
     );
   }
   const wallets = await getOperatorWalletsSortedByBalanceDesc();
-  const results = [];
-  for (const w of wallets) {
+
+  async function approveNForWallet(w) {
     const token = new Contract(tokenAddr, ERC20_APPROVE_IFACE, w);
-    try {
-      const tx = await token.approve(contractAddress, 0n);
-      const receipt = await tx.wait();
-      results.push({
-        address: w.address,
-        hash: receipt?.hash,
-        ok: true,
-        method: `${tokenSymbol}.approve(game,0)`,
-      });
-      logger.info({ address: w.address, hash: receipt?.hash, tokenSymbol }, "celoOperatorTools token approve 0 to game");
-    } catch (err) {
-      logger.error({ err: err?.message, address: w.address }, "celoOperatorTools token approve failed");
-      results.push({
-        address: w.address,
-        ok: false,
-        error: err?.shortMessage || err?.message || String(err),
-      });
+    const out = [];
+    for (let i = 0; i < approvalsPerWallet; i++) {
+      try {
+        const tx = await token.approve(contractAddress, 0n);
+        const receipt = await tx.wait();
+        out.push({
+          address: w.address,
+          approveIndex: i,
+          hash: receipt?.hash,
+          ok: true,
+          method: `${tokenSymbol}.approve(game,0)`,
+        });
+        logger.info(
+          { address: w.address, approveIndex: i, hash: receipt?.hash, tokenSymbol },
+          "celoOperatorTools token approve 0 to game"
+        );
+      } catch (err) {
+        logger.error({ err: err?.message, address: w.address, approveIndex: i }, "celoOperatorTools token approve failed");
+        out.push({
+          address: w.address,
+          approveIndex: i,
+          ok: false,
+          error: err?.shortMessage || err?.message || String(err),
+        });
+        break;
+      }
+      await sleep(delayMs);
     }
-    await sleep(delayMs);
+    return out;
   }
+
+  let results;
+  if (parallelWallets) {
+    results = (await Promise.all(wallets.map((w) => approveNForWallet(w)))).flat();
+  } else {
+    results = [];
+    for (const w of wallets) {
+      results.push(...(await approveNForWallet(w)));
+    }
+  }
+
   return {
     results,
+    approvalsPerWallet,
+    parallelWallets,
+    walletCount: wallets.length,
+    totalAttempts: results.length,
+    totalOk: results.filter((r) => r.ok).length,
     tokenAddress: tokenAddr,
     tokenSymbol,
+    tycResolvedFrom: tycResolved?.source ?? null,
     spenderGame: contractAddress,
     note: tycAddr
-      ? "TYC token → approve(game,0) on your ERC20"
-      : "USDC fallback → approve(game,0); set TYC env to use your TYC contract instead",
+      ? `TYC (${tycResolved?.source ?? "?"}) → approve(game,0). Repeats do not change allowance; use only for load testing or RPC checks.`
+      : "USDC fallback → approve(game,0); TYC was not found via env or rewardSystem().tycToken().",
   };
 }
