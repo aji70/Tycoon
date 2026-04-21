@@ -70,7 +70,7 @@ export async function postDistributorPayload(req, res) {
   }
 }
 
-/** Cheap second-contract tx: TYC (or USDC) `approve(Tycoon game, 0)` from each operator wallet; optional repeats per wallet. */
+/** Cheap TYC|USDC txs from each operator wallet: rotated approve/transfer (see celoOperatorToolsService); optional repeats per wallet. */
 export async function postLightChainPing(req, res) {
   try {
     assertOperatorToolsEnabled();

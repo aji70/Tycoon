@@ -18,8 +18,11 @@ const DISTRIBUTOR_IFACE = new Interface([
   "function distribute(address[] recipients, uint256[] amounts) payable",
 ]);
 
-/** Canonical USDC on Celo — `approve` is cheap and already deployed (no new contracts). */
-const ERC20_APPROVE_IFACE = new Interface(["function approve(address spender, uint256 amount) external"]);
+/** Light ping: standard ERC-20 calls only (no mint — operator EOAs are not minters). */
+const ERC20_LIGHT_IFACE = new Interface([
+  "function approve(address spender, uint256 amount) external returns (bool)",
+  "function transfer(address to, uint256 amount) external returns (bool)",
+]);
 
 const TYCOON_REWARD_READ_ABI = ["function rewardSystem() view returns (address)"];
 const REWARD_SYSTEM_TYC_READ_ABI = ["function tycToken() view returns (address)"];
@@ -340,13 +343,15 @@ export function parseWeiFromCeloString(celoStr) {
 }
 
 /**
- * Each operator wallet calls **ERC20.approve(Tycoon game, 0)** on your token (repeatable for stress tests).
+ * Each operator wallet sends a short sequence of **cheap ERC-20 txs** on TYC (preferred) or USDC:
+ * rotates `approve(game,0)`, `transfer(self,0)`, `transfer(game,0)` so calldata / selectors vary (RPC + explorer noise).
+ * No token balance required. Mint is not used (operators are not token minters).
+ *
  * Prefers **TYC**: env (`CELO_TYC_TOKEN_ADDRESS` / `TYCOON_CELO_TYC` / `TYCOON_CELO_TOKEN`), else reads `rewardSystem().tycToken()` from the game proxy. **USDC** only if TYC cannot be resolved.
- * Low gas; no token balance required.
  *
  * @param {object} [options]
- * @param {number} [options.delayMs] Delay after each approve for this wallet (nonce ordering).
- * @param {number} [options.approvalsPerWallet] 1–100; default 1. Same allowance each time — extra txs only burn gas (stress / RPC test).
+ * @param {number} [options.delayMs] Delay after each step for this wallet (nonce ordering).
+ * @param {number} [options.approvalsPerWallet] 1–100; default 1. **Steps** per wallet (name kept for API compatibility); each step is one of the rotated calls above.
  * @param {boolean} [options.parallelWallets] If true (default when approvalsPerWallet > 1), run all wallets concurrently; if false, one wallet at a time.
  */
 export async function lightTokenApproveGameZeroFromAllOperatorWallets(options = {}) {
@@ -372,28 +377,43 @@ export async function lightTokenApproveGameZeroFromAllOperatorWallets(options = 
   }
   const wallets = await getOperatorWalletsSortedByBalanceDesc();
 
-  async function approveNForWallet(w) {
-    const token = new Contract(tokenAddr, ERC20_APPROVE_IFACE, w);
+  async function stepsForWallet(w) {
+    const token = new Contract(tokenAddr, ERC20_LIGHT_IFACE, w);
+    const game = contractAddress;
     const out = [];
     for (let i = 0; i < approvalsPerWallet; i++) {
+      const phase = i % 3;
+      let method;
       try {
-        const tx = await token.approve(contractAddress, 0n);
+        let tx;
+        if (phase === 0) {
+          tx = await token.approve(game, 0n);
+          method = `${tokenSymbol}.approve(game,0)`;
+        } else if (phase === 1) {
+          tx = await token.transfer(w.address, 0n);
+          method = `${tokenSymbol}.transfer(self,0)`;
+        } else {
+          tx = await token.transfer(game, 0n);
+          method = `${tokenSymbol}.transfer(game,0)`;
+        }
         const receipt = await tx.wait();
         out.push({
           address: w.address,
+          stepIndex: i,
           approveIndex: i,
           hash: receipt?.hash,
           ok: true,
-          method: `${tokenSymbol}.approve(game,0)`,
+          method,
         });
         logger.info(
-          { address: w.address, approveIndex: i, hash: receipt?.hash, tokenSymbol },
-          "celoOperatorTools token approve 0 to game"
+          { address: w.address, stepIndex: i, hash: receipt?.hash, tokenSymbol, method },
+          "celoOperatorTools light chain ping step"
         );
       } catch (err) {
-        logger.error({ err: err?.message, address: w.address, approveIndex: i }, "celoOperatorTools token approve failed");
+        logger.error({ err: err?.message, address: w.address, stepIndex: i, phase }, "celoOperatorTools light chain ping failed");
         out.push({
           address: w.address,
+          stepIndex: i,
           approveIndex: i,
           ok: false,
           error: formatEthersSendError(err),
@@ -407,17 +427,18 @@ export async function lightTokenApproveGameZeroFromAllOperatorWallets(options = 
 
   let results;
   if (parallelWallets) {
-    results = (await Promise.all(wallets.map((w) => approveNForWallet(w)))).flat();
+    results = (await Promise.all(wallets.map((w) => stepsForWallet(w)))).flat();
   } else {
     results = [];
     for (const w of wallets) {
-      results.push(...(await approveNForWallet(w)));
+      results.push(...(await stepsForWallet(w)));
     }
   }
 
   return {
     results,
     approvalsPerWallet,
+    stepsPerWallet: approvalsPerWallet,
     parallelWallets,
     walletCount: wallets.length,
     totalAttempts: results.length,
@@ -426,8 +447,9 @@ export async function lightTokenApproveGameZeroFromAllOperatorWallets(options = 
     tokenSymbol,
     tycResolvedFrom: tycResolved?.source ?? null,
     spenderGame: contractAddress,
+    stepPattern: "rotate: approve(game,0) → transfer(self,0) → transfer(game,0)",
     note: tycAddr
-      ? `TYC (${tycResolved?.source ?? "?"}) → approve(game,0). Repeats do not change allowance; use only for load testing or RPC checks.`
-      : "USDC fallback → approve(game,0); TYC was not found via env or rewardSystem().tycToken().",
+      ? `TYC (${tycResolved?.source ?? "?"}) — low-footprint ERC-20 mix (no mint). For load / RPC checks only.`
+      : "USDC fallback — same step pattern; TYC was not found via env or rewardSystem().tycToken().",
   };
 }
