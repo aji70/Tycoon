@@ -4,10 +4,14 @@ import { useCallback, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Share2, Link2, Instagram, Check } from "lucide-react";
 
-/** 3D lobby — `gameCode` in URL is read by WaitingClient3D. */
+/** Default waiting-room path passed from boards (used only to infer 2D vs 3D join link). */
 const DEFAULT_JOIN_3D = "/game-waiting-3d";
-/** Classic lobby — same pattern as 2D waiting room. */
+/** Classic waiting room path from 2D flows. */
 const DEFAULT_JOIN_2D = "/game-waiting";
+
+/** Where social shares send people after a match — always open, unlike `?gameCode=` on a finished lobby. */
+const INVITE_3D = "/join-room-3d";
+const INVITE_2D = "/join-room";
 
 export function getShareOrigin(): string {
   if (typeof window === "undefined") return "";
@@ -18,30 +22,43 @@ export function getShareOrigin(): string {
   }
 }
 
-/** Full URL to the join page with `gameCode` pre-filled (same param as waiting room / board). */
+/**
+ * Maps the in-game waiting path to the public join page (no finished `gameCode` in URL).
+ */
+export function invitePathFromJoinLobby(joinPagePath: string = DEFAULT_JOIN_3D): string {
+  const j = (joinPagePath || "").replace(/\\/g, "/").toLowerCase();
+  if (j.includes("3d")) return INVITE_3D;
+  return INVITE_2D;
+}
+
+/**
+ * Post-match invite URL: join lobby only. `finishedGameCode` is kept for call-site compatibility but not
+ * appended — deep-linking a closed game’s waiting room confuses people who click the link later.
+ */
 export function buildWinnerChallengeUrl(
-  gameCode: string,
+  finishedGameCode: string,
   joinPagePath: string = DEFAULT_JOIN_3D
 ): string {
   const origin = getShareOrigin();
-  const code = gameCode.trim().toUpperCase();
-  if (!origin || !code) return "";
-  const base = joinPagePath.startsWith("/") ? joinPagePath : `/${joinPagePath}`;
-  const sep = base.includes("?") ? "&" : "?";
-  return `${origin}${base}${sep}gameCode=${encodeURIComponent(code)}`;
+  if (!origin) return "";
+  const code = finishedGameCode.trim();
+  if (!code) return "";
+  const invite = invitePathFromJoinLobby(joinPagePath);
+  const base = invite.startsWith("/") ? invite : `/${invite}`;
+  return `${origin}${base}`;
 }
 
-export function buildWinnerShareCaption(challengeUrl: string, winnerUsername?: string): string {
+export function buildWinnerShareCaption(inviteUrl: string, winnerUsername?: string): string {
   const tag = winnerUsername?.trim();
   const opener = tag
-    ? `I just won a match on Tycoon 🏆 (${tag})`
-    : `I just won a match on Tycoon 🏆`;
-  return `${opener}\n\nThink you can beat me? Jump in here:\n${challengeUrl}\n\n#Tycoon`;
+    ? `Ran the table on Tycoon 🏆 (${tag}). That match is in the books — think you'd last longer in the next one?`
+    : `Ran the table on Tycoon 🏆. That match is in the books — think you'd last longer in the next one?`;
+  return `${opener}\n\nStep up and prove it:\n${inviteUrl}\n\n#Tycoon`;
 }
 
 /** Loss: challenge friends / rematch — `winnerUsername` is who beat you; `loserUsername` is you (optional). */
 export function buildLossShareCaption(
-  challengeUrl: string,
+  inviteUrl: string,
   winnerUsername?: string,
   loserUsername?: string
 ): string {
@@ -49,11 +66,11 @@ export function buildLossShareCaption(
   const l = loserUsername?.trim();
   const opener =
     w && l
-      ? `Tough match on Tycoon — ${w} took this one (I played as ${l}) 🎲`
+      ? `Took an L on Tycoon — ${w} ran the board (I played as ${l}) 🎲`
       : w
-        ? `Tough match on Tycoon — ${w} won this round 🎲`
-        : `Just wrapped a match on Tycoon 🎲`;
-  return `${opener}\n\nWant a rematch? Jump in here:\n${challengeUrl}\n\n#Tycoon`;
+        ? `Took an L on Tycoon — ${w} ran the board this round 🎲`
+        : `Tough tables on Tycoon tonight 🎲`;
+  return `${opener}\n\nNew lobby, clean slate — run it back:\n${inviteUrl}\n\n#Tycoon`;
 }
 
 export interface VictorySocialShareProps {
@@ -64,7 +81,7 @@ export interface VictorySocialShareProps {
   loserUsername?: string;
   /** Win (default) or loss — changes caption and labels. */
   variant?: "win" | "loss";
-  /** Lobby path before `?gameCode=` — default 3D `/game-waiting-3d`, classic `/game-waiting`. */
+  /** Waiting-room path from the match flow — used to pick 3D vs 2D **join** URL (not sent as `?gameCode=`). */
   joinPagePath?: string;
   className?: string;
 }
@@ -167,8 +184,8 @@ export function VictorySocialShare({
       </p>
       <p className="text-xs text-slate-400 mb-3 leading-relaxed">
         {variant === "loss"
-          ? "Invite friends or call for a rematch — same room code on the join link."
-          : "One tap to post — friends land on join with your room code ready."}
+          ? "One tap to post — link opens the join page so friends can enter a new code or start a game."
+          : "One tap to post — link opens the join page (your finished match isn't deep-linked so the URL stays good)."}
       </p>
 
       <div className="grid grid-cols-2 gap-2 mb-2">
@@ -228,4 +245,4 @@ export function VictorySocialShare({
   );
 }
 
-export { DEFAULT_JOIN_2D, DEFAULT_JOIN_3D };
+export { DEFAULT_JOIN_2D, DEFAULT_JOIN_3D, INVITE_2D, INVITE_3D };

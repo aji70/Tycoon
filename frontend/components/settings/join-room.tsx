@@ -12,6 +12,8 @@ import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { SkeletonGameGrid } from "@/components/ui/SkeletonCard";
 import EmptyState from "@/components/ui/EmptyState";
 import { Users } from "lucide-react";
+import { JoinRoomAuthModal, JoinRoomAuthStickyBar } from "@/components/settings/join-room-auth-ui";
+import { useJoinRoomAuthContinuation } from "@/components/settings/useJoinRoomAuthContinuation";
 
 interface JoinRoomProps {
   /** When game is RUNNING, redirect here (default: /game-play). e.g. /board-3d-multi for 3D. */
@@ -31,7 +33,9 @@ export default function JoinRoom({
   const { address, isConnected } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
+  const authLoading = guestAuth?.isLoading ?? true;
   const canAct = isConnected || !!guestUser;
+  const { modalOpen, modalHint, queueAfterAuth, cancelModal } = useJoinRoomAuthContinuation(canAct);
 
   const [code, setCode] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
@@ -199,30 +203,39 @@ export default function JoinRoom({
 
   const handleContinueGame = useCallback(
     (game: Game) => {
-      if (game.status === "RUNNING") {
-        router.push(`${redirectToBoard}?gameCode=${encodeURIComponent(game.code)}`);
-      } else if (game.status === "PENDING") {
-        router.push(`${redirectToWaiting}?gameCode=${encodeURIComponent(game.code)}`);
-      }
+      const go = () => {
+        if (game.status === "RUNNING") {
+          router.push(`${redirectToBoard}?gameCode=${encodeURIComponent(game.code)}`);
+        } else if (game.status === "PENDING") {
+          router.push(`${redirectToWaiting}?gameCode=${encodeURIComponent(game.code)}`);
+        }
+      };
+      queueAfterAuth("Continue your saved game after you sign in.", go);
     },
-    [router, redirectToBoard, redirectToWaiting]
+    [router, redirectToBoard, redirectToWaiting, queueAfterAuth]
   );
 
   const handleJoinPublicGame = useCallback(
     (game: Game) => {
-      if (game.status === "PENDING") {
+      if (game.status !== "PENDING") return;
+      const go = () => {
         router.push(`${redirectToWaiting}?gameCode=${encodeURIComponent(game.code)}`);
-      }
+      };
+      queueAfterAuth("Join this lobby after you sign in so we know who is at the table.", go);
     },
-    [router, redirectToWaiting]
+    [router, redirectToWaiting, queueAfterAuth]
   );
 
-  const handleCreateNew = () => router.push(redirectCreateNew);
+  const handleCreateNew = useCallback(() => {
+    queueAfterAuth("Host a new game after you sign in.", () => router.push(redirectCreateNew));
+  }, [router, redirectCreateNew, queueAfterAuth]);
 
   return (
     <section className="w-full min-h-screen bg-settings bg-cover bg-fixed bg-center bg-[#010F10]">
       <main className="w-full min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6 lg:px-8">
         <div className="w-full max-w-xl lg:max-w-4xl bg-[#0A1A1B]/80 p-6 sm:p-8 lg:p-12 rounded-2xl shadow-2xl border border-[#00F0FF]/50 backdrop-blur-md">
+          <JoinRoomAuthStickyBar canAct={canAct} authLoading={authLoading} />
+          <JoinRoomAuthModal open={modalOpen} hint={modalHint} onDismiss={cancelModal} />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-orbitron mb-8 lg:mb-12 text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent animate-pulse">
             Join Tycoon
           </h2>
@@ -351,7 +364,17 @@ export default function JoinRoom({
                       icon={<Users className="w-14 h-14 text-[#00F0FF]/70" />}
                       title="No open games right now"
                       description="Create a new game or enter a 6-character code above to join an existing one."
-                      action={{ label: "Create new game", href: redirectCreateNew }}
+                      action={
+                        canAct
+                          ? { label: "Create new game", href: redirectCreateNew }
+                          : {
+                              label: "Create new game",
+                              onClick: () =>
+                                queueAfterAuth("Host a new game after you sign in.", () =>
+                                  router.push(redirectCreateNew)
+                                ),
+                            }
+                      }
                       className="border-[#00F0FF]/20 bg-[#010F10]/50 text-left sm:text-center"
                     />
                   )}
@@ -394,18 +417,14 @@ export default function JoinRoom({
               </>
             )}
 
-            {!canAct && (
-              <div className="mt-6 space-y-3 text-center">
-                <p className="text-yellow-400 text-sm bg-yellow-900/30 p-3 rounded-lg font-orbitron">
-                  Sign in to join or continue games.
-                </p>
-                <a
-                  href="/"
-                  className="inline-block px-6 py-3 bg-[#00F0FF]/20 text-[#00F0FF] font-orbitron font-bold rounded-lg border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all"
-                >
-                  Sign in (home)
+            {!canAct && !authLoading && (
+              <p className="mt-6 text-center text-slate-500 text-xs font-orbitron">
+                Use the sign-in bar at the top of this card, or{" "}
+                <a href="/" className="text-[#00F0FF] hover:underline">
+                  open HQ
                 </a>
-              </div>
+                .
+              </p>
             )}
           </div>
 
