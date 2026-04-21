@@ -71,7 +71,9 @@ function getReadContext() {
   }
   const chainId = cfg.chainId || 42220;
   const network = new Network("celo", chainId);
-  const provider = new JsonRpcProvider(cfg.rpcUrl, network, { staticNetwork: network });
+  // Many operator wallets in parallel each trigger nonce RPCs; default ethers batching
+  // merges them into one HTTP JSON-RPC array — some providers reject that (-32062 "Batch size too large").
+  const provider = new JsonRpcProvider(cfg.rpcUrl, network, { staticNetwork: network, batchMaxCount: 1 });
   return { provider, contractAddress: cfg.contractAddress, cfg };
 }
 
