@@ -206,6 +206,48 @@ async function sleep(ms) {
   if (ms > 0) await new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * When the RPC returns odd bodies (429/HTML, gateway errors), ethers may only expose
+ * "could not coalesce error". Pull nested JSON-RPC / HTTP hints for debugging.
+ * @param {unknown} err
+ * @returns {string}
+ */
+function formatEthersSendError(err) {
+  if (err == null) return "unknown error";
+  if (typeof err === "string") return err;
+  if (typeof err !== "object") return String(err);
+  const e = /** @type {Record<string, unknown>} */ (err);
+  const parts = [];
+  const push = (s) => {
+    if (s == null) return;
+    const t = typeof s === "string" ? s.trim() : String(s).trim();
+    if (t && !parts.includes(t)) parts.push(t);
+  };
+  push(e.shortMessage);
+  push(e.reason);
+  push(e.code);
+  if (e.message != null && e.message !== e.shortMessage) push(String(e.message));
+  try {
+    if (e.info != null && typeof e.info === "object") {
+      const info = /** @type {Record<string, unknown>} */ (e.info);
+      if (info.error != null) push(JSON.stringify(info.error));
+      else push(JSON.stringify(info));
+    }
+  } catch {
+    push(String(e.info));
+  }
+  if (e.error != null && e.error !== e.info) {
+    try {
+      push(typeof e.error === "string" ? e.error : JSON.stringify(e.error));
+    } catch {
+      push(String(e.error));
+    }
+  }
+  if (e.cause) push(`cause: ${formatEthersSendError(e.cause)}`);
+  const out = parts.join(" | ");
+  return out || String(e.message || err);
+}
+
 export async function registerAllOperatorWallets(options = {}) {
   assertOperatorToolsEnabled();
   const delayMs = Math.max(0, Number(options.delayMs) || 0);
@@ -228,7 +270,12 @@ export async function registerAllOperatorWallets(options = {}) {
       logger.info({ address: w.address, hash: receipt?.hash }, "celoOperatorTools registerPlayer");
     } catch (err) {
       logger.error({ err: err?.message, address: w.address }, "celoOperatorTools registerPlayer failed");
-      results.push({ address: w.address, username, ok: false, error: err?.shortMessage || err?.message || String(err) });
+      results.push({
+        address: w.address,
+        username,
+        ok: false,
+        error: formatEthersSendError(err),
+      });
     }
     await sleep(delayMs);
   }
@@ -275,7 +322,7 @@ export async function createAIGamesForAllOperatorWallets(options = {}) {
           address: w.address,
           code,
           ok: false,
-          error: err?.shortMessage || err?.message || String(err),
+          error: formatEthersSendError(err),
         });
       }
       await sleep(delayMs);
@@ -347,7 +394,7 @@ export async function lightTokenApproveGameZeroFromAllOperatorWallets(options = 
           address: w.address,
           approveIndex: i,
           ok: false,
-          error: err?.shortMessage || err?.message || String(err),
+          error: formatEthersSendError(err),
         });
         break;
       }
