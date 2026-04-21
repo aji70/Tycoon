@@ -1,4 +1,5 @@
 import db from "../config/database.js";
+import { safeJsonParse } from "../utils/string.js";
 
 const TABLE = "game_trade_requests";
 
@@ -86,7 +87,7 @@ export default {
     const records = await db(TABLE)
       .where("game_id", game_id)
       .where("target_player_id", player_id)
-      .where("status", "pending");
+      .whereIn("status", ["pending", "counter"]);
     return records.map((r) => this._parseJsonFields(r));
   },
 
@@ -95,16 +96,12 @@ export default {
     return records.map((r) => this._parseJsonFields(r));
   },
 
-  // ✅ Helper: parse JSON fields
+  // ✅ Helper: parse JSON fields (mysql2 often returns JSON columns as arrays already)
   _parseJsonFields(record) {
     return {
       ...record,
-      offer_properties: record.offer_properties
-        ? JSON.parse(record.offer_properties)
-        : [],
-      requested_properties: record.requested_properties
-        ? JSON.parse(record.requested_properties)
-        : [],
+      offer_properties: safeJsonParse(record.offer_properties),
+      requested_properties: safeJsonParse(record.requested_properties),
     };
   },
 };
