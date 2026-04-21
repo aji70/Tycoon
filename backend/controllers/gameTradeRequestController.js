@@ -121,10 +121,12 @@ export const GameTradeRequestController = {
 
       // Commit initial insert
       await trx.commit();
-      const trade = await db("game_trade_requests")
-        .where({ id: tradeId })
-        .first();
 
+      const io = req.app.get("io");
+      if (io && game_id) await emitGameUpdateByGameId(io, game_id);
+      await invalidateGameById(game_id);
+
+      const trade = await GameTradeRequest.getById(tradeId);
       return res.status(201).json({ success: true, data: trade });
     } catch (error) {
       await trx.rollback();
@@ -319,6 +321,7 @@ export const GameTradeRequestController = {
   async decline(req, res) {
     try {
       const { id } = req.body;
+      const row = await db("game_trade_requests").where({ id }).first();
       const updated = await db("game_trade_requests")
         .where({ id })
         .whereIn("status", ["pending", "counter"])
@@ -326,6 +329,9 @@ export const GameTradeRequestController = {
       if (!updated) {
         return res.status(409).json({ success: false, message: "Trade already resolved" });
       }
+      const io = req.app.get("io");
+      if (io && row?.game_id) await emitGameUpdateByGameId(io, row.game_id);
+      if (row?.game_id) await invalidateGameById(row.game_id);
       res.json({ success: true, message: "Trade declined" });
     } catch (error) {
       console.error("Decline Trade Error:", error);
@@ -452,17 +458,126 @@ export const GameTradeRequestController = {
     }
   },
 
-  // ✅ Update a trade
+  // ✅ Counter offer: the responding player becomes the new proposer so accept() ownership matches offer_* / requested_*.
   async update(req, res) {
+    const trx = await db.transaction();
     try {
       const { id } = req.params;
-      const updated = await GameTradeRequest.update(id, req.body);
+      const trade = await trx("game_trade_requests").where({ id }).first();
+      if (!trade) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Trade not found" });
+      }
+
+      const {
+        offer_properties = [],
+        offer_amount = 0,
+        requested_properties = [],
+        requested_amount = 0,
+        status,
+      } = req.body;
+
+      if (status !== "counter") {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Only counter-offer updates (status counter) are supported",
+        });
+      }
+
+      if (trade.status !== "pending" && trade.status !== "counter") {
+        await trx.rollback();
+        return res.status(409).json({ success: false, message: "Trade already resolved" });
+      }
+
+      const game = await trx("games").where({ id: trade.game_id, status: "RUNNING" }).first();
+      if (!game) {
+        await trx.rollback();
+        return res.status(400).json({ success: false, message: "Game not running or not found" });
+      }
+
+      const offerPropIds = safeJsonParse(offer_properties).map((x) => Number(x)).filter(Boolean);
+      const requestedPropIds = safeJsonParse(requested_properties).map((x) => Number(x)).filter(Boolean);
+
+      const newProposerUserId = trade.target_player_id;
+      const newTargetUserId = trade.player_id;
+
+      const newPlayer = await trx("game_players")
+        .where({ game_id: trade.game_id, user_id: newProposerUserId })
+        .first();
+      const newTarget = await trx("game_players")
+        .where({ game_id: trade.game_id, user_id: newTargetUserId })
+        .first();
+
+      if (!newPlayer || !newTarget) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Player(s) not found in this game" });
+      }
+
+      if (newTarget.in_jail) {
+        await trx.rollback();
+        return res.status(400).json({ success: false, message: "Target player is in jail" });
+      }
+
+      const offeredProps = await trx("game_properties")
+        .whereIn("property_id", offerPropIds)
+        .andWhere({ game_id: trade.game_id, player_id: newPlayer.id });
+      const requestedProps = await trx("game_properties")
+        .whereIn("property_id", requestedPropIds)
+        .andWhere({ game_id: trade.game_id, player_id: newTarget.id });
+
+      if (offeredProps.length !== offerPropIds.length) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Invalid counter offered property ownership",
+        });
+      }
+      if (requestedProps.length !== requestedPropIds.length) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Invalid counter requested property ownership",
+        });
+      }
+
+      const offerAmt = Number(offer_amount);
+      const reqAmt = Number(requested_amount);
+      if (Number(newPlayer.balance) < offerAmt) {
+        await trx.rollback();
+        return res.status(400).json({ success: false, message: "Insufficient balance for counter offer" });
+      }
+      if (Number(newTarget.balance) < reqAmt) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Counterparty has insufficient balance for requested amount",
+        });
+      }
+
+      await trx("game_trade_requests").where({ id }).update({
+        player_id: newProposerUserId,
+        target_player_id: newTargetUserId,
+        offer_properties: JSON.stringify(offerPropIds),
+        offer_amount: offerAmt,
+        requested_properties: JSON.stringify(requestedPropIds),
+        requested_amount: reqAmt,
+        status: "counter",
+        updated_at: new Date(),
+      });
+
+      await trx.commit();
+
+      const io = req.app.get("io");
+      if (io && trade.game_id) await emitGameUpdateByGameId(io, trade.game_id);
+      await invalidateGameById(trade.game_id);
+
+      const updated = await GameTradeRequest.getById(id);
       res.json({ success: true, data: updated });
     } catch (error) {
+      await trx.rollback();
       console.error("Update Trade Error:", error);
-      res
-        .status(500)
-        .json({ success: false, message: "Failed to update trade request" });
+      res.status(500).json({ success: false, message: "Failed to update trade request" });
     }
   },
 

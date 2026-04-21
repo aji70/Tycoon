@@ -274,6 +274,9 @@ export function useAiPlayerLogic({
                 decision = "declined";
                 remark = "Counter failed; offer declined.";
               }
+            } else {
+              await apiClient.post("/game-trade-requests/decline", { id: sentTrade.id });
+              refreshTrades();
             }
 
             setAiResponsePopup({
@@ -285,6 +288,12 @@ export function useAiPlayerLogic({
           } catch (aiErr: any) {
             console.error("[useAiPlayerLogic] AI trade response error:", aiErr);
             toast.error("Trade sent, but AI response could not be shown.");
+            try {
+              await apiClient.post("/game-trade-requests/decline", { id: sentTrade.id });
+            } catch {
+              /* trade may already be resolved */
+            }
+            refreshTrades();
             setAiResponsePopup({
               trade: sentTrade,
               favorability: 0,

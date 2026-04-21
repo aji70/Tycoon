@@ -242,6 +242,9 @@ export function usePlayerSidebar({
               decision = "declined";
               remark = "Counter failed; offer declined.";
             }
+          } else {
+            await apiClient.post("/game-trade-requests/decline", { id: sentTrade.id });
+            refreshTrades();
           }
 
           setAiResponsePopup({ trade: sentTrade, favorability, decision, remark });
