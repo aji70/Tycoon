@@ -4,6 +4,9 @@ import { dispatch } from "../utils/dispatch.js";
 
 const router = express.Router();
 
+// Many clients POST JSON here without a path segment; Express does not match `/:action` for that URL.
+router.post("/", GameTradeRequestController.create);
+
 // POST /api/game-trade-requests/:action  (create | accept | decline | aiCounter)
 router.post("/:action", dispatch(GameTradeRequestController, [
   "create",
