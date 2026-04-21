@@ -158,12 +158,13 @@ export function useAiPlayerLogic({
 
       const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
       if (res?.data?.success) {
+        toast.success("Trade sent successfully!");
         setTradeModal({ open: false, target: null });
         resetTradeFields();
         refreshTrades();
 
-        // AI-only: auto-respond to trade; never run in multiplayer
-        if (game.is_ai !== false && isAI) {
+        // Auto-respond when the counterparty is an AI (username heuristic); same as usePlayerSidebar.
+        if (isAI) {
           const tradeId = res.data?.data?.id ?? Date.now();
           const sentTrade = {
             ...payload,
@@ -300,7 +301,6 @@ export function useAiPlayerLogic({
     me,
     tradeModal.target,
     game.id,
-    game.is_ai,
     game.players,
     game_properties,
     offerProperties,
