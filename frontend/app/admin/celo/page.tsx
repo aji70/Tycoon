@@ -176,7 +176,7 @@ export default function AdminCeloOperatorsPage() {
     }
   }
 
-  /** Cheap tx: TYC (or USDC) `approve(Tycoon game, 0)` from each operator wallet; optional N repeats per wallet. */
+  /** Cheap txs: TYC (or USDC) rotates approve(game,0) / transfer(self,0) / transfer(game,0); optional N steps per wallet. */
   async function runLightChainPing() {
     setBusy("light");
     setLog("");
@@ -300,14 +300,16 @@ export default function AdminCeloOperatorsPage() {
           <strong className="text-slate-300">TYC</strong> token when{" "}
           <code className="text-slate-400">CELO_TYC_TOKEN_ADDRESS</code> / <code className="text-slate-400">TYCOON_CELO_TYC</code>, or
           from <code className="text-slate-400">rewardSystem().tycToken()</code> on the game proxy. Only if TYC cannot be resolved does it fall back to{" "}
-          <strong className="text-slate-300">USDC</strong>. Tiny gas, no token balance required.
-          You can repeat that approve up to <strong className="text-slate-300">100× per wallet</strong> from the inputs
-          below (same allowance each time — only useful for stress / RPC checks; prefer{" "}
-          <strong className="text-slate-300">parallel wallets</strong> when N× is large).
+          <strong className="text-slate-300">USDC</strong>. Tiny gas, no token balance required. Each step cycles{" "}
+          <code className="text-slate-400">approve(game,0)</code>,{" "}
+          <code className="text-slate-400">transfer(self,0)</code>,{" "}
+          <code className="text-slate-400">transfer(game,0)</code> (standard ERC-20; no mint — operators are not minters).
+          You can run up to <strong className="text-slate-300">100 steps per wallet</strong> from the inputs below
+          (stress / RPC checks; prefer <strong className="text-slate-300">parallel wallets</strong> when N× is large).
         </p>
         <p>
           <strong className="text-slate-200">Gas ladder:</strong>{" "}
-          <code className="text-slate-400">TYC|USDC.approve(..., 0)</code> (lightest) →{" "}
+          <code className="text-slate-400">TYC|USDC.approve / transfer(0)</code> (lightest) →{" "}
           <code className="text-slate-400">registerPlayer</code> (when needed) →{" "}
           <code className="text-slate-400">createAIGame</code> (heaviest).
         </p>
@@ -363,7 +365,7 @@ export default function AdminCeloOperatorsPage() {
               />
             </label>
             <label className="text-xs text-slate-400 block">
-              Light ping: approves per wallet (1–100)
+              Light ping: steps per wallet (1–100)
               <input
                 type="number"
                 min={1}
@@ -424,10 +426,10 @@ export default function AdminCeloOperatorsPage() {
               disabled={!!busy}
               onClick={runLightChainPing}
               className="rounded-lg bg-slate-700 hover:bg-slate-600 px-4 py-2 text-sm font-medium text-slate-100 border border-slate-500 disabled:opacity-50"
-              title="approve(game, 0) on TYC (preferred) or USDC — low gas; optional repeats per wallet"
+              title="Rotating approve(game,0) and transfer(...,0) on TYC (preferred) or USDC — low gas"
             >
               {busy === "light" ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} Light ping (
-              {status.lightPingTokenSymbol ?? "TYC"} approve 0 × {Math.max(1, Math.min(100, approvalsPerWallet || 1))})
+              {status.lightPingTokenSymbol ?? "TYC"} mixed ERC-20 × {Math.max(1, Math.min(100, approvalsPerWallet || 1))})
             </button>
           </div>
 
