@@ -61,6 +61,11 @@ export function getChainConfig(chain) {
       process.env.TYCOON_CELO_TYC ??
       process.env.TYCOON_CELO_TOKEN ??
       undefined;
+    /** DashRunner (Celo) proxy for admin `dashStep` chain ping — optional. */
+    const dashRunnerContractAddress =
+      process.env.CELO_DASHRUNNER_CONTRACT_ADDRESS?.trim() ||
+      process.env.DASHRUNNER_CELO_CONTRACT_ADDRESS?.trim() ||
+      undefined;
     return {
       rpcUrl,
       contractAddress,
@@ -73,6 +78,7 @@ export function getChainConfig(chain) {
       gameFaucetAddress: gameFaucetAddress || undefined,
       usdcAddress: usdcAddress || undefined,
       tycTokenAddress: tycTokenAddress || undefined,
+      dashRunnerContractAddress: dashRunnerContractAddress || undefined,
       isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
     };
   }

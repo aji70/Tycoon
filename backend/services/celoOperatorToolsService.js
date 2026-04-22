@@ -24,6 +24,12 @@ const ERC20_LIGHT_IFACE = new Interface([
   "function transfer(address to, uint256 amount) external returns (bool)",
 ]);
 
+/** DashRunner proxy: `dashStep()` increments `dashSteps(msg.sender)`; `dashSteps(address)` is the public mapping getter (view). */
+const DASHRUNNER_PING_IFACE = new Interface([
+  "function dashStep() external",
+  "function dashSteps(address) view returns (uint64)",
+]);
+
 const TYCOON_REWARD_READ_ABI = ["function rewardSystem() view returns (address)"];
 const REWARD_SYSTEM_TYC_READ_ABI = ["function tycToken() view returns (address)"];
 
@@ -178,6 +184,7 @@ export async function getOperatorToolsStatus() {
     lightPingTokenAddress,
     lightPingTokenSymbol,
     lightPingTycResolvedFrom: tycResolved?.source ?? null,
+    dashRunnerContractAddress: cfg.dashRunnerContractAddress ?? null,
     walletCount: wallets.length,
     wallets,
   };
@@ -451,5 +458,100 @@ export async function lightTokenApproveGameZeroFromAllOperatorWallets(options = 
     note: tycAddr
       ? `TYC (${tycResolved?.source ?? "?"}) — low-footprint ERC-20 mix (no mint). For load / RPC checks only.`
       : "USDC fallback — same step pattern; TYC was not found via env or rewardSystem().tycToken().",
+  };
+}
+
+/**
+ * Each operator wallet calls **DashRunner.dashStep()** on the Celo DashRunner proxy (increments `dashSteps[msg.sender]`).
+ * After each wallet’s successful batch, reads **`dashSteps(address)`** (public mapping getter) for that wallet for the log.
+ *
+ * Configure proxy: `CELO_DASHRUNNER_CONTRACT_ADDRESS` or `DASHRUNNER_CELO_CONTRACT_ADDRESS`.
+ *
+ * @param {object} [options]
+ * @param {number} [options.delayMs]
+ * @param {number} [options.stepsPerWallet] 1–100; default 1. Same name as light ping body field `approvalsPerWallet` when sent from admin UI.
+ * @param {boolean} [options.parallelWallets]
+ */
+export async function dashRunnerDashStepPingFromAllOperatorWallets(options = {}) {
+  assertOperatorToolsEnabled();
+  const delayMs = Math.max(0, Number(options.delayMs) || 0);
+  const rawSteps = Number(options.stepsPerWallet ?? options.approvalsPerWallet);
+  const stepsPerWallet = Math.max(1, Math.min(100, Number.isFinite(rawSteps) ? rawSteps : 1));
+  const parallelWalletsExplicit = options.parallelWallets;
+  const parallelWallets =
+    parallelWalletsExplicit !== undefined && parallelWalletsExplicit !== null
+      ? Boolean(parallelWalletsExplicit)
+      : stepsPerWallet > 1;
+
+  const { provider, cfg } = getReadContext();
+  const dashAddr = cfg.dashRunnerContractAddress?.trim();
+  if (!dashAddr) {
+    throw new Error(
+      "DashRunner proxy not configured. Set CELO_DASHRUNNER_CONTRACT_ADDRESS (or DASHRUNNER_CELO_CONTRACT_ADDRESS) to the DashRunner ERC1967 proxy on Celo."
+    );
+  }
+
+  const wallets = await getOperatorWalletsSortedByBalanceDesc();
+  const dashRead = new Contract(dashAddr, DASHRUNNER_PING_IFACE, provider);
+
+  async function stepsForWallet(w) {
+    const dash = new Contract(dashAddr, DASHRUNNER_PING_IFACE, w);
+    const out = [];
+    for (let i = 0; i < stepsPerWallet; i++) {
+      try {
+        const tx = await dash.dashStep();
+        const receipt = await tx.wait();
+        out.push({
+          address: w.address,
+          stepIndex: i,
+          hash: receipt?.hash,
+          ok: true,
+          method: "DashRunner.dashStep()",
+        });
+        logger.info({ address: w.address, stepIndex: i, hash: receipt?.hash }, "celoOperatorTools dashRunner dashStep");
+      } catch (err) {
+        logger.error({ err: err?.message, address: w.address, stepIndex: i }, "celoOperatorTools dashRunner dashStep failed");
+        out.push({
+          address: w.address,
+          stepIndex: i,
+          ok: false,
+          error: formatEthersSendError(err),
+        });
+        break;
+      }
+      await sleep(delayMs);
+    }
+    const last = out[out.length - 1];
+    if (last?.ok) {
+      try {
+        const c = await dashRead.dashSteps(w.address);
+        last.dashStepsAfter = c.toString();
+      } catch (e) {
+        logger.warn({ err: e?.message, address: w.address }, "celoOperatorTools dashSteps() view failed");
+      }
+    }
+    return out;
+  }
+
+  let results;
+  if (parallelWallets) {
+    results = (await Promise.all(wallets.map((w) => stepsForWallet(w)))).flat();
+  } else {
+    results = [];
+    for (const w of wallets) {
+      results.push(...(await stepsForWallet(w)));
+    }
+  }
+
+  return {
+    results,
+    stepsPerWallet,
+    parallelWallets,
+    walletCount: wallets.length,
+    totalAttempts: results.length,
+    totalOk: results.filter((r) => r.ok).length,
+    dashRunnerContractAddress: dashAddr,
+    note:
+      "Each tx calls DashRunner.dashStep() (increments dashSteps[msg.sender]). dashSteps(address) is only used as a view read after each wallet's batch for logging.",
   };
 }
