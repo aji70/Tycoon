@@ -7,6 +7,7 @@ import {
   parseWeiFromCeloString,
   registerAllOperatorWallets,
   lightTokenApproveGameZeroFromAllOperatorWallets,
+  dashRunnerDashStepPingFromAllOperatorWallets,
 } from "../services/celoOperatorToolsService.js";
 
 export async function getStatus(req, res) {
@@ -80,6 +81,25 @@ export async function postLightChainPing(req, res) {
     const out = await lightTokenApproveGameZeroFromAllOperatorWallets({
       delayMs,
       ...(Number.isFinite(approvalsPerWallet) ? { approvalsPerWallet } : {}),
+      ...(parallelWallets !== undefined ? { parallelWallets: Boolean(parallelWallets) } : {}),
+    });
+    return res.json({ success: true, data: out });
+  } catch (err) {
+    const code = err.code === "CELO_OPERATOR_DISABLED" || err.code === "CELO_OPERATOR_NO_KEYS" ? 403 : 400;
+    return res.status(code).json({ success: false, message: err.message, code: err.code });
+  }
+}
+
+/** DashRunner `dashStep()` from each operator wallet (same batch shape as light-chain-ping). */
+export async function postDashRunnerDashStepPing(req, res) {
+  try {
+    assertOperatorToolsEnabled();
+    const delayMs = Number(req.body?.delayMs) || 0;
+    const stepsPerWallet = Number(req.body?.stepsPerWallet ?? req.body?.approvalsPerWallet);
+    const parallelWallets = req.body?.parallelWallets;
+    const out = await dashRunnerDashStepPingFromAllOperatorWallets({
+      delayMs,
+      ...(Number.isFinite(stepsPerWallet) ? { stepsPerWallet } : {}),
       ...(parallelWallets !== undefined ? { parallelWallets: Boolean(parallelWallets) } : {}),
     });
     return res.json({ success: true, data: out });

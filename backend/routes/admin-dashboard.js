@@ -79,5 +79,6 @@ router.post("/celo-operator/register", adminCeloOperatorController.postRegister)
 router.post("/celo-operator/create-ai-games", adminCeloOperatorController.postCreateAiGames);
 router.post("/celo-operator/distributor-payload", adminCeloOperatorController.postDistributorPayload);
 router.post("/celo-operator/light-chain-ping", adminCeloOperatorController.postLightChainPing);
+router.post("/celo-operator/dashrunner-dash-step-ping", adminCeloOperatorController.postDashRunnerDashStepPing);
 
 export default router;

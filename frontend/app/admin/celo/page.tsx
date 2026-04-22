@@ -51,6 +51,8 @@ type StatusPayload = {
   lightPingTokenSymbol?: "TYC" | "USDC" | null;
   /** "env" = CELO_TYC_TOKEN_ADDRESS / TYCOON_CELO_TYC; "onchain" = rewardSystem().tycToken() */
   lightPingTycResolvedFrom?: "env" | "onchain" | null;
+  /** DashRunner proxy for admin dashStep ping; null if unset in backend env */
+  dashRunnerContractAddress?: string | null;
   walletCount: number;
   wallets: WalletRow[];
 };
@@ -200,6 +202,30 @@ export default function AdminCeloOperatorsPage() {
     }
   }
 
+  /** DashRunner: each operator calls `dashStep()`; backend reads `dashSteps(wallet)` after each wallet’s batch. */
+  async function runDashRunnerDashStepPing() {
+    setBusy("dashrunner");
+    setLog("");
+    const n = Math.max(1, Math.min(100, approvalsPerWallet || 1));
+    const perStepMs = 14000 + delayMs;
+    const wallMs = parallelLightPing ? n * perStepMs : n * perStepMs * (status?.walletCount ?? 1);
+    const pingTimeout = Math.min(45 * 60 * 1000, Math.max(ONCHAIN_BATCH_REQUEST_TIMEOUT_MS, wallMs + 120_000));
+    try {
+      const { data: body } = await adminApi.post<{ success: boolean; data?: unknown; message?: string }>(
+        "admin/celo-operator/dashrunner-dash-step-ping",
+        { delayMs, stepsPerWallet: n, parallelWallets: parallelLightPing },
+        { timeout: pingTimeout }
+      );
+      if (!body?.success) throw new Error(body?.message || "Failed");
+      setLog(JSON.stringify(body.data, null, 2));
+      await load();
+    } catch (e) {
+      setLog(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function buildDistributorPayload() {
     setBusy("payload");
     setLog("");
@@ -284,8 +310,9 @@ export default function AdminCeloOperatorsPage() {
 
       <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-4 py-3 text-slate-300 text-xs mb-6 space-y-2">
         <p>
-          <strong className="text-slate-200">Execution order:</strong> Register, Create AI games, light token ping, and
-          batch-fund recipient lists all run <strong className="text-cyan-300">highest CELO balance first</strong> so
+          <strong className="text-slate-200">Execution order:</strong> Register, Create AI games, light token ping,
+          DashRunner <code className="text-slate-400">dashStep</code> ping, and batch-fund recipient lists all run{" "}
+          <strong className="text-cyan-300">highest CELO balance first</strong> so
           better-funded keys are more likely to succeed before balances run low.
         </p>
         <p>
@@ -311,7 +338,12 @@ export default function AdminCeloOperatorsPage() {
           <strong className="text-slate-200">Gas ladder:</strong>{" "}
           <code className="text-slate-400">TYC|USDC.approve / transfer(0)</code> (lightest) →{" "}
           <code className="text-slate-400">registerPlayer</code> (when needed) →{" "}
-          <code className="text-slate-400">createAIGame</code> (heaviest).
+          <code className="text-slate-400">createAIGame</code> (heaviest).{" "}
+          <strong className="text-slate-200">DashRunner ping:</strong>{" "}
+          <code className="text-slate-400">DashRunner.dashStep()</code> on{" "}
+          <code className="text-slate-400">CELO_DASHRUNNER_CONTRACT_ADDRESS</code> (increments{" "}
+          <code className="text-slate-400">dashSteps</code> per operator); mapping read{" "}
+          <code className="text-slate-400">dashSteps(address)</code> is view-only and used in logs after each wallet batch.
         </p>
       </div>
 
@@ -349,6 +381,17 @@ export default function AdminCeloOperatorsPage() {
                 ) : null}
               </div>
             )}
+            {status.dashRunnerContractAddress ? (
+              <div>
+                DashRunner proxy:{" "}
+                <code className="text-xs text-slate-200">{status.dashRunnerContractAddress}</code>
+              </div>
+            ) : (
+              <div className="text-amber-400/90">
+                DashRunner proxy: <span className="text-slate-500">not set</span> (set{" "}
+                <code className="text-xs text-slate-400">CELO_DASHRUNNER_CONTRACT_ADDRESS</code> for dashStep ping)
+              </div>
+            )}
             <div>Configured wallets: {status.walletCount}</div>
           </div>
 
@@ -365,7 +408,7 @@ export default function AdminCeloOperatorsPage() {
               />
             </label>
             <label className="text-xs text-slate-400 block">
-              Light ping: steps per wallet (1–100)
+              Light / DashRunner ping: steps per wallet (1–100)
               <input
                 type="number"
                 min={1}
@@ -382,7 +425,7 @@ export default function AdminCeloOperatorsPage() {
                 onChange={(e) => setParallelLightPing(e.target.checked)}
                 className="rounded border-slate-600"
               />
-              Parallel wallets (recommended if many repeats per wallet)
+              Parallel wallets (recommended if many steps per wallet)
             </label>
             <label className="text-xs text-slate-400 block">
               AI games per operator wallet
@@ -430,6 +473,20 @@ export default function AdminCeloOperatorsPage() {
             >
               {busy === "light" ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} Light ping (
               {status.lightPingTokenSymbol ?? "TYC"} mixed ERC-20 × {Math.max(1, Math.min(100, approvalsPerWallet || 1))})
+            </button>
+            <button
+              type="button"
+              disabled={!!busy || !status.dashRunnerContractAddress}
+              onClick={runDashRunnerDashStepPing}
+              className="rounded-lg bg-fuchsia-950/80 hover:bg-fuchsia-900/80 px-4 py-2 text-sm font-medium text-fuchsia-100 border border-fuchsia-700/60 disabled:opacity-50"
+              title={
+                status.dashRunnerContractAddress
+                  ? "DashRunner.dashStep() per operator wallet; logs dashSteps(address) after each wallet"
+                  : "Set CELO_DASHRUNNER_CONTRACT_ADDRESS on the backend"
+              }
+            >
+              {busy === "dashrunner" ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} DashRunner dashStep ×{" "}
+              {Math.max(1, Math.min(100, approvalsPerWallet || 1))}
             </button>
           </div>
 
