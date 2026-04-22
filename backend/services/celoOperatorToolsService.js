@@ -218,6 +218,71 @@ async function sleep(ms) {
   if (ms > 0) await new Promise((r) => setTimeout(r, ms));
 }
 
+/** Max concurrent operator wallets when "parallel" is on (avoids provider -32090 / rate limits). Override: CELO_OPERATOR_MAX_PARALLEL_WALLETS */
+function getMaxParallelWalletsForPing() {
+  const n = Number(process.env.CELO_OPERATOR_MAX_PARALLEL_WALLETS);
+  if (Number.isFinite(n) && n >= 1) return Math.min(32, Math.floor(n));
+  return 4;
+}
+
+function isRpcRateLimitError(err) {
+  const s = formatEthersSendError(err).toLowerCase();
+  return (
+    s.includes("rate limit") ||
+    s.includes("-32090") ||
+    s.includes("too many requests") ||
+    s.includes("exhausted") ||
+    s.includes(" 429")
+  );
+}
+
+/** Retry transient RPC / HTTP rate limits (e.g. Ankr -32090). */
+async function withRpcRetry(fn, { maxAttempts = 8 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const retryable = isRpcRateLimitError(err);
+      if (!retryable || attempt === maxAttempts - 1) throw err;
+      let waitMs = 1500 * 2 ** attempt;
+      const msg = formatEthersSendError(err);
+      const m = msg.match(/retry in\s+(\d+)\s*s/i);
+      if (m) waitMs = Math.max(waitMs, Number(m[1]) * 1000 + 250);
+      waitMs = Math.min(waitMs, 90_000);
+      logger.warn({ attempt: attempt + 1, waitMs, snippet: msg.slice(0, 160) }, "celoOperatorTools RPC backoff");
+      await sleep(waitMs);
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * When parallelWallets is true, run at most maxParallel wallets at a time (still parallel within each chunk).
+ * @param {import("ethers").Wallet[]} wallets
+ * @param {boolean} parallelWallets
+ * @param {number} maxParallel
+ * @param {(w: import("ethers").Wallet) => Promise<unknown[]>} worker
+ * @param {number} [interChunkDelayMs]
+ */
+async function runPingAcrossWalletsLimited(wallets, parallelWallets, maxParallel, worker, interChunkDelayMs = 500) {
+  if (!parallelWallets || wallets.length <= 1) {
+    const out = [];
+    for (const w of wallets) out.push(...(await worker(w)));
+    return out;
+  }
+  const chunkSize = Math.max(1, Math.min(maxParallel, wallets.length));
+  const out = [];
+  for (let i = 0; i < wallets.length; i += chunkSize) {
+    const chunk = wallets.slice(i, i + chunkSize);
+    const parts = await Promise.all(chunk.map((w) => worker(w)));
+    for (const p of parts) out.push(...p);
+    if (i + chunkSize < wallets.length && interChunkDelayMs > 0) await sleep(interChunkDelayMs);
+  }
+  return out;
+}
+
 /**
  * When the RPC returns odd bodies (429/HTML, gateway errors), ethers may only expose
  * "could not coalesce error". Pull nested JSON-RPC / HTTP hints for debugging.
@@ -392,18 +457,20 @@ export async function lightTokenApproveGameZeroFromAllOperatorWallets(options = 
       const phase = i % 3;
       let method;
       try {
-        let tx;
-        if (phase === 0) {
-          tx = await token.approve(game, 0n);
-          method = `${tokenSymbol}.approve(game,0)`;
-        } else if (phase === 1) {
-          tx = await token.transfer(w.address, 0n);
-          method = `${tokenSymbol}.transfer(self,0)`;
-        } else {
-          tx = await token.transfer(game, 0n);
-          method = `${tokenSymbol}.transfer(game,0)`;
-        }
-        const receipt = await tx.wait();
+        const receipt = await withRpcRetry(async () => {
+          let tx;
+          if (phase === 0) {
+            tx = await token.approve(game, 0n);
+            method = `${tokenSymbol}.approve(game,0)`;
+          } else if (phase === 1) {
+            tx = await token.transfer(w.address, 0n);
+            method = `${tokenSymbol}.transfer(self,0)`;
+          } else {
+            tx = await token.transfer(game, 0n);
+            method = `${tokenSymbol}.transfer(game,0)`;
+          }
+          return tx.wait();
+        });
         out.push({
           address: w.address,
           stepIndex: i,
@@ -432,21 +499,15 @@ export async function lightTokenApproveGameZeroFromAllOperatorWallets(options = 
     return out;
   }
 
-  let results;
-  if (parallelWallets) {
-    results = (await Promise.all(wallets.map((w) => stepsForWallet(w)))).flat();
-  } else {
-    results = [];
-    for (const w of wallets) {
-      results.push(...(await stepsForWallet(w)));
-    }
-  }
+  const maxParallel = getMaxParallelWalletsForPing();
+  const results = await runPingAcrossWalletsLimited(wallets, parallelWallets, maxParallel, stepsForWallet, 500);
 
   return {
     results,
     approvalsPerWallet,
     stepsPerWallet: approvalsPerWallet,
     parallelWallets,
+    maxParallelWallets: parallelWallets ? maxParallel : 1,
     walletCount: wallets.length,
     totalAttempts: results.length,
     totalOk: results.filter((r) => r.ok).length,
@@ -456,8 +517,8 @@ export async function lightTokenApproveGameZeroFromAllOperatorWallets(options = 
     spenderGame: contractAddress,
     stepPattern: "rotate: approve(game,0) → transfer(self,0) → transfer(game,0)",
     note: tycAddr
-      ? `TYC (${tycResolved?.source ?? "?"}) — low-footprint ERC-20 mix (no mint). For load / RPC checks only.`
-      : "USDC fallback — same step pattern; TYC was not found via env or rewardSystem().tycToken().",
+      ? `TYC (${tycResolved?.source ?? "?"}) — low-footprint ERC-20 mix (no mint). For load / RPC checks only. When parallel is on, at most ${maxParallel} wallets run at once (CELO_OPERATOR_MAX_PARALLEL_WALLETS).`
+      : `USDC fallback — same step pattern; TYC was not found via env or rewardSystem().tycToken(). When parallel is on, at most ${maxParallel} wallets run at once (CELO_OPERATOR_MAX_PARALLEL_WALLETS).`,
   };
 }
 
@@ -499,8 +560,10 @@ export async function dashRunnerDashStepPingFromAllOperatorWallets(options = {})
     const out = [];
     for (let i = 0; i < stepsPerWallet; i++) {
       try {
-        const tx = await dash.dashStep();
-        const receipt = await tx.wait();
+        const receipt = await withRpcRetry(async () => {
+          const tx = await dash.dashStep();
+          return tx.wait();
+        });
         out.push({
           address: w.address,
           stepIndex: i,
@@ -524,7 +587,7 @@ export async function dashRunnerDashStepPingFromAllOperatorWallets(options = {})
     const last = out[out.length - 1];
     if (last?.ok) {
       try {
-        const c = await dashRead.dashSteps(w.address);
+        const c = await withRpcRetry(() => dashRead.dashSteps(w.address));
         last.dashStepsAfter = c.toString();
       } catch (e) {
         logger.warn({ err: e?.message, address: w.address }, "celoOperatorTools dashSteps() view failed");
@@ -533,25 +596,19 @@ export async function dashRunnerDashStepPingFromAllOperatorWallets(options = {})
     return out;
   }
 
-  let results;
-  if (parallelWallets) {
-    results = (await Promise.all(wallets.map((w) => stepsForWallet(w)))).flat();
-  } else {
-    results = [];
-    for (const w of wallets) {
-      results.push(...(await stepsForWallet(w)));
-    }
-  }
+  const maxParallel = getMaxParallelWalletsForPing();
+  const results = await runPingAcrossWalletsLimited(wallets, parallelWallets, maxParallel, stepsForWallet, 500);
 
   return {
     results,
     stepsPerWallet,
     parallelWallets,
+    maxParallelWallets: parallelWallets ? maxParallel : 1,
     walletCount: wallets.length,
     totalAttempts: results.length,
     totalOk: results.filter((r) => r.ok).length,
     dashRunnerContractAddress: dashAddr,
     note:
-      "Each tx calls DashRunner.dashStep() (increments dashSteps[msg.sender]). dashSteps(address) is only used as a view read after each wallet's batch for logging.",
+      "Each tx calls DashRunner.dashStep() (increments dashSteps[msg.sender]). dashSteps(address) is read after each wallet batch. When parallel is on, wallets run in chunks of maxParallelWallets to reduce RPC rate limits (set CELO_OPERATOR_MAX_PARALLEL_WALLETS).",
   };
 }
