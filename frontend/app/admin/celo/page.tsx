@@ -425,7 +425,9 @@ export default function AdminCeloOperatorsPage() {
                 onChange={(e) => setParallelLightPing(e.target.checked)}
                 className="rounded border-slate-600"
               />
-              Parallel wallets (recommended if many steps per wallet)
+              Parallel wallets (chunked on server; max{" "}
+              <code className="text-slate-500">CELO_OPERATOR_MAX_PARALLEL_WALLETS</code> at a time — avoids RPC rate
+              limits)
             </label>
             <label className="text-xs text-slate-400 block">
               AI games per operator wallet
