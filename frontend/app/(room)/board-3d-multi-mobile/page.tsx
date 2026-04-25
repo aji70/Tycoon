@@ -2321,7 +2321,7 @@ function Board3DMobilePageContent() {
 
       {/* Top bar: all game controls start from the left; right side left clear for main nav hamburger */}
       <div
-        className="fixed left-0 right-0 z-[100] flex flex-wrap items-center justify-start gap-1.5 pl-2 pr-16 py-1.5 bg-slate-800/95 border-b border-slate-600/50"
+        className="fixed left-0 right-0 z-[100] flex items-center justify-start gap-1.5 pl-2 pr-16 py-1.5 bg-slate-800/95 border-b border-slate-600/50"
         style={{ top: 0, paddingTop: "max(0.375rem, env(safe-area-inset-top))", zIndex: 2147483646 }}
       >
         {isLiveGame && game && !isUntimed && game.duration && game.status === "RUNNING" && (
@@ -2397,7 +2397,7 @@ function Board3DMobilePageContent() {
         )}
         {/* Vote player out — same as 2D board */}
         {isLiveGame && game && voteablePlayersList.length > 0 && (
-          <div className="order-last basis-full flex items-center gap-2 overflow-x-auto pb-0.5">
+          <div className="flex items-center gap-2 overflow-x-auto shrink min-w-0">
             {voteablePlayersList.map((p) => {
               const status = voteStatuses[p.user_id];
               const hasVoted = status?.voters?.some((v) => v.user_id === me?.user_id) ?? false;
