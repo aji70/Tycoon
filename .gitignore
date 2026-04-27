@@ -20,6 +20,7 @@ frontend/.env.*.local
 *.pem
 **/secrets/
 **/.secrets
+backend/celo-operator-wallets.generated.json
 
 # Synthesis hackathon registration (personal)
 scripts/synthesis-register.local.env
