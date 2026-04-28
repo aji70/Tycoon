@@ -10,7 +10,7 @@ import { useChainId } from "wagmi";
 import { ADMIN_NAV_ITEMS } from "./adminNav";
 import AdminGlobalSearch from "./AdminGlobalSearch";
 import AdminDashboardAlerts from "./AdminDashboardAlerts";
-import { adminApi, isAdminSecretConfigured } from "@/lib/adminApi";
+import { adminApi, adminLogin, clearAdminSession, hasAdminSession } from "@/lib/adminApi";
 
 function shortAddr(addr: string | undefined) {
   if (!addr) return "";
@@ -51,7 +51,6 @@ type NotifPayload = {
 };
 
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
-  const secretOk = isAdminSecretConfigured();
   const router = useRouter();
   const { open } = useAppKit();
   const { address, isConnected } = useAppKitAccount();
@@ -62,6 +61,17 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifData, setNotifData] = useState<NotifPayload | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [adminAuthed, setAdminAuthed] = useState(false);
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginBusy, setLoginBusy] = useState(false);
+
+  useEffect(() => {
+    setAdminAuthed(hasAdminSession());
+    setAuthReady(true);
+  }, []);
 
   const loadNotifs = useCallback(() => {
     adminApi
@@ -69,7 +79,13 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       .then((r) => {
         if (r.data?.success && r.data.data) setNotifData(r.data.data);
       })
-      .catch(() => setNotifData(null));
+      .catch((e) => {
+        if (e?.status === 401 || e?.response?.status === 401) {
+          clearAdminSession();
+          setAdminAuthed(false);
+        }
+        setNotifData(null);
+      });
   }, []);
 
   useEffect(() => {
@@ -92,6 +108,8 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     } catch {
       /* ignore */
     }
+    clearAdminSession();
+    setAdminAuthed(false);
     setProfileOpen(false);
     router.push("/");
     router.refresh();
@@ -99,19 +117,74 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
 
   const badge = notifData && notifData.badgeCount > 0 ? Math.min(99, notifData.badgeCount) : 0;
 
+  async function handleAdminLogin(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoginBusy(true);
+    setLoginError(null);
+    try {
+      await adminLogin(loginUsername, loginPassword);
+      setAdminAuthed(true);
+      setLoginPassword("");
+      loadNotifs();
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoginBusy(false);
+    }
+  }
+
+  if (!authReady) {
+    return (
+      <div className="min-h-dvh bg-[#080c0d] text-slate-100 flex items-center justify-center px-4">
+        <div className="w-8 h-8 border-2 border-cyan-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!adminAuthed) {
+    return (
+      <div className="min-h-dvh bg-[#080c0d] text-slate-100 flex items-center justify-center px-4">
+        <div className="max-w-md w-full rounded-2xl border border-slate-800 bg-[#0d1416] p-6 sm:p-8">
+          <h1 className="text-lg sm:text-xl font-semibold text-slate-100">Admin login</h1>
+          <p className="mt-2 text-sm text-slate-400">Enter admin username and password to access this page.</p>
+          <form className="mt-5 space-y-3" onSubmit={handleAdminLogin}>
+            <input
+              type="text"
+              value={loginUsername}
+              onChange={(e) => setLoginUsername(e.target.value)}
+              placeholder="Username"
+              autoComplete="username"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
+            />
+            <input
+              type="password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              placeholder="Password"
+              autoComplete="current-password"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
+            />
+            {loginError && <p className="text-xs text-rose-300">{loginError}</p>}
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={loginBusy || !loginUsername.trim() || !loginPassword.trim()}
+                className="rounded-lg border border-cyan-800/70 bg-cyan-900/40 px-3 py-2 text-sm text-cyan-100 hover:bg-cyan-900/60 disabled:opacity-60"
+              >
+                {loginBusy ? "Signing in..." : "Sign in"}
+              </button>
+              <Link href="/" className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-300">
+                Cancel
+              </Link>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-dvh flex-col bg-[#080c0d] text-slate-100">
-      {!secretOk && (
-        <div
-          className="shrink-0 border-b border-amber-900/50 bg-amber-950/40 px-4 py-2 text-center text-amber-200/95 text-xs sm:text-sm"
-          role="status"
-        >
-          Set <code className="text-amber-100/90">NEXT_PUBLIC_TYCOON_ADMIN_SECRET</code> in the frontend env and{" "}
-          <code className="text-amber-100/90">TYCOON_ADMIN_SECRET</code> on the backend (same value) so admin API calls
-          are authorized in production.
-        </div>
-      )}
-
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-800/80 bg-[#0a1011] px-3 sm:px-4">
         <Link href="/" className="flex items-center gap-2 shrink-0 text-slate-200 hover:text-white transition-colors">
           <Image src="/icon.png" alt="" width={32} height={32} className="rounded-md" />
