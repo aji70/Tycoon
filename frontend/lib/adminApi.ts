@@ -1,19 +1,29 @@
 import axios, { AxiosError } from "axios";
 import { API_BASE_URL, ApiError } from "@/lib/api";
 
-const secret =
-  typeof process !== "undefined" ? process.env.NEXT_PUBLIC_TYCOON_ADMIN_SECRET?.trim() : undefined;
+const ADMIN_TOKEN_STORAGE_KEY = "tycoon_admin_token";
 
 /**
- * Axios client for /api/admin/* — sends x-tycoon-admin-secret when NEXT_PUBLIC_TYCOON_ADMIN_SECRET is set.
+ * Axios client for /api/admin/*.
+ * Sends Authorization: Bearer <token> when admin session token exists in localStorage.
  */
 export const adminApi = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
-    ...(secret ? { "x-tycoon-admin-secret": secret } : {}),
   },
   timeout: 20000,
+});
+
+adminApi.interceptors.request.use((config) => {
+  if (typeof window !== "undefined") {
+    const token = window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
+    if (token) {
+      config.headers = config.headers ?? {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
 });
 
 adminApi.interceptors.response.use(
@@ -28,6 +38,25 @@ adminApi.interceptors.response.use(
   }
 );
 
-export function isAdminSecretConfigured(): boolean {
-  return Boolean(secret);
+export type AdminLoginResponse = { success: boolean; data?: { token: string; expiresIn: string }; error?: string };
+
+export async function adminLogin(username: string, password: string): Promise<void> {
+  const { data } = await adminApi.post<AdminLoginResponse>("admin/auth/login", { username, password });
+  if (!data?.success || !data?.data?.token) {
+    throw new ApiError(401, data?.error || "Invalid admin credentials");
+  }
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, data.data.token);
+  }
+}
+
+export function clearAdminSession(): void {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+  }
+}
+
+export function hasAdminSession(): boolean {
+  if (typeof window === "undefined") return false;
+  return Boolean(window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY));
 }

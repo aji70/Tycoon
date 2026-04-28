@@ -20,9 +20,11 @@ import * as adminReferralsController from "../controllers/adminReferralsControll
 import * as adminQuestsController from "../controllers/adminQuestsController.js";
 import * as adminAlertsController from "../controllers/adminAlertsController.js";
 import * as adminNotificationsController from "../controllers/adminNotificationsController.js";
-import { requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
+import { postDashboardAdminLogin, requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
 
 const router = express.Router();
+
+router.post("/auth/login", postDashboardAdminLogin);
 
 router.use(requireDashboardAdminSecret);
 
