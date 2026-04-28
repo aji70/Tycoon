@@ -216,6 +216,7 @@ See [Contract addresses](#-contract-addresses) for addresses. In `frontend/.env.
 
 - 👥 Deeper multiplayer lobbies & matchmaking  
 - 🏆 Leaderboards & recurring tournaments  
+- 🌾 Yield farming integrations  
 - 🗳 DAO governance for expansions  
 
 ---
