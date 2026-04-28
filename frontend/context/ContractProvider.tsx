@@ -8,7 +8,7 @@ import {
   useAccount,
   useWaitForTransactionReceipt,
   useChainId,
-  usePublicClien
+  usePublicClient,
 } from 'wagmi';
 import { celo } from 'wagmi/chains';
 import { Address, createPublicClient, decodeEventLog, getAddress, hexToBigInt, http, parseEventLogs, zeroAddress } from 'viem';
