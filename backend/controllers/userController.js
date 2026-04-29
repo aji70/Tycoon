@@ -91,7 +91,7 @@ const userController = {
  async findByUsername(req, res) {
   try {
     const { username } = req.params;
-    const { chain } = req.query;
+    const { chain, period = "all", month } = req.query;
     if (!username || String(username).trim() === "") {
       return res.status(400).json({ error: "Username is required" });
     }
@@ -106,7 +106,11 @@ const userController = {
     }
 
     const chainNorm = User.normalizeChain(user.chain || chain || "CELO");
-    const gameplay = await User.getGameplayStatsFromGames(user.id, chainNorm);
+    const periodNorm = String(period).toLowerCase() === "month" ? "month" : "all";
+    const gameplay = await User.getGameplayStatsFromGames(user.id, chainNorm, {
+      period: periodNorm,
+      month: month ? String(month) : undefined,
+    });
 
     const publicProfile = {
       id: user.id,
@@ -124,6 +128,8 @@ const userController = {
       games_played: gameplay.games_finished,
       game_won: gameplay.game_won,
       game_lost: gameplay.game_lost,
+      stats_scope: periodNorm,
+      stats_month: periodNorm === "month" ? (month ? String(month) : null) : null,
     };
 
     res.json(publicProfile);
