@@ -13,10 +13,10 @@ function formatStakeOrEarned(value: number): string {
 
 type StatsScope = 'all' | 'month';
 
-/** Default monthly stats: April (UTC) of current year — matches leaderboard campaign month. */
+/** Default monthly stats: current UTC month. */
 function defaultProfileMonthKey(): string {
-  const y = new Date().getUTCFullYear();
-  return `${y}-04`;
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 function formatMonthLabelUtc(yyyyMm: string): string {

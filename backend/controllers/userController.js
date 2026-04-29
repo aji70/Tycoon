@@ -186,8 +186,8 @@ const userController = {
   /**
    * GET /api/users/leaderboard?chain=&type=wins|earnings|stakes|winrate|played&limit=20&period=all|month|range&month=YYYY-MM&start=ISO&end=ISO
    * Returns top players for the given chain. Chain can be name (BASE, CELO) or chainId (8453, 42220).
-   * period=month uses finished games in the UTC month (month= defaults to current UTC). Monthly is supported for wins and winrate only.
-   * period=range uses [start, end) UTC timestamps. Range currently supports type=played.
+   * period=month uses finished games in the UTC month (month= defaults to current UTC). Monthly supports wins, winrate, and played.
+   * period=range uses [start, end) UTC timestamps. Range supports type=played.
    */
   async getLeaderboard(req, res) {
     try {
@@ -219,12 +219,14 @@ const userController = {
           case "winrate":
             data = await User.getMonthlyLeaderboardByWinRate(chain, month, normalizedLimit);
             break;
+          case "played":
+            data = await User.getMonthlyLeaderboardByGamesPlayed(chain, month, normalizedLimit);
+            break;
           case "earnings":
           case "stakes":
-          case "played":
             return res.status(400).json({
               error: "monthly_not_supported",
-              message: "Monthly leaderboard is available for wins and win rate. Earnings/stakes are all-time totals and played uses period=range.",
+              message: "Monthly leaderboard is available for wins, win rate, and games played. Earnings/stakes are all-time totals.",
             });
           default:
             return res.status(400).json({ error: "Invalid type. Use: wins, earnings, stakes, winrate, played" });
