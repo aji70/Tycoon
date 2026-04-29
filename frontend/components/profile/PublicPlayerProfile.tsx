@@ -43,6 +43,7 @@ export default function PublicPlayerProfile({ username }: { username: string }) 
     if (!row) return null;
     const playerAddress = String(row.address ?? '');
     const gamesPlayed = Number(row.games_played ?? 0);
+    const gameMemberships = Number(row.game_memberships ?? 0);
     const gamesWon = Number(row.game_won ?? 0);
     const gamesLost = Number(row.game_lost ?? 0);
     const totalStaked = Number(row.total_staked ?? 0);
@@ -56,6 +57,7 @@ export default function PublicPlayerProfile({ username }: { username: string }) 
           ? `${playerAddress.slice(0, 6)}…${playerAddress.slice(-4)}`
           : playerAddress || '—',
       gamesPlayed,
+      gameMemberships,
       gamesWon,
       gamesLost,
       winRate: gamesPlayed > 0 ? ((gamesWon / gamesPlayed) * 100).toFixed(1) : '0',
@@ -106,8 +108,18 @@ export default function PublicPlayerProfile({ username }: { username: string }) 
             </div>
             <dl className="p-6 grid gap-4 text-sm">
               <div className="flex justify-between gap-4 border-b border-white/5 pb-3">
-                <dt className="text-white/50">Games played</dt>
+                <dt className="text-white/50">
+                  Finished games
+                  <span className="block text-[10px] font-normal text-white/35 normal-case">FINISHED on chain</span>
+                </dt>
                 <dd className="font-semibold text-cyan-200 tabular-nums">{parsed.gamesPlayed}</dd>
+              </div>
+              <div className="flex justify-between gap-4 border-b border-white/5 pb-3">
+                <dt className="text-white/50">
+                  Game memberships
+                  <span className="block text-[10px] font-normal text-white/35 normal-case">All lobbies joined</span>
+                </dt>
+                <dd className="font-semibold text-cyan-200/90 tabular-nums">{parsed.gameMemberships}</dd>
               </div>
               <div className="flex justify-between gap-4 border-b border-white/5 pb-3">
                 <dt className="text-white/50">Wins</dt>

@@ -104,7 +104,29 @@ const userController = {
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
-    res.json(user);
+
+    const chainNorm = User.normalizeChain(user.chain || chain || "CELO");
+    const gameplay = await User.getGameplayStatsFromGames(user.id, chainNorm);
+
+    const publicProfile = {
+      id: user.id,
+      username: user.username,
+      address: user.address,
+      chain: user.chain,
+      is_guest: user.is_guest,
+      smart_wallet_address: user.smart_wallet_address ?? null,
+      linked_wallet_address: user.linked_wallet_address ?? null,
+      created_at: user.created_at,
+      total_earned: user.total_earned,
+      total_staked: user.total_staked,
+      total_withdrawn: user.total_withdrawn,
+      game_memberships: gameplay.game_memberships,
+      games_played: gameplay.games_finished,
+      game_won: gameplay.game_won,
+      game_lost: gameplay.game_lost,
+    };
+
+    res.json(publicProfile);
   } catch (error) {
     console.error("Error in findByUsername:", error);
     res.status(500).json({ error: error.message });
