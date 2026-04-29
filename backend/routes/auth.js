@@ -14,6 +14,13 @@ router.post("/verify-email", guestAuthController.verifyEmail);
 router.post("/login-by-wallet", guestAuthController.loginByWallet);
 router.post("/login-email", guestAuthController.loginEmail);
 
+// Backward-compatible aliases for multi-segment smart-wallet routes used by some frontend pages.
+router.post("/smart-wallet/withdraw-celo", requireAuth, guestAuthController.smartWalletWithdrawCelo);
+router.post("/smart-wallet/withdraw-usdc", requireAuth, guestAuthController.smartWalletWithdrawUsdc);
+router.post("/smart-wallet/buy-collectible", requireAuth, guestAuthController.smartWalletBuyCollectible);
+router.post("/smart-wallet/buy-bundle", requireAuth, guestAuthController.smartWalletBuyBundle);
+router.post("/smart-wallet/burn-collectible", requireAuth, guestAuthController.smartWalletBurnCollectible);
+
 // POST /api/auth/:action  (all require auth)
 router.post("/:action", requireAuth, dispatch(guestAuthController, [
   "registerOnChain",
