@@ -88,6 +88,29 @@ const userController = {
   }
 },
 
+ async findByUsername(req, res) {
+  try {
+    const { username } = req.params;
+    const { chain } = req.query;
+    if (!username || String(username).trim() === "") {
+      return res.status(400).json({ error: "Username is required" });
+    }
+
+    const name = String(username).trim();
+    const user = chain
+      ? await User.findByUsernameIgnoreCaseInChain(name, chain)
+      : await User.findByUsernameIgnoreCase(name);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error("Error in findByUsername:", error);
+    res.status(500).json({ error: error.message });
+  }
+},
+
   async findAll(req, res) {
     try {
       const { limit, offset } = req.query;

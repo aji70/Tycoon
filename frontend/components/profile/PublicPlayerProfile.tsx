@@ -1,13 +1,9 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, Loader2, User } from 'lucide-react';
-import { useReadContract } from 'wagmi';
-import { celo } from 'wagmi/chains';
-import { TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
-import TycoonABI from '@/context/abi/tycoonabi.json';
-
-const CELO_CHAIN_ID = celo.id;
+import { apiClient } from '@/lib/api';
 
 function formatStakeOrEarned(value: number): string {
   if (value >= 1e18) return (value / 1e18).toFixed(2);
@@ -16,32 +12,45 @@ function formatStakeOrEarned(value: number): string {
 }
 
 export default function PublicPlayerProfile({ username }: { username: string }) {
-  const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[CELO_CHAIN_ID];
-  const { data, isLoading, isError } = useReadContract({
-    address: tycoonAddress,
-    abi: TycoonABI,
-    functionName: 'getUser',
-    args: username ? [username] : undefined,
-    chainId: CELO_CHAIN_ID,
-    query: { enabled: !!username && !!tycoonAddress },
-  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const [row, setRow] = useState<any>(null);
 
-  const parsed = (() => {
-    if (!data) return null;
-    const t = data as [bigint, string, string, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
-    const id = t[0];
-    if (id === undefined || BigInt(id) === 0n) return null;
-    const playerAddress = String(t[2] ?? '');
-    const gamesPlayed = Number(t[4] ?? 0);
-    const gamesWon = Number(t[5] ?? 0);
-    const gamesLost = Number(t[6] ?? 0);
-    const totalStaked = Number(t[7] ?? 0);
-    const totalEarned = Number(t[8] ?? 0);
-    const totalWithdrawn = Number(t[9] ?? 0);
-    const registeredAt = Number(t[3] ?? 0);
+  useEffect(() => {
+    const load = async () => {
+      if (!username) {
+        setRow(null);
+        setIsError(true);
+        setIsLoading(false);
+        return;
+      }
+      setIsLoading(true);
+      setIsError(false);
+      try {
+        const res = await apiClient.get(`/users/by-username/${encodeURIComponent(username)}`, { chain: 'CELO' });
+        setRow(res?.data ?? null);
+      } catch {
+        setRow(null);
+        setIsError(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    void load();
+  }, [username]);
+
+  const parsed = useMemo(() => {
+    if (!row) return null;
+    const playerAddress = String(row.address ?? '');
+    const gamesPlayed = Number(row.games_played ?? 0);
+    const gamesWon = Number(row.game_won ?? 0);
+    const gamesLost = Number(row.game_lost ?? 0);
+    const totalStaked = Number(row.total_staked ?? 0);
+    const totalEarned = Number(row.total_earned ?? 0);
+    const totalWithdrawn = Number(row.total_withdrawn ?? 0);
+    const createdAt = row.created_at ? new Date(row.created_at) : null;
     return {
-      username: String(t[1] ?? username),
-      playerAddress,
+      username: String(row.username ?? username),
       shortAddress:
         playerAddress && playerAddress.length > 10
           ? `${playerAddress.slice(0, 6)}…${playerAddress.slice(-4)}`
@@ -53,9 +62,9 @@ export default function PublicPlayerProfile({ username }: { username: string }) 
       totalStaked,
       totalEarned,
       totalWithdrawn,
-      registeredAt,
+      createdAt,
     };
-  })();
+  }, [row, username]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-white">
@@ -82,8 +91,8 @@ export default function PublicPlayerProfile({ username }: { username: string }) 
           </div>
         ) : isError || !parsed ? (
           <div className="rounded-2xl border border-white/10 bg-[#0E1415]/80 p-8 text-center">
-            <p className="text-white/80 mb-2">No on-chain profile found for this name.</p>
-            <p className="text-white/50 text-sm mb-6">Players must be registered on Tycoon (Celo) to appear here.</p>
+            <p className="text-white/80 mb-2">Player profile not found.</p>
+            <p className="text-white/50 text-sm mb-6">No database user matches this username on CELO.</p>
             <Link href="/leaderboard" className="text-cyan-400 font-semibold hover:text-cyan-300">
               Back to leaderboard
             </Link>
@@ -125,9 +134,9 @@ export default function PublicPlayerProfile({ username }: { username: string }) 
                 <dd className="font-semibold text-white/80 tabular-nums">{formatStakeOrEarned(parsed.totalWithdrawn)}</dd>
               </div>
             </dl>
-            {parsed.registeredAt > 0 ? (
+            {parsed.createdAt ? (
               <p className="px-6 pb-6 text-xs text-white/40">
-                Registered {new Date(parsed.registeredAt * 1000).toLocaleDateString('en-US', { timeZone: 'UTC' })} UTC
+                Joined {parsed.createdAt.toLocaleDateString('en-US', { timeZone: 'UTC' })} UTC
               </p>
             ) : null}
           </div>
