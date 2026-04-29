@@ -13,9 +13,10 @@ function formatStakeOrEarned(value: number): string {
 
 type StatsScope = 'all' | 'month';
 
-function utcYearMonthNow(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+/** Default monthly stats: April (UTC) of current year — matches leaderboard campaign month. */
+function defaultProfileMonthKey(): string {
+  const y = new Date().getUTCFullYear();
+  return `${y}-04`;
 }
 
 function formatMonthLabelUtc(yyyyMm: string): string {
@@ -44,7 +45,7 @@ export default function PublicPlayerProfile({ username }: { username: string }) 
   const [isError, setIsError] = useState(false);
   const [row, setRow] = useState<any>(null);
   const [scope, setScope] = useState<StatsScope>('all');
-  const [monthKey, setMonthKey] = useState<string>(() => utcYearMonthNow());
+  const [monthKey, setMonthKey] = useState<string>(() => defaultProfileMonthKey());
   const monthOptions = useMemo(() => utcYearMonthOptions(12), []);
 
   useEffect(() => {

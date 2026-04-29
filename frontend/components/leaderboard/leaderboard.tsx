@@ -34,9 +34,10 @@ function chainIdToLeaderboardChain(chainId: number): string {
   }
 }
 
-function utcYearMonthNow(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+/** Default monthly board: April (UTC) of the current year — campaign month. */
+function defaultLeaderboardMonthKey(): string {
+  const y = new Date().getUTCFullYear();
+  return `${y}-04`;
 }
 
 function formatMonthLabelUtc(yyyyMm: string): string {
@@ -87,14 +88,19 @@ export default function Leaderboard() {
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<BountyRow[]>([]);
   const [timeScope, setTimeScope] = useState<TimeScope>('bounty');
-  const [monthKey, setMonthKey] = useState<string>(() => utcYearMonthNow());
+  const [monthKey, setMonthKey] = useState<string>(() => defaultLeaderboardMonthKey());
 
+  /** May bounty: full calendar May (UTC), May 1 00:00 → June 1 00:00 exclusive. */
   const bountyRange = useMemo(() => {
-    const now = new Date();
-    const year = now.getUTCFullYear();
-    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+    const year = new Date().getUTCFullYear();
+    const start = new Date(Date.UTC(year, 4, 1, 0, 0, 0, 0));
     const endExclusive = new Date(Date.UTC(year, 5, 1, 0, 0, 0, 0));
-    return { startIso: start.toISOString(), endIso: endExclusive.toISOString(), endLabel: `${year}-05-31` };
+    return {
+      startIso: start.toISOString(),
+      endIso: endExclusive.toISOString(),
+      startLabel: `${year}-05-01`,
+      endLabel: `${year}-05-31`,
+    };
   }, []);
 
   const { data: username } = useReadContract({
@@ -176,11 +182,18 @@ export default function Leaderboard() {
           <p className="text-cyan-100 font-semibold">Ranked by games played</p>
           <p className="mt-1 text-sm text-cyan-100/75">
             {timeScope === 'bounty'
-              ? `Window: ${chainParam} · ${bountyRange.startIso.slice(0, 10)} to ${bountyRange.endLabel} (UTC)`
+              ? `Window: ${chainParam} · ${bountyRange.startLabel} → ${bountyRange.endLabel} (UTC)`
               : timeScope === 'month'
                 ? `Window: ${chainParam} · ${formatMonthLabelUtc(monthKey)} (UTC)`
                 : `Window: ${chainParam} · all-time`}
           </p>
+          {timeScope === 'bounty' ? (
+            <p className="mt-2 text-xs text-cyan-200/60 max-w-xl">
+              May bounty counts finished games in the full calendar month of May (UTC). Use Monthly for April (defaults to April).
+            </p>
+          ) : timeScope === 'month' ? (
+            <p className="mt-2 text-xs text-cyan-200/60 max-w-xl">Monthly defaults to April; pick another month from the selector.</p>
+          ) : null}
         </div>
 
         <div className="mb-6 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3">
