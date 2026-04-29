@@ -298,23 +298,47 @@ const User = {
    */
   /**
    * Authoritative gameplay counts from game_players + games (not users.* cached columns).
-   * memberships = all lobby rows; finished/won/lost = FINISHED games on this chain (applyGameChainFilter).
+   * memberships = all lobby rows (or month-filtered rows); finished/won/lost = FINISHED games.
+   * opts.period: "all" | "month", opts.month: YYYY-MM (UTC month when period=month).
    */
-  async getGameplayStatsFromGames(userId, chain) {
+  async getGameplayStatsFromGames(userId, chain, opts = {}) {
     const normalized = this.normalizeChain(chain);
     const uid = Number(userId);
     if (!Number.isFinite(uid) || uid < 1) {
       return { game_memberships: 0, games_finished: 0, game_won: 0, game_lost: 0 };
     }
-    const memRow = await db("game_players").where({ user_id: uid }).count("* as c").first();
-    const game_memberships = Number(memRow?.c ?? 0);
+    const period = String(opts?.period || "all").toLowerCase();
+    const isMonth = period === "month";
+    const month = parseYearMonth(opts?.month);
+    const { start, end } = isMonth ? monthUtcBounds(month) : { start: null, end: null };
+
+    let game_memberships = 0;
+    if (isMonth) {
+      const memMonth = await db("game_players as gp")
+        .join("games as g", "g.id", "gp.game_id")
+        .where("gp.user_id", uid)
+        .where("g.updated_at", ">=", start)
+        .where("g.updated_at", "<", end)
+        .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+        .count("* as c")
+        .first();
+      game_memberships = Number(memMonth?.c ?? 0);
+    } else {
+      const memRow = await db("game_players").where({ user_id: uid }).count("* as c").first();
+      game_memberships = Number(memRow?.c ?? 0);
+    }
 
     const finishedBase = () =>
       db("game_players as gp")
         .join("games as g", "g.id", "gp.game_id")
         .where("gp.user_id", uid)
         .where("g.status", "FINISHED")
-        .modify((qb) => applyGameChainFilter(qb, "g", normalized));
+        .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+        .modify((qb) => {
+          if (isMonth) {
+            qb.where("g.updated_at", ">=", start).where("g.updated_at", "<", end);
+          }
+        });
 
     const finRow = await finishedBase().clone().count("* as c").first();
     const games_finished = Number(finRow?.c ?? 0);
