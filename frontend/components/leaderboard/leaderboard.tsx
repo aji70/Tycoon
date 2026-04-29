@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAccount, useChainId, useReadContract } from 'wagmi';
-import { CalendarDays, ChevronLeft, Loader2, Sparkles, Trophy, Users } from 'lucide-react';
+import { CalendarDays, ChevronLeft, Loader2, Trophy, Users } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
@@ -155,9 +155,6 @@ export default function Leaderboard() {
       ? rows.findIndex((row) => row.username && myLeaderboardUsernames.has(row.username)) + 1
       : 0;
 
-  const podium = rows.slice(0, 3);
-  const others = rows.slice(3);
-
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,#10343b_0%,#061416_45%,#020a0b_100%)] text-white">
       <header className="sticky top-0 z-50 border-b border-cyan-400/15 bg-[#031012]/80 backdrop-blur-xl">
@@ -269,52 +266,34 @@ export default function Leaderboard() {
             <p>{timeScope === 'bounty' ? 'No games played in the May bounty window yet.' : 'No entries yet for this scope.'}</p>
           </div>
         ) : (
-          <>
-            <section className="mb-6 grid gap-3 md:grid-cols-3">
-              {podium.map((row, index) => (
-                <Link
-                  key={`${row.id}-${row.username}-${index}`}
-                  href={profileHrefForUsername(row.username)}
-                  className="group rounded-2xl border border-cyan-300/20 bg-gradient-to-b from-cyan-400/15 to-black/30 p-4 transition hover:border-cyan-200/40 hover:shadow-[0_0_28px_rgba(34,211,238,0.22)]"
-                >
-                  <p className="mb-1 text-xs uppercase tracking-widest text-cyan-100/70">Top {index + 1}</p>
-                  <p className="truncate text-lg font-bold text-white group-hover:text-cyan-100">{row.username}</p>
-                  <p className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-amber-200">
-                    <Sparkles className="h-4 w-4" /> #{index + 1}
-                  </p>
-                </Link>
-              ))}
-            </section>
-
-            <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#081517]/80 backdrop-blur-sm">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-white/10 bg-white/5">
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white/60">Position</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white/60">Tycoon</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {others.map((row, idx) => {
-                    const rank = idx + 4;
-                    return (
-                      <tr key={`${row.id}-${rank}`} className="border-b border-white/5 transition hover:bg-cyan-500/5">
-                        <td className="px-4 py-3 font-semibold text-cyan-200">#{rank}</td>
-                        <td className="px-4 py-3">
-                          <Link
-                            href={profileHrefForUsername(row.username)}
-                            className="font-medium text-white transition hover:text-cyan-200 hover:underline underline-offset-2"
-                          >
-                            {row.username || '—'}
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#081517]/80 backdrop-blur-sm">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/10 bg-white/5">
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white/60">Position</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white/60">Tycoon</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, idx) => {
+                  const rank = idx + 1;
+                  return (
+                    <tr key={`${row.id}-${rank}`} className="border-b border-white/5 transition hover:bg-cyan-500/5">
+                      <td className="px-4 py-3 font-semibold text-cyan-200">#{rank}</td>
+                      <td className="px-4 py-3">
+                        <Link
+                          href={profileHrefForUsername(row.username)}
+                          className="font-medium text-white transition hover:text-cyan-200 hover:underline underline-offset-2"
+                        >
+                          {row.username || '—'}
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </main>
     </div>
