@@ -14,6 +14,7 @@ const PUBLIC_PATHS = [
   "/verify-email",
   "/waitlist",
   "/rooms",
+  "/leaderboard",
   "/terms",
   "/privacy",
 ];

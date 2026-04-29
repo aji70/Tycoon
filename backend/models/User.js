@@ -517,6 +517,45 @@ const User = {
       .orderByRaw("COUNT(*) DESC")
       .limit(lim);
   },
+
+  /**
+   * Top players by games played within a custom UTC range [start, end).
+   * Uses finished games and counts player appearances in game_players.
+   */
+  async getRangeLeaderboardByGamesPlayed(chain, startIso, endIso, limit = 20) {
+    const normalized = this.normalizeChain(chain);
+    const lim = Math.min(Number(limit) || 20, 100);
+    const start = new Date(startIso);
+    const end = new Date(endIso);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !(end > start)) {
+      throw new Error("Invalid range: use start/end ISO timestamps with end > start");
+    }
+
+    const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
+    const lostExpr = "SUM(CASE WHEN g.winner_id IS NOT NULL AND g.winner_id <> gp.user_id THEN 1 ELSE 0 END)";
+
+    return db("game_players as gp")
+      .join("games as g", "g.id", "gp.game_id")
+      .join("users as u", "u.id", "gp.user_id")
+      .where("g.status", "FINISHED")
+      .where("g.updated_at", ">=", start)
+      .where("g.updated_at", "<", end)
+      .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+      .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
+      .groupBy("u.id", "u.username")
+      .select(
+        "u.id",
+        "u.username",
+        "u.address",
+        db.raw("COUNT(*) AS games_played"),
+        db.raw(`${wonExpr} AS game_won`),
+        db.raw(`${lostExpr} AS game_lost`)
+      )
+      .havingRaw("COUNT(*) > 0")
+      .orderByRaw("COUNT(*) DESC")
+      .orderByRaw(`${wonExpr} DESC`)
+      .limit(lim);
+  },
 };
 
 export default User;
