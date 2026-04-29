@@ -296,6 +296,43 @@ const User = {
    * Record a finished game for a specific chain: all players get +1 games_played on that chain, winner gets +1 games_won.
    * Call when a game ends with game.chain (e.g. from finishByTime / finishGameByNetWorthAndNotify).
    */
+  /**
+   * Authoritative gameplay counts from game_players + games (not users.* cached columns).
+   * memberships = all lobby rows; finished/won/lost = FINISHED games on this chain (applyGameChainFilter).
+   */
+  async getGameplayStatsFromGames(userId, chain) {
+    const normalized = this.normalizeChain(chain);
+    const uid = Number(userId);
+    if (!Number.isFinite(uid) || uid < 1) {
+      return { game_memberships: 0, games_finished: 0, game_won: 0, game_lost: 0 };
+    }
+    const memRow = await db("game_players").where({ user_id: uid }).count("* as c").first();
+    const game_memberships = Number(memRow?.c ?? 0);
+
+    const finishedBase = () =>
+      db("game_players as gp")
+        .join("games as g", "g.id", "gp.game_id")
+        .where("gp.user_id", uid)
+        .where("g.status", "FINISHED")
+        .modify((qb) => applyGameChainFilter(qb, "g", normalized));
+
+    const finRow = await finishedBase().clone().count("* as c").first();
+    const games_finished = Number(finRow?.c ?? 0);
+
+    const winRow = await finishedBase().clone().where("g.winner_id", uid).count("* as c").first();
+    const game_won = Number(winRow?.c ?? 0);
+
+    const lossRow = await finishedBase()
+      .clone()
+      .whereNotNull("g.winner_id")
+      .where("g.winner_id", "!=", uid)
+      .count("* as c")
+      .first();
+    const game_lost = Number(lossRow?.c ?? 0);
+
+    return { game_memberships, games_finished, game_won, game_lost };
+  },
+
   async recordChainGameResult(chain, winnerId, playerUserIds) {
     const normalized = this.normalizeChain(chain);
     const cols = this.chainColumns(normalized);
@@ -321,31 +358,26 @@ const User = {
    */
   async getLeaderboardByWins(chain, limit = 20) {
     const normalized = this.normalizeChain(chain);
-    const cols = this.chainColumns(normalized);
     const lim = Math.min(Number(limit) || 20, 100);
-    if (cols) {
-      try {
-        const rows = await db("users")
-          .where({ chain: normalized })
-          .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
-          .where(cols.played, ">", 0)
-          .select("id", "username", "address", db.raw(`${cols.played} as games_played`), db.raw(`${cols.won} as game_won`))
-          .orderBy(cols.won, "desc")
-          .orderBy(cols.played, "desc")
-          .limit(lim);
-        if (rows.length > 0) return rows;
-      } catch (err) {
-        // Per-chain columns may not exist (migration not run); fall through to legacy
-      }
-    }
-    // Fallback: legacy columns so leaderboard shows data that existed before per-chain columns were populated
-    return await db("users")
-      .where({ chain: normalized })
-      .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
-      .where("games_played", ">", 0)
-      .select("id", "username", "address", "games_played", "game_won")
-      .orderBy("game_won", "desc")
-      .orderBy("games_played", "desc")
+    const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
+    return db("game_players as gp")
+      .join("games as g", "g.id", "gp.game_id")
+      .join("users as u", "u.id", "gp.user_id")
+      .where("u.chain", normalized)
+      .where("g.status", "FINISHED")
+      .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+      .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
+      .groupBy("u.id", "u.username", "u.address")
+      .select(
+        "u.id",
+        "u.username",
+        "u.address",
+        db.raw("COUNT(*) AS games_played"),
+        db.raw(`${wonExpr} AS game_won`)
+      )
+      .havingRaw("COUNT(*) > 0")
+      .orderByRaw(`${wonExpr} DESC`)
+      .orderByRaw("COUNT(*) DESC")
       .limit(lim);
   },
 
@@ -411,46 +443,29 @@ const User = {
    */
   async getLeaderboardByWinRate(chain, limit = 20) {
     const normalized = this.normalizeChain(chain);
-    const cols = this.chainColumns(normalized);
     const lim = Math.min(Number(limit) || 20, 100);
-    if (cols) {
-      try {
-        const { played, won } = cols;
-        const rows = await db("users")
-          .where({ chain: normalized })
-          .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
-          .where(played, ">", 0)
-          .select(
-            "id",
-            "username",
-            "address",
-            db.raw(`${played} AS games_played`),
-            db.raw(`${won} AS game_won`),
-            db.raw("0 AS game_lost"),
-            db.raw(`(CASE WHEN ${played} > 0 THEN (1.0 * ${won} / ${played}) ELSE 0 END) AS win_rate`)
-          )
-          .orderBy("win_rate", "desc")
-          .limit(lim);
-        if (rows.length > 0) return rows;
-      } catch (err) {
-        // Per-chain columns may not exist; fall through to legacy
-      }
-    }
-    // Fallback: legacy columns
-    return await db("users")
-      .where({ chain: normalized })
-      .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
-      .where("games_played", ">", 0)
+    const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
+    const rateExpr = `(${wonExpr} * 1.0 / NULLIF(COUNT(*), 0))`;
+    return db("game_players as gp")
+      .join("games as g", "g.id", "gp.game_id")
+      .join("users as u", "u.id", "gp.user_id")
+      .where("u.chain", normalized)
+      .where("g.status", "FINISHED")
+      .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+      .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
+      .groupBy("u.id", "u.username", "u.address")
       .select(
-        "id",
-        "username",
-        "address",
-        "games_played",
-        "game_won",
+        "u.id",
+        "u.username",
+        "u.address",
+        db.raw("COUNT(*) AS games_played"),
+        db.raw(`${wonExpr} AS game_won`),
         db.raw("0 AS game_lost"),
-        db.raw("(CASE WHEN games_played > 0 THEN (1.0 * game_won / games_played) ELSE 0 END) AS win_rate")
+        db.raw(`${rateExpr} AS win_rate`)
       )
-      .orderBy("win_rate", "desc")
+      .havingRaw("COUNT(*) > 0")
+      .orderByRaw(`${rateExpr} DESC`)
+      .orderByRaw("COUNT(*) DESC")
       .limit(lim);
   },
 
