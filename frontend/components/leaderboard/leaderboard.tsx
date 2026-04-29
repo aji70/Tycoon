@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useAccount, useChainId, useReadContract } from 'wagmi';
+import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { Trophy, TrendingUp, Wallet, Target, Loader2, Users, ChevronLeft, Gift, CalendarDays } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -130,14 +131,20 @@ function normalizeReferralLeaderboard(res: any): ReferralRow[] {
   }));
 }
 
+function profileHrefForUsername(name: string): string {
+  return `/u/${encodeURIComponent(name)}`;
+}
+
 export default function Leaderboard() {
   const { address: walletAddress, isConnected } = useAccount();
+  const guestAuth = useGuestAuthOptional();
+  const guestUsername = guestAuth?.guestUser?.username?.trim() || '';
   const chainId = useChainId();
   const chainParam = chainIdToLeaderboardChain(chainId);
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
 
   const [activeTab, setActiveTab] = useState<LeaderboardKind>('wins');
-  const [timeScope, setTimeScope] = useState<TimeScope>('all');
+  const [timeScope, setTimeScope] = useState<TimeScope>('bounty');
   const [monthKey, setMonthKey] = useState<string>(() => utcYearMonthNow());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -283,6 +290,19 @@ export default function Leaderboard() {
   const displayList =
     showContractFallback && currentUserFromContract ? [currentUserFromContract] : filteredList;
 
+  const myLeaderboardUsernames = useMemo(() => {
+    const u = typeof username === 'string' ? username.trim() : '';
+    const names = new Set<string>();
+    if (u) names.add(u);
+    if (guestUsername) names.add(guestUsername);
+    return names;
+  }, [username, guestUsername]);
+
+  const myBountyRank =
+    timeScope === 'bounty' && activeTab === 'wins' && myLeaderboardUsernames.size > 0
+      ? (displayList as WinsRow[]).findIndex((r) => r.username && myLeaderboardUsernames.has(String(r.username))) + 1
+      : 0;
+
   const monthOptions = useMemo(() => utcYearMonthOptions(12), []);
 
   return (
@@ -297,7 +317,7 @@ export default function Leaderboard() {
         </Link>
         <h1 className="text-xl md:text-2xl font-bold text-cyan-400 flex items-center gap-2">
           <Trophy className="w-6 h-6 text-cyan-400" />
-          Leaderboard
+          {timeScope === 'bounty' ? 'May bounty' : 'Leaderboard'}
         </h1>
         <div className="w-16 md:w-20" />
       </header>
@@ -343,6 +363,20 @@ export default function Leaderboard() {
         ) : null}
         {showContractFallback && (
           <p className="text-center text-cyan-400/80 text-xs mb-4">Showing your stats from chain (same as profile)</p>
+        )}
+
+        {timeScope === 'bounty' && activeTab === 'wins' && myLeaderboardUsernames.size > 0 && !loading && (
+          <div className="mb-4 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-center">
+            {myBountyRank > 0 ? (
+              <p className="text-cyan-100 font-semibold">
+                Your position: <span className="text-white tabular-nums">#{myBountyRank}</span>
+              </p>
+            ) : (
+              <p className="text-cyan-100/90 text-sm">
+                You are not on the May bounty board yet — play games in the campaign window to appear.
+              </p>
+            )}
+          </div>
         )}
 
         {/* All-time vs monthly (UTC) */}
@@ -465,19 +499,38 @@ export default function Leaderboard() {
                       <tr className="border-b border-white/10 bg-white/5">
                         <th className="text-left py-3 px-4 text-xs font-semibold text-white/60 uppercase tracking-wider">#</th>
                         <th className="text-left py-3 px-4 text-xs font-semibold text-white/60 uppercase tracking-wider">Tycoon</th>
-                        <th className="text-right py-3 px-4 text-xs font-semibold text-white/60 uppercase tracking-wider">Games</th>
-                        <th className="text-right py-3 px-4 text-xs font-semibold text-white/60 uppercase tracking-wider">Wins</th>
-                        <th className="text-right py-3 px-4 text-xs font-semibold text-white/60 uppercase tracking-wider hidden sm:table-cell">Losses</th>
+                        {!(timeScope === 'bounty') ? (
+                          <>
+                            <th className="text-right py-3 px-4 text-xs font-semibold text-white/60 uppercase tracking-wider">Games</th>
+                            <th className="text-right py-3 px-4 text-xs font-semibold text-white/60 uppercase tracking-wider">Wins</th>
+                            <th className="text-right py-3 px-4 text-xs font-semibold text-white/60 uppercase tracking-wider hidden sm:table-cell">Losses</th>
+                          </>
+                        ) : null}
                       </tr>
                     </thead>
                     <tbody>
                       {(displayList as WinsRow[]).map((row, i) => (
                         <tr key={row.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                           <td className="py-3 px-4 font-bold text-cyan-400">{i + 1 === 1 ? '🏆' : `#${i + 1}`}</td>
-                          <td className="py-3 px-4 font-medium text-white">{row.username || '—'}</td>
-                          <td className="py-3 px-4 text-right text-white/80">{row.games_played ?? 0}</td>
-                          <td className="py-3 px-4 text-right font-semibold text-cyan-300">{row.game_won ?? 0}</td>
-                          <td className="py-3 px-4 text-right text-white/60 hidden sm:table-cell">{row.game_lost ?? 0}</td>
+                          <td className="py-3 px-4 font-medium text-white">
+                            {row.username ? (
+                              <Link
+                                href={profileHrefForUsername(row.username)}
+                                className="text-cyan-200 hover:text-cyan-100 hover:underline underline-offset-2"
+                              >
+                                {row.username}
+                              </Link>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          {!(timeScope === 'bounty') ? (
+                            <>
+                              <td className="py-3 px-4 text-right text-white/80">{row.games_played ?? 0}</td>
+                              <td className="py-3 px-4 text-right font-semibold text-cyan-300">{row.game_won ?? 0}</td>
+                              <td className="py-3 px-4 text-right text-white/60 hidden sm:table-cell">{row.game_lost ?? 0}</td>
+                            </>
+                          ) : null}
                         </tr>
                       ))}
                     </tbody>
@@ -505,7 +558,18 @@ export default function Leaderboard() {
                       {(displayList as EarningsRow[]).map((row, i) => (
                         <tr key={row.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                           <td className="py-3 px-4 font-bold text-cyan-400">{i + 1 === 1 ? '🏆' : `#${i + 1}`}</td>
-                          <td className="py-3 px-4 font-medium text-white">{row.username || '—'}</td>
+                          <td className="py-3 px-4 font-medium text-white">
+                            {row.username ? (
+                              <Link
+                                href={profileHrefForUsername(row.username)}
+                                className="text-cyan-200 hover:text-cyan-100 hover:underline underline-offset-2"
+                              >
+                                {row.username}
+                              </Link>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
                           <td className="py-3 px-4 text-right font-semibold text-emerald-300">{formatBigNumber(Number(row.total_earned ?? 0))}</td>
                           <td className="py-3 px-4 text-right text-white/60 hidden sm:table-cell">{formatBigNumber(Number(row.total_staked ?? 0))}</td>
                         </tr>
@@ -535,7 +599,18 @@ export default function Leaderboard() {
                       {(displayList as StakesRow[]).map((row, i) => (
                         <tr key={row.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                           <td className="py-3 px-4 font-bold text-cyan-400">{i + 1 === 1 ? '🏆' : `#${i + 1}`}</td>
-                          <td className="py-3 px-4 font-medium text-white">{row.username || '—'}</td>
+                          <td className="py-3 px-4 font-medium text-white">
+                            {row.username ? (
+                              <Link
+                                href={profileHrefForUsername(row.username)}
+                                className="text-cyan-200 hover:text-cyan-100 hover:underline underline-offset-2"
+                              >
+                                {row.username}
+                              </Link>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
                           <td className="py-3 px-4 text-right font-semibold text-cyan-300">{formatBigNumber(Number(row.total_staked ?? 0))}</td>
                           <td className="py-3 px-4 text-right text-white/60 hidden sm:table-cell">{formatBigNumber(Number(row.total_earned ?? 0))}</td>
                         </tr>
@@ -565,7 +640,18 @@ export default function Leaderboard() {
                       {(displayList as WinRateRow[]).map((row, i) => (
                         <tr key={row.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                           <td className="py-3 px-4 font-bold text-cyan-400">{i + 1 === 1 ? '🏆' : `#${i + 1}`}</td>
-                          <td className="py-3 px-4 font-medium text-white">{row.username || '—'}</td>
+                          <td className="py-3 px-4 font-medium text-white">
+                            {row.username ? (
+                              <Link
+                                href={profileHrefForUsername(row.username)}
+                                className="text-cyan-200 hover:text-cyan-100 hover:underline underline-offset-2"
+                              >
+                                {row.username}
+                              </Link>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
                           <td className="py-3 px-4 text-right font-semibold text-emerald-300">
                             {(row as WinRateRow).games_played > 0
                               ? `${((Number((row as WinRateRow).game_won) / Number((row as WinRateRow).games_played)) * 100).toFixed(1)}%`
@@ -600,7 +686,18 @@ export default function Leaderboard() {
                       {(displayList as ReferralRow[]).map((row, i) => (
                         <tr key={row.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                           <td className="py-3 px-4 font-bold text-cyan-400">{i + 1 === 1 ? '🏆' : `#${i + 1}`}</td>
-                          <td className="py-3 px-4 font-medium text-white">{row.username || '—'}</td>
+                          <td className="py-3 px-4 font-medium text-white">
+                            {row.username ? (
+                              <Link
+                                href={profileHrefForUsername(row.username)}
+                                className="text-cyan-200 hover:text-cyan-100 hover:underline underline-offset-2"
+                              >
+                                {row.username}
+                              </Link>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
                           <td className="py-3 px-4 text-right font-semibold text-emerald-300 tabular-nums">
                             {row.referral_count ?? 0}
                           </td>
@@ -623,7 +720,9 @@ export default function Leaderboard() {
                     : 'No referral sign-ups yet. Share your link from Profile when you are signed in.'
                   : timeScope === 'month' && (activeTab === 'wins' || activeTab === 'winrate')
                     ? 'No finished games in this month yet.'
-                    : 'No entries yet. Connect and play games to climb the board!'}
+                    : timeScope === 'bounty' && activeTab === 'wins'
+                      ? 'No games played in the May bounty window yet.'
+                      : 'No entries yet. Connect and play games to climb the board!'}
               </p>
             </div>
           )}
