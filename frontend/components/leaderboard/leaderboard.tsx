@@ -67,7 +67,13 @@ function profileHrefForUsername(username: string): string {
 
 function normalizeLeaderboardArray(res: any): BountyRow[] {
   const raw = res?.data;
-  const list = Array.isArray(raw) ? raw : raw?.data;
+  let list: unknown = raw;
+  if (Array.isArray(raw)) list = raw;
+  else if (raw && typeof raw === 'object' && Array.isArray((raw as { data?: unknown }).data)) {
+    list = (raw as { data: unknown[] }).data;
+  } else if (raw && typeof raw === 'object' && Array.isArray((raw as { leaderboard?: unknown }).leaderboard)) {
+    list = (raw as { leaderboard: unknown[] }).leaderboard;
+  }
   if (!Array.isArray(list)) return [];
   return list.map((row: any) => ({
     id: Number(row.id ?? 0),
@@ -129,8 +135,9 @@ export default function Leaderboard() {
       if (timeScope === 'month') {
         params.period = 'month';
         params.month = monthKey;
+      } else {
+        params.period = 'all';
       }
-      // all-time: omit period — backend defaults to period=all
 
       const res = await apiClient.get('/users/leaderboard', params);
       const normalized = normalizeLeaderboardArray(res);
