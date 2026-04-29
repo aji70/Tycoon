@@ -3,6 +3,8 @@ import { getDefaultAppChain } from "../config/chains.js";
 import { generateUniqueReferralCode } from "../services/referralService.js";
 import { monthUtcBounds, parseYearMonth } from "../utils/leaderboardMonth.js";
 
+const LEADERBOARD_MIN_TURNS = Math.max(0, Number(process.env.LEADERBOARD_MIN_TURNS || 20));
+
 function applyGameChainFilter(qb, gameAlias, normalized) {
   const def = getDefaultAppChain();
   const col = `${gameAlias}.chain`;
@@ -389,6 +391,7 @@ const User = {
       .join("users as u", "u.id", "gp.user_id")
       .where("u.chain", normalized)
       .where("g.status", "FINISHED")
+      .where("gp.turn_count", ">=", LEADERBOARD_MIN_TURNS)
       .modify((qb) => applyGameChainFilter(qb, "g", normalized))
       .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
       .groupBy("u.id", "u.username", "u.address")
@@ -402,6 +405,7 @@ const User = {
       .havingRaw("COUNT(*) > 0")
       .orderByRaw(`${wonExpr} DESC`)
       .orderByRaw("COUNT(*) DESC")
+      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
   },
 
@@ -475,6 +479,7 @@ const User = {
       .join("users as u", "u.id", "gp.user_id")
       .where("u.chain", normalized)
       .where("g.status", "FINISHED")
+      .where("gp.turn_count", ">=", LEADERBOARD_MIN_TURNS)
       .modify((qb) => applyGameChainFilter(qb, "g", normalized))
       .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
       .groupBy("u.id", "u.username", "u.address")
@@ -490,6 +495,7 @@ const User = {
       .havingRaw("COUNT(*) > 0")
       .orderByRaw(`${rateExpr} DESC`)
       .orderByRaw("COUNT(*) DESC")
+      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
   },
 
@@ -507,6 +513,7 @@ const User = {
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
+      .where("gp.turn_count", ">=", LEADERBOARD_MIN_TURNS)
       .where("g.updated_at", ">=", start)
       .where("g.updated_at", "<", end)
       .modify((qb) => applyGameChainFilter(qb, "g", normalized))
@@ -522,6 +529,7 @@ const User = {
       .havingRaw("COUNT(*) > 0")
       .orderByRaw(`${wonExpr} DESC`)
       .orderByRaw("COUNT(*) DESC")
+      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
   },
 
@@ -538,6 +546,7 @@ const User = {
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
+      .where("gp.turn_count", ">=", LEADERBOARD_MIN_TURNS)
       .where("g.updated_at", ">=", start)
       .where("g.updated_at", "<", end)
       .modify((qb) => applyGameChainFilter(qb, "g", normalized))
@@ -554,6 +563,7 @@ const User = {
       .havingRaw("COUNT(*) > 0")
       .orderByRaw(`${rateExpr} DESC`)
       .orderByRaw("COUNT(*) DESC")
+      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
   },
 
@@ -577,6 +587,7 @@ const User = {
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
+      .where("gp.turn_count", ">=", LEADERBOARD_MIN_TURNS)
       .where("g.updated_at", ">=", start)
       .where("g.updated_at", "<", end)
       .modify((qb) => applyGameChainFilter(qb, "g", normalized))
@@ -593,6 +604,7 @@ const User = {
       .havingRaw("COUNT(*) > 0")
       .orderByRaw("COUNT(*) DESC")
       .orderByRaw(`${wonExpr} DESC`)
+      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
   },
 };
