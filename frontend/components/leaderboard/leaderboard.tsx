@@ -77,7 +77,7 @@ const TABS: { id: LeaderboardKind; label: string; icon: React.ElementType }[] = 
 
 const LIMIT = 20;
 
-type TimeScope = 'all' | 'month';
+type TimeScope = 'all' | 'month' | 'bounty';
 
 function utcYearMonthNow(): string {
   const d = new Date();
@@ -147,6 +147,14 @@ export default function Leaderboard() {
   const [winrate, setWinrate] = useState<WinRateRow[]>([]);
   const [referrals, setReferrals] = useState<ReferralRow[]>([]);
 
+  const bountyRange = useMemo(() => {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+    const endExclusive = new Date(Date.UTC(year, 5, 1, 0, 0, 0, 0)); // June 1 UTC (end-of-May exclusive)
+    return { startIso: start.toISOString(), endIso: endExclusive.toISOString(), endLabel: `${year}-05-31` };
+  }, []);
+
   // Same as profile: get username from contract then getUser(username) for on-chain stats
   const { data: username } = useReadContract({
     address: tycoonAddress,
@@ -205,6 +213,11 @@ export default function Leaderboard() {
         if (timeScope === 'month') {
           lbParams.period = 'month';
           lbParams.month = monthKey;
+        } else if (timeScope === 'bounty') {
+          lbParams.period = 'range';
+          lbParams.type = 'played';
+          lbParams.start = bountyRange.startIso;
+          lbParams.end = bountyRange.endIso;
         }
         const res = await apiClient.get('/users/leaderboard', lbParams);
         const data = normalizeLeaderboardArray(res) as unknown[];
@@ -234,7 +247,7 @@ export default function Leaderboard() {
         setLoading(false);
       }
     },
-    [chainParam, timeScope, monthKey]
+    [chainParam, timeScope, monthKey, bountyRange]
   );
 
   useEffect(() => {
@@ -295,6 +308,8 @@ export default function Leaderboard() {
             ? timeScope === 'month'
               ? 'Most new referred sign-ups attributed this month'
               : 'Players who brought the most friends via referral link'
+            : timeScope === 'bounty' && activeTab === 'wins'
+              ? 'Monthly bounty: most games played in the active campaign window'
             : timeScope === 'month' && (activeTab === 'wins' || activeTab === 'winrate')
               ? 'Top players by finished games this calendar month (UTC)'
               : 'Top players on this chain'}
@@ -304,10 +319,17 @@ export default function Leaderboard() {
             ? timeScope === 'month'
               ? `${formatMonthLabelUtc(monthKey)} · UTC`
               : 'App-wide · all-time · not tied to a single chain'
+            : timeScope === 'bounty' && activeTab === 'wins'
+              ? `${chainParam} · ${bountyRange.startIso.slice(0, 10)} → ${bountyRange.endLabel} · UTC`
             : timeScope === 'month' && (activeTab === 'wins' || activeTab === 'winrate')
               ? `${chainParam} · ${formatMonthLabelUtc(monthKey)} · UTC`
               : `Chain: ${chainParam}`}
         </p>
+        {timeScope === 'bounty' && (
+          <p className="text-center text-white/45 text-xs mb-4 max-w-lg mx-auto">
+            Ranking is by games played from today (UTC) until the end of May (UTC).
+          </p>
+        )}
         {timeScope === 'month' && (activeTab === 'wins' || activeTab === 'winrate' || activeTab === 'referrals') ? (
           <p className="text-center text-white/45 text-xs mb-4 max-w-lg mx-auto">
             Wins and win rate count finished games whose last update fell in the month (on-chain sync timing may differ
@@ -348,6 +370,18 @@ export default function Leaderboard() {
               <CalendarDays className="w-4 h-4 opacity-80" aria-hidden />
               Monthly
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTimeScope('bounty');
+                setActiveTab('wins');
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                timeScope === 'bounty' ? 'bg-cyan-500/30 text-cyan-100 shadow-sm' : 'text-white/60 hover:text-white/90'
+              }`}
+            >
+              May bounty
+            </button>
           </div>
           {timeScope === 'month' ? (
             <label className="flex items-center gap-2 text-xs text-white/70">
@@ -370,7 +404,9 @@ export default function Leaderboard() {
         {/* Tabs */}
         <div className="flex flex-wrap gap-2 justify-center mb-6">
           {TABS.map(({ id, label, icon: Icon }) => {
-            const disabled = timeScope === 'month' && (id === 'earnings' || id === 'stakes');
+            const disabled =
+              (timeScope === 'month' && (id === 'earnings' || id === 'stakes')) ||
+              (timeScope === 'bounty' && id !== 'wins');
             return (
               <button
                 key={id}
