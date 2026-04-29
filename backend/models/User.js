@@ -5,6 +5,23 @@ import { monthUtcBounds, parseYearMonth } from "../utils/leaderboardMonth.js";
 
 const LEADERBOARD_MIN_TURNS = Math.max(0, Number(process.env.LEADERBOARD_MIN_TURNS || 20));
 
+/** Agent / arena-automation modes — exclude from leaderboards (keep PVP_HUMAN + AI_HUMAN_VS_AI). */
+const AGENT_ORCHESTRATED_GAME_TYPES = [
+  "AGENT_VS_AI",
+  "AGENT_VS_AGENT",
+  "TOURNAMENT_AGENT_VS_AGENT",
+  "ONCHAIN_AGENT_VS_AI",
+  "ONCHAIN_AGENT_VS_AGENT",
+  "ONCHAIN_HUMAN_VS_AGENT",
+];
+
+function excludeAgentOrchestratedGames(qb, gameAlias = "g") {
+  const col = `${gameAlias}.game_type`;
+  qb.where(function () {
+    this.whereNull(col).orWhereNotIn(col, AGENT_ORCHESTRATED_GAME_TYPES);
+  });
+}
+
 function applyGameChainFilter(qb, gameAlias, normalized) {
   const def = getDefaultAppChain();
   const col = `${gameAlias}.chain`;
@@ -322,6 +339,7 @@ const User = {
         .where("g.updated_at", ">=", start)
         .where("g.updated_at", "<", end)
         .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+        .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
         .count("* as c")
         .first();
       game_memberships = Number(memMonth?.c ?? 0);
@@ -336,6 +354,7 @@ const User = {
         .where("gp.user_id", uid)
         .where("g.status", "FINISHED")
         .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+        .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
         .modify((qb) => {
           if (isMonth) {
             qb.where("g.updated_at", ">=", start).where("g.updated_at", "<", end);
@@ -393,6 +412,7 @@ const User = {
       .where("g.status", "FINISHED")
       .where("gp.turn_count", ">=", LEADERBOARD_MIN_TURNS)
       .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+      .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
       .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
       .groupBy("u.id", "u.username", "u.address")
       .select(
@@ -481,6 +501,7 @@ const User = {
       .where("g.status", "FINISHED")
       .where("gp.turn_count", ">=", LEADERBOARD_MIN_TURNS)
       .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+      .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
       .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
       .groupBy("u.id", "u.username", "u.address")
       .select(
@@ -517,6 +538,7 @@ const User = {
       .where("g.updated_at", ">=", start)
       .where("g.updated_at", "<", end)
       .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+      .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
       .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
       .groupBy("u.id", "u.username")
       .select(
@@ -550,6 +572,7 @@ const User = {
       .where("g.updated_at", ">=", start)
       .where("g.updated_at", "<", end)
       .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+      .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
       .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
       .groupBy("u.id", "u.username")
       .select(
@@ -591,6 +614,7 @@ const User = {
       .where("g.updated_at", ">=", start)
       .where("g.updated_at", "<", end)
       .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+      .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
       .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
       .groupBy("u.id", "u.username")
       .select(
