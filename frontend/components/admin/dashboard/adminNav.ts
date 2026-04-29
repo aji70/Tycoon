@@ -9,6 +9,7 @@ export const ADMIN_NAV_ITEMS: { href: string; label: string; exact?: boolean }[]
   { href: "/admin/leaderboard", label: "Leaderboard" },
   { href: "/admin/analytics", label: "Analytics" },
   { href: "/admin/wallet-monitor", label: "Wallet Monitor" },
+  { href: "/admin/celo", label: "Celo operators" },
   { href: "/admin/moderation", label: "Moderation" },
   { href: "/admin/audit-log", label: "Audit log" },
   { href: "/admin/settings", label: "System Settings" },
