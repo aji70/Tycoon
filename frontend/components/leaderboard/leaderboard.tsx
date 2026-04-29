@@ -34,10 +34,10 @@ function chainIdToLeaderboardChain(chainId: number): string {
   }
 }
 
-/** Default monthly board: April (UTC) of the current year — campaign month. */
+/** Default monthly board: current UTC month. */
 function defaultLeaderboardMonthKey(): string {
-  const y = new Date().getUTCFullYear();
-  return `${y}-04`;
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 function formatMonthLabelUtc(yyyyMm: string): string {
@@ -87,26 +87,8 @@ export default function Leaderboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<BountyRow[]>([]);
-  const [timeScope, setTimeScope] = useState<TimeScope>('bounty');
+  const [timeScope, setTimeScope] = useState<TimeScope>('all');
   const [monthKey, setMonthKey] = useState<string>(() => defaultLeaderboardMonthKey());
-
-  /** Bounty month is April until May 1 UTC, then May. */
-  const bountyRange = useMemo(() => {
-    const now = new Date();
-    const year = now.getUTCFullYear();
-    const month = now.getUTCMonth() < 4 ? 3 : 4; // April before May 1, otherwise May
-    const start = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
-    const endExclusive = new Date(Date.UTC(year, month + 1, 1, 0, 0, 0, 0));
-    const mm = String(month + 1).padStart(2, '0');
-    const endDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-    return {
-      startIso: start.toISOString(),
-      endIso: endExclusive.toISOString(),
-      campaignLabel: month === 3 ? 'April' : 'May',
-      startLabel: `${year}-${mm}-01`,
-      endLabel: `${year}-${mm}-${String(endDay).padStart(2, '0')}`,
-    };
-  }, []);
 
   const { data: username } = useReadContract({
     address: tycoonAddress,
@@ -127,6 +109,14 @@ export default function Leaderboard() {
   const monthOptions = useMemo(() => utcYearMonthOptions(12), []);
 
   const fetchLeaderboard = useCallback(async () => {
+    if (timeScope === 'bounty') {
+      setRows([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    setRows([]);
     setLoading(true);
     setError(null);
     try {
@@ -139,11 +129,8 @@ export default function Leaderboard() {
       if (timeScope === 'month') {
         params.period = 'month';
         params.month = monthKey;
-      } else if (timeScope === 'bounty') {
-        params.period = 'range';
-        params.start = bountyRange.startIso;
-        params.end = bountyRange.endIso;
       }
+      // all-time: omit period — backend defaults to period=all
 
       const res = await apiClient.get('/users/leaderboard', params);
       const normalized = normalizeLeaderboardArray(res);
@@ -155,7 +142,7 @@ export default function Leaderboard() {
     } finally {
       setLoading(false);
     }
-  }, [bountyRange.endIso, bountyRange.startIso, chainParam, monthKey, timeScope]);
+  }, [chainParam, monthKey, timeScope]);
 
   useEffect(() => {
     fetchLeaderboard();
@@ -176,7 +163,7 @@ export default function Leaderboard() {
           </Link>
           <h1 className="flex items-center gap-2 text-lg md:text-2xl font-bold text-cyan-200">
             <Trophy className="h-6 w-6 text-amber-300" />
-            {timeScope === 'bounty' ? `${bountyRange.campaignLabel} Bounty Leaderboard` : 'Leaderboard'}
+            {timeScope === 'bounty' ? 'Bounty leaderboard' : 'Leaderboard'}
           </h1>
           <div className="w-14" />
         </div>
@@ -184,21 +171,26 @@ export default function Leaderboard() {
 
       <main className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-8">
         <div className="mb-6 rounded-2xl border border-cyan-400/20 bg-gradient-to-r from-cyan-500/15 via-cyan-400/10 to-transparent p-4 md:p-5">
-          <p className="text-cyan-100 font-semibold">Ranked by games played</p>
-          <p className="mt-1 text-sm text-cyan-100/75">
-            {timeScope === 'bounty'
-              ? `Window: ${chainParam} · ${bountyRange.startLabel} → ${bountyRange.endLabel} (UTC)`
-              : timeScope === 'month'
-                ? `Window: ${chainParam} · ${formatMonthLabelUtc(monthKey)} (UTC)`
-                : `Window: ${chainParam} · all-time`}
-          </p>
           {timeScope === 'bounty' ? (
-            <p className="mt-2 text-xs text-cyan-200/60 max-w-xl">
-              {bountyRange.campaignLabel} bounty counts finished games in that full calendar month (UTC). It switches to May on May 1 UTC.
-            </p>
-          ) : timeScope === 'month' ? (
-            <p className="mt-2 text-xs text-cyan-200/60 max-w-xl">Monthly defaults to April; pick another month from the selector.</p>
-          ) : null}
+            <>
+              <p className="text-cyan-100 font-semibold">Bounty leaderboard</p>
+              <p className="mt-1 text-sm text-cyan-100/75">Campaign rankings will appear here when the next bounty goes live.</p>
+            </>
+          ) : (
+            <>
+              <p className="text-cyan-100 font-semibold">Ranked by games played</p>
+              <p className="mt-1 text-sm text-cyan-100/75">
+                {timeScope === 'month'
+                  ? `Window: ${chainParam} · ${formatMonthLabelUtc(monthKey)} (UTC)`
+                  : `Window: ${chainParam} · all-time (finished games)`}
+              </p>
+              {timeScope === 'month' ? (
+                <p className="mt-2 text-xs text-cyan-200/60 max-w-xl">Pick a UTC calendar month from the selector.</p>
+              ) : (
+                <p className="mt-2 text-xs text-cyan-200/60 max-w-xl">All-time counts every finished game on this chain (same rules as ranked play).</p>
+              )}
+            </>
+          )}
         </div>
 
         <div className="mb-6 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3">
@@ -229,7 +221,7 @@ export default function Leaderboard() {
                 timeScope === 'bounty' ? 'bg-cyan-500/30 text-cyan-100 shadow-sm' : 'text-white/60 hover:text-white/90'
               }`}
             >
-              {bountyRange.campaignLabel} bounty
+              Bounty
             </button>
           </div>
           {timeScope === 'month' ? (
@@ -250,7 +242,7 @@ export default function Leaderboard() {
           ) : null}
         </div>
 
-        {myLeaderboardUsernames.size > 0 && !loading && (
+        {myLeaderboardUsernames.size > 0 && !loading && timeScope !== 'bounty' && (
           <div className="mb-6 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4 text-center">
             {myPosition > 0 ? (
               <p className="font-semibold text-amber-100">
@@ -262,7 +254,13 @@ export default function Leaderboard() {
           </div>
         )}
 
-        {loading ? (
+        {timeScope === 'bounty' ? (
+          <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-cyan-400/25 bg-cyan-500/5 py-20 px-6 text-center">
+            <Trophy className="h-14 w-14 text-amber-300/50" />
+            <p className="text-xl font-semibold text-cyan-100">Coming soon</p>
+            <p className="max-w-md text-sm text-white/60">Bounty leaderboard and rewards windows will be announced here.</p>
+          </div>
+        ) : loading ? (
           <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-white/10 bg-black/20 py-20">
             <Loader2 className="h-10 w-10 animate-spin text-cyan-300" />
             <p className="text-white/70">Loading leaderboard...</p>
@@ -281,7 +279,7 @@ export default function Leaderboard() {
         ) : rows.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-black/20 py-16 text-white/60">
             <Users className="h-10 w-10 text-cyan-300/70" />
-            <p>{timeScope === 'bounty' ? `No games played in the ${bountyRange.campaignLabel} bounty window yet.` : 'No entries yet for this scope.'}</p>
+            <p>No entries yet for this scope.</p>
           </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#081517]/80 backdrop-blur-sm">

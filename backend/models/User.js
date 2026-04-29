@@ -423,8 +423,8 @@ const User = {
         db.raw(`${wonExpr} AS game_won`)
       )
       .havingRaw("COUNT(*) > 0")
-      .orderByRaw(`${wonExpr} DESC`)
       .orderByRaw("COUNT(*) DESC")
+      .orderByRaw(`${wonExpr} DESC`)
       .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
   },
@@ -514,8 +514,8 @@ const User = {
         db.raw(`${rateExpr} AS win_rate`)
       )
       .havingRaw("COUNT(*) > 0")
-      .orderByRaw(`${rateExpr} DESC`)
       .orderByRaw("COUNT(*) DESC")
+      .orderByRaw(`${rateExpr} DESC`)
       .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
   },
@@ -549,8 +549,8 @@ const User = {
         db.raw(`${lostExpr} AS game_lost`)
       )
       .havingRaw("COUNT(*) > 0")
-      .orderByRaw(`${wonExpr} DESC`)
       .orderByRaw("COUNT(*) DESC")
+      .orderByRaw(`${wonExpr} DESC`)
       .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
   },
@@ -584,8 +584,44 @@ const User = {
         db.raw(`${rateExpr} AS win_rate`)
       )
       .havingRaw("COUNT(*) > 0")
-      .orderByRaw(`${rateExpr} DESC`)
       .orderByRaw("COUNT(*) DESC")
+      .orderByRaw(`${rateExpr} DESC`)
+      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
+      .limit(lim);
+  },
+
+  /**
+   * Top players by finished games played in a UTC calendar month (same rules as range/bounty).
+   */
+  async getMonthlyLeaderboardByGamesPlayed(chain, yearMonth, limit = 20) {
+    const normalized = this.normalizeChain(chain);
+    const lim = Math.min(Number(limit) || 20, 100);
+    const { start, end } = monthUtcBounds(parseYearMonth(yearMonth));
+    const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
+    const lostExpr = "SUM(CASE WHEN g.winner_id IS NOT NULL AND g.winner_id <> gp.user_id THEN 1 ELSE 0 END)";
+
+    return db("game_players as gp")
+      .join("games as g", "g.id", "gp.game_id")
+      .join("users as u", "u.id", "gp.user_id")
+      .where("g.status", "FINISHED")
+      .where("gp.turn_count", ">=", LEADERBOARD_MIN_TURNS)
+      .where("g.updated_at", ">=", start)
+      .where("g.updated_at", "<", end)
+      .modify((qb) => applyGameChainFilter(qb, "g", normalized))
+      .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
+      .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
+      .groupBy("u.id", "u.username", "u.address")
+      .select(
+        "u.id",
+        "u.username",
+        "u.address",
+        db.raw("COUNT(*) AS games_played"),
+        db.raw(`${wonExpr} AS game_won`),
+        db.raw(`${lostExpr} AS game_lost`)
+      )
+      .havingRaw("COUNT(*) > 0")
+      .orderByRaw("COUNT(*) DESC")
+      .orderByRaw(`${wonExpr} DESC`)
       .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
   },
