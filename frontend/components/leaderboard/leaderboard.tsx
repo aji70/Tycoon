@@ -90,16 +90,21 @@ export default function Leaderboard() {
   const [timeScope, setTimeScope] = useState<TimeScope>('bounty');
   const [monthKey, setMonthKey] = useState<string>(() => defaultLeaderboardMonthKey());
 
-  /** May bounty: full calendar May (UTC), May 1 00:00 → June 1 00:00 exclusive. */
+  /** Bounty month is April until May 1 UTC, then May. */
   const bountyRange = useMemo(() => {
-    const year = new Date().getUTCFullYear();
-    const start = new Date(Date.UTC(year, 4, 1, 0, 0, 0, 0));
-    const endExclusive = new Date(Date.UTC(year, 5, 1, 0, 0, 0, 0));
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth() < 4 ? 3 : 4; // April before May 1, otherwise May
+    const start = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+    const endExclusive = new Date(Date.UTC(year, month + 1, 1, 0, 0, 0, 0));
+    const mm = String(month + 1).padStart(2, '0');
+    const endDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
     return {
       startIso: start.toISOString(),
       endIso: endExclusive.toISOString(),
-      startLabel: `${year}-05-01`,
-      endLabel: `${year}-05-31`,
+      campaignLabel: month === 3 ? 'April' : 'May',
+      startLabel: `${year}-${mm}-01`,
+      endLabel: `${year}-${mm}-${String(endDay).padStart(2, '0')}`,
     };
   }, []);
 
@@ -171,7 +176,7 @@ export default function Leaderboard() {
           </Link>
           <h1 className="flex items-center gap-2 text-lg md:text-2xl font-bold text-cyan-200">
             <Trophy className="h-6 w-6 text-amber-300" />
-            {timeScope === 'bounty' ? 'May Bounty Leaderboard' : 'Leaderboard'}
+            {timeScope === 'bounty' ? `${bountyRange.campaignLabel} Bounty Leaderboard` : 'Leaderboard'}
           </h1>
           <div className="w-14" />
         </div>
@@ -189,7 +194,7 @@ export default function Leaderboard() {
           </p>
           {timeScope === 'bounty' ? (
             <p className="mt-2 text-xs text-cyan-200/60 max-w-xl">
-              May bounty counts finished games in the full calendar month of May (UTC). Use Monthly for April (defaults to April).
+              {bountyRange.campaignLabel} bounty counts finished games in that full calendar month (UTC). It switches to May on May 1 UTC.
             </p>
           ) : timeScope === 'month' ? (
             <p className="mt-2 text-xs text-cyan-200/60 max-w-xl">Monthly defaults to April; pick another month from the selector.</p>
@@ -224,7 +229,7 @@ export default function Leaderboard() {
                 timeScope === 'bounty' ? 'bg-cyan-500/30 text-cyan-100 shadow-sm' : 'text-white/60 hover:text-white/90'
               }`}
             >
-              May bounty
+              {bountyRange.campaignLabel} bounty
             </button>
           </div>
           {timeScope === 'month' ? (
@@ -276,7 +281,7 @@ export default function Leaderboard() {
         ) : rows.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-black/20 py-16 text-white/60">
             <Users className="h-10 w-10 text-cyan-300/70" />
-            <p>{timeScope === 'bounty' ? 'No games played in the May bounty window yet.' : 'No entries yet for this scope.'}</p>
+            <p>{timeScope === 'bounty' ? `No games played in the ${bountyRange.campaignLabel} bounty window yet.` : 'No entries yet for this scope.'}</p>
           </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#081517]/80 backdrop-blur-sm">
