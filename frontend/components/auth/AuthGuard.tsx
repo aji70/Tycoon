@@ -24,6 +24,9 @@ function isPublicPath(pathname: string): boolean {
   if (path === "/admin" || path.startsWith("/admin/")) {
     return true;
   }
+  if (path.startsWith("/u/")) {
+    return true;
+  }
   return PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + "/"));
 }
 
