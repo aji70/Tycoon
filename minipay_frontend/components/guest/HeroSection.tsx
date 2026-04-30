@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import herobg from "@/public/heroBg.png";
 import Image from "next/image";
 import { Dices, Gamepad2 } from "lucide-react";
@@ -16,7 +16,6 @@ import {
   useProfileOwner,
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { usePrivy } from "@privy-io/react-auth";
 import { useAppKit } from "@reown/appkit/react";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
@@ -44,15 +43,13 @@ const HeroSection: React.FC = () => {
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
   const { open: openWallet } = useAppKit();
-  const { ready, authenticated, login, logout, connectWallet, user: privyUser } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
-  const isPrivyAuthed = ready && authenticated;
   const [isMiniPay, setIsMiniPay] = useState(false);
-  const walletSessionReady = !!address || isMiniPay || isPrivyAuthed;
+  const walletSessionReady = !!address;
+  const didAutoConnectRef = useRef(false);
   const signOutGuestAndPrivy = () => {
     guestAuth?.logoutGuest();
-    if (isPrivyAuthed) void logout();
   };
 
   const [loading, setLoading] = useState(false);
@@ -68,6 +65,12 @@ const HeroSection: React.FC = () => {
     const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
     setIsMiniPay(Boolean(eth?.isMiniPay));
   }, []);
+
+  useEffect(() => {
+    if (!isMiniPay || !!address || isConnecting || didAutoConnectRef.current) return;
+    didAutoConnectRef.current = true;
+    openWallet?.();
+  }, [isMiniPay, address, isConnecting, openWallet]);
 
   const {
     write: registerPlayer,
@@ -212,16 +215,12 @@ const HeroSection: React.FC = () => {
       if (hasBackend && !hasOnChain) return "backend-only";
       return "none";
     }
-    if (guestUser || isPrivyAuthed) return "privy";
+    if (guestUser) return "privy";
     return "disconnected";
-  }, [address, user, isUserRegistered, guestUser, isPrivyAuthed]);
+  }, [address, user, isUserRegistered, guestUser]);
 
   const displayUsername = useMemo(() => {
     if (guestUser) return guestUser.username;
-    if (isPrivyAuthed && privyUser) {
-      const email = typeof privyUser.email === "string" ? privyUser.email : (privyUser.email as { address?: string })?.address;
-      return email ?? "Player";
-    }
     return (
       user?.username ||
       localUsername ||
@@ -229,7 +228,7 @@ const HeroSection: React.FC = () => {
       inputUsername ||
       "Player"
     );
-  }, [guestUser, privyUser, user, localUsername, fetchedUsername, inputUsername, isPrivyAuthed]);
+  }, [guestUser, user, localUsername, fetchedUsername, inputUsername]);
 
   const { levelInfo } = useUserLevel({
     address: guestUser && !address ? undefined : levelContractLookupAddress,
@@ -350,9 +349,15 @@ const HeroSection: React.FC = () => {
         return;
       }
 
-      let message = "Registration failed. Try again.";
-      if (err?.shortMessage) message = err.shortMessage;
-      if (err?.message?.includes("insufficient funds")) message = "Insufficient gas funds";
+      let message =
+        err?.shortMessage ||
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Registration failed. Try again.";
+      if (String(err?.message || "").toLowerCase().includes("insufficient funds")) {
+        message = "Insufficient gas funds";
+      }
 
       toast.update(toastId, {
         render: message,
@@ -643,7 +648,7 @@ const HeroSection: React.FC = () => {
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] font-orbitron font-[700] z-2">
-                  Connect Wallet
+                  {isMiniPay ? "Connect MiniPay Wallet" : "Connect Wallet"}
                 </span>
               </button>
               <p className="text-[#869298] text-xs text-center font-dmSans">
