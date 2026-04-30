@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { adminApi } from "@/lib/adminApi";
+import { adminApi, isAdminSecretConfigured } from "@/lib/adminApi";
 import { ApiError } from "@/lib/api";
 
 type PlatformMetrics = {
@@ -180,6 +180,13 @@ export default function AdminDashboardPage() {
         Live platform metrics, a seven-day games volume strip from analytics, and an all-time wins preview (CELO profile
         source). Live alerts load in the right panel on wide screens.
       </p>
+
+      {!isAdminSecretConfigured() && (
+        <p className="mt-4 text-sm text-amber-200/90 bg-amber-950/30 border border-amber-900/40 rounded-lg px-3 py-2 max-w-2xl">
+          Without a shared secret, the backend may reject requests (when <code className="text-amber-100">TYCOON_ADMIN_SECRET</code>{" "}
+          is set) or allow them open (when unset — avoid in production).
+        </p>
+      )}
 
       {loading && (
         <div className="mt-8 flex items-center gap-3 text-slate-400">

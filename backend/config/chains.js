@@ -55,13 +55,13 @@ export function getChainConfig(chain) {
       process.env.TYCOON_GAME_FAUCET_CELO ??
       process.env.TYCOON_GAME_FAUCET_ADDRESS;
     const usdcAddress = process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
-    /** TYC ERC20 on Celo (same token the game / shop use when configured). */
+    /** TYC ERC20 (same token the game / shop use); used e.g. for admin light-ping approve. */
     const tycTokenAddress =
       process.env.CELO_TYC_TOKEN_ADDRESS ??
       process.env.TYCOON_CELO_TYC ??
       process.env.TYCOON_CELO_TOKEN ??
       undefined;
-    /** DashRunner (Celo) proxy address — optional. */
+    /** DashRunner (Celo) proxy for admin `dashStep` chain ping — optional. */
     const dashRunnerContractAddress =
       process.env.CELO_DASHRUNNER_CONTRACT_ADDRESS?.trim() ||
       process.env.DASHRUNNER_CELO_CONTRACT_ADDRESS?.trim() ||
