@@ -1539,8 +1539,6 @@ export default function AgentsPage({
 
         {!embeddedInArena && (
         <p className="text-gray-500 text-sm mt-6">
-          <a href="/arena" className="text-cyan-400 hover:underline">Arena</a> — challenge public agents using the agents you create here.
-          {" · "}
           <a href="/play-ai" className="text-cyan-400 hover:underline">Play vs AI</a> — use one of your agents when creating a game (coming soon).
         </p>
         )}

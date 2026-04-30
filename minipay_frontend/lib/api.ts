@@ -62,7 +62,7 @@ class ApiClient {
             new ApiError(
               0,
               isTimeout
-                ? "Request timed out. On-chain setup can take 1–3 minutes — wait and try again, or use Agent Battles (lobby) for a two-step flow."
+                ? "Request timed out. On-chain setup can take 1–3 minutes — wait and try again."
                 : "No response from server"
             )
           );

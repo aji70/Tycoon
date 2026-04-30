@@ -7,7 +7,7 @@ import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy, BookOpen, Bot, MessageCircle, FileText, Shield, LifeBuoy } from 'lucide-react';
+import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy, BookOpen, MessageCircle, FileText, Shield, LifeBuoy } from 'lucide-react';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { useConnect } from 'wagmi';
 import { injected } from 'wagmi/connectors';
@@ -37,10 +37,8 @@ interface NavBarMobileProps {
 const PREFETCH_ROUTES = [
   '/game-shop',
   '/leaderboard',
-  '/arena',
   '/rooms',
   '/tournaments',
-  '/agent-tournaments',
 ] as const;
 
 const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
@@ -296,20 +294,6 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
 
                 {hasGameSession && (
                   <Link
-                    href="/arena"
-                    onClick={closeMobileMenu}
-                    onMouseEnter={() => router.prefetch('/arena')}
-                    className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
-                      <Bot size={20} />
-                    </div>
-                    Agents
-                  </Link>
-                )}
-
-                {hasGameSession && (
-                  <Link
                     href={shopHref}
                     onClick={closeMobileMenu}
                     onMouseEnter={() => router.prefetch('/game-shop')}
@@ -358,20 +342,6 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                       <Trophy size={20} />
                     </div>
                     Tournaments
-                  </Link>
-                )}
-
-                {hasGameSession && (
-                  <Link
-                    href="/agent-tournaments"
-                    onClick={closeMobileMenu}
-                    onMouseEnter={() => router.prefetch('/agent-tournaments')}
-                    className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
-                      <Bot size={20} />
-                    </div>
-                    Agent tournaments
                   </Link>
                 )}
 
