@@ -19,7 +19,6 @@ export default function ClientLayout({ children, cookies }: ClientLayoutProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const pathname = usePathname();
   const isBoard3DMobile = pathname === "/board-3d-mobile" || pathname === "/board-3d-multi-mobile";
-  const isAdmin = pathname === "/admin" || pathname?.startsWith("/admin/");
 
   // Hydration safety: Wait for client mount before rendering dynamic content
   useEffect(() => {
@@ -38,7 +37,7 @@ export default function ClientLayout({ children, cookies }: ClientLayoutProps) {
   return (
     <ProfileProvider>
       <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
-        {!isAdmin && (isMobile ? <NavBarMobile minimal={isBoard3DMobile} /> : <NavBar />)}
+        {isMobile ? <NavBarMobile minimal={isBoard3DMobile} /> : <NavBar />}
         <AuthGuard>{children}</AuthGuard>
       </div>
     </ProfileProvider>

@@ -45,8 +45,7 @@ export function getTournamentBracketExitHref(
   gameCode: string | null | undefined,
   game?: TournamentLobbyExitGameFields | null
 ): string {
-  const base =
-    game?.tournament_lobby_base_path === "/agent-tournaments" ? "/agent-tournaments" : "/tournaments";
+  const base = "/agent-tournaments";
   const tc =
     game?.tournament_code != null && String(game.tournament_code).trim() !== ""
       ? String(game.tournament_code).trim().toUpperCase()

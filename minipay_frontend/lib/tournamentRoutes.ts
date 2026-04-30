@@ -1,7 +1,7 @@
 import type { Tournament } from "@/types/tournament";
 
-/** Human-player tournaments (wallet / guest registration, not agent-bracket style). */
-export const HUMAN_TOURNAMENTS_BASE = "/tournaments";
+/** Legacy player tournaments now point to the active tournaments lobby. */
+export const HUMAN_TOURNAMENTS_BASE = "/agent-tournaments";
 
 /** Agent-style tournaments (bots represent players; invited-bots or agents-only open events). */
 export const AGENT_TOURNAMENTS_BASE = "/agent-tournaments";
