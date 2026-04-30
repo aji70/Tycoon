@@ -329,14 +329,16 @@ function GuestProfileViewMobile({
       username?: string;
       created_at?: string;
     } | undefined;
-    const gpBackend = Number(offChain?.celo_games_played) > 0 ? Number(offChain.celo_games_played) : Number(offChain?.games_played) ?? 0;
+    const gpBackend = Number(offChain?.celo_games_played) > 0
+      ? Number(offChain?.celo_games_played)
+      : Number(offChain?.games_played) ?? 0;
     const backendHasStats = offChain?.id && (gpBackend > 0 || Number(offChain.total_earned) > 0);
     const contractEmpty = userData && userData.gamesPlayed === 0 && userData.totalStaked === 0 && userData.totalEarned === 0;
     // When contract returns all zeros but backend has stats (leaderboard source), prefer backend.
     if (contractEmpty && backendHasStats) {
       const gp = gpBackend;
-      const gw = Number(offChain.celo_games_won) > 0 ? Number(offChain.celo_games_won) : Number(offChain.game_won) || 0;
-      const gl = Number(offChain.game_lost) || 0;
+      const gw = Number(offChain?.celo_games_won) > 0 ? Number(offChain?.celo_games_won) : Number(offChain?.game_won) || 0;
+      const gl = Number(offChain?.game_lost) || 0;
       return {
          ...userData!,
          gamesPlayed: gp,
@@ -1145,8 +1147,8 @@ export default function ProfilePageMobile() {
     const contractEmpty =
       userData.gamesPlayed === 0 && userData.totalStaked === 0 && userData.totalEarned === 0;
     const isCelo = chainParam === 'CELO';
-    const gp = isCelo && Number(backend?.celo_games_played) > 0 ? Number(backend.celo_games_played) : Number(backend?.games_played) ?? 0;
-    const gw = isCelo && Number(backend?.celo_games_won) > 0 ? Number(backend.celo_games_won) : Number(backend?.game_won) ?? 0;
+    const gp = isCelo && Number(backend?.celo_games_played) > 0 ? Number(backend?.celo_games_played) : Number(backend?.games_played) ?? 0;
+    const gw = isCelo && Number(backend?.celo_games_won) > 0 ? Number(backend?.celo_games_won) : Number(backend?.game_won) ?? 0;
     const hasBackendStats = backend && (gp > 0 || Number(backend.total_earned) > 0);
     if (contractEmpty && hasBackendStats) {
       const gl = Number(backend!.game_lost) ?? 0;

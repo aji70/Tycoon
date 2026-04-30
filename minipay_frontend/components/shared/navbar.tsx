@@ -7,7 +7,7 @@ import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, MessageCircle, Wallet, BookOpen, MoreVertical, FileText, Shield, LifeBuoy } from 'lucide-react';
+import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Wallet, BookOpen, MoreVertical, FileText, Shield, LifeBuoy } from 'lucide-react';
 import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { PiUserCircle } from 'react-icons/pi';
 import Image from 'next/image';
@@ -219,30 +219,6 @@ const NavBar = () => {
             </button>
             {moreMenuOpen && (
               <div className="absolute right-0 mt-2 w-48 rounded-lg border border-[#0E282A] bg-[#011112] shadow-xl z-50 py-2">
-                {/* Tournaments */}
-                {isSignedIn && (
-                  <Link
-                    href="/tournaments"
-                    className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
-                    onClick={() => setMoreMenuOpen(false)}
-                  >
-                    <Trophy className="w-[16px] h-[16px]" />
-                    <span className="font-dmSans">Tournaments</span>
-                  </Link>
-                )}
-
-                {/* Rooms */}
-                {isSignedIn && (
-                  <Link
-                    href="/rooms"
-                    className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
-                    onClick={() => setMoreMenuOpen(false)}
-                  >
-                    <MessageCircle className="w-[16px] h-[16px]" />
-                    <span className="font-dmSans">Rooms</span>
-                  </Link>
-                )}
-
                 {/* How to Play */}
                 <Link
                   href="/how-to-play"
