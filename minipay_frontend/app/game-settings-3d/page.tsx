@@ -1,7 +1,6 @@
 "use client";
 
 import { useMediaQuery } from "@/components/useMediaQuery";
-import GameSettings from "@/components/settings/game-settings";
 import GameSettingsMobile from "@/components/settings/game-settings-mobile";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
@@ -54,11 +53,7 @@ export default function GameSettings3DPage() {
 
   return (
     <main className="w-full overflow-x-hidden">
-      {isMobile ? (
-        <GameSettingsMobile redirectToWaitingRoom="/game-waiting-3d" />
-      ) : (
-        <GameSettings redirectToWaitingRoom="/game-waiting-3d" />
-      )}
+      <GameSettingsMobile redirectToWaitingRoom="/game-waiting-3d" />
     </main>
   );
 }
