@@ -19,6 +19,8 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
     // Cash tiers for CASH_TIERED and TAX_REFUND (strength 1-5): 0, 10, 25, 50, 100, 250
 
     IERC20 public tycToken;
+    // Backward-compatible storage/getter name (`usdc`) used across existing contracts.
+    // In Tycoon app semantics this token is treated as USDCM.
     IERC20 public usdc;
 
     address public backendMinter;
@@ -56,6 +58,7 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
     event GameMinterUpdated(address indexed previous, address indexed newGameMinter);
     event VoucherRedeemerUpdated(address indexed account, bool allowed);
     event BaseURIUpdated(string newBaseURI);
+    event UsdcmTokenUpdated(address indexed previousToken, address indexed newToken);
     event CashPerkActivated(uint256 indexed tokenId, address indexed burner, uint256 cashAmount);
     event CollectibleBought(uint256 indexed tokenId, address indexed buyer, uint256 price, bool usedUsdc);
     event CollectibleBurned(uint256 indexed tokenId, address indexed burner, TycoonLib.CollectiblePerk perk, uint256 strength);
@@ -113,6 +116,24 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
     function setTycToken(address newTycToken) external onlyOwner {
         require(newTycToken != address(0), "Invalid TYC");
         tycToken = IERC20(newTycToken);
+    }
+
+    /// @notice Update the USDCM token address used for shop purchases.
+    function setUsdcmToken(address newUsdcmToken) public onlyOwner {
+        require(newUsdcmToken != address(0), "Invalid USDCM");
+        address previousToken = address(usdc);
+        usdc = IERC20(newUsdcmToken);
+        emit UsdcmTokenUpdated(previousToken, newUsdcmToken);
+    }
+
+    /// @notice Backward-compatible alias for older integrations naming this token as USDC.
+    function setUsdcToken(address newUsdcToken) external onlyOwner {
+        setUsdcmToken(newUsdcToken);
+    }
+
+    /// @notice Canonical getter for clients expecting USDCM naming.
+    function usdcm() external view returns (IERC20) {
+        return usdc;
     }
 
     function pause() external onlyOwner {
