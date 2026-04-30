@@ -186,15 +186,17 @@ const NavBar = () => {
             </Link>
           )}
 
-          {/* Leaderboard — public page; always link here (no sign-in required) */}
-          <Link
-            href="/leaderboard"
-            onMouseEnter={() => router.prefetch('/leaderboard')}
-            className="w-[100px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
-          >
-            <Trophy className="w-[16px] h-[16px]" />
-            <span className="text-[12px] font-[400] font-dmSans">Leaderboard</span>
-          </Link>
+          {/* Leaderboard button */}
+          {isSignedIn && (
+            <Link
+              href="/leaderboard"
+              onMouseEnter={() => router.prefetch('/leaderboard')}
+              className="w-[100px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
+            >
+              <Trophy className="w-[16px] h-[16px]" />
+              <span className="text-[12px] font-[400] font-dmSans">Leaderboard</span>
+            </Link>
+          )}
 
 
           {/* Profile button */}

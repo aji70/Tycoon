@@ -12,7 +12,6 @@ router.get("/", userController.findAll);
 router.get("/leaderboard", userController.getLeaderboard);
 router.post("/sync-leaderboard", userController.syncLeaderboardFromChain);
 router.get("/by-address/:address", userController.findByAddress);
-router.get("/by-username/:username", userController.findByUsername);
 router.get("/:id/property-stats", userController.getPropertyStats);
 router.get("/:id", userController.findById);
 router.put("/:id", userController.update);

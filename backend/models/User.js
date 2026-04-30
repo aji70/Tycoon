@@ -3,26 +3,6 @@ import { getDefaultAppChain } from "../config/chains.js";
 import { generateUniqueReferralCode } from "../services/referralService.js";
 import { monthUtcBounds, parseYearMonth } from "../utils/leaderboardMonth.js";
 
-/** Set LEADERBOARD_MIN_TURNS=20 in production to require substantial games; default 0 shows all finished games. */
-const LEADERBOARD_MIN_TURNS = Math.max(0, Number(process.env.LEADERBOARD_MIN_TURNS ?? 0));
-
-/** Agent / arena-automation modes — exclude from leaderboards (keep PVP_HUMAN + AI_HUMAN_VS_AI). */
-const AGENT_ORCHESTRATED_GAME_TYPES = [
-  "AGENT_VS_AI",
-  "AGENT_VS_AGENT",
-  "TOURNAMENT_AGENT_VS_AGENT",
-  "ONCHAIN_AGENT_VS_AI",
-  "ONCHAIN_AGENT_VS_AGENT",
-  "ONCHAIN_HUMAN_VS_AGENT",
-];
-
-function excludeAgentOrchestratedGames(qb, gameAlias = "g") {
-  const col = `${gameAlias}.game_type`;
-  qb.where(function () {
-    this.whereNull(col).orWhereNotIn(col, AGENT_ORCHESTRATED_GAME_TYPES);
-  });
-}
-
 function applyGameChainFilter(qb, gameAlias, normalized) {
   const def = getDefaultAppChain();
   const col = `${gameAlias}.chain`;
@@ -33,13 +13,6 @@ function applyGameChainFilter(qb, gameAlias, normalized) {
   } else {
     qb.where(col, normalized);
   }
-}
-
-/** Leaderboard aggregates: NULL games.chain is treated as default app chain (legacy rows). */
-function applyGameChainFilterLeaderboard(qb, gameAlias, normalized) {
-  const def = getDefaultAppChain();
-  const col = `${gameAlias}.chain`;
-  qb.whereRaw(`COALESCE(${col}, ?) = ?`, [def, normalized]);
 }
 
 const User = {
@@ -323,69 +296,6 @@ const User = {
    * Record a finished game for a specific chain: all players get +1 games_played on that chain, winner gets +1 games_won.
    * Call when a game ends with game.chain (e.g. from finishByTime / finishGameByNetWorthAndNotify).
    */
-  /**
-   * Authoritative gameplay counts from game_players + games (not users.* cached columns).
-   * memberships = all lobby rows (or month-filtered rows); finished/won/lost = FINISHED games.
-   * opts.period: "all" | "month", opts.month: YYYY-MM (UTC month when period=month).
-   */
-  async getGameplayStatsFromGames(userId, chain, opts = {}) {
-    const normalized = this.normalizeChain(chain);
-    const uid = Number(userId);
-    if (!Number.isFinite(uid) || uid < 1) {
-      return { game_memberships: 0, games_finished: 0, game_won: 0, game_lost: 0 };
-    }
-    const period = String(opts?.period || "all").toLowerCase();
-    const isMonth = period === "month";
-    const month = parseYearMonth(opts?.month);
-    const { start, end } = isMonth ? monthUtcBounds(month) : { start: null, end: null };
-
-    let game_memberships = 0;
-    if (isMonth) {
-      const memMonth = await db("game_players as gp")
-        .join("games as g", "g.id", "gp.game_id")
-        .where("gp.user_id", uid)
-        .where("g.updated_at", ">=", start)
-        .where("g.updated_at", "<", end)
-        .modify((qb) => applyGameChainFilter(qb, "g", normalized))
-        .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
-        .count("* as c")
-        .first();
-      game_memberships = Number(memMonth?.c ?? 0);
-    } else {
-      const memRow = await db("game_players").where({ user_id: uid }).count("* as c").first();
-      game_memberships = Number(memRow?.c ?? 0);
-    }
-
-    const finishedBase = () =>
-      db("game_players as gp")
-        .join("games as g", "g.id", "gp.game_id")
-        .where("gp.user_id", uid)
-        .where("g.status", "FINISHED")
-        .modify((qb) => applyGameChainFilter(qb, "g", normalized))
-        .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
-        .modify((qb) => {
-          if (isMonth) {
-            qb.where("g.updated_at", ">=", start).where("g.updated_at", "<", end);
-          }
-        });
-
-    const finRow = await finishedBase().clone().count("* as c").first();
-    const games_finished = Number(finRow?.c ?? 0);
-
-    const winRow = await finishedBase().clone().where("g.winner_id", uid).count("* as c").first();
-    const game_won = Number(winRow?.c ?? 0);
-
-    const lossRow = await finishedBase()
-      .clone()
-      .whereNotNull("g.winner_id")
-      .where("g.winner_id", "!=", uid)
-      .count("* as c")
-      .first();
-    const game_lost = Number(lossRow?.c ?? 0);
-
-    return { game_memberships, games_finished, game_won, game_lost };
-  },
-
   async recordChainGameResult(chain, winnerId, playerUserIds) {
     const normalized = this.normalizeChain(chain);
     const cols = this.chainColumns(normalized);
@@ -411,28 +321,31 @@ const User = {
    */
   async getLeaderboardByWins(chain, limit = 20) {
     const normalized = this.normalizeChain(chain);
+    const cols = this.chainColumns(normalized);
     const lim = Math.min(Number(limit) || 20, 100);
-    const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
-    return db("game_players as gp")
-      .join("games as g", "g.id", "gp.game_id")
-      .join("users as u", "u.id", "gp.user_id")
-      .where("g.status", "FINISHED")
-      .where("gp.turn_count", ">=", LEADERBOARD_MIN_TURNS)
-      .modify((qb) => applyGameChainFilterLeaderboard(qb, "g", normalized))
-      .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
-      .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
-      .groupBy("u.id", "u.username", "u.address")
-      .select(
-        "u.id",
-        "u.username",
-        "u.address",
-        db.raw("COUNT(*) AS games_played"),
-        db.raw(`${wonExpr} AS game_won`)
-      )
-      .havingRaw("COUNT(*) > 0")
-      .orderByRaw("COUNT(*) DESC")
-      .orderByRaw(`${wonExpr} DESC`)
-      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
+    if (cols) {
+      try {
+        const rows = await db("users")
+          .where({ chain: normalized })
+          .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
+          .where(cols.played, ">", 0)
+          .select("id", "username", "address", db.raw(`${cols.played} as games_played`), db.raw(`${cols.won} as game_won`))
+          .orderBy(cols.won, "desc")
+          .orderBy(cols.played, "desc")
+          .limit(lim);
+        if (rows.length > 0) return rows;
+      } catch (err) {
+        // Per-chain columns may not exist (migration not run); fall through to legacy
+      }
+    }
+    // Fallback: legacy columns so leaderboard shows data that existed before per-chain columns were populated
+    return await db("users")
+      .where({ chain: normalized })
+      .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
+      .where("games_played", ">", 0)
+      .select("id", "username", "address", "games_played", "game_won")
+      .orderBy("game_won", "desc")
+      .orderBy("games_played", "desc")
       .limit(lim);
   },
 
@@ -498,31 +411,46 @@ const User = {
    */
   async getLeaderboardByWinRate(chain, limit = 20) {
     const normalized = this.normalizeChain(chain);
+    const cols = this.chainColumns(normalized);
     const lim = Math.min(Number(limit) || 20, 100);
-    const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
-    const rateExpr = `(${wonExpr} * 1.0 / NULLIF(COUNT(*), 0))`;
-    return db("game_players as gp")
-      .join("games as g", "g.id", "gp.game_id")
-      .join("users as u", "u.id", "gp.user_id")
-      .where("g.status", "FINISHED")
-      .where("gp.turn_count", ">=", LEADERBOARD_MIN_TURNS)
-      .modify((qb) => applyGameChainFilterLeaderboard(qb, "g", normalized))
-      .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
-      .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
-      .groupBy("u.id", "u.username", "u.address")
+    if (cols) {
+      try {
+        const { played, won } = cols;
+        const rows = await db("users")
+          .where({ chain: normalized })
+          .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
+          .where(played, ">", 0)
+          .select(
+            "id",
+            "username",
+            "address",
+            db.raw(`${played} AS games_played`),
+            db.raw(`${won} AS game_won`),
+            db.raw("0 AS game_lost"),
+            db.raw(`(CASE WHEN ${played} > 0 THEN (1.0 * ${won} / ${played}) ELSE 0 END) AS win_rate`)
+          )
+          .orderBy("win_rate", "desc")
+          .limit(lim);
+        if (rows.length > 0) return rows;
+      } catch (err) {
+        // Per-chain columns may not exist; fall through to legacy
+      }
+    }
+    // Fallback: legacy columns
+    return await db("users")
+      .where({ chain: normalized })
+      .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
+      .where("games_played", ">", 0)
       .select(
-        "u.id",
-        "u.username",
-        "u.address",
-        db.raw("COUNT(*) AS games_played"),
-        db.raw(`${wonExpr} AS game_won`),
+        "id",
+        "username",
+        "address",
+        "games_played",
+        "game_won",
         db.raw("0 AS game_lost"),
-        db.raw(`${rateExpr} AS win_rate`)
+        db.raw("(CASE WHEN games_played > 0 THEN (1.0 * game_won / games_played) ELSE 0 END) AS win_rate")
       )
-      .havingRaw("COUNT(*) > 0")
-      .orderByRaw("COUNT(*) DESC")
-      .orderByRaw(`${rateExpr} DESC`)
-      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
+      .orderBy("win_rate", "desc")
       .limit(lim);
   },
 
@@ -540,11 +468,9 @@ const User = {
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
-      .where("gp.turn_count", ">=", LEADERBOARD_MIN_TURNS)
       .where("g.updated_at", ">=", start)
       .where("g.updated_at", "<", end)
-      .modify((qb) => applyGameChainFilterLeaderboard(qb, "g", normalized))
-      .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
+      .modify((qb) => applyGameChainFilter(qb, "g", normalized))
       .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
       .groupBy("u.id", "u.username")
       .select(
@@ -555,9 +481,8 @@ const User = {
         db.raw(`${lostExpr} AS game_lost`)
       )
       .havingRaw("COUNT(*) > 0")
-      .orderByRaw("COUNT(*) DESC")
       .orderByRaw(`${wonExpr} DESC`)
-      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
+      .orderByRaw("COUNT(*) DESC")
       .limit(lim);
   },
 
@@ -574,11 +499,9 @@ const User = {
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
-      .where("gp.turn_count", ">=", LEADERBOARD_MIN_TURNS)
       .where("g.updated_at", ">=", start)
       .where("g.updated_at", "<", end)
-      .modify((qb) => applyGameChainFilterLeaderboard(qb, "g", normalized))
-      .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
+      .modify((qb) => applyGameChainFilter(qb, "g", normalized))
       .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
       .groupBy("u.id", "u.username")
       .select(
@@ -590,87 +513,8 @@ const User = {
         db.raw(`${rateExpr} AS win_rate`)
       )
       .havingRaw("COUNT(*) > 0")
-      .orderByRaw("COUNT(*) DESC")
       .orderByRaw(`${rateExpr} DESC`)
-      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
-      .limit(lim);
-  },
-
-  /**
-   * Top players by finished games played in a UTC calendar month (same rules as range/bounty).
-   */
-  async getMonthlyLeaderboardByGamesPlayed(chain, yearMonth, limit = 20) {
-    const normalized = this.normalizeChain(chain);
-    const lim = Math.min(Number(limit) || 20, 100);
-    const { start, end } = monthUtcBounds(parseYearMonth(yearMonth));
-    const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
-    const lostExpr = "SUM(CASE WHEN g.winner_id IS NOT NULL AND g.winner_id <> gp.user_id THEN 1 ELSE 0 END)";
-
-    return db("game_players as gp")
-      .join("games as g", "g.id", "gp.game_id")
-      .join("users as u", "u.id", "gp.user_id")
-      .where("g.status", "FINISHED")
-      .where("gp.turn_count", ">=", LEADERBOARD_MIN_TURNS)
-      .where("g.updated_at", ">=", start)
-      .where("g.updated_at", "<", end)
-      .modify((qb) => applyGameChainFilterLeaderboard(qb, "g", normalized))
-      .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
-      .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
-      .groupBy("u.id", "u.username", "u.address")
-      .select(
-        "u.id",
-        "u.username",
-        "u.address",
-        db.raw("COUNT(*) AS games_played"),
-        db.raw(`${wonExpr} AS game_won`),
-        db.raw(`${lostExpr} AS game_lost`)
-      )
-      .havingRaw("COUNT(*) > 0")
       .orderByRaw("COUNT(*) DESC")
-      .orderByRaw(`${wonExpr} DESC`)
-      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
-      .limit(lim);
-  },
-
-  /**
-   * Top players by games played within a custom UTC range [start, end).
-   * Uses finished games and counts player appearances in game_players.
-   */
-  async getRangeLeaderboardByGamesPlayed(chain, startIso, endIso, limit = 20) {
-    const normalized = this.normalizeChain(chain);
-    const lim = Math.min(Number(limit) || 20, 100);
-    const start = new Date(startIso);
-    const end = new Date(endIso);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !(end > start)) {
-      throw new Error("Invalid range: use start/end ISO timestamps with end > start");
-    }
-
-    const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
-    const lostExpr = "SUM(CASE WHEN g.winner_id IS NOT NULL AND g.winner_id <> gp.user_id THEN 1 ELSE 0 END)";
-
-    return db("game_players as gp")
-      .join("games as g", "g.id", "gp.game_id")
-      .join("users as u", "u.id", "gp.user_id")
-      .where("g.status", "FINISHED")
-      .where("gp.turn_count", ">=", LEADERBOARD_MIN_TURNS)
-      .where("g.updated_at", ">=", start)
-      .where("g.updated_at", "<", end)
-      .modify((qb) => applyGameChainFilterLeaderboard(qb, "g", normalized))
-      .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
-      .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"])
-      .groupBy("u.id", "u.username")
-      .select(
-        "u.id",
-        "u.username",
-        "u.address",
-        db.raw("COUNT(*) AS games_played"),
-        db.raw(`${wonExpr} AS game_won`),
-        db.raw(`${lostExpr} AS game_lost`)
-      )
-      .havingRaw("COUNT(*) > 0")
-      .orderByRaw("COUNT(*) DESC")
-      .orderByRaw(`${wonExpr} DESC`)
-      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
   },
 };

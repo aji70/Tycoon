@@ -148,8 +148,7 @@ export async function getPlayerById(req, res) {
         "g.created_at as game_created_at",
         "g.updated_at as game_updated_at",
         "gp.id as game_player_id",
-        "gp.balance",
-        "gp.turn_count"
+        "gp.balance"
       )
       .orderBy("g.updated_at", "desc")
       .limit(50);
@@ -199,7 +198,6 @@ export async function getPlayerById(req, res) {
             winnerId: r.winner_id,
             gamePlayerId: r.game_player_id,
             balance: r.balance,
-            turnCount: Number(r.turn_count ?? 0),
             createdAt: r.game_created_at,
             updatedAt: r.game_updated_at,
             won: r.winner_id != null && Number(r.winner_id) === id,
