@@ -52,7 +52,10 @@ function backendUserStatsLookupAddress(
     }
     if (guestUser.address) return guestUser.address.trim();
   }
-  return (gameLookupAddress ?? walletAddress) ?? undefined;
+  // For non-guest sessions, backend user rows are keyed by connected/linked wallet.
+  // Do not prefer smart-wallet/on-chain lookup address here, or profile may flicker
+  // (loads, then switches to "not found" when smart wallet resolves).
+  return (walletAddress ?? gameLookupAddress) ?? undefined;
 }
 
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
@@ -1194,6 +1197,14 @@ export default function Profile() {
   React.useEffect(() => {
     if (!isConnected) return;
 
+    const backendParsed = parseUserFromBackend(backendUser, tycoonProfileOwnerAddress, guestUser?.username);
+    if (backendParsed) {
+      setError(null);
+      setUserData(backendParsed);
+      setLoading(false);
+      return;
+    }
+
     if (usernameReadError) {
       setError(usernameReadError instanceof Error ? usernameReadError.message : 'Failed to load username');
       setLoading(false);
@@ -1205,15 +1216,9 @@ export default function Profile() {
       return;
     }
 
-    // If on-chain username is missing, fall back to backend profile so user details still load.
+    // Backend profile was unavailable, so now check on-chain data.
     if (!usernameLoading && !username) {
-      const backendParsed = parseUserFromBackend(backendUser, tycoonProfileOwnerAddress, guestUser?.username);
-      if (backendParsed) {
-        setError(null);
-        setUserData(backendParsed);
-      } else {
-        setError('No on-chain profile found for this address. Ensure you are on the correct network and registered.');
-      }
+      setError('No on-chain profile found for this address. Ensure you are on the correct network and registered.');
       setLoading(false);
       return;
     }
@@ -1225,15 +1230,9 @@ export default function Profile() {
       return;
     }
 
-    // If getUser finished but returned empty, also allow backend fallback.
+    // If getUser finished but returned empty, show error.
     if (username && !playerDataLoading && (playerData == null)) {
-      const backendParsed = parseUserFromBackend(backendUser, tycoonProfileOwnerAddress, username as string);
-      if (backendParsed) {
-        setError(null);
-        setUserData(backendParsed);
-      } else {
-        setError('No player data found');
-      }
+      setError('No player data found');
       setLoading(false);
       return;
     }
