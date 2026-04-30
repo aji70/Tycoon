@@ -1,0 +1,1415 @@
+/* —— Arena page shell —— */
+.pageShell {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 100% 60% at 50% -15%, rgba(0, 200, 220, 0.14), transparent 55%),
+    radial-gradient(ellipse 80% 40% at 100% 50%, rgba(120, 80, 255, 0.06), transparent 50%),
+    linear-gradient(180deg, #05080d 0%, #0a1018 35%, #0c141f 100%);
+  padding-bottom: 3rem;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 20px 32px;
+}
+
+.hero {
+  text-align: center;
+  margin-bottom: 28px;
+  padding: 28px 24px 26px;
+  border-radius: 20px;
+  background: linear-gradient(155deg, rgba(14, 32, 42, 0.55) 0%, rgba(8, 18, 26, 0.45) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.14);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 85% 10%, rgba(0, 240, 255, 0.1), transparent 42%);
+  pointer-events: none;
+}
+
+.heroInner {
+  position: relative;
+  z-index: 1;
+}
+
+.heroTitle {
+  font-size: clamp(1.85rem, 4vw, 2.85rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin: 0 0 14px;
+  background: linear-gradient(120deg, #f0fdff 0%, #9ef0ff 40%, #00d8ea 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.heroSubtitle {
+  font-size: 1.05rem;
+  color: #8aa8b0;
+  margin: 0 auto 18px;
+  max-width: 38rem;
+  line-height: 1.55;
+}
+
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b8f7ff;
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.28);
+}
+
+.heroLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e8fbff;
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  text-decoration: none;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+}
+
+.heroLink:hover {
+  background: rgba(0, 240, 255, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px rgba(0, 240, 255, 0.12);
+}
+
+button.heroLink {
+  cursor: pointer;
+  font: inherit;
+  appearance: none;
+}
+
+.myAgentsEmbed {
+  margin-top: 8px;
+}
+
+.myAgentsSubTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 6px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(0, 240, 255, 0.12);
+}
+
+.myAgentsSubTab {
+  flex: 1;
+  min-width: 140px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: #8aa8b0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.myAgentsSubTab:hover {
+  color: #e8fbff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.myAgentsSubTabActive {
+  color: #021014;
+  background: linear-gradient(135deg, #6effe8 0%, #00c8d4 100%);
+  box-shadow: 0 2px 14px rgba(0, 240, 255, 0.22);
+}
+
+.tabBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 28px;
+  padding: 8px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.tab {
+  flex: 1;
+  min-width: 112px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: #7a939c;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.tab:hover {
+  color: #e8fbff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tab.active {
+  color: #031014;
+  background: linear-gradient(135deg, #6effe8 0%, #00e8f8 50%, #00b8d4 100%);
+  box-shadow: 0 4px 22px rgba(0, 240, 255, 0.28);
+}
+
+.tabIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.95;
+}
+
+.tab.active .tabIcon {
+  opacity: 1;
+}
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: linear-gradient(90deg, rgba(80, 20, 30, 0.5) 0%, rgba(40, 12, 18, 0.45) 100%);
+  color: #ffb4b4;
+  padding: 14px 18px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(255, 100, 100, 0.35);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 48px 24px;
+  color: #9ee8f0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.loading::before {
+  content: "";
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(0, 240, 255, 0.15);
+  border-top-color: #00f0ff;
+  border-radius: 50%;
+  animation: arenaSpin 0.75s linear infinite;
+}
+
+@keyframes arenaSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.emptyDiscover {
+  text-align: center;
+  padding: 56px 28px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px dashed rgba(0, 240, 255, 0.2);
+  color: #8aa8b0;
+  font-size: 1.05rem;
+  margin-bottom: 32px;
+}
+
+.emptyDiscover strong {
+  display: block;
+  color: #e8fbff;
+  font-size: 1.15rem;
+  margin-bottom: 8px;
+}
+
+.paginationBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 8px 0 36px;
+  flex-wrap: wrap;
+}
+
+.pageBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  background: rgba(0, 240, 255, 0.08);
+  color: #b8f7ff;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.pageBtn:hover:not(:disabled) {
+  background: rgba(0, 240, 255, 0.16);
+  border-color: rgba(0, 240, 255, 0.55);
+  color: #e8fbff;
+}
+
+.pageBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pageIndicator {
+  font-size: 0.85rem;
+  color: #7a939c;
+  font-weight: 600;
+  padding: 0 8px;
+}
+
+/* Tournaments tab (agent / bot events only; links to /agent-tournaments) */
+.tournamentPanel {
+  background: linear-gradient(145deg, rgba(12, 28, 36, 0.75) 0%, rgba(8, 20, 28, 0.85) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.16);
+  border-radius: 16px;
+  padding: 22px 24px;
+  margin-bottom: 28px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
+}
+
+.tournamentPanel h2 {
+  margin: 0 0 12px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #e8fbff;
+}
+
+.tournamentExplainer {
+  color: #9ec8cf;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  margin: 0 0 16px 0;
+}
+
+.tournamentExplainer a {
+  color: #7ee8ff;
+  text-decoration: none;
+}
+
+.tournamentExplainer a:hover {
+  text-decoration: underline;
+}
+
+.tournamentActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.tournamentLinkBtn {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: 1px solid #00c8d4;
+  background: rgba(0, 240, 255, 0.12);
+  color: #7ee8ff;
+  text-decoration: none;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.tournamentLinkBtn:hover {
+  background: rgba(0, 240, 255, 0.2);
+  border-color: #00f0ff;
+  color: #e8fbff;
+}
+
+button.tournamentLinkBtn.tournamentBtnDisabled {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-color: rgba(0, 168, 184, 0.35);
+  color: #7a9a9f;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+button.tournamentLinkBtn.tournamentBtnDisabled:hover {
+  background: rgba(0, 0, 0, 0.22);
+  border-color: rgba(0, 168, 184, 0.35);
+  color: #7a9a9f;
+}
+
+.tournamentBtnSoon {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #c9a227;
+}
+
+.tournamentComingSoonBadge {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #1a1408;
+  background: linear-gradient(90deg, #f0d060, #d4a012);
+  border: 1px solid rgba(255, 220, 120, 0.55);
+  box-shadow: 0 0 16px rgba(240, 200, 80, 0.2);
+}
+
+.tournamentList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tournamentRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid #2a4a50;
+  border-radius: 10px;
+}
+
+.tournamentRowMain {
+  min-width: 0;
+  flex: 1;
+}
+
+.tournamentRowTitle {
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 4px 0;
+  font-size: 1rem;
+}
+
+.tournamentRowMeta {
+  font-size: 0.85rem;
+  color: #8ab4bc;
+  margin: 0;
+}
+
+.tournamentRowCta {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #00a8b8;
+  background: transparent;
+  color: #7ee8ff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.tournamentRowCta:hover {
+  background: rgba(0, 240, 255, 0.1);
+  color: #e8fbff;
+}
+
+.tournamentEmpty {
+  color: #7a9a9f;
+  font-size: 0.95rem;
+  margin: 8px 0 0 0;
+}
+
+/* Agent Grid */
+.agentsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.agentCard {
+  background: linear-gradient(155deg, rgba(22, 32, 40, 0.9) 0%, rgba(14, 22, 30, 0.95) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.12);
+  border-radius: 16px;
+  padding: 20px;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+/* Discover: compact opponent cards */
+.agentCardDiscover {
+  padding: 12px 14px;
+  border-radius: 12px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
+}
+
+.agentDiscoverTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.agentDiscoverTop h3 {
+  margin: 0;
+  color: #fff;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tierbadgeCompact {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: #0a0e12;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.agentDiscoverMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 0.72rem;
+  color: #7a939c;
+  margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.agentDiscoverMeta strong {
+  color: #7ee8ff;
+  font-weight: 700;
+}
+
+.agentDiscoverFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.agentDiscoverPick {
+  flex-shrink: 0;
+}
+
+.agentDiscoverPick .pickBtn {
+  width: auto;
+  min-width: 4.5rem;
+  padding: 0.32rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+.creatorNameCompact {
+  font-size: 0.72rem;
+  color: #6a858c;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentCard:hover {
+  border-color: rgba(0, 240, 255, 0.45);
+  box-shadow: 0 12px 40px rgba(0, 240, 255, 0.12), 0 0 0 1px rgba(0, 240, 255, 0.08);
+  transform: translateY(-3px);
+}
+
+.agentCard.agentCardDiscover:hover {
+  box-shadow: 0 8px 28px rgba(0, 240, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+.agentHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 15px;
+}
+
+.agentHeader h3 {
+  margin: 0;
+  color: #fff;
+  flex: 1;
+  font-size: 1.2rem;
+}
+
+.tierbadge {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  margin-left: 10px;
+  color: #0a0e12;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.agentStats {
+  flex: 1;
+  margin-bottom: 15px;
+}
+
+.statRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 0.88rem;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.statRow:last-of-type {
+  border-bottom: none;
+}
+
+.label {
+  color: #7a939c;
+}
+
+.value {
+  color: #7ee8ff;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.agentFooter {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid rgba(0, 240, 255, 0.12);
+  padding-top: 15px;
+}
+
+/* My agents — quick view wallet caps (desktop arena) */
+.spendChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+  align-items: center;
+}
+
+.spendChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.spendChipOn {
+  color: #031210;
+  background: linear-gradient(135deg, #5fffd8 0%, #34d399 100%);
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  box-shadow: 0 2px 14px rgba(52, 211, 153, 0.22);
+}
+
+.spendChipOff {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.25);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.quickCapsuleGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 400px) {
+  .quickCapsuleGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.quickCapsule {
+  padding: 10px 8px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(0, 240, 255, 0.1);
+  text-align: center;
+  min-width: 0;
+}
+
+.quickCapsuleLabel {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7a939c;
+  margin-bottom: 4px;
+}
+
+.quickCapsuleValue {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #7ee8ff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.walletCapsCta {
+  width: 100%;
+  margin-top: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 240, 255, 0.38);
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.14) 0%, rgba(0, 180, 200, 0.08) 45%, rgba(251, 191, 36, 0.12) 100%);
+  color: #e8fbff;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 4px 22px rgba(0, 240, 255, 0.1);
+}
+
+.walletCapsCta:hover {
+  border-color: rgba(0, 240, 255, 0.55);
+  box-shadow: 0 10px 32px rgba(0, 240, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.creatorName {
+  color: #888;
+  font-size: 0.85rem;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 10px;
+}
+
+.btnPrimary,
+.btnSecondary {
+  flex: 1;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.btnPrimary {
+  background-color: #00F0FF;
+  color: #000;
+}
+
+.btnPrimary:hover {
+  background-color: #00D0D0;
+}
+
+.btnSecondary {
+  background-color: #333;
+  color: #fff;
+  border: 1px solid #00F0FF;
+}
+
+.btnSecondary:hover {
+  background-color: #00F0FF;
+  color: #000;
+}
+
+/* —— Discover: challenge panel (compact, high contrast) —— */
+.challengePanel {
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.25rem 1.125rem;
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(8, 18, 22, 0.95) 0%, rgba(14, 26, 32, 0.92) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.challengePanelHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.challengePanelTitle {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7ee8f0;
+}
+
+.challengeCountPill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(0, 240, 255, 0.12);
+  color: #b8f7ff;
+  border: 1px solid rgba(0, 240, 255, 0.28);
+}
+
+.challengeHint {
+  margin: 0 0 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #c5e8ec;
+  max-width: 52rem;
+}
+
+.challengeDiscoverDetails {
+  margin: -0.35rem 0 0.85rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #9eb8bc;
+  max-width: 52rem;
+}
+
+.challengeDiscoverDetails summary {
+  cursor: pointer;
+  color: #7ec4d0;
+  font-weight: 600;
+  list-style-position: outside;
+}
+
+.challengeDiscoverDetails summary:hover {
+  color: #b8f0ff;
+}
+
+.challengeDiscoverDetails[open] summary {
+  margin-bottom: 0.4rem;
+}
+
+.challengeDiscoverDetails p {
+  margin: 0;
+  padding-left: 0.15rem;
+}
+
+.challengeDiscoverLink {
+  color: #7ee8ff;
+  font-weight: 600;
+}
+
+.challengeDiscoverLink:hover {
+  text-decoration: underline;
+}
+
+/* Nested tabs under Challenges */
+.challengeSubTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1.125rem;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(0, 240, 255, 0.15);
+}
+
+.challengeSubTab {
+  flex: 1 1 auto;
+  min-width: 140px;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8ecbd1;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.challengeSubTab:hover {
+  color: #c8f7ff;
+  background: rgba(0, 240, 255, 0.08);
+}
+
+.challengeSubTabActive {
+  color: #0a1018;
+  background: linear-gradient(135deg, #7ee8ff 0%, #00d4e8 100%);
+  box-shadow: 0 2px 12px rgba(0, 212, 232, 0.25);
+}
+
+.challengeSubTabActive:hover {
+  color: #0a1018;
+}
+
+.challengeToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.challengeField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 160px;
+  flex: 1 1 200px;
+}
+
+.challengeFieldLabel {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8ecbd1;
+}
+
+.agentSelect {
+  width: 100%;
+  max-width: 280px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e8fbff;
+  background: #050a0c;
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  border-radius: 10px;
+  cursor: pointer;
+  outline: none;
+}
+
+.agentSelect:focus {
+  border-color: #00f0ff;
+  box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.2);
+}
+
+.agentSelect option {
+  background: #0a1214;
+  color: #e8fbff;
+}
+
+.challengeActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Challenges → agent vs agent: denser setup + opponents */
+.challengesSectionEyebrow {
+  margin: 0.75rem 0 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #6a8a90;
+}
+
+.challengesCreateBlock {
+  margin: 0.75rem 0 1.25rem;
+  padding: 1rem 1.15rem 1.1rem;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(0, 240, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.challengesCreateHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.4rem;
+}
+
+.challengesCreateHeader .challengePanelTitle {
+  font-size: 0.8125rem;
+}
+
+.challengesMetaPill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(0, 240, 255, 0.1);
+  color: #a8eef5;
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  white-space: nowrap;
+}
+
+.challengesOneLiner {
+  margin: 0 0 1rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #95b5bc;
+  max-width: 48rem;
+}
+
+.challengesFormTwoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 1.5rem;
+  align-items: start;
+  margin-bottom: 0.75rem;
+}
+
+@media (max-width: 720px) {
+  .challengesFormTwoCol {
+    grid-template-columns: 1fr;
+  }
+}
+
+.challengesFormTwoCol .challengeField {
+  min-width: 0;
+}
+
+.challengesLabelRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.challengesLabelRow .challengeFieldLabel {
+  margin: 0;
+}
+
+.challengesCapsLinkBtn {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.challengesStakeOneLiner {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: #8aa8b0;
+}
+
+.challengesStakeDetails {
+  margin-top: 0.45rem;
+}
+
+.challengesStakeDetails summary {
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #7ee8ff;
+  opacity: 0.9;
+  list-style: none;
+}
+
+.challengesStakeDetails summary::-webkit-details-marker {
+  display: none;
+}
+
+.challengesStakeDetails[open] summary {
+  margin-bottom: 0.35rem;
+}
+
+.challengesStakeDetails p {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  color: #7a939c;
+}
+
+.challengesStakeDetails code {
+  font-size: 0.65rem;
+  color: #9ee8f0;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 0.1rem 0.25rem;
+  border-radius: 4px;
+}
+
+.challengesOpponentsHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin: 1.35rem 0 0.65rem;
+}
+
+.challengesOpponentsHeader .challengePanelTitle {
+  margin: 0;
+}
+
+.challengesOpponentMeta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.2rem 0.75rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #9bb8bf;
+}
+
+.challengesOpponentMeta span {
+  min-width: 0;
+}
+
+.challengesOpponentMeta strong {
+  color: #c8f7ff;
+  font-weight: 700;
+}
+
+.challengesOpponentMetaFull {
+  grid-column: 1 / -1;
+}
+
+.btnSendCompact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  min-height: 2.25rem;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #021014;
+  background: linear-gradient(135deg, #5fffd8 0%, #00e8f8 50%, #00c8ff 100%);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 2px 12px rgba(0, 240, 255, 0.25);
+}
+
+.btnSendCompact:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.btnSendCompact:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btnClearCompact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.85rem;
+  min-height: 2.25rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #dff9fc;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btnClearCompact:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(0, 240, 255, 0.35);
+}
+
+/* Card: pick opponent */
+.pickRow {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(64, 64, 64, 0.6);
+}
+
+.pickBtn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.pickBtnOff {
+  color: #b8ecef;
+  background: rgba(0, 240, 255, 0.06);
+  border: 1px dashed rgba(0, 240, 255, 0.35);
+}
+
+.pickBtnOff:hover {
+  background: rgba(0, 240, 255, 0.1);
+  border-style: solid;
+  color: #e8fbff;
+}
+
+.pickBtnOn {
+  color: #021014;
+  background: linear-gradient(135deg, #5fffd8, #00e0f0);
+  border: 1px solid rgba(0, 240, 255, 0.5);
+}
+
+.pickBtnOn:hover {
+  filter: brightness(1.05);
+}
+
+/* Leaderboard Table */
+.leaderboardTable {
+  overflow-x: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 240, 255, 0.14);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+}
+
+.leaderboardTable table {
+  width: 100%;
+  border-collapse: collapse;
+  background: linear-gradient(180deg, rgba(12, 22, 30, 0.95) 0%, rgba(8, 16, 24, 0.98) 100%);
+}
+
+.leaderboardTable thead {
+  background: rgba(0, 240, 255, 0.08);
+  border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+}
+
+.leaderboardTable th {
+  padding: 16px 14px;
+  text-align: left;
+  color: #b8f7ff;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.leaderboardTable td {
+  padding: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: #c5d8dc;
+  font-size: 0.92rem;
+}
+
+.leaderboardTable tbody tr {
+  transition: background 0.15s ease;
+}
+
+.leaderboardTable tbody tr:hover {
+  background: rgba(0, 240, 255, 0.06);
+}
+
+.rowTop1 {
+  background: linear-gradient(90deg, rgba(255, 215, 0, 0.08) 0%, transparent 55%);
+}
+
+.rowTop2 {
+  background: linear-gradient(90deg, rgba(192, 192, 220, 0.06) 0%, transparent 55%);
+}
+
+.rowTop3 {
+  background: linear-gradient(90deg, rgba(205, 127, 50, 0.07) 0%, transparent 55%);
+}
+
+.rank {
+  font-weight: 800;
+  color: #7ee8ff;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.rank1 {
+  color: #ffd54a;
+}
+
+.rank2 {
+  color: #e0e4f0;
+}
+
+.rank3 {
+  color: #e8a070;
+}
+
+.agentName {
+  color: #fff;
+  font-weight: bold;
+}
+
+.elo {
+  color: #7ee8ff;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.lbTierBadge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #0a0e12;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+/* My Agents */
+.myAgentsToolbar {
+  margin-bottom: 20px;
+}
+
+.myAgents {
+  padding: 12px 0 24px;
+}
+
+.myAgentsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  margin-bottom: 40px;
+}
+
+.myAgents p {
+  text-align: center;
+  padding: 60px 20px;
+  color: #aaa;
+  font-size: 1.1rem;
+}
+
+@media (max-width: 1024px) {
+  .agentsGrid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+
+  .container {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .agentsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .myAgentsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .heroTitle {
+    font-size: 1.65rem;
+  }
+
+  .heroSubtitle {
+    font-size: 0.95rem;
+  }
+
+  .tabBar {
+    flex-direction: column;
+  }
+
+  .tab {
+    padding: 12px 14px;
+    font-size: 0.88rem;
+    min-width: 100%;
+    justify-content: flex-start;
+  }
+
+  .leaderboardTable {
+    font-size: 0.85rem;
+    overflow-x: auto;
+  }
+
+  .leaderboardTable th,
+  .leaderboardTable td {
+    padding: 8px;
+  }
+
+  .container {
+    padding: 12px;
+  }
+
+  .agentCard {
+    padding: 16px;
+  }
+
+  .buttonGroup {
+    gap: 8px;
+  }
+
+  .btnPrimary,
+  .btnSecondary {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+}
