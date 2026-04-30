@@ -13,10 +13,6 @@ function isTournamentMatchCode(code: string | null): boolean {
 }
 
 // Dynamically import components to avoid SSR issues
-const GameWaiting = dynamic(() => import("@/components/settings/game-waiting"), {
-  ssr: false,
-});
-
 const GameWaitingMobile = dynamic(() => import("@/components/settings/game-waiting-mobile"), {
   ssr: false,
 });
@@ -95,17 +91,7 @@ export default function GameWaitingClient() {
   // User is registered → proceed to lobby with Suspense loading
   return (
     <Suspense fallback={<LoadingFallback />}>
-      <>
-        {/* Desktop Version */}
-        <div className="hidden md:block">
-          <GameWaiting />
-        </div>
-
-        {/* Mobile Version */}
-        <div className="block md:hidden">
-          <GameWaitingMobile />
-        </div>
-      </>
+      <GameWaitingMobile />
     </Suspense>
   );
 }

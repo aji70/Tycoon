@@ -1,7 +1,6 @@
 "use client";
 
 import { useMediaQuery } from "@/components/useMediaQuery";
-import GameSettings from "@/components/settings/game-settings";
 import GameSttingsMobile from "@/components/settings/game-settings-mobile";
 
 import { useRouter } from "next/navigation";
@@ -55,7 +54,7 @@ export default function GameSettingsPage() {
   // User is registered → show the settings
   return (
     <main className="w-full overflow-x-hidden">
-      {isMobile ? <GameSttingsMobile /> : <GameSettings />}
+      <GameSttingsMobile />
     </main>
   );
 }
