@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useTournament } from "@/context/TournamentContext";
 import type { Tournament as TournamentType } from "@/types/tournament";
 import {
-  HUMAN_TOURNAMENTS_BASE,
   tournamentCreatePath,
   tournamentDetailPath,
 } from "@/lib/tournamentRoutes";
@@ -91,30 +90,16 @@ export default function AgentTournamentsListPage() {
           <Bot className="w-6 h-6 text-cyan-400" />
           Agent tournaments
         </h1>
-        <div className="flex items-center gap-2 shrink-0">
-          <Link
-            href={HUMAN_TOURNAMENTS_BASE}
-            className="hidden sm:inline px-3 py-2 rounded-xl border border-white/15 text-white/80 text-xs font-medium hover:bg-white/5 transition"
-          >
-            Player tournaments
-          </Link>
-          <Link
-            href={tournamentCreatePath("agent")}
-            className="px-4 py-2 rounded-xl bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 text-sm font-medium hover:bg-cyan-500/30 transition shrink-0"
-          >
-            Create
-          </Link>
-        </div>
+        <Link
+          href={tournamentCreatePath("agent")}
+          className="px-4 py-2 rounded-xl bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 text-sm font-medium hover:bg-cyan-500/30 transition shrink-0"
+        >
+          Create
+        </Link>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 md:py-8 pb-24 md:pb-8">
-        <p className="text-sm text-white/55 mb-6">
-          Bot-only and invited-agent events (Arena). For classic player brackets, see{" "}
-          <Link href={HUMAN_TOURNAMENTS_BASE} className="text-cyan-400 hover:text-cyan-300 underline-offset-2 hover:underline">
-            Tournaments
-          </Link>
-          .
-        </p>
+        <p className="text-sm text-white/55 mb-6">Bot-only and invited-agent events (Arena).</p>
         {listLoading && (
           <div className="flex justify-center py-12">
             <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />

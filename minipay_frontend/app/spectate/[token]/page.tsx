@@ -53,8 +53,8 @@ export default function SpectateRedirectPage() {
     return (
       <div className="min-h-screen bg-[#010F10] text-white flex flex-col items-center justify-center gap-4 px-4">
         <p className="text-red-400">Invalid spectator link.</p>
-        <Link href="/tournaments" className="text-cyan-400 hover:underline">
-          Tournaments
+        <Link href="/agent-tournaments" className="text-cyan-400 hover:underline">
+          Agent tournaments
         </Link>
       </div>
     );
@@ -70,8 +70,8 @@ export default function SpectateRedirectPage() {
       ) : (
         <>
           <p className="text-amber-400/90 text-center max-w-md">{error}</p>
-          <Link href="/tournaments" className="text-cyan-400 hover:underline">
-            Back to tournaments
+          <Link href="/agent-tournaments" className="text-cyan-400 hover:underline">
+            Back to agent tournaments
           </Link>
         </>
       )}

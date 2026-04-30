@@ -376,7 +376,7 @@ export function TournamentDetailPage({
       tournament.code != null && String(tournament.code).trim() !== ""
         ? String(tournament.code).trim()
         : String(tournament.id);
-    const targetBase = agent ? "/agent-tournaments" : "/tournaments";
+    const targetBase = "/agent-tournaments";
     const qs = inviteQuery ? `?invite=${encodeURIComponent(inviteQuery)}` : "";
     router.replace(`${targetBase}/${encodeURIComponent(slug)}${qs}`);
   }, [tournament, id, expectedKind, inviteQuery, router]);
