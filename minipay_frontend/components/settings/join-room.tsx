@@ -1,0 +1,445 @@
+"use client";
+
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { IoHomeOutline, IoArrowForwardOutline } from "react-icons/io5";
+import { useAccount } from "wagmi";
+import { apiClient } from "@/lib/api";
+import { ApiResponse } from "@/types/api";
+import { Game } from "@/lib/types/games";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
+import { SkeletonGameGrid } from "@/components/ui/SkeletonCard";
+import EmptyState from "@/components/ui/EmptyState";
+import { Users } from "lucide-react";
+import { JoinRoomAuthModal, JoinRoomAuthStickyBar } from "@/components/settings/join-room-auth-ui";
+import { useJoinRoomAuthContinuation } from "@/components/settings/useJoinRoomAuthContinuation";
+
+interface JoinRoomProps {
+  /** When game is RUNNING, redirect here (default: /game-play). e.g. /board-3d-multi for 3D. */
+  redirectToBoard?: string;
+  /** When game is PENDING, redirect to this waiting room (default: /game-waiting). e.g. /game-waiting-3d. */
+  redirectToWaiting?: string;
+  /** "Create new game" link (default: /game-settings). e.g. /game-settings-3d for 3D. */
+  redirectCreateNew?: string;
+}
+
+export default function JoinRoom({
+  redirectToBoard = "/game-play",
+  redirectToWaiting = "/game-waiting",
+  redirectCreateNew = "/game-settings",
+}: JoinRoomProps = {}): JSX.Element {
+  const router = useRouter();
+  const { address, isConnected } = useAccount();
+  const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
+  const authLoading = guestAuth?.isLoading ?? true;
+  const canAct = isConnected || !!guestUser;
+  const { modalOpen, modalHint, queueAfterAuth, cancelModal } = useJoinRoomAuthContinuation(canAct);
+
+  const [code, setCode] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [recentGames, setRecentGames] = useState<Game[]>([]);
+  const [allPendingGames, setAllPendingGames] = useState<Game[]>([]);
+  const [pendingGames, setPendingGames] = useState<Game[]>([]);
+  const [fetchingRecent, setFetchingRecent] = useState<boolean>(true);
+  const [fetchingPending, setFetchingPending] = useState<boolean>(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [timeFilter, setTimeFilter] = useState<number>(5 * 60 * 1000); // Default: last 5 minutes in ms
+  const joinByCodeGuard = usePreventDoubleSubmit();
+
+  // Time filter options - prioritize recent games
+  const timeOptions = [
+    { label: "Last 5 minutes", value: 5 * 60 * 1000 },
+    { label: "Last 10 minutes", value: 10 * 60 * 1000 },
+    { label: "Last 30 minutes", value: 30 * 60 * 1000 },
+    { label: "Last hour", value: 60 * 60 * 1000 },
+    { label: "All pending", value: Infinity },
+  ];
+
+  // Uppercase and trim code input
+  const normalizedCode = useMemo(() => code.trim().toUpperCase(), [code]);
+
+  const fetchGames = useCallback(async () => {
+    if (!canAct) return;
+    const addr = address ?? guestUser?.address;
+    if (!addr) {
+      setFetchingRecent(false);
+      setFetchingPending(false);
+      return;
+    }
+    setFetchError(null);
+    setFetchingRecent(true);
+    setFetchingPending(true);
+
+    let recentFailed = false;
+    let pendingFailed = false;
+
+    try {
+      const resRecent = await apiClient.get<ApiResponse>("/games/my-games", {
+        params: { address: addr },
+      });
+      if (resRecent?.data?.success && Array.isArray(resRecent.data.data)) {
+        setRecentGames(resRecent.data.data as Game[]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch recent games:", err);
+      recentFailed = true;
+    } finally {
+      setFetchingRecent(false);
+    }
+
+    try {
+      const resPending = await apiClient.get<ApiResponse>("/games/open");
+      if (resPending?.data?.success && Array.isArray(resPending.data.data)) {
+        setAllPendingGames(resPending.data.data as Game[]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch open games:", err);
+      pendingFailed = true;
+    } finally {
+      setFetchingPending(false);
+    }
+
+    if (recentFailed || pendingFailed) {
+      setFetchError("Couldn't load games. Check your connection and try again.");
+    }
+  }, [address, canAct, guestUser?.address]);
+
+  useEffect(() => {
+    if (!canAct) {
+      setFetchingRecent(false);
+      setFetchingPending(false);
+      return;
+    }
+    const addr = address ?? guestUser?.address;
+    if (!addr) {
+      setFetchingRecent(false);
+      setFetchingPending(false);
+      return;
+    }
+    fetchGames();
+  }, [canAct, address, guestUser?.address, fetchGames]);
+
+  // Only show games that are not finished (so "Continue Game" is never for ended games)
+  const activeRecentGames = useMemo(
+    () =>
+      recentGames.filter(
+        (g) => g.status !== "COMPLETED" && g.status !== "CANCELLED"
+      ),
+    [recentGames]
+  );
+
+  // Filter and sort pending games based on timeFilter
+  useEffect(() => {
+    const now = Date.now();
+    let filtered = allPendingGames;
+
+    if (timeFilter !== Infinity) {
+      filtered = filtered.filter(
+        (game) =>
+          game.created_at && // Assume created_at is an ISO string or timestamp
+          now - new Date(game.created_at).getTime() <= timeFilter
+      );
+    }
+
+    // Sort by created_at descending (most recent first)
+    const sorted = filtered.sort(
+      (a, b) =>
+        new Date(b.created_at ?? 0).getTime() -
+        new Date(a.created_at ?? 0).getTime()
+    );
+
+    setPendingGames(sorted);
+  }, [allPendingGames, timeFilter]);
+
+  const handleJoinByCode = useCallback(async () => {
+    if (!normalizedCode) {
+      setError("Please enter a game code.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await apiClient.get<ApiResponse>(
+        `/games/code/${encodeURIComponent(normalizedCode)}`
+      );
+
+      if (!res?.data?.success || !res.data.data) {
+        throw new Error("Game not found. Check the code and try again.");
+      }
+
+      const game: Game = res.data.data;
+
+      if (game.status === "RUNNING") {
+        // Game already started — go directly to play if player is in it
+        const addr = address ?? guestUser?.address;
+        const isPlayerInGame = addr && game.players.some(
+          (p) => String(p.address || "").toLowerCase() === addr.toLowerCase()
+        );
+
+        if (isPlayerInGame) {
+          setCode("");
+          router.push(`${redirectToBoard}?gameCode=${encodeURIComponent(normalizedCode)}`);
+        } else {
+          throw new Error("This game has already started and you are not a player.");
+        }
+      } else if (game.status === "PENDING") {
+        // Game waiting — go to waiting room (sign in as guest or connect wallet there to join)
+        setCode("");
+        router.push(`${redirectToWaiting}?gameCode=${encodeURIComponent(normalizedCode)}`);
+      } else {
+        throw new Error("This game is no longer active.");
+      }
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to join game. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedCode, address, guestUser?.address, router]);
+
+  const handleContinueGame = useCallback(
+    (game: Game) => {
+      const go = () => {
+        if (game.status === "RUNNING") {
+          router.push(`${redirectToBoard}?gameCode=${encodeURIComponent(game.code)}`);
+        } else if (game.status === "PENDING") {
+          router.push(`${redirectToWaiting}?gameCode=${encodeURIComponent(game.code)}`);
+        }
+      };
+      queueAfterAuth("Continue your saved game after you sign in.", go);
+    },
+    [router, redirectToBoard, redirectToWaiting, queueAfterAuth]
+  );
+
+  const handleJoinPublicGame = useCallback(
+    (game: Game) => {
+      if (game.status !== "PENDING") return;
+      const go = () => {
+        router.push(`${redirectToWaiting}?gameCode=${encodeURIComponent(game.code)}`);
+      };
+      queueAfterAuth("Join this lobby after you sign in so we know who is at the table.", go);
+    },
+    [router, redirectToWaiting, queueAfterAuth]
+  );
+
+  const handleCreateNew = useCallback(() => {
+    queueAfterAuth("Host a new game after you sign in.", () => router.push(redirectCreateNew));
+  }, [router, redirectCreateNew, queueAfterAuth]);
+
+  return (
+    <section className="w-full min-h-screen bg-settings bg-cover bg-fixed bg-center bg-[#010F10]">
+      <main className="w-full min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6 lg:px-8">
+        <div className="w-full max-w-xl lg:max-w-4xl bg-[#0A1A1B]/80 p-6 sm:p-8 lg:p-12 rounded-2xl shadow-2xl border border-[#00F0FF]/50 backdrop-blur-md">
+          <JoinRoomAuthStickyBar canAct={canAct} authLoading={authLoading} />
+          <JoinRoomAuthModal open={modalOpen} hint={modalHint} onDismiss={cancelModal} />
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-orbitron mb-8 lg:mb-12 text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent animate-pulse">
+            Join Tycoon
+          </h2>
+
+          {/* Top Section: Enter Code and Create New Side by Side */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+            {/* Enter Game Code */}
+            <div className="space-y-6">
+              <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] text-center font-orbitron">
+                Enter Game Code
+              </h3>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(e) => {
+                    setCode(e.target.value);
+                    if (error) setError(null);
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && !joinByCodeGuard.isSubmitting && joinByCodeGuard.submit(() => handleJoinByCode())}
+                  placeholder="ABCD1234"
+                  className="flex-1 bg-[#0A1A1B] text-[#F0F7F7] px-5 py-4 rounded-xl border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-lg uppercase tracking-wider shadow-inner"
+                  maxLength={12}
+                />
+                <button
+                  onClick={() => joinByCodeGuard.submit(() => handleJoinByCode())}
+                  disabled={loading || joinByCodeGuard.isSubmitting || !normalizedCode}
+                  className="bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black font-orbitron font-extrabold px-8 py-4 rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  title={!normalizedCode ? "Enter a game code to join" : undefined}
+                >
+                  {loading || joinByCodeGuard.isSubmitting ? "Joining…" : "Join"}
+                  <IoArrowForwardOutline className="w-6 h-6" />
+                </button>
+              </div>
+              {!normalizedCode && !error && (
+                <p className="text-slate-500 text-xs text-center">Enter a 6-character game code above to join.</p>
+              )}
+              {error && (
+                <p className="text-red-400 text-sm text-center bg-red-900/30 border border-red-500/30 p-3 rounded-lg font-orbitron" role="alert">
+                  {error}
+                </p>
+              )}
+            </div>
+
+            {/* Create New Game */}
+            <div className="space-y-6 text-center">
+              <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] text-center font-orbitron">
+                Create New Game
+              </h3>
+              <p className="text-[#869298] text-sm mb-4">Want to host?</p>
+              <button
+                onClick={handleCreateNew}
+                className="bg-gradient-to-r from-[#00FFAA] to-[#00F0FF] text-black font-orbitron font-extrabold px-8 py-4 rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-[#00FFAA]/50 transform hover:scale-105 w-full md:w-auto"
+              >
+                Create New Game
+              </button>
+            </div>
+          </div>
+
+          {/* Games Section */}
+          <div className="space-y-12">
+            {canAct && fetchError && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-xl bg-red-950/30 border border-red-500/30" role="alert">
+                <p className="text-red-400 text-sm font-medium">{fetchError}</p>
+                <button
+                  type="button"
+                  onClick={() => fetchGames()}
+                  className="shrink-0 min-h-[44px] px-4 py-2 rounded-lg bg-[#00F0FF] text-[#010F10] font-bold font-orbitron text-sm hover:bg-[#00F0FF]/90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A1A1B]"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+            {canAct && (
+              <>
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] font-orbitron">
+                      Browse open games
+                    </h3>
+                    <select
+                      value={timeFilter}
+                      onChange={(e) => setTimeFilter(Number(e.target.value))}
+                      className="bg-[#0A1A1B] text-[#F0F7F7] px-3 py-2 rounded-lg border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-sm"
+                    >
+                      {timeOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {fetchingPending ? (
+                    <>
+                      <p className="text-[#869298] text-sm text-center mb-2">Loading open games…</p>
+                      <SkeletonGameGrid count={6} gridClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" />
+                    </>
+                  ) : pendingGames.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {pendingGames.map((game) => (
+                        <div
+                          key={game.id}
+                          className="bg-[#010F10]/70 p-5 rounded-xl border border-[#00F0FF]/40 hover:border-[#00F0FF] transition-all shadow-md hover:shadow-[#00F0FF]/50 flex flex-col items-center justify-between group"
+                        >
+                          <div className="text-center mb-4">
+                            <p className="text-[#F0F7F7] font-orbitron font-bold text-lg">
+                              Code: {game.code}
+                            </p>
+                            <p className="text-[#869298] text-sm">
+                              Players: {game.players.length}/{game.number_of_players} • Pending
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleJoinPublicGame(game)}
+                            className="bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black font-orbitron font-bold px-4 py-2 rounded-lg hover:opacity-90 transition-all shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105"
+                          >
+                            Join
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyState
+                      icon={<Users className="w-14 h-14 text-[#00F0FF]/70" />}
+                      title="No open games right now"
+                      description="Create a new game or enter a 6-character code above to join an existing one."
+                      action={
+                        canAct
+                          ? { label: "Create new game", href: redirectCreateNew }
+                          : {
+                              label: "Create new game",
+                              onClick: () =>
+                                queueAfterAuth("Host a new game after you sign in.", () =>
+                                  router.push(redirectCreateNew)
+                                ),
+                            }
+                      }
+                      className="border-[#00F0FF]/20 bg-[#010F10]/50 text-left sm:text-center"
+                    />
+                  )}
+                </div>
+
+                {(fetchingRecent || activeRecentGames.length > 0) && (
+                  <div className="space-y-6">
+                    <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] text-center font-orbitron">
+                      Continue Game
+                    </h3>
+                    {fetchingRecent ? (
+                      <>
+                        <p className="text-[#869298] text-sm text-center mb-2">Loading your games…</p>
+                        <SkeletonGameGrid count={3} gridClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" />
+                      </>
+                    ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {activeRecentGames.map((game) => (
+                        <button
+                          key={game.id}
+                          onClick={() => handleContinueGame(game)}
+                          className="bg-[#010F10]/70 p-5 rounded-xl border border-[#00F0FF]/40 hover:border-[#00F0FF] transition-all shadow-md hover:shadow-[#00F0FF]/50 flex flex-col items-center justify-between group"
+                        >
+                          <div className="text-center mb-4">
+                            <p className="text-[#F0F7F7] font-orbitron font-bold text-lg">
+                              Code: {game.code}
+                            </p>
+                            <p className="text-[#869298] text-sm">
+                              Players: {game.players.length}/{game.number_of_players} •{" "}
+                              {game.status === "PENDING" ? "Waiting" : "In Progress"}
+                            </p>
+                          </div>
+                          <IoArrowForwardOutline className="w-8 h-8 text-[#00F0FF] group-hover:translate-x-2 transition-transform" />
+                        </button>
+                      ))}
+                    </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            {!canAct && !authLoading && (
+              <p className="mt-6 text-center text-slate-500 text-xs font-orbitron">
+                Use the sign-in bar at the top of this card, or{" "}
+                <a href="/" className="text-[#00F0FF] hover:underline">
+                  open HQ
+                </a>
+                .
+              </p>
+            )}
+          </div>
+
+          {/* Footer Links */}
+          <div className="flex justify-center mt-10 lg:mt-12">
+            <button
+              onClick={() => router.push("/")}
+              className="flex items-center text-[#0FF0FC] text-base font-orbitron hover:text-[#00D4E6] transition-colors hover:underline gap-2"
+            >
+              <IoHomeOutline className="w-5 h-5" />
+              Back to HQ
+            </button>
+          </div>
+        </div>
+      </main>
+    </section>
+  );
+}
