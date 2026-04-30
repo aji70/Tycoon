@@ -20,9 +20,6 @@ import { getInjectedEoaAddress } from "@/lib/utils/erc8004InjectedEoa";
 import { useAgentSettings, TradeBehavior, BuildStyle, BuyStyle } from "@/hooks/useAgentSettings";
 
 function chainIdToBackendChain(chainId: number): string {
-  if (chainId === 137 || chainId === 80001) return "POLYGON";
-  if (chainId === 42220 || chainId === 44787) return "CELO";
-  if (chainId === 8453 || chainId === 84531) return "BASE";
   return "CELO";
 }
 
@@ -1638,8 +1635,6 @@ export default function AgentsPage({
                       className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-cyan-500/25 text-white text-sm focus:border-cyan-400/50 focus:outline-none"
                     >
                       <option value="CELO">CELO</option>
-                      <option value="BASE">BASE</option>
-                      <option value="POLYGON">POLYGON</option>
                     </select>
                   </div>
                 </div>

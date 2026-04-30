@@ -25,9 +25,6 @@ import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
 
 function chainIdToBackendChain(chainId: number): string {
-  if (chainId === 137 || chainId === 80001) return "POLYGON";
-  if (chainId === 42220 || chainId === 44787) return "CELO";
-  if (chainId === 8453 || chainId === 84531) return "BASE";
   return "CELO";
 }
 
@@ -52,7 +49,7 @@ const HeroSectionMobile: React.FC = () => {
   const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
   const [isMiniPay, setIsMiniPay] = useState(false);
-  const walletSessionReady = isMiniPay || isPrivyAuthed;
+  const walletSessionReady = !!address || isMiniPay || isPrivyAuthed;
   const signOutGuestAndPrivy = () => {
     guestAuth?.logoutGuest();
     if (isPrivyAuthed) void logout();
@@ -525,11 +522,11 @@ const HeroSectionMobile: React.FC = () => {
           {address && !walletSessionReady && !loading && (
             <div className="w-full max-w-[300px] flex flex-col gap-3 items-center">
               <p className="text-[#869298] text-sm text-center font-dmSans">
-                Sign in with Privy to continue
+                Wallet connected. Continue with wallet.
               </p>
               <button
                 type="button"
-                onClick={() => login()}
+                onClick={() => openWallet?.()}
                 className="relative w-full max-w-[260px] h-14 overflow-hidden rounded-xl transition-transform active:scale-[0.98]"
               >
                 <svg
@@ -546,7 +543,7 @@ const HeroSectionMobile: React.FC = () => {
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-base font-orbitron font-bold z-0">
-                  Sign in with Privy
+                  Continue with Wallet
                 </span>
               </button>
             </div>
@@ -562,12 +559,12 @@ const HeroSectionMobile: React.FC = () => {
             />
           )}
 
-          {/* When disconnected: "Let's Go!" = Sign in with email only (Privy). Wallet can be added after sign-in in Profile. */}
+          {/* When disconnected: primary path is wallet connect. */}
           {!address && registrationStatus === "disconnected" && !loading && (
             <div className="w-full max-w-[300px] flex flex-col gap-3 items-center">
               <button
                 type="button"
-                onClick={() => login()}
+                onClick={() => openWallet?.()}
                 className="relative w-full max-w-[260px] h-14 overflow-hidden rounded-xl transition-transform active:scale-[0.98]"
               >
                 <svg
@@ -584,11 +581,11 @@ const HeroSectionMobile: React.FC = () => {
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-base font-orbitron font-bold z-0">
-                  Let&apos;s Go!
+                  Connect Wallet
                 </span>
               </button>
               <p className="text-[#869298] text-xs text-center font-dmSans px-2">
-                Sign in with email · Add a wallet later in Profile if you want
+                Connect your wallet to start playing
               </p>
             </div>
           )}

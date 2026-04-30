@@ -19,19 +19,7 @@ const LIMIT = 20;
 type TimeScope = 'all' | 'month' | 'bounty';
 
 function chainIdToLeaderboardChain(chainId: number): string {
-  switch (chainId) {
-    case 137:
-    case 80001:
-      return 'POLYGON';
-    case 42220:
-    case 44787:
-      return 'CELO';
-    case 8453:
-    case 84531:
-      return 'BASE';
-    default:
-      return 'CELO';
-  }
+  return 'CELO';
 }
 
 /** Default monthly board: current UTC month. */

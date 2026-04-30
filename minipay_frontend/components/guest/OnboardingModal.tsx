@@ -50,14 +50,12 @@ export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
   };
 
   const handleConnect = () => {
-    if (isMiniPay) {
+    if (openAppKit) {
       openAppKit?.();
       return;
     }
-    if (ready && !authenticated) {
+    if (!isMiniPay && ready && !authenticated) {
       login();
-    } else {
-      openAppKit?.();
     }
   };
 
@@ -148,7 +146,7 @@ export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
                     className="w-full py-4 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-[#010F10] font-orbitron font-bold flex items-center justify-center gap-2 hover:opacity-95 transition-opacity"
                   >
                     <Wallet className="w-5 h-5" />
-                    Sign in / Connect wallet
+                    Connect wallet
                   </button>
                 )}
                 {isSignedIn && (
