@@ -79,6 +79,52 @@ function parseUserFromContract(data: unknown, username: string, walletAddress: s
   };
 }
 
+function parseUserFromBackend(
+  backendUser: unknown,
+  walletAddress: string | undefined,
+  fallbackUsername?: string
+): {
+  username: string;
+  shortAddress: string;
+  gamesPlayed: number;
+  gamesWon: number;
+  gamesLost: number;
+  winRate: string;
+  totalStaked: number;
+  totalEarned: number;
+  totalWithdrawn: number;
+  propertiesBought: number;
+  propertiesSold: number;
+  registeredAt: number;
+} | null {
+  if (!backendUser || typeof backendUser !== 'object') return null;
+  const d = backendUser as Record<string, unknown>;
+  const gamesPlayed = Number(d.celo_games_played ?? d.games_played ?? 0);
+  const gamesWon = Number(d.celo_games_won ?? d.game_won ?? 0);
+  const gamesLost = Number(d.game_lost ?? 0);
+  const totalStaked = Number(d.total_staked ?? 0);
+  const totalEarned = Number(d.total_earned ?? 0);
+  const totalWithdrawn = Number(d.total_withdrawn ?? 0);
+  const propertiesBought = Number(d.properties_bought ?? 0);
+  const propertiesSold = Number(d.properties_sold ?? 0);
+  const createdAtRaw = typeof d.created_at === 'string' ? d.created_at : null;
+  const registeredAt = createdAtRaw ? Math.floor(new Date(createdAtRaw).getTime() / 1000) : 0;
+  return {
+    username: String(d.username ?? fallbackUsername ?? 'Unknown'),
+    shortAddress: walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '',
+    gamesPlayed,
+    gamesWon,
+    gamesLost,
+    winRate: gamesPlayed > 0 ? ((gamesWon / gamesPlayed) * 100).toFixed(1) + '%' : '0%',
+    totalStaked,
+    totalEarned,
+    totalWithdrawn,
+    propertiesBought,
+    propertiesSold,
+    registeredAt,
+  };
+}
+
 function formatStakeOrEarned(value: number): string {
   if (value >= 1e18) return (value / 1e18).toFixed(2);
   if (value >= 1e15) return (value / 1e18).toFixed(4);
@@ -123,7 +169,10 @@ function backendUserStatsLookupAddress(
     }
     if (guestUser.address) return guestUser.address.trim();
   }
-  return (gameLookupAddress ?? walletAddress) ?? undefined;
+  // For non-guest sessions, backend user rows are keyed by connected/linked wallet.
+  // Do not prefer smart-wallet/on-chain lookup address here, or profile may flicker
+  // (loads, then switches to "not found" when smart wallet resolves).
+  return (walletAddress ?? gameLookupAddress) ?? undefined;
 }
 
 /** Guest/Privy profile when wallet is not connected, or when a connected extension wallet is not the Tycoon-registered address (notice only if wallet not registered — smart/linked users see no banner). */
@@ -1094,6 +1143,14 @@ export default function ProfilePageMobile() {
   useEffect(() => {
     if (!isConnected) return;
 
+    const backendParsed = parseUserFromBackend(backendUser, tycoonProfileOwnerAddress, guestUser?.username);
+    if (backendParsed) {
+      setError(null);
+      setUserData(backendParsed);
+      setLoading(false);
+      return;
+    }
+
     if (usernameReadError) {
       setError(usernameReadError instanceof Error ? usernameReadError.message : 'Failed to load username');
       setLoading(false);
@@ -1123,7 +1180,19 @@ export default function ProfilePageMobile() {
       setLoading(false);
       return;
     }
-  }, [isConnected, username, usernameLoading, usernameReadError, playerData, playerDataLoading, playerDataReadError, walletAddress, tycoonProfileOwnerAddress]);
+  }, [
+    isConnected,
+    username,
+    usernameLoading,
+    usernameReadError,
+    playerData,
+    playerDataLoading,
+    playerDataReadError,
+    walletAddress,
+    tycoonProfileOwnerAddress,
+    backendUser,
+    guestUser?.username,
+  ]);
 
   const effectiveUserData = useMemo(() => {
     if (!userData) return null;
