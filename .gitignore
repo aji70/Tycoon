@@ -2,8 +2,8 @@
 node_modules/
 
 # Local project folder - do not push to GitHub
-backend(2)/
-frontend(2)/
+backend (2)/
+frontend (2)/
 PokerBot-main/
 pokerbot-main/
 payCrypt_v2-master/
