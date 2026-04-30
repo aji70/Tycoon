@@ -7,7 +7,7 @@ import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet, BookOpen, Bot, MoreVertical, FileText, Shield, LifeBuoy } from 'lucide-react';
+import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, MessageCircle, Wallet, BookOpen, MoreVertical, FileText, Shield, LifeBuoy } from 'lucide-react';
 import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { PiUserCircle } from 'react-icons/pi';
 import Image from 'next/image';
@@ -24,7 +24,7 @@ import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 
 /** Skip /profile here — prefetching it on the home shell pulls a large unused chunk (Lighthouse). Hover still prefetches profile. */
-const PREFETCH_ROUTES = ['/game-shop', '/arena', '/leaderboard'] as const;
+const PREFETCH_ROUTES = ['/game-shop', '/leaderboard'] as const;
 
 const NavBar = () => {
   const pathname = usePathname();
@@ -162,18 +162,6 @@ const NavBar = () => {
             </div>
           )}
 
-          {/* Agents → Agent Arena */}
-          {isSignedIn && (
-            <Link
-              href="/arena"
-              onMouseEnter={() => router.prefetch('/arena')}
-              className="w-[90px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
-            >
-              <Bot className="w-[16px] h-[16px]" />
-              <span className="text-[12px] font-[400] font-dmSans">Agents</span>
-            </Link>
-          )}
-
           {/* Perk Shop button */}
           {isSignedIn && (
             <Link
@@ -231,18 +219,6 @@ const NavBar = () => {
             </button>
             {moreMenuOpen && (
               <div className="absolute right-0 mt-2 w-48 rounded-lg border border-[#0E282A] bg-[#011112] shadow-xl z-50 py-2">
-                {/* Arena */}
-                {isSignedIn && (
-                  <Link
-                    href="/arena"
-                    className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
-                    onClick={() => setMoreMenuOpen(false)}
-                  >
-                    <Swords className="w-[16px] h-[16px]" />
-                    <span className="font-dmSans">⚔️ Agent Arena</span>
-                  </Link>
-                )}
-
                 {/* Tournaments */}
                 {isSignedIn && (
                   <Link
@@ -252,17 +228,6 @@ const NavBar = () => {
                   >
                     <Trophy className="w-[16px] h-[16px]" />
                     <span className="font-dmSans">Tournaments</span>
-                  </Link>
-                )}
-
-                {isSignedIn && (
-                  <Link
-                    href="/agent-tournaments"
-                    className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
-                    onClick={() => setMoreMenuOpen(false)}
-                  >
-                    <Bot className="w-[16px] h-[16px]" />
-                    <span className="font-dmSans">Agent tournaments</span>
                   </Link>
                 )}
 

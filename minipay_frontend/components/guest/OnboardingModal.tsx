@@ -30,10 +30,17 @@ export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
   const { ready, authenticated, login } = usePrivy();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
+  const [isMiniPay, setIsMiniPay] = useState(false);
 
   useEffect(() => {
     if (hasSeenOnboarding()) return;
     setOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
+    setIsMiniPay(Boolean(eth?.isMiniPay));
   }, []);
 
   const handleDismiss = () => {
@@ -43,6 +50,10 @@ export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
   };
 
   const handleConnect = () => {
+    if (isMiniPay) {
+      openAppKit?.();
+      return;
+    }
     if (ready && !authenticated) {
       login();
     } else {

@@ -2,6 +2,7 @@
 
 import { PrivyProvider } from '@privy-io/react-auth';
 import type { ReactNode } from 'react';
+import { celo } from 'viem/chains';
 
 const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim()!;
 
@@ -25,6 +26,8 @@ export default function PrivyProviderWrapper({ children }: Props) {
         embeddedWallets: {
           createOnLogin: 'users-without-wallets',
         },
+        defaultChain: celo,
+        supportedChains: [celo],
         appearance: {
           theme: 'dark',
           landingHeader: 'Sign in to Tycoon',

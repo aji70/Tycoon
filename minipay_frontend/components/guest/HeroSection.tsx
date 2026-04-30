@@ -51,6 +51,8 @@ const HeroSection: React.FC = () => {
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
+  const [isMiniPay, setIsMiniPay] = useState(false);
+  const walletSessionReady = isMiniPay || isPrivyAuthed;
   const signOutGuestAndPrivy = () => {
     guestAuth?.logoutGuest();
     if (isPrivyAuthed) void logout();
@@ -63,6 +65,12 @@ const HeroSection: React.FC = () => {
   const [guestLoading, setGuestLoading] = useState(false);
   const [registerOnChainLoading, setRegisterOnChainLoading] = useState(false);
   const [linkWalletLoading, setLinkWalletLoading] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
+    setIsMiniPay(Boolean(eth?.isMiniPay));
+  }, []);
 
   const {
     write: registerPlayer,
@@ -571,7 +579,7 @@ const HeroSection: React.FC = () => {
 
         <div className="z-1 w-full flex min-h-[152px] flex-col justify-center items-center mt-6 gap-4">
           {/* EOA mandatory Privy: wallet connected but not signed in with Privy — must sign in with Privy to continue */}
-          {address && !isPrivyAuthed && !loading && (
+          {address && !walletSessionReady && !loading && (
             <div className="w-[80%] md:w-[400px] flex flex-col gap-4 items-center">
               <p className="text-[#869298] text-sm text-center font-dmSans">
                 Sign in with Privy to continue
@@ -604,7 +612,7 @@ const HeroSection: React.FC = () => {
           )}
 
           {/* Wallet: username input for new users (only when Privy-authed) */}
-          {address && isPrivyAuthed && registrationStatus === "none" && !loading && (
+          {address && walletSessionReady && registrationStatus === "none" && !loading && (
             <input
               type="text"
               value={inputUsername}
@@ -648,7 +656,7 @@ const HeroSection: React.FC = () => {
           )}
 
           {/* "Let's Go!" for wallet users (backend-only or none) — only when Privy-authed */}
-          {address && isPrivyAuthed && registrationStatus !== "fully-registered" && !loading && (
+          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
             <button
               onClick={handleRegister}
               disabled={
@@ -678,14 +686,14 @@ const HeroSection: React.FC = () => {
               </span>
             </button>
           )}
-          {address && isPrivyAuthed && registrationStatus !== "fully-registered" && !loading && (
+          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
             <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
               Creates your game account &amp; smart wallet
             </p>
           )}
 
           {/* Register + Link wallet: when Privy/guest without smart wallet — hide when action buttons are shown */}
-          {(registrationStatus === "privy" || (address && isPrivyAuthed && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || isPrivyAuthed) && !loading && !((address && registrationStatus === "fully-registered" && isPrivyAuthed) || (registrationStatus === "privy" && (guestUser || isPrivyAuthed))) && (
+          {(registrationStatus === "privy" || (address && walletSessionReady && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || walletSessionReady) && !loading && !((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) && (
             <div className="flex flex-col items-center gap-4 mt-4">
               <p className="text-[#869298] text-sm text-center max-w-sm">
                 Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.
@@ -729,7 +737,7 @@ const HeroSection: React.FC = () => {
           )}
 
           {/* Action buttons: require Privy for EOA; guest/Privy. Show when fully set up (hasSmartWallet preferred, but allow linked/registered users to try). */}
-          {((address && registrationStatus === "fully-registered" && isPrivyAuthed) || (registrationStatus === "privy" && (guestUser || isPrivyAuthed))) ? (
+          {((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) ? (
             <div className="flex flex-wrap justify-center items-center gap-4">
               {/* Continue Previous Game - Highlighted (wallet: from contract; guest: from my-games) */}
               {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
@@ -814,7 +822,7 @@ const HeroSection: React.FC = () => {
                 </span>
               </button>
 
-              {(guestUser || isPrivyAuthed) && (
+              {(guestUser || walletSessionReady) && (
                 <button
                   type="button"
                   onClick={() => signOutGuestAndPrivy()}
@@ -849,35 +857,10 @@ const HeroSection: React.FC = () => {
                 </span>
               </button>
 
-              {/* Agent Battles */}
-              <button
-                onClick={() => router.push("/arena")}
-                className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
-              >
-                <svg
-                  width="260"
-                  height="52"
-                  viewBox="0 0 260 52"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]"
-                >
-                  <path
-                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
-                    fill="#003B3E"
-                    stroke="#00F0FF"
-                    strokeWidth={1}
-                    className="group-hover:stroke-[#0FF0FC] transition-all duration-300"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
-                  Agent Battles
-                </span>
-              </button>
             </div>
           ) : null}
 
-          {!address && !guestUser && !isPrivyAuthed && (
+          {!address && !guestUser && !walletSessionReady && (
             <p className="text-gray-400 text-sm text-center mt-4">
               Sign in or connect your wallet to play.
             </p>

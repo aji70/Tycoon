@@ -51,6 +51,8 @@ const HeroSectionMobile: React.FC = () => {
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
+  const [isMiniPay, setIsMiniPay] = useState(false);
+  const walletSessionReady = isMiniPay || isPrivyAuthed;
   const signOutGuestAndPrivy = () => {
     guestAuth?.logoutGuest();
     if (isPrivyAuthed) void logout();
@@ -63,6 +65,12 @@ const HeroSectionMobile: React.FC = () => {
   const [guestLoading, setGuestLoading] = useState(false);
   const [registerOnChainLoading, setRegisterOnChainLoading] = useState(false);
   const [linkWalletLoading, setLinkWalletLoading] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
+    setIsMiniPay(Boolean(eth?.isMiniPay));
+  }, []);
 
   const { write: registerPlayer, isPending: registerPending } = useRegisterPlayer();
 
@@ -514,7 +522,7 @@ const HeroSectionMobile: React.FC = () => {
         {/* Main action area — min-height avoids CLS when Privy / registration UI hydrates */}
         <div className="mt-8 sm:mt-10 w-full max-w-[380px] flex min-h-[220px] flex-col items-center gap-5 sm:gap-6 flex-1">
           {/* EOA mandatory Privy: wallet connected but not signed in with Privy */}
-          {address && !isPrivyAuthed && !loading && (
+          {address && !walletSessionReady && !loading && (
             <div className="w-full max-w-[300px] flex flex-col gap-3 items-center">
               <p className="text-[#869298] text-sm text-center font-dmSans">
                 Sign in with Privy to continue
@@ -544,7 +552,7 @@ const HeroSectionMobile: React.FC = () => {
             </div>
           )}
 
-          {address && isPrivyAuthed && registrationStatus === "none" && !loading && (
+          {address && walletSessionReady && registrationStatus === "none" && !loading && (
             <input
               type="text"
               value={inputUsername}
@@ -585,7 +593,7 @@ const HeroSectionMobile: React.FC = () => {
             </div>
           )}
 
-          {address && isPrivyAuthed && registrationStatus !== "fully-registered" && !loading && (
+          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
             <>
             <button
               onClick={handleRegister}
@@ -616,7 +624,7 @@ const HeroSectionMobile: React.FC = () => {
           )}
 
           {/* Register + Link wallet: hide when action buttons are shown */}
-          {(registrationStatus === "privy" || (address && isPrivyAuthed && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || isPrivyAuthed) && !loading && !((address && registrationStatus === "fully-registered" && isPrivyAuthed) || (registrationStatus === "privy" && (guestUser || isPrivyAuthed))) && (
+          {(registrationStatus === "privy" || (address && walletSessionReady && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || walletSessionReady) && !loading && !((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) && (
             <div className="flex flex-col items-center gap-4 mt-4">
               <p className="text-[#869298] text-sm text-center px-2 max-w-sm">
                 Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.
@@ -659,7 +667,7 @@ const HeroSectionMobile: React.FC = () => {
             </div>
           )}
 
-          {((address && registrationStatus === "fully-registered" && isPrivyAuthed) || (registrationStatus === "privy" && (guestUser || isPrivyAuthed))) ? (
+          {((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) ? (
             <div className="w-full flex flex-col items-center gap-5">
               {/* Continue Previous Game - prominent when available, not full width */}
               {((gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
@@ -758,29 +766,7 @@ const HeroSectionMobile: React.FC = () => {
                 </span>
               </button>
 
-              {/* Agent Battles */}
-              <button
-                onClick={() => router.push("/arena")}
-                className="relative w-full max-w-[280px] h-12 transition-transform active:scale-[0.98]"
-              >
-                <svg
-                  className="absolute inset-0 w-full h-full"
-                  viewBox="0 0 300 56"
-                  fill="none"
-                  preserveAspectRatio="none"
-                >
-                  <path
-                    d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
-                    fill="#003B3E"
-                    stroke="#00F0FF"
-                    strokeWidth="2.5"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-sm font-orbitron font-bold uppercase">
-                  Agent Battles
-                </span>
-              </button>
-              {(guestUser || isPrivyAuthed) && (
+              {(guestUser || walletSessionReady) && (
                 <button
                   type="button"
                   onClick={() => signOutGuestAndPrivy()}
@@ -792,7 +778,7 @@ const HeroSectionMobile: React.FC = () => {
             </div>
           ) : null}
 
-          {!address && !guestUser && !isPrivyAuthed && !loading && (
+          {!address && !guestUser && !walletSessionReady && !loading && (
             <p className="text-gray-400 text-sm text-center mt-4 px-2">
               Sign in or connect your wallet (menu) to play.
             </p>
