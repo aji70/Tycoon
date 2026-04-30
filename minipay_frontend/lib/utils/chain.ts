@@ -5,16 +5,6 @@
 export function resolveChainForBackend(
   wagmiChainId: number,
   caipNetworkName?: string | null
-): "CELO" | "POLYGON" | "BASE" {
-  const id = Number(wagmiChainId);
-  if (id === 42220 || id === 44787) return "CELO";
-  if (id === 137 || id === 80001) return "POLYGON";
-  if (id === 8453 || id === 84531) return "BASE";
-
-  const n = (caipNetworkName ?? "").toLowerCase().replace(/\s+/g, "");
-  if (n.includes("celo")) return "CELO";
-  if (n.includes("polygon") || n === "matic") return "POLYGON";
-  if (n.includes("base")) return "BASE";
-
+): "CELO" {
   return "CELO";
 }

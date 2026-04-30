@@ -30,9 +30,6 @@ function isPowerOfTwo(n: number): boolean {
 }
 
 function chainIdToBackendChain(chainId: number): string {
-  if (chainId === 137 || chainId === 80001) return "POLYGON";
-  if (chainId === 42220 || chainId === 44787) return "CELO";
-  if (chainId === 8453 || chainId === 84531) return "BASE";
   return "CELO";
 }
 
@@ -375,10 +372,6 @@ export function CreateTournamentClient({
   };
 
   function txExplorerUrl(chainName: string, txHash: string): string {
-    const chain = String(chainName).toUpperCase();
-    if (chain === "POLYGON") return `https://polygonscan.com/tx/${txHash}`;
-    if (chain === "BASE") return `https://basescan.org/tx/${txHash}`;
-    if (chain === "CELO") return `https://celoscan.io/tx/${txHash}`;
     return `https://celoscan.io/tx/${txHash}`;
   }
 

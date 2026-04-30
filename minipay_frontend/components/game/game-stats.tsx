@@ -12,9 +12,6 @@ import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 
 function chainIdToLeaderboardChain(chainId: number): string {
-  if (chainId === 137 || chainId === 80001) return "POLYGON";
-  if (chainId === 42220 || chainId === 44787) return "CELO";
-  if (chainId === 8453 || chainId === 84531) return "BASE";
   return "CELO";
 }
 
