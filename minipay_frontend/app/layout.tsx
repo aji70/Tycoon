@@ -6,9 +6,7 @@ import { headers } from "next/headers";
 import ContextProvider from "@/context";
 import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
 import PrivyProviderWrapper from "@/components/PrivyProviderWrapper";
-import PrivyBackendSync from "@/components/PrivyBackendSync";
 import ReferralCapture from "@/components/ReferralCapture";
-import AddWalletPromptModal from "@/components/guest/AddWalletPromptModal";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
 import { ToastContainer } from "react-toastify";
@@ -100,7 +98,6 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="dns-prefetch" href="https://auth.privy.io" />
         <link rel="dns-prefetch" href="https://api.web3modal.org" />
         <link rel="dns-prefetch" href="https://pulse.walletconnect.org" />
         <link rel="dns-prefetch" href="https://fonts.reown.com" />
@@ -114,8 +111,6 @@ export default async function RootLayout({
             <TycoonProvider>
               <GuestAuthProvider>
               <ReferralCapture />
-              <PrivyBackendSync />
-              <AddWalletPromptModal />
               <TournamentProvider>
               <AppKitProviderWrapper>
                 {/* SocketProvider commented out as in your code */}
