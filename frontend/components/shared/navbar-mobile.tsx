@@ -280,8 +280,20 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                 Menu
               </p>
 
-              {/* Navigation — same order as desktop: Agents, Perk Shop, Leaderboard, Profile, Home; then More: Tournaments, Rooms, How to Play */}
+              {/* Navigation — Leaderboard is public; rest matches desktop when signed in */}
               <nav className="space-y-2 mb-6">
+                <Link
+                  href="/leaderboard"
+                  onClick={closeMobileMenu}
+                  onMouseEnter={() => router.prefetch('/leaderboard')}
+                  className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-amber-400/90">
+                    <Trophy size={20} />
+                  </div>
+                  Leaderboard
+                </Link>
+
                 {hasGameSession && (
                   <Link
                     href="/arena"
@@ -307,20 +319,6 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                       <ShoppingBag size={20} />
                     </div>
                     Perk Shop
-                  </Link>
-                )}
-
-                {hasGameSession && (
-                  <Link
-                    href="/leaderboard"
-                    onClick={closeMobileMenu}
-                    onMouseEnter={() => router.prefetch('/leaderboard')}
-                    className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-amber-400/90">
-                      <Trophy size={20} />
-                    </div>
-                    Leaderboard
                   </Link>
                 )}
 

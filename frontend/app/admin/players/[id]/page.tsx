@@ -53,6 +53,7 @@ type RecentGame = {
   winnerId: number | null;
   gamePlayerId?: number;
   balance: number;
+  turnCount?: number;
   createdAt: string;
   updatedAt: string;
   won: boolean;
@@ -403,6 +404,7 @@ export default function AdminPlayerDetailPage({ params }: { params: { id: string
                       <th className="py-2 pr-3">Status</th>
                       <th className="py-2 pr-3">Chain</th>
                       <th className="py-2 pr-3">AI</th>
+                      <th className="py-2 pr-3 text-right">Turns</th>
                       <th className="py-2 pr-3 text-right">Balance</th>
                       <th className="py-2 pr-3">Result</th>
                       <th className="py-2">Updated</th>
@@ -411,7 +413,7 @@ export default function AdminPlayerDetailPage({ params }: { params: { id: string
                   <tbody className="divide-y divide-slate-800/80">
                     {recentGames.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-slate-500">
+                        <td colSpan={8} className="py-8 text-center text-slate-500">
                           No game rows yet.
                         </td>
                       </tr>
@@ -425,6 +427,7 @@ export default function AdminPlayerDetailPage({ params }: { params: { id: string
                         <td className="py-2 pr-3 text-xs">{g.status}</td>
                         <td className="py-2 pr-3 text-xs">{g.chain ?? "—"}</td>
                         <td className="py-2 pr-3 text-xs">{g.isAi ? "Yes" : "—"}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums">{Number(g.turnCount ?? 0).toLocaleString()}</td>
                         <td className="py-2 pr-3 text-right tabular-nums">{g.balance}</td>
                         <td className="py-2 pr-3 text-xs">
                           {g.won ? (
