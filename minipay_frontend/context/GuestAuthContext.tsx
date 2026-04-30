@@ -17,6 +17,9 @@ export type GuestUser = {
   email_verified?: boolean;
   /** Set when user has a TycoonUserRegistry smart wallet (enables Challenge AI / Multiplayer without connecting wallet). */
   smart_wallet_address?: string | null;
+  /** Optional backend migration metadata for moving from legacy wallet to current smart wallet. */
+  smart_wallet_migration_status?: string | null;
+  legacy_smart_wallet_address?: string | null;
   /** True when user is registered on-chain but has no smart wallet (backend may auto-create if TYCOON_OWNER_PRIVATE_KEY is set). */
   needs_smart_wallet_creation?: boolean;
   /** True when user has set a withdrawal PIN (required for API withdrawals when not connected). */

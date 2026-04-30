@@ -100,6 +100,52 @@ function parseUserFromContract(data: unknown, username: string, walletAddress: s
   };
 }
 
+function parseUserFromBackend(
+  backendUser: unknown,
+  walletAddress: string | undefined,
+  fallbackUsername?: string
+): {
+  username: string;
+  shortAddress: string;
+  gamesPlayed: number;
+  gamesWon: number;
+  gamesLost: number;
+  winRate: string;
+  totalStaked: number;
+  totalEarned: number;
+  totalWithdrawn: number;
+  propertiesBought: number;
+  propertiesSold: number;
+  registeredAt: number;
+} | null {
+  if (!backendUser || typeof backendUser !== 'object') return null;
+  const d = backendUser as Record<string, unknown>;
+  const gamesPlayed = Number(d.celo_games_played ?? d.games_played ?? 0);
+  const gamesWon = Number(d.celo_games_won ?? d.game_won ?? 0);
+  const gamesLost = Number(d.game_lost ?? 0);
+  const totalStaked = Number(d.total_staked ?? 0);
+  const totalEarned = Number(d.total_earned ?? 0);
+  const totalWithdrawn = Number(d.total_withdrawn ?? 0);
+  const propertiesBought = Number(d.properties_bought ?? 0);
+  const propertiesSold = Number(d.properties_sold ?? 0);
+  const createdAtRaw = typeof d.created_at === 'string' ? d.created_at : null;
+  const registeredAt = createdAtRaw ? Math.floor(new Date(createdAtRaw).getTime() / 1000) : 0;
+  return {
+    username: String(d.username ?? fallbackUsername ?? 'Unknown'),
+    shortAddress: walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '',
+    gamesPlayed,
+    gamesWon,
+    gamesLost,
+    winRate: gamesPlayed > 0 ? ((gamesWon / gamesPlayed) * 100).toFixed(1) + '%' : '0%',
+    totalStaked,
+    totalEarned,
+    totalWithdrawn,
+    propertiesBought,
+    propertiesSold,
+    registeredAt,
+  };
+}
+
 function formatStakeOrEarned(value: number): string {
   if (value >= 1e18) return (value / 1e18).toFixed(2);
   if (value >= 1e15) return (value / 1e18).toFixed(4);
@@ -1159,9 +1205,15 @@ export default function Profile() {
       return;
     }
 
-    // If username fetch is done but empty, user likely isn't registered (or wrong network/contract address).
+    // If on-chain username is missing, fall back to backend profile so user details still load.
     if (!usernameLoading && !username) {
-      setError('No on-chain profile found for this address. Ensure you are on the correct network and registered.');
+      const backendParsed = parseUserFromBackend(backendUser, tycoonProfileOwnerAddress, guestUser?.username);
+      if (backendParsed) {
+        setError(null);
+        setUserData(backendParsed);
+      } else {
+        setError('No on-chain profile found for this address. Ensure you are on the correct network and registered.');
+      }
       setLoading(false);
       return;
     }
@@ -1173,9 +1225,15 @@ export default function Profile() {
       return;
     }
 
-    // If getUser finished but returned empty, show error rather than spinning.
+    // If getUser finished but returned empty, also allow backend fallback.
     if (username && !playerDataLoading && (playerData == null)) {
-      setError('No player data found');
+      const backendParsed = parseUserFromBackend(backendUser, tycoonProfileOwnerAddress, username as string);
+      if (backendParsed) {
+        setError(null);
+        setUserData(backendParsed);
+      } else {
+        setError('No player data found');
+      }
       setLoading(false);
       return;
     }
@@ -1188,6 +1246,8 @@ export default function Profile() {
     playerDataLoading,
     playerDataReadError,
     tycoonProfileOwnerAddress,
+    backendUser,
+    guestUser?.username,
   ]);
 
   // When contract returns all zeros but backend has stats (leaderboard source), use backend to populate profile stats.
