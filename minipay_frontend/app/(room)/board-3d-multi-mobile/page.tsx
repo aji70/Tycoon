@@ -31,7 +31,6 @@ import { Toaster, toast } from "react-hot-toast";
 import { MONOPOLY_STATS } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
-import { VictorySocialShare } from "@/components/game/modals/VictorySocialShare";
 import RaiseFundsPanel from "@/components/game/modals/RaiseFundsPanel";
 import { useAgentAutoLiquidate } from "@/hooks/useAgentAutoLiquidate";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
@@ -3006,14 +3005,6 @@ function Board3DMobilePageContent() {
                   You had the highest net worth when time ran out. Prizes were distributed when the game ended.
                 </p>
                 {endGameReason && <p className="text-slate-400 mb-4 text-sm">{endGameReason}</p>}
-                {(game?.code ?? gameCode ?? "").trim() ? (
-                  <VictorySocialShare
-                    gameCode={(game?.code ?? gameCode ?? "").trim()}
-                    winnerUsername={me?.username ?? undefined}
-                    joinPagePath="/game-waiting-3d"
-                    className="mb-5 text-left"
-                  />
-                ) : null}
                 <button
                   type="button"
                   onClick={() => handleFinalizeAndLeave()}
@@ -3037,16 +3028,6 @@ function Board3DMobilePageContent() {
                 <HeartHandshake className="w-12 h-12 mx-auto text-cyan-400 mb-4" />
                 {endGameReason && <p className="text-slate-400 mb-4 text-sm">{endGameReason}</p>}
                 <p className="text-slate-300 mb-4">You still get a consolation prize. Prizes were distributed when the game ended.</p>
-                {(game?.code ?? gameCode ?? "").trim() ? (
-                  <VictorySocialShare
-                    variant="loss"
-                    gameCode={(game?.code ?? gameCode ?? "").trim()}
-                    winnerUsername={winner.username}
-                    loserUsername={me?.username ?? undefined}
-                    joinPagePath="/game-waiting-3d"
-                    className="mb-5 text-left"
-                  />
-                ) : null}
                 <button
                   type="button"
                   onClick={() => handleFinalizeAndLeave()}

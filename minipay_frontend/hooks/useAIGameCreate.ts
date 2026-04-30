@@ -228,7 +228,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
     }
 
     try {
-      toast.update(toastId, { render: "Creating AI game on-chain..." });
+      toast.update(toastId, { render: "Creating AI game..." });
       const onChainGameId = await createAiGame(usernameNow);
       if (!onChainGameId) throw new Error("Failed to create game on-chain");
 
