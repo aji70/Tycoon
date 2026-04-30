@@ -88,6 +88,57 @@ const userController = {
   }
 },
 
+ async findByUsername(req, res) {
+  try {
+    const { username } = req.params;
+    const { chain, period = "all", month } = req.query;
+    if (!username || String(username).trim() === "") {
+      return res.status(400).json({ error: "Username is required" });
+    }
+
+    const name = String(username).trim();
+    const user = chain
+      ? await User.findByUsernameIgnoreCaseInChain(name, chain)
+      : await User.findByUsernameIgnoreCase(name);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const chainNorm = User.normalizeChain(user.chain || chain || "CELO");
+    const periodNorm = String(period).toLowerCase() === "month" ? "month" : "all";
+    const gameplay = await User.getGameplayStatsFromGames(user.id, chainNorm, {
+      period: periodNorm,
+      month: month ? String(month) : undefined,
+    });
+
+    const publicProfile = {
+      id: user.id,
+      username: user.username,
+      address: user.address,
+      chain: user.chain,
+      is_guest: user.is_guest,
+      smart_wallet_address: user.smart_wallet_address ?? null,
+      linked_wallet_address: user.linked_wallet_address ?? null,
+      created_at: user.created_at,
+      total_earned: user.total_earned,
+      total_staked: user.total_staked,
+      total_withdrawn: user.total_withdrawn,
+      game_memberships: gameplay.game_memberships,
+      games_played: gameplay.games_finished,
+      game_won: gameplay.game_won,
+      game_lost: gameplay.game_lost,
+      stats_scope: periodNorm,
+      stats_month: periodNorm === "month" ? (month ? String(month) : null) : null,
+    };
+
+    res.json(publicProfile);
+  } catch (error) {
+    console.error("Error in findByUsername:", error);
+    res.status(500).json({ error: error.message });
+  }
+},
+
   async findAll(req, res) {
     try {
       const { limit, offset } = req.query;
@@ -133,18 +184,34 @@ const userController = {
   // -------------------------
 
   /**
-   * GET /api/users/leaderboard?chain=&type=wins|earnings|stakes|winrate&limit=20&period=all|month&month=YYYY-MM
+   * GET /api/users/leaderboard?chain=&type=wins|earnings|stakes|winrate|played&limit=20&period=all|month|range&month=YYYY-MM&start=ISO&end=ISO
    * Returns top players for the given chain. Chain can be name (BASE, CELO) or chainId (8453, 42220).
-   * period=month uses finished games in the UTC month (month= defaults to current UTC). Monthly is supported for wins and winrate only.
+   * period=month uses finished games in the UTC month (month= defaults to current UTC). Monthly supports wins, winrate, and played.
+   * period=range uses [start, end) UTC timestamps. Range supports type=played.
    */
   async getLeaderboard(req, res) {
     try {
-      const { chain = "CELO", type = "wins", limit = 20, period = "all", month } = req.query;
+      const { chain = "CELO", type = "wins", limit = 20, period = "all", month, start, end } = req.query;
       const normalizedLimit = Math.min(Number.parseInt(limit, 10) || 20, 100);
       const normalizedType = String(type).toLowerCase();
-      const periodNorm = String(period).toLowerCase() === "month" ? "month" : "all";
+      const rawPeriod = String(period).toLowerCase();
+      const periodNorm = rawPeriod === "month" ? "month" : rawPeriod === "range" ? "range" : "all";
       let data;
-      if (periodNorm === "month") {
+      if (periodNorm === "range") {
+        if (normalizedType !== "played") {
+          return res.status(400).json({
+            error: "range_not_supported",
+            message: "Range leaderboard currently supports type=played only.",
+          });
+        }
+        if (!start || !end) {
+          return res.status(400).json({
+            error: "missing_range_params",
+            message: "Provide start and end ISO timestamps for period=range.",
+          });
+        }
+        data = await User.getRangeLeaderboardByGamesPlayed(chain, String(start), String(end), normalizedLimit);
+      } else if (periodNorm === "month") {
         switch (normalizedType) {
           case "wins":
             data = await User.getMonthlyLeaderboardByWins(chain, month, normalizedLimit);
@@ -152,14 +219,17 @@ const userController = {
           case "winrate":
             data = await User.getMonthlyLeaderboardByWinRate(chain, month, normalizedLimit);
             break;
+          case "played":
+            data = await User.getMonthlyLeaderboardByGamesPlayed(chain, month, normalizedLimit);
+            break;
           case "earnings":
           case "stakes":
             return res.status(400).json({
               error: "monthly_not_supported",
-              message: "Monthly leaderboard is available for wins and win rate. Earnings and stakes are all-time on-chain totals.",
+              message: "Monthly leaderboard is available for wins, win rate, and games played. Earnings/stakes are all-time totals.",
             });
           default:
-            return res.status(400).json({ error: "Invalid type. Use: wins, earnings, stakes, winrate" });
+            return res.status(400).json({ error: "Invalid type. Use: wins, earnings, stakes, winrate, played" });
         }
       } else {
         switch (normalizedType) {
@@ -175,8 +245,11 @@ const userController = {
           case "winrate":
             data = await User.getLeaderboardByWinRate(chain, normalizedLimit);
             break;
+          case "played":
+            data = await User.getLeaderboardByWins(chain, normalizedLimit);
+            break;
           default:
-            return res.status(400).json({ error: "Invalid type. Use: wins, earnings, stakes, winrate" });
+            return res.status(400).json({ error: "Invalid type. Use: wins, earnings, stakes, winrate, played" });
         }
       }
       res.json(Array.isArray(data) ? data : []);

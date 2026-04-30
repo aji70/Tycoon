@@ -18,8 +18,7 @@
         "db:reset": "knex migrate:rollback --all && knex migrate:latest && knex seed:run",
         "list:guest-users": "node -r dotenv/config scripts/list-guest-users.js",
         "register-erc8004-agent": "node -r dotenv/config scripts/register-erc8004-agent.js",
-        "finalize-tournament": "node -r dotenv/config scripts/finalize-tournament-admin.js",
-        "generate:celo-operator-wallets": "node scripts/generate-celo-operator-wallets.js"
+        "finalize-tournament": "node -r dotenv/config scripts/finalize-tournament-admin.js"
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.78.0",
