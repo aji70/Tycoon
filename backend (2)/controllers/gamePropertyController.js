@@ -1,0 +1,994 @@
+import db from "../config/database.js";
+import Game from "../models/Game.js";
+import GameProperty from "../models/GameProperty.js";
+import GameSetting from "../models/GameSetting.js";
+import User from "../models/User.js";
+import { transferPropertyOwnership, isContractConfigured } from "../services/tycoonContract.js";
+import {
+  recordPropertyPurchase,
+  incrementPropertiesSold,
+} from "../utils/userPropertyStats.js";
+import { invalidateGameById } from "../utils/gameCache.js";
+import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
+import logger from "../config/logger.js";
+import { ACTIVITY_XP, awardActivityXpByGameUser } from "../services/eloService.js";
+
+const gamePropertyController = {
+  async create(req, res) {
+    try {
+      const property = await GameProperty.create(req.body);
+      res
+        .status(201)
+        .json({ success: true, message: "successful", data: property });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  async findById(req, res) {
+    try {
+      const property = await GameProperty.findById(req.params.id);
+      if (!property)
+        return res.status(404).json({ error: "Game property not found" });
+      res.json({ success: true, message: "successful", data: property });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
+  async findAll(req, res) {
+    try {
+      const { limit, offset } = req.query;
+      const properties = await GameProperty.findAll({
+        limit: Number.parseInt(limit) || 100,
+        offset: Number.parseInt(offset) || 0,
+      });
+      res.json({ success: true, message: "successful", data: properties });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
+  async findByGame(req, res) {
+    try {
+      const properties = await GameProperty.findByGameId(req.params.gameId);
+      res.json({ success: true, message: "successful", data: properties });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
+  async findByPlayer(req, res) {
+    try {
+      const properties = await GameProperty.findByPlayerId(req.params.playerId);
+      res.json({ success: true, message: "successful", data: properties });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
+  async update(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { game_id, player_id: newPlayerId } = req.body;
+      const idParam = req.params.id;
+
+      let current = null;
+      if (game_id && idParam) {
+        const byGameAndProperty = await trx("game_properties as gp")
+          .join("game_players as p", "gp.player_id", "p.id")
+          .join("users as u", "p.user_id", "u.id")
+          .where("gp.game_id", game_id)
+          .where("gp.property_id", idParam)
+          .select("gp.id", "gp.player_id", "gp.property_id", "u.id as seller_user_id", "u.username as seller_username")
+          .first();
+        if (byGameAndProperty) current = { id: byGameAndProperty.id, player_id: byGameAndProperty.player_id, property_id: byGameAndProperty.property_id, seller_user_id: byGameAndProperty.seller_user_id, seller_username: byGameAndProperty.seller_username };
+      }
+      if (!current) {
+        const byId = await trx("game_properties as gp")
+          .join("game_players as p", "gp.player_id", "p.id")
+          .join("users as u", "p.user_id", "u.id")
+          .where("gp.id", idParam)
+          .select("gp.id", "gp.player_id", "gp.property_id", "u.id as seller_user_id", "u.username as seller_username")
+          .first();
+        if (byId) current = { id: byId.id, player_id: byId.player_id, property_id: byId.property_id, seller_user_id: byId.seller_user_id, seller_username: byId.seller_username };
+      }
+
+      const isTransfer = current && newPlayerId != null && Number(current.player_id) !== Number(newPlayerId);
+      let buyerUsername = null;
+      let buyerUserId = null;
+      if (isTransfer && newPlayerId) {
+        const buyer = await trx("game_players as p")
+          .join("users as u", "p.user_id", "u.id")
+          .where("p.id", newPlayerId)
+          .select("u.id as user_id", "u.username")
+          .first();
+        buyerUsername = buyer?.username ?? null;
+        buyerUserId = buyer?.user_id ?? null;
+      }
+
+      const updateId = current ? current.id : idParam;
+      await trx("game_properties")
+        .where({ id: updateId })
+        .update({ ...req.body, updated_at: db.fn.now() });
+
+      const property = await trx("game_properties").where({ id: updateId }).first();
+
+      await trx.commit();
+
+      res.json({ success: true, message: "successful", data: property });
+
+      const gameForChain = game_id ? await Game.findById(game_id) : null;
+      const chainForUpdate = gameForChain ? User.normalizeChain(gameForChain.chain || "CELO") : "CELO";
+      const contractConfigured = isContractConfigured(chainForUpdate);
+
+      if (isTransfer && current?.seller_username && buyerUsername && contractConfigured) {
+        transferPropertyOwnership(current.seller_username, buyerUsername, chainForUpdate).catch((err) => {
+          logger.warn({ err, seller: current.seller_username, buyer: buyerUsername }, "Tycoon transferPropertyOwnership failed");
+        });
+      }
+      if (isTransfer && current?.seller_user_id && buyerUserId && current?.property_id && game_id) {
+        incrementPropertiesSold(current.seller_user_id).catch(() => {});
+        recordPropertyPurchase(buyerUserId, current.property_id, game_id, "trade").catch(() => {});
+      }
+    } catch (error) {
+      await trx.rollback();
+      res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  async remove(req, res) {
+    try {
+      await GameProperty.delete(req.params.id);
+      res.json({ success: true, message: "successful", data: null });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  async buy(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { game_id, property_id, user_id } = req.body;
+
+      // Fetch game
+      const game = await trx("games").where({ id: game_id }).first();
+      if (!game) {
+        await trx.rollback();
+        return res.status(404).json({ error: "Game not found" });
+      }
+      if (game.status !== "RUNNING") {
+        await trx.rollback();
+        return res.status(422).json({ error: "Game is currently not running" });
+      }
+
+      //  Fetch player
+      const player = await trx("game_players")
+        .where({ user_id, game_id })
+        .first();
+      if (!player) {
+        await trx.rollback();
+        return res.status(404).json({ error: "Player not in game" });
+      }
+
+      //  Fetch property
+      const property = await trx("properties")
+        .where({ id: property_id })
+        .first();
+      if (!property) {
+        await trx.rollback();
+        return res.status(404).json({ error: "Property not found" });
+      }
+
+      //  Check if property already owned by someone in this game
+      const existing = await trx("game_properties")
+        .where({ property_id, game_id })
+        .first();
+      if (existing) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ error: "Game property not available for purchase" });
+      }
+
+      // Check player balance
+      if (Number(player.balance) < Number(property.price)) {
+        await trx.rollback();
+        return res.status(422).json({ error: "Insufficient balance" });
+      }
+
+      //  Deduct balance
+      await trx("game_players")
+        .where({ id: player.id })
+        .update({
+          balance: Number(player.balance) - Number(property.price),
+          updated_at: db.fn.now(),
+        });
+
+      //  Assign property to player
+      await trx("game_properties").insert({
+        game_id: game.id,
+        property_id: property.id,
+        player_id: player.id,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+
+      await trx("game_play_history").insert({
+        game_id: game.id,
+        game_player_id: player.id,
+        rolled: null,
+        old_position: null,
+        new_position: null,
+        action: "property_action",
+        amount: -Number(property.price),
+        extra: null,
+        comment: `bought ${property.name}`,
+        active: 1,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+
+      await trx.commit();
+
+      // Notify clients so balance/property list updates immediately
+      const io = req.app.get("io");
+      if (io && game.id) await emitGameUpdateByGameId(io, game.id);
+      await invalidateGameById(game.id);
+
+      // Stats: record property purchase (bank)
+      recordPropertyPurchase(user_id, property_id, game.id, "bank").catch(() => {});
+      awardActivityXpByGameUser(game.id, user_id, ACTIVITY_XP.PROPERTY_BOUGHT, "property_bought").catch(() => {});
+
+      // On-chain: call transferPropertyOwnership (seller=Bank when buying from bank). Contract must have "Bank" registered.
+      const chainForBuy = User.normalizeChain(game.chain || "CELO");
+      if (isContractConfigured(chainForBuy)) {
+        const buyerUsername = (await db("users").where({ id: player.user_id }).select("username").first())?.username ?? null;
+        if (buyerUsername) {
+          transferPropertyOwnership("Bank", buyerUsername, chainForBuy).catch((err) => {
+             logger.warn({ err, buyerUsername }, "Tycoon transferPropertyOwnership failed (buy from bank)");
+          });
+        }
+      }
+
+      return res.json({ success: true, message: "successful", data: null });
+    } catch (error) {
+      await trx.rollback();
+      console.error("Transaction failed:", error);
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  async development(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { game_id, property_id, user_id } = req.body;
+
+      // Fetch game
+      const game = await trx("games").where({ id: game_id }).first();
+      if (!game) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Game not found", data: null });
+      }
+      if (game.status !== "RUNNING") {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Game is currently not running",
+          data: null,
+        });
+      }
+
+      //  Fetch player
+      const player = await trx("game_players")
+        .where({ user_id, game_id })
+        .first();
+      if (!player) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Player not in game", data: null });
+      }
+      if (player.in_jail) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Cannot develop property from jail",
+          data: null,
+        });
+      }
+
+      //  Fetch property
+      const property = await trx("properties")
+        .where({ id: property_id })
+        .first();
+      if (!property) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Property not found", data: null });
+      }
+
+      if (property.group_id == "0") {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Property can not be developed",
+          data: null,
+        });
+      }
+
+      //  Check if property is owned by user
+      const game_property = await trx("game_properties")
+        .where({ property_id, game_id, player_id: player.id })
+        .first();
+      if (!game_property) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Game property not available for development",
+          data: null,
+        });
+      }
+      if (game_property.mortgaged) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Cannot develop a mortgaged property",
+          data: null,
+        });
+      }
+
+      // Get all property IDs in that group
+      const groupProperties = await trx("properties")
+        .where("group_id", property.group_id)
+        .pluck("id");
+
+      // Check which of those properties the user owns in this game
+      const ownedGroupProps = await trx("game_properties")
+        .whereIn("property_id", groupProperties)
+        .andWhere({ game_id, player_id: player.id }) // adjust to your owner field
+        .count("id as count")
+        .first();
+
+      // Compare counts
+      if (Number(ownedGroupProps.count) !== groupProperties.length) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "You must own all properties in this group to develop",
+          data: null,
+        });
+      }
+
+      // House rule: even build — only enforce "within 1 level" when enabled
+      const game_settings_dev = await GameSetting.findByGameId(game.id, trx);
+      if (game_settings_dev && game_settings_dev.even_build) {
+        const groupDevelopments = await trx("game_properties")
+          .whereIn("property_id", groupProperties)
+          .andWhere({ game_id, player_id: player.id })
+          .select("property_id", "development");
+
+        if (groupDevelopments.length > 0) {
+          const levels = groupDevelopments.map((p) => Number(p.development || 0));
+          const minLevel = Math.min(...levels);
+          const maxLevel = Math.max(...levels);
+
+          if (maxLevel - minLevel > 1) {
+            await trx.rollback();
+            return res.status(422).json({
+              success: false,
+              message:
+                "Development levels in this property group must be within 1 level of each other.",
+              data: null,
+            });
+          }
+
+          const currentPropertyLevel = Number(game_property.development || 0);
+          const proposedLevel = currentPropertyLevel + 1;
+
+          if (proposedLevel - minLevel > 1) {
+            await trx.rollback();
+            return res.status(422).json({
+              success: false,
+              message:
+                "You must build evenly across all properties in this group (cannot upgrade this one yet).",
+              data: null,
+            });
+          }
+        }
+      }
+
+      // Classic Monopoly: bank has 32 houses and 12 hotels; cannot build if at limit
+      const currentDev = Number(game_property.development ?? 0);
+      const proposedDev = currentDev + 1;
+      const allGameProps = await trx("game_properties").where({ game_id }).select("development");
+      let totalHouses = 0;
+      let totalHotels = 0;
+      for (const gp of allGameProps || []) {
+        const d = Number(gp.development ?? 0);
+        if (d >= 5) totalHotels += 1;
+        else totalHouses += d;
+      }
+      const MAX_HOUSES = 32;
+      const MAX_HOTELS = 12;
+      if (proposedDev <= 4) {
+        if (totalHouses + 1 > MAX_HOUSES) {
+          await trx.rollback();
+          return res.status(422).json({
+            success: false,
+            message: "No houses available. The bank has run out (max 32). Sell a house to free one.",
+            data: null,
+          });
+        }
+      } else {
+        if (totalHotels + 1 > MAX_HOTELS) {
+          await trx.rollback();
+          return res.status(422).json({
+            success: false,
+            message: "No hotels available. The bank has run out (max 12).",
+            data: null,
+          });
+        }
+      }
+
+      // Check player balance
+      if (Number(player.balance) < Number(property.cost_of_house)) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Insufficient balance",
+          data: null,
+        });
+      }
+
+      if (game_property.development >= 5) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Property developed to the max",
+          data: null,
+        });
+      }
+
+      //  Deduct balance
+      await trx("game_players")
+        .where({ id: player.id })
+        .update({
+          balance: Number(player.balance) - Number(property.cost_of_house),
+          updated_at: db.fn.now(),
+        });
+
+      //  Update game property development
+      await trx("game_properties")
+        .where({ id: game_property.id })
+        .increment("development", 1);
+
+      const newDev = Number(game_property.development || 0) + 1;
+      const buildLabel = newDev === 5 ? "built a hotel on" : "built a house on";
+      await trx("game_play_history").insert({
+        game_id: game.id,
+        game_player_id: player.id,
+        rolled: null,
+        old_position: null,
+        new_position: null,
+        action: "property_action",
+        amount: -Number(property.cost_of_house),
+        extra: null,
+        comment: `${buildLabel} ${property.name}`,
+        active: 1,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+
+      await trx.commit();
+
+      // Notify clients so balance updates immediately
+      const ioDev = req.app.get("io");
+      if (ioDev && game.id) await emitGameUpdateByGameId(ioDev, game.id);
+      await invalidateGameById(game.id);
+      awardActivityXpByGameUser(game.id, user_id, ACTIVITY_XP.HOUSE_BUILT, "house_built").catch(() => {});
+
+      return res
+        .status(200)
+        .json({ success: true, message: "successful", data: null });
+    } catch (error) {
+      await trx.rollback();
+      console.error("Transaction failed:", error);
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  async downgrade(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { game_id, property_id, user_id } = req.body;
+
+      // Fetch game
+      const game = await trx("games").where({ id: game_id }).first();
+      if (!game) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Game not found", data: null });
+      }
+      if (game.status !== "RUNNING") {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Game is currently not running",
+          data: null,
+        });
+      }
+
+      //  Fetch player
+      const player = await trx("game_players")
+        .where({ user_id, game_id })
+        .first();
+      if (!player) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Player not in game", data: null });
+      }
+
+      if (player.in_jail) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Cannot downgrade property from jail",
+          data: null,
+        });
+      }
+      //  Fetch property
+      const property = await trx("properties")
+        .where({ id: property_id })
+        .first();
+      if (!property) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Property not found", data: null });
+      }
+
+      if (property.group_id == "0") {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Property can not be downgraded",
+          data: null,
+        });
+      }
+
+      //  Check if property is owned by user
+      const game_property = await trx("game_properties")
+        .where({ property_id, game_id, player_id: player.id })
+        .first();
+      if (!game_property) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Game property not available for downgrade",
+          data: null,
+        });
+      }
+
+      if (game_property.mortgaged) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Cannot downgrade a mortgaged property",
+          data: null,
+        });
+      }
+
+      // No development
+      if (game_property.development <= 0) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "No active development on this property",
+          data: null,
+        });
+      }
+
+      // Credit balance
+      await trx("game_players")
+        .where({ id: player.id })
+        .increment("balance", Number(property.cost_of_house) / 2);
+
+      // Update game property development
+      await trx("game_properties")
+        .where({ id: game_property.id })
+        .decrement("development", 1);
+
+      await trx("game_play_history").insert({
+        game_id: game.id,
+        game_player_id: player.id,
+        rolled: null,
+        old_position: null,
+        new_position: null,
+        action: "property_action",
+        amount: Number(property.cost_of_house) / 2,
+        extra: null,
+        comment: `sold a building on ${property.name}`,
+        active: 1,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+
+      await trx.commit();
+      const ioDown = req.app.get("io");
+      if (ioDown && game.id) await emitGameUpdateByGameId(ioDown, game.id);
+      await invalidateGameById(game.id);
+      return res
+        .status(200)
+        .json({ success: true, message: "successful", data: null });
+    } catch (error) {
+      await trx.rollback();
+      console.error("Transaction failed:", error);
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  async mortgage(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { game_id, property_id, user_id } = req.body;
+
+      // Fetch game
+      const game = await trx("games").where({ id: game_id }).first();
+      if (!game) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Game not found", data: null });
+      }
+      if (game.status !== "RUNNING") {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Game is currently not running",
+          data: null,
+        });
+      }
+
+      const game_settings = await GameSetting.findByGameId(game.id, trx);
+      if (game_settings && !game_settings.mortgage) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Mortgages are disabled for this game",
+          data: null,
+        });
+      }
+
+      //  Fetch player
+      const player = await trx("game_players")
+        .where({ user_id, game_id })
+        .first();
+      if (!player) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Player not in game", data: null });
+      }
+
+      if (player.in_jail) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Cannot mortgage property from jail",
+          data: null,
+        });
+      }
+
+      //  Fetch property
+      const property = await trx("properties")
+        .where({ id: property_id })
+        .first();
+      if (!property || property.price <= 0) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Property not found", data: null });
+      }
+
+      //  Check if property is owned by user
+      const game_property = await trx("game_properties")
+        .where({ property_id, game_id, player_id: player.id })
+        .first();
+      if (!game_property) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Game property not available",
+          data: null,
+        });
+      }
+
+      if (game_property.mortgaged) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Property is already mortgaged ",
+          data: null,
+        });
+      }
+
+      if (game_property.development > 0) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Property is developed, downgrade back to land to mortgage",
+          data: null,
+        });
+      }
+
+      //  Credit balance
+      await trx("game_players")
+        .where({ id: player.id })
+        .increment("balance", Number(property.price) / 2);
+
+      //  Update game property mortgaged
+      await trx("game_properties")
+        .where({ id: game_property.id })
+        .update({ mortgaged: 1 });
+
+      await trx("game_play_history").insert({
+        game_id: game.id,
+        game_player_id: player.id,
+        rolled: null,
+        old_position: null,
+        new_position: null,
+        action: "property_action",
+        amount: Number(property.price) / 2,
+        extra: null,
+        comment: `mortgaged ${property.name}`,
+        active: 1,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+
+      await trx.commit();
+      const ioMort = req.app.get("io");
+      if (ioMort && game.id) await emitGameUpdateByGameId(ioMort, game.id);
+      await invalidateGameById(game.id);
+      return res
+        .status(200)
+        .json({ success: true, message: "successful", data: null });
+    } catch (error) {
+      await trx.rollback();
+      console.error("Transaction failed:", error);
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  async unmortgage(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { game_id, property_id, user_id } = req.body;
+
+      // Fetch game
+      const game = await trx("games").where({ id: game_id }).first();
+      if (!game) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Game not found", data: null });
+      }
+      if (game.status !== "RUNNING") {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Game is currently not running",
+          data: null,
+        });
+      }
+
+      const game_settingsUnmort = await GameSetting.findByGameId(game.id, trx);
+      if (game_settingsUnmort && !game_settingsUnmort.mortgage) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Mortgages are disabled for this game",
+          data: null,
+        });
+      }
+
+      //  Fetch player
+      const player = await trx("game_players")
+        .where({ user_id, game_id })
+        .first();
+      if (!player) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Player not in game", data: null });
+      }
+
+      if (player.in_jail) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Cannot unmortgage property from jail",
+          data: null,
+        });
+      }
+
+      //  Fetch property
+      const property = await trx("properties")
+        .where({ id: property_id })
+        .first();
+      if (!property || property.price <= 0) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Property not found", data: null });
+      }
+
+      //  Check if property is owned by user
+      const game_property = await trx("game_properties")
+        .where({ property_id, game_id, player_id: player.id })
+        .first();
+      if (!game_property) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Game property not available",
+          data: null,
+        });
+      }
+
+      if (!game_property.mortgaged) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Property is not mortgaged ",
+          data: null,
+        });
+      }
+
+      // Check player balance
+      if (Number(player.balance) < Number(property.price)) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Insufficient balance",
+          data: null,
+        });
+      }
+
+      //  Debit balance
+      await trx("game_players")
+        .where({ id: player.id })
+        .decrement("balance", Number(property.price));
+
+      //  Update game property mortgaged
+      await trx("game_properties")
+        .where({ id: game_property.id })
+        .update({ mortgaged: 0 });
+
+      await trx("game_play_history").insert({
+        game_id: game.id,
+        game_player_id: player.id,
+        rolled: null,
+        old_position: null,
+        new_position: null,
+        action: "property_action",
+        amount: -Number(property.price),
+        extra: null,
+        comment: `redeemed ${property.name} from mortgage`,
+        active: 1,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+
+      await trx.commit();
+      const ioUnmort = req.app.get("io");
+      if (ioUnmort && game.id) await emitGameUpdateByGameId(ioUnmort, game.id);
+      await invalidateGameById(game.id);
+      return res
+        .status(200)
+        .json({ success: true, message: "successful", data: null });
+    } catch (error) {
+      await trx.rollback();
+      console.error("Transaction failed:", error);
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  async sell(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { game_id, property_id, user_id } = req.body;
+
+      const game = await trx("games").where({ id: game_id }).first();
+      if (!game) {
+        await trx.rollback();
+        return res.status(404).json({ error: "Game not found" });
+      }
+      if (game.status !== "RUNNING") {
+        await trx.rollback();
+        return res.status(422).json({ error: "Game is currently not running" });
+      }
+
+      const player = await trx("game_players")
+        .where({ user_id, game_id })
+        .first();
+      if (!player) {
+        await trx.rollback();
+        return res.status(404).json({ error: "Player not in game" });
+      }
+
+      const property = await trx("properties").where({ id: property_id }).first();
+      if (!property) {
+        await trx.rollback();
+        return res.status(404).json({ error: "Property not found" });
+      }
+
+      const game_property = await trx("game_properties")
+        .where({ property_id, game_id, player_id: player.id })
+        .first();
+      if (!game_property) {
+        await trx.rollback();
+        return res.status(422).json({ error: "Property not owned by you" });
+      }
+      if ((game_property.development ?? 0) > 0) {
+        await trx.rollback();
+        return res.status(422).json({ error: "Cannot sell property with buildings" });
+      }
+      if (game_property.mortgaged) {
+        await trx.rollback();
+        return res.status(422).json({ error: "Cannot sell mortgaged property" });
+      }
+
+      const sellPrice = Math.floor(Number(property.price) / 2);
+      await trx("game_players")
+        .where({ id: player.id })
+        .increment("balance", sellPrice);
+      await trx("game_properties").where({ id: game_property.id }).del();
+
+      await trx("game_play_history").insert({
+        game_id: game.id,
+        game_player_id: player.id,
+        rolled: null,
+        old_position: null,
+        new_position: null,
+        action: "property_action",
+        amount: sellPrice,
+        extra: null,
+        comment: `sold ${property.name} back to bank`,
+        active: 1,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+
+      const sellerUser = await trx("users").where({ id: player.user_id }).select("username").first();
+      const sellerUsername = sellerUser?.username ?? null;
+
+      await trx.commit();
+
+      if (sellerUsername) {
+        incrementPropertiesSold(player.user_id).catch(() => {});
+      }
+      awardActivityXpByGameUser(game.id, player.user_id, ACTIVITY_XP.PROPERTY_SOLD, "property_sold").catch(() => {});
+
+      const chainForSell = User.normalizeChain(game.chain || "CELO");
+      if (isContractConfigured(chainForSell) && sellerUsername) {
+        transferPropertyOwnership(sellerUsername, "Bank", chainForSell).catch((err) => {
+          logger.warn({ err, sellerUsername }, "Tycoon transferPropertyOwnership failed (sell to bank)");
+        });
+      }
+
+      return res.json({ success: true, message: "successful", data: null });
+    } catch (error) {
+      await trx.rollback();
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  },
+};
+
+export default gamePropertyController;

@@ -1,0 +1,8 @@
+# Sensitive – do not commit
+.env
+.env.*
+!.env.example
+.env.local
+
+package-lock.json
+/node_modules
