@@ -14,6 +14,7 @@ import {
 } from "@/lib/agentBehaviorProfile";
 import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 import { getInjectedEoaAddress } from "@/lib/utils/erc8004InjectedEoa";
@@ -625,7 +626,7 @@ export default function AgentsPageMobile({
         toast.error("Registration succeeded but could not read agent ID");
       }
     } catch (err: unknown) {
-      toast.error((err as Error)?.message ?? "Registration failed");
+      toast.error(getContractErrorMessage(err, "Registration failed"));
     } finally {
       setRegisteringErc8004Id(null);
     }
@@ -661,7 +662,7 @@ export default function AgentsPageMobile({
         toast.error("Registration succeeded but could not read agent ID");
       }
     } catch (err: unknown) {
-      toast.error((err as Error)?.message ?? "Registration failed");
+      toast.error(getContractErrorMessage(err, "Registration failed"));
     } finally {
       setRegisteringErc8004Id(null);
     }
@@ -1057,7 +1058,7 @@ export default function AgentsPageMobile({
                         onClick={() => handleRegisterOnCelo(a)}
                         disabled={isRegisteringErc8004 && registeringErc8004Id === a.id}
                         className="flex items-center gap-1 px-2 py-1 rounded border border-purple-500/40 text-purple-400 text-xs"
-                        title={a.erc8004_agent_id ? "Re-link: mint new ID (confirm)" : "Register on Celo (EOA). You pay gas."}
+                        title={a.erc8004_agent_id ? "Re-link: mint new ID (confirm)" : "Register on Celo. A small network fee applies."}
                       >
                         {isRegisteringErc8004 && registeringErc8004Id === a.id ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
@@ -1397,7 +1398,7 @@ export default function AgentsPageMobile({
                       type="button"
                       onClick={handleCreateOnCeloFromForm}
                       disabled={isRegisteringErc8004 || !editingId || !isCelo}
-                      title={!editingId ? "Save first" : !isCelo ? "Switch to Celo" : "Create ERC-8004 ID with your browser wallet (EOA); you pay gas"}
+                      title={!editingId ? "Save first" : !isCelo ? "Switch to Celo" : "Create ERC-8004 ID with your browser wallet; a small network fee applies"}
                       className="shrink-0 px-3 py-2.5 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/20 text-emerald-300 font-orbitron font-semibold text-xs flex items-center gap-1"
                     >
                       {isRegisteringErc8004 && registeringErc8004Id === editingId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}

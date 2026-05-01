@@ -85,7 +85,7 @@ export default function TermsPage() {
           'We do not custody your private keys, seed phrases, or funds. You are fully responsible for wallet security.',
           'All blockchain transactions are irreversible. We are not responsible for lost funds due to user error or network issues.',
           'By interacting with smart contracts shown in the app, you accept their rules and risks.',
-          'Network fees (gas), slippage, and blockchain congestion are outside our control.',
+          'Network fees, slippage, and blockchain congestion are outside our control.',
         ]} />
       </Section>
 

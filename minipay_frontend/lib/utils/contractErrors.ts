@@ -83,12 +83,12 @@ export function getContractErrorMessage(
     e?.shortMessage?.includes("insufficient funds") ||
     e?.message?.toLowerCase().includes("insufficient balance")
   ) {
-    return "Not enough funds for gas fees.";
+    return "Not enough funds for network fees.";
   }
 
   // Insufficient balance or allowance for ERC20
   if (e?.message?.toLowerCase().includes("insufficient")) {
-    return "Insufficient balance or gas.";
+    return "Insufficient balance or network fees.";
   }
 
   // Contract revert: AI game specific (wrong network or game type)

@@ -5,6 +5,7 @@ import { useAccount, useBalance, useReadContract, useReadContracts } from 'wagmi
 import { formatUnits, parseUnits, isAddress, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
+import { getContractErrorMessage } from '@/lib/utils/contractErrors';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -587,7 +588,7 @@ export default function GameShop() {
     } catch (e: unknown) {
       const status = (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
       if (status === 401) toast.error('Please sign in to pay with Naira.');
-      else toast.error((e as Error)?.message ?? 'Failed to start Naira payment');
+      else toast.error(getContractErrorMessage(e, 'Failed to start Naira payment'));
     } finally {
       setNgnLoadingTokenId(null);
     }
@@ -693,7 +694,7 @@ export default function GameShop() {
         await redeemFor(voucherOwner, tokenId);
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Redemption failed');
+      toast.error(getContractErrorMessage(err, 'Redemption failed'));
     }
   };
 
@@ -735,7 +736,7 @@ export default function GameShop() {
       }
       toast.success('All bundles stocked');
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Failed to stock bundles');
+      toast.error(getContractErrorMessage(e, 'Failed to stock bundles'));
     } finally {
       setStockAllBundlesProgress({ active: false, current: 0, total: 0 });
     }
@@ -792,11 +793,11 @@ export default function GameShop() {
   }, [redeemForSuccess, resetRedeemFor]);
 
   useEffect(() => {
-    if (buyError) toast.error(buyError.message || 'Purchase failed');
-    if (buyBundleError) toast.error(buyBundleError.message || 'Bundle purchase failed');
-    if (buyBundleFromError) toast.error(buyBundleFromError.message || 'Smart wallet bundle purchase failed');
-    if (redeemError) toast.error(redeemError.message || 'Redemption failed');
-    if (redeemForError) toast.error(redeemForError.message || 'Smart wallet redemption failed');
+    if (buyError) toast.error(getContractErrorMessage(buyError, 'Purchase failed'));
+    if (buyBundleError) toast.error(getContractErrorMessage(buyBundleError, 'Bundle purchase failed'));
+    if (buyBundleFromError) toast.error(getContractErrorMessage(buyBundleFromError, 'Purchase failed'));
+    if (redeemError) toast.error(getContractErrorMessage(redeemError, 'Redemption failed'));
+    if (redeemForError) toast.error(getContractErrorMessage(redeemForError, 'Redemption failed'));
   }, [buyError, buyBundleError, buyBundleFromError, redeemError, redeemForError]);
 
   const handleBack = () => {
@@ -1116,7 +1117,7 @@ export default function GameShop() {
                         {bundleBuyingName === b.name ? (
                           <><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Buying bundle...</>
                         ) : (
-                          <><CreditCard className="w-4 h-4 inline mr-2" /> Buy with USDC</>
+                          <><CreditCard className="w-4 h-4 inline mr-2" /> Pay with digital dollars</>
                         )}
                       </button>
                       {b.price_ngn != null && b.price_ngn > 0 && (
@@ -1244,7 +1245,7 @@ export default function GameShop() {
                           ) : payFromSmartWalletUnsupported ? (
                             <>Use Connected wallet to pay</>
                           ) : (
-                            <> <CreditCard className="w-5 h-5" /> Buy with {activeStableLabel} — ${Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} </>
+                            <> <CreditCard className="w-5 h-5" /> Pay with digital dollars — ${Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} </>
                           )}
                         </button>
                         <button

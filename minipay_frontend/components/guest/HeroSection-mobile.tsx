@@ -328,7 +328,7 @@ const HeroSectionMobile: React.FC = () => {
         err?.message ||
         "Registration failed. Try again.";
       if (String(err?.message || "").toLowerCase().includes("insufficient funds")) {
-        message = "Insufficient gas funds";
+        message = "Not enough funds to cover the network fee.";
       }
 
       toast.update(toastId, {
