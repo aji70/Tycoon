@@ -15,261 +15,211 @@ export default function PrivacyPage() {
     <LegalDocLayout title="Privacy Policy" lastUpdated="July 2025">
 
       <Info>
-        This Privacy Policy explains how Tycoon (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;)
-        collects, uses, stores, and protects your personal data when you use our platform at{' '}
-        <a href="https://tycoonworld.xyz" className="text-[#00F0FF] hover:underline">tycoonworld.xyz</a>.
-        We are committed to protecting your privacy and complying with applicable data protection
-        laws including the EU General Data Protection Regulation (GDPR), UK GDPR, and other
-        applicable privacy regulations.
+        This Privacy Policy explains how Tycoon (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;)
+        collects, uses, and protects your information when you use our website, game, or services
+        (the &quot;Services&quot;). By using our Services you agree to the practices described here.
       </Info>
 
       <section className="space-y-3">
-        <S>1. Data Controller</S>
-        <p>
-          The data controller for personal data processed through this Service is:
-          <br /><strong>Sabo Ajidokwu Emmanuel</strong> — operating as Tycoon.
-          <br />Contact:{' '}
-          <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">
-            support@tycoonworld.xyz
-          </a>
-        </p>
+        <S>1. Information We Collect</S>
+
+        <p className="font-semibold text-[#F0F7F7]">a. Blockchain &amp; Wallet Data (Public &amp; On-Chain)</p>
+        <p>When you connect a wallet:</p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>Your public wallet address</li>
+          <li>On-chain transactions, token balances, NFT holdings, and interactions (all visible on the blockchain)</li>
+        </ul>
+        <Info>
+          <strong>Important:</strong> Blockchain data is public, permanent, and immutable. We
+          cannot delete or hide any information recorded on the ledger.
+        </Info>
+
+        <p className="font-semibold text-[#F0F7F7]">b. Account &amp; Sign-in Data</p>
+        <p>If you sign in with email or social login (via our third-party authentication provider):</p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>Email address or other login identifier</li>
+          <li>Authentication tokens and session data</li>
+        </ul>
+
+        <p className="font-semibold text-[#F0F7F7]">c. Game &amp; Usage Data (Telemetry)</p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>Gameplay activity, progress, and interactions</li>
+          <li>Device information (type, OS, browser version)</li>
+          <li>IP address (for security, fraud prevention, and region detection)</li>
+          <li>Error logs, crash reports, and performance metrics</li>
+          <li>Cookies or similar technologies (for functionality and analytics) — see our <a href="/cookies" className="text-[#00F0FF] hover:underline">Cookies Policy</a></li>
+        </ul>
+
+        <p className="font-semibold text-[#F0F7F7]">d. Other Information</p>
+        <p>Any data you voluntarily provide when contacting support or giving feedback.</p>
       </section>
 
       <section className="space-y-3">
-        <S>2. Data We Collect</S>
-        <p><strong>2.1 Data you provide directly:</strong></p>
+        <S>2. How We Use Your Information</S>
+        <p>We use the data to:</p>
         <ul className="list-disc pl-5 space-y-1">
-          <li>Email address (if you register with email/social login via Privy)</li>
-          <li>Username or display name</li>
-          <li>Profile information you choose to add</li>
-          <li>Communications you send us (support requests, feedback)</li>
-        </ul>
-        <p><strong>2.2 Data collected automatically:</strong></p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>Wallet address (public blockchain address — publicly visible on-chain)</li>
-          <li>IP address and approximate geolocation (country/region level)</li>
-          <li>Device type, browser, and operating system</li>
-          <li>Pages visited, features used, and session duration</li>
-          <li>Game activity: moves, purchases, outcomes, timestamps</li>
-          <li>Error logs and crash reports (via Sentry, if configured)</li>
-        </ul>
-        <p><strong>2.3 Blockchain data:</strong></p>
-        <p>
-          On-chain transactions (wallet address, transaction hashes, token transfers) are recorded
-          on public blockchains (Celo, Base). This data is permanently public and cannot be deleted
-          by us or by you. We have no control over public ledger data.
-        </p>
-        <p><strong>2.4 Payment data:</strong></p>
-        <p>
-          We do not store payment card details. USDC and TYC transactions occur on-chain. NGN
-          payments via Flutterwave are processed by Flutterwave under their privacy policy. We
-          receive only transaction confirmation and amount.
-        </p>
-      </section>
-
-      <section className="space-y-3">
-        <S>3. Legal Basis for Processing (GDPR)</S>
-        <p>We process your personal data on the following legal bases:</p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            <strong>Contract performance</strong> — to provide the game service, process
-            transactions, and manage your account.
-          </li>
-          <li>
-            <strong>Legitimate interests</strong> — to improve the platform, prevent fraud, ensure
-            security, and conduct analytics.
-          </li>
-          <li>
-            <strong>Legal obligation</strong> — to comply with applicable laws including anti-money
-            laundering and sanctions screening.
-          </li>
-          <li>
-            <strong>Consent</strong> — for optional cookies, marketing communications, and
-            analytics where consent is required. You may withdraw consent at any time.
-          </li>
+          <li>Operate and improve the Tycoon game</li>
+          <li>Enable wallet connectivity and blockchain features</li>
+          <li>Provide account security and session management</li>
+          <li>Analyse gameplay trends and fix bugs</li>
+          <li>Prevent fraud and abuse</li>
+          <li>Respond to your support requests</li>
+          <li>Comply with legal obligations</li>
         </ul>
       </section>
 
       <section className="space-y-3">
-        <S>4. How We Use Your Data</S>
+        <S>3. Legal Basis &amp; Consent</S>
+        <p>We process your data based on:</p>
         <ul className="list-disc pl-5 space-y-1">
-          <li>To create and manage your account and game sessions</li>
-          <li>To process in-game transactions and distribute prizes</li>
-          <li>To provide customer support</li>
-          <li>To detect and prevent fraud, cheating, and abuse</li>
-          <li>To improve game performance and user experience</li>
-          <li>To send service-related notifications (not marketing without consent)</li>
-          <li>To comply with legal obligations</li>
-          <li>To enforce our Terms of Service</li>
+          <li><strong>Your consent</strong> — by connecting a wallet, signing in, or continuing to play</li>
+          <li><strong>Performance of contract</strong> — to deliver the game and its features to you</li>
+          <li><strong>Legitimate interests</strong> — security, service improvement, and fraud prevention</li>
+          <li><strong>Legal obligation</strong> — to comply with applicable laws</li>
         </ul>
+        <p>
+          You can withdraw consent at any time by stopping use of the Services. This does not
+          affect already-public blockchain data, which is immutable.
+        </p>
       </section>
 
       <section className="space-y-3">
-        <S>5. Cookies & Tracking Technologies</S>
-        <p>
-          We use cookies and similar technologies. For full details see our{' '}
-          <a href="/cookies" className="text-[#00F0FF] hover:underline">Cookies Policy</a>.
-          In summary:
-        </p>
+        <S>4. Sharing Your Information</S>
+        <p>We share data only when necessary:</p>
         <ul className="list-disc pl-5 space-y-1">
           <li>
-            <strong>Strictly necessary cookies</strong> — required for the platform to function
-            (authentication sessions, wallet state). Cannot be disabled.
+            <strong>Trusted service providers</strong> — authentication (Privy), analytics,
+            hosting, crash reporting (Sentry), and payments (Flutterwave) — all bound by data
+            protection agreements
           </li>
+          <li><strong>Legal requirement</strong> — when required by law or government request</li>
           <li>
-            <strong>Analytics cookies</strong> — help us understand how users interact with the
-            platform (e.g. page views, feature usage). Require your consent.
-          </li>
-          <li>
-            <strong>Preference cookies</strong> — remember your settings (theme, language).
-            Require your consent.
+            <strong>Business transfer</strong> — in the event of a merger or acquisition, with
+            notice where required by law
           </li>
         </ul>
         <p>
-          You can manage cookie preferences via your browser settings or our cookie consent banner.
-          Blocking strictly necessary cookies may prevent the Service from functioning.
+          <strong>We never sell your personal data for marketing.</strong> On-chain activity
+          remains publicly visible to anyone on the blockchain.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>6. Advertising & Third-Party Services</S>
+        <S>5. International Data Transfers</S>
         <p>
-          We may display third-party advertisements. Advertisers may use cookies or tracking pixels
-          subject to their own privacy policies. We do not share your personal data with advertisers
-          without your consent.
+          Tycoon is a global service. Your data may be transferred and processed outside your
+          country — including to servers in the United States, Europe, Nigeria, or other locations.
+          We use appropriate safeguards (such as Standard Contractual Clauses where required) to
+          protect your data during these transfers in compliance with GDPR, NDPA 2023, and other
+          applicable frameworks.
         </p>
-        <p>Third-party services we may use include:</p>
+      </section>
+
+      <section className="space-y-3">
+        <S>6. Data Retention</S>
+        <p>
+          We keep non-public personal data only as long as necessary to provide the Services or as
+          required by law:
+        </p>
         <ul className="list-disc pl-5 space-y-1">
-          <li><strong>Privy</strong> — authentication and embedded wallets (privy.io privacy policy)</li>
-          <li><strong>WalletConnect / Reown</strong> — wallet connection protocol</li>
-          <li><strong>Sentry</strong> — error tracking and crash reporting</li>
-          <li><strong>Flutterwave</strong> — NGN payment processing</li>
-          <li><strong>Celo / Base RPC providers</strong> — blockchain interaction</li>
+          <li>Account data — while active and up to 2 years after deletion</li>
+          <li>Transaction records — up to 7 years for legal/tax compliance</li>
+          <li>Error logs — up to 90 days</li>
         </ul>
         <p>
-          Each third party processes data under their own privacy policy. We encourage you to
-          review those policies.
+          You may request deletion of personal data we control by contacting support. Blockchain
+          data cannot be deleted.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>7. Data Sharing & Disclosure</S>
-        <p>We do not sell your personal data. We may share data with:</p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            <strong>Service providers</strong> — who process data on our behalf under data
-            processing agreements (hosting, analytics, error tracking, payments).
-          </li>
-          <li>
-            <strong>Law enforcement / regulators</strong> — when required by law, court order, or
-            to protect rights and safety.
-          </li>
-          <li>
-            <strong>Business transfers</strong> — in the event of a merger, acquisition, or asset
-            sale, your data may be transferred. We will notify you of any such change.
-          </li>
-        </ul>
-      </section>
-
-      <section className="space-y-3">
-        <S>8. International Data Transfers</S>
+        <S>7. Your Rights</S>
         <p>
-          Your data may be processed in countries outside your own, including countries that may
-          not have equivalent data protection laws. Where we transfer data outside the EEA/UK, we
-          ensure appropriate safeguards are in place (e.g. Standard Contractual Clauses, adequacy
-          decisions). Contact us for details of transfer mechanisms.
-        </p>
-      </section>
-
-      <section className="space-y-3">
-        <S>9. Data Retention</S>
-        <p>
-          We retain personal data for as long as necessary to provide the Service and comply with
-          legal obligations:
+          Depending on where you live (EU/EEA, UK, Nigeria, California, or elsewhere), you may
+          have rights to:
         </p>
         <ul className="list-disc pl-5 space-y-1">
-          <li>Account data — retained while your account is active and for up to 2 years after deletion</li>
-          <li>Transaction records — retained for up to 7 years for legal/tax compliance</li>
-          <li>Error logs — retained for up to 90 days</li>
-          <li>Marketing data — until you withdraw consent</li>
-        </ul>
-        <p>
-          On-chain data (wallet addresses, transaction hashes) is permanently recorded on public
-          blockchains and cannot be deleted.
-        </p>
-      </section>
-
-      <section className="space-y-3">
-        <S>10. Your Rights (GDPR & Applicable Law)</S>
-        <p>
-          Depending on your jurisdiction, you may have the following rights regarding your personal
-          data:
-        </p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li><strong>Right of access</strong> — request a copy of your personal data</li>
-          <li><strong>Right to rectification</strong> — correct inaccurate data</li>
-          <li><strong>Right to erasure</strong> — request deletion (&quot;right to be forgotten&quot;) where applicable</li>
-          <li><strong>Right to restriction</strong> — limit how we process your data</li>
-          <li><strong>Right to data portability</strong> — receive your data in a structured format</li>
-          <li><strong>Right to object</strong> — object to processing based on legitimate interests</li>
-          <li><strong>Right to withdraw consent</strong> — at any time for consent-based processing</li>
-          <li><strong>Right to lodge a complaint</strong> — with your local data protection authority</li>
+          <li>Access, correct, or delete your personal data (where technically possible)</li>
+          <li>Object to or restrict processing</li>
+          <li>Data portability — receive your data in a structured format</li>
+          <li>Withdraw consent at any time</li>
+          <li>Opt out of the sale of personal data (we do not sell data)</li>
+          <li>Lodge a complaint with your local data protection authority</li>
         </ul>
         <p>
           To exercise any right, contact us at{' '}
           <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">
             support@tycoonworld.xyz
-          </a>. We will respond within 30 days. Note: we cannot delete on-chain data.
+          </a>. We will respond within 30 days.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>11. Children's Privacy</S>
+        <S>8. Cookies &amp; Tracking</S>
         <p>
-          The Service is strictly for users aged 18 and over. We do not knowingly collect personal
-          data from anyone under 18. If we become aware that a minor has provided personal data, we
-          will delete it promptly. If you believe a minor has registered, contact us immediately at{' '}
+          We use cookies and similar technologies for authentication, preferences, and analytics.
+          For full details including a cookie table and your opt-out options, see our{' '}
+          <a href="/cookies" className="text-[#00F0FF] hover:underline">Cookies Policy</a>.
+        </p>
+        <p>
+          <strong>Do Not Sell / Do Not Share:</strong> We do not sell or share personal data with
+          third parties for cross-context behavioural advertising.
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <S>9. Security</S>
+        <p>
+          We use reasonable technical and organisational measures (TLS encryption, access controls,
+          regular security reviews) to protect your data. However, no system is 100% secure.
+          Public blockchain data is outside our control. You are responsible for securing your
+          wallet keys and login credentials.
+        </p>
+        <p>
+          In the event of a data breach posing risk to your rights, we will notify affected users
+          and relevant authorities as required by applicable law.
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <S>10. Children&apos;s Privacy</S>
+        <p>
+          Our Services are strictly for users aged 18 and over (see our{' '}
+          <a href="/terms" className="text-[#00F0FF] hover:underline">Terms of Service</a>).
+          We do not knowingly collect personal data from anyone under 18. If you believe a minor
+          has registered, contact us immediately at{' '}
           <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">
             support@tycoonworld.xyz
-          </a>.
+          </a>{' '}
+          and we will delete the data promptly.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>12. Data Security</S>
+        <S>11. Changes to This Policy</S>
         <p>
-          We implement industry-standard technical and organisational measures to protect your
-          personal data including encryption in transit (TLS), access controls, and regular security
-          reviews. However, no system is completely secure. You are responsible for keeping your
-          wallet keys and login credentials safe.
-        </p>
-        <p>
-          In the event of a data breach that poses a risk to your rights and freedoms, we will
-          notify affected users and relevant authorities as required by applicable law.
+          We may update this Privacy Policy. Material changes will be posted with a new
+          &quot;Last updated&quot; date. Continued use of the Services after changes constitutes
+          acceptance of the updated policy.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>13. Changes to This Policy</S>
+        <S>12. Contact &amp; Supervisory Authorities</S>
         <p>
-          We may update this Privacy Policy from time to time. We will post the updated policy with
-          a new &quot;Last updated&quot; date. For material changes, we will provide notice via the
-          platform or email. Continued use after changes constitutes acceptance.
-        </p>
-      </section>
-
-      <section className="space-y-3">
-        <S>14. Contact & Supervisory Authority</S>
-        <p>
-          For privacy-related questions or to exercise your rights, contact:{' '}
+          For questions, data requests, or complaints:{' '}
           <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">
             support@tycoonworld.xyz
+          </a>
+          {' '}or our{' '}
+          <a href="https://t.me/+xJLEjw9tbyQwMGVk" className="text-[#00F0FF] hover:underline">
+            Telegram community
           </a>.
         </p>
         <p>
-          If you are in the EU/EEA and believe we have not handled your data lawfully, you have the
-          right to lodge a complaint with your local supervisory authority (e.g. your national Data
-          Protection Authority).
+          If you are in the EU/EEA you may contact your national Data Protection Authority. If you
+          are in Nigeria you may contact the Nigeria Data Protection Commission (NDPC). If you are
+          in California you may exercise CCPA/CPRA rights via the contact above.
         </p>
       </section>
 

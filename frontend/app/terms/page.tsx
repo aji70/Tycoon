@@ -34,252 +34,191 @@ export default function TermsPage() {
         accounts where age requirements are not met.
       </Warning>
 
+      <Info>
+        These Terms of Service (&quot;Terms&quot;) govern your access to and use of Tycoon,
+        including our website, game, multiplayer rooms, AI modes, tournaments, and all related
+        features (collectively the &quot;Services&quot;). By accessing or using Tycoon, you agree
+        to be bound by these Terms. If you do not agree, you must not use the Services.
+      </Info>
+
       <section className="space-y-3">
-        <S>1. Acceptance of Terms</S>
+        <S>1. The Services</S>
         <p>
-          By accessing or using Tycoon (&quot;the Service&quot;, &quot;the Platform&quot;,
-          &quot;we&quot;, &quot;us&quot;), operated by Sabo Ajidokwu Emmanuel, you agree to be
-          bound by these Terms of Service (&quot;Terms&quot;). If you do not agree, do not use the
-          Service. These Terms apply to all users including registered players, guests, and visitors.
-        </p>
-        <p>
-          We may update these Terms at any time. Continued use after changes constitutes acceptance.
-          Material changes will be communicated via the platform or email where possible.
+          Tycoon is an on-chain blockchain game that includes gameplay, multiplayer rooms, AI modes,
+          tournaments, token interactions, and other features. We may update, modify, or add new
+          features at any time without prior notice. We are not liable for any loss resulting from
+          such changes.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>2. Description of Service</S>
-        <p>
-          Tycoon is an on-chain strategy board game inspired by classic property-trading games,
-          deployed on Celo and Base blockchains. Features include: multiplayer rooms (PvP), AI
-          opponents, tournaments, in-game shop, collectibles, perks, and a reward system.
-        </p>
-        <p>
-          The Service is provided &quot;as is&quot; and may be modified, suspended, or discontinued
-          at any time without prior notice. We are not liable for any loss resulting from such
-          changes.
-        </p>
-      </section>
-
-      <section className="space-y-3">
-        <S>3. Eligibility</S>
+        <S>2. Eligibility</S>
         <ul className="list-disc pl-5 space-y-1">
-          <li>You must be 18 years of age or older.</li>
-          <li>You must have legal capacity to enter into binding agreements.</li>
-          <li>
-            You must not be located in a jurisdiction where use of blockchain applications,
-            token transactions, or this type of game is prohibited.
-          </li>
+          <li>You must be at least 18 years old (or the age of majority in your jurisdiction, whichever is higher).</li>
+          <li>You must have the legal capacity to enter into these Terms.</li>
+          <li>You must not be located in a jurisdiction where use of blockchain applications or token transactions is prohibited.</li>
           <li>You must not be on any government sanctions list.</li>
-          <li>
-            You are solely responsible for determining whether use of the Service is lawful in
-            your jurisdiction.
-          </li>
+          <li>You are solely responsible for ensuring your use of the Services complies with all laws and regulations in your jurisdiction.</li>
         </ul>
       </section>
 
       <section className="space-y-3">
-        <S>4. Not a Gambling Platform — Important Disclaimer</S>
+        <S>3. Wallets &amp; Blockchain</S>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>You must connect a compatible cryptocurrency wallet to use certain features.</li>
+          <li>We do not custody your private keys, seed phrases, or funds. You are fully responsible for the security of your wallet.</li>
+          <li>All blockchain transactions are irreversible. We are not responsible for lost funds due to user error, network issues, or smart-contract behaviour.</li>
+          <li>By interacting with any smart contracts shown in the app, you accept the rules and risks of those contracts.</li>
+          <li>Network fees (gas), slippage, and blockchain congestion are outside our control.</li>
+        </ul>
+      </section>
+
+      <section className="space-y-3">
+        <S>4. Not a Gambling Platform</S>
         <Info>
           Tycoon is a <strong>skill-based competitive strategy game</strong>. Entry stakes (where
           applicable) are participation fees that fund the prize pool for the winner of that game
           session — similar to a tournament entry fee. Outcomes are determined by player decisions,
-          strategy, and game mechanics, not by chance alone. Tycoon does not operate as a casino,
-          bookmaker, or gambling operator. We do not offer odds, house edges, or random-outcome
-          wagering. TYC tokens and USDC used in-game are game utility instruments, not financial
+          strategy, and game mechanics. Tycoon does not operate as a casino, bookmaker, or gambling
+          operator. TYC tokens and USDC used in-game are game utility instruments, not financial
           instruments or securities.
         </Info>
         <p>
-          Notwithstanding the above, you are solely responsible for understanding and complying with
-          the laws of your jurisdiction regarding online games, token transactions, and prize
-          competitions. We make no representation that the Service is legal in your location.
+          You are solely responsible for understanding and complying with the laws of your
+          jurisdiction regarding online games, token transactions, and prize competitions.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>5. Wallet, Blockchain & Financial Responsibility</S>
+        <S>5. Gameplay, Stakes &amp; In-Game Assets</S>
         <ul className="list-disc pl-5 space-y-1">
-          <li>
-            You are solely responsible for the security of your wallet, private keys, and seed
-            phrases. We do not custody your keys and cannot recover lost wallets.
-          </li>
-          <li>
-            All blockchain transactions are irreversible. Verify all transaction details before
-            confirming. We are not liable for transactions sent to wrong addresses or lost due to
-            user error.
-          </li>
-          <li>
-            Network fees (gas), slippage, and blockchain congestion are outside our control. You
-            accept these risks when transacting on-chain.
-          </li>
-          <li>
-            Smart contract interactions carry inherent risks including bugs, exploits, and network
-            failures. We conduct reasonable testing but cannot guarantee contract security.
-          </li>
-          <li>
-            Token values (TYC, USDC) may fluctuate. We make no representations about token value
-            or investment returns.
-          </li>
+          <li>In-game assets and tokens have no guaranteed value and may fluctuate or become worthless.</li>
+          <li>We do not guarantee any financial return or outcome from playing or staking.</li>
+          <li>Purchases of perks, collectibles, bundles, and credits are final and non-refundable unless required by applicable consumer protection law.</li>
+          <li>We reserve the right to modify, rebalance, or remove virtual items at any time.</li>
         </ul>
       </section>
 
       <section className="space-y-3">
-        <S>6. In-Game Purchases & Virtual Items</S>
-        <p>
-          Purchases of perks, collectibles, bundles, and credits are final and non-refundable
-          unless required by applicable consumer protection law. Virtual items have no real-world
-          monetary value outside the game and cannot be exchanged for fiat currency through us.
-        </p>
-        <p>
-          We reserve the right to modify, rebalance, or remove virtual items at any time. We are
-          not liable for any loss of virtual items resulting from account termination, game changes,
-          or service discontinuation.
-        </p>
-      </section>
-
-      <section className="space-y-3">
-        <S>7. Acceptable Use Policy</S>
-        <p>You agree NOT to:</p>
+        <S>6. Acceptable Use &amp; Prohibited Conduct</S>
+        <p>You agree not to:</p>
         <ul className="list-disc pl-5 space-y-1">
-          <li>Cheat, exploit bugs, use bots, scripts, or automation not provided by us.</li>
-          <li>Harass, abuse, threaten, or harm other players.</li>
-          <li>Attempt to reverse-engineer, decompile, or tamper with smart contracts or the platform.</li>
-          <li>Use the Service for money laundering, fraud, or any illegal activity.</li>
-          <li>Create multiple accounts to circumvent bans or gain unfair advantages.</li>
-          <li>Impersonate other players, staff, or entities.</li>
-          <li>Transmit malware, spam, or disruptive content.</li>
-          <li>Attempt to manipulate game outcomes through collusion.</li>
+          <li>Cheat, hack, exploit bugs, or use unauthorised automation or scripts</li>
+          <li>Harass, threaten, or abuse other players</li>
+          <li>Attempt to interfere with the Services or other users&apos; experience</li>
+          <li>Use the Services for any illegal or unauthorised purpose including money laundering or fraud</li>
+          <li>Impersonate others or provide false information</li>
+          <li>Create multiple accounts to circumvent bans or gain unfair advantages</li>
+          <li>Attempt to reverse-engineer or tamper with smart contracts or the platform</li>
         </ul>
         <p>
-          Violations may result in immediate account suspension, forfeiture of in-game assets, and
-          reporting to relevant authorities where required by law.
+          We may suspend or terminate your access immediately if we believe you have violated these
+          rules. Serious violations may be reported to relevant authorities.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>8. Advertising Policy</S>
+        <S>7. Advertising Policy</S>
         <p>
-          The Service may display third-party advertisements or promotional content. We are not
-          responsible for the content, accuracy, or practices of third-party advertisers. Clicking
-          on ads is at your own risk. We do not endorse advertised products or services.
-        </p>
-        <p>
-          We do not serve targeted advertising based on sensitive personal data. Any advertising
-          displayed complies with applicable advertising standards including the IAB guidelines and
-          relevant consumer protection regulations.
-        </p>
-        <p>
-          We will never display gambling advertisements, adult content, or misleading financial
-          promotions on the platform.
+          The Service may display third-party advertisements. We are not responsible for the
+          content or practices of third-party advertisers. We do not serve targeted advertising
+          based on sensitive personal data and will never display gambling advertisements, adult
+          content, or misleading financial promotions.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>9. Intellectual Property</S>
+        <S>8. Intellectual Property</S>
         <p>
-          All platform content including game design, artwork, code, branding, and documentation is
-          owned by or licensed to Tycoon. You may not reproduce, distribute, or create derivative
-          works without written permission.
-        </p>
-        <p>
-          By submitting content (e.g. usernames, profile data), you grant us a non-exclusive,
-          royalty-free licence to use that content in connection with operating the Service.
+          All game content, logos, artwork, and software (excluding your on-chain assets) are owned
+          by Tycoon or its licensors. You are granted a limited, personal, non-exclusive licence to
+          use the Services for personal entertainment only. You may not copy, modify, or distribute
+          our content without written permission.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>10. Disclaimer of Warranties</S>
+        <S>9. Termination</S>
         <p>
-          THE SERVICE IS PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; WITHOUT WARRANTIES
-          OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF
-          MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. WE DO NOT
-          WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR FREE OF VIRUSES.
+          We may suspend or terminate your access to the Services at any time, with or without
+          notice, for any reason including violation of these Terms. Upon termination, your right
+          to use the Services ends immediately. Blockchain assets in your wallet remain yours.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>11. Limitation of Liability</S>
+        <S>10. Disclaimers &amp; Limitation of Liability</S>
         <p>
-          TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, TYCOON AND ITS OPERATORS SHALL NOT BE
-          LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES,
-          INCLUDING LOSS OF PROFITS, DATA, OR GOODWILL, ARISING FROM YOUR USE OF OR INABILITY TO
-          USE THE SERVICE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+          THE SERVICES ARE PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; WITHOUT ANY
+          WARRANTIES, EXPRESS OR IMPLIED. TO THE MAXIMUM EXTENT PERMITTED BY LAW, TYCOON AND ITS
+          TEAM DISCLAIM ALL WARRANTIES AND SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
+          SPECIAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOSS OF FUNDS, LOSS OF DATA, OR LOST
+          PROFITS.
         </p>
         <p>
-          OUR TOTAL LIABILITY TO YOU FOR ANY CLAIM ARISING FROM THESE TERMS OR THE SERVICE SHALL
-          NOT EXCEED THE AMOUNT YOU PAID TO US IN THE 30 DAYS PRECEDING THE CLAIM.
+          Blockchain and cryptocurrency involve high risk — you use the Services entirely at your
+          own risk. We are not financial advisors. Nothing on this platform constitutes financial,
+          investment, legal, or tax advice.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>12. User Responsibility Disclaimer</S>
-        <p>
-          You use the Service entirely at your own risk. You are solely responsible for:
-        </p>
+        <S>11. User Responsibility &amp; Indemnification</S>
+        <p>You are solely responsible for:</p>
         <ul className="list-disc pl-5 space-y-1">
-          <li>All actions taken with your account and wallet.</li>
-          <li>Compliance with laws in your jurisdiction.</li>
-          <li>Any financial decisions made in connection with the game.</li>
-          <li>Safeguarding your login credentials and wallet keys.</li>
-          <li>Any tax obligations arising from token transactions or prizes.</li>
+          <li>All actions taken with your account and wallet</li>
+          <li>Compliance with laws in your jurisdiction</li>
+          <li>Any financial decisions made in connection with the game</li>
+          <li>Any tax obligations arising from token transactions or prizes</li>
         </ul>
         <p>
-          We are not financial advisors. Nothing on this platform constitutes financial, investment,
-          legal, or tax advice.
+          You agree to indemnify and hold Tycoon harmless from any claims, losses, or damages
+          arising from your use of the Services, your violation of these Terms, or your breach of
+          any applicable law.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>13. Responsible Gaming</S>
+        <S>12. Responsible Gaming</S>
         <p>
           While Tycoon is not a gambling platform, we encourage responsible engagement. If you feel
-          you are spending excessive time or money on the platform, please take a break. We support
-          self-exclusion requests — contact us at{' '}
+          you are spending excessive time or money on the platform, please take a break. Contact us
+          at{' '}
           <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">
             support@tycoonworld.xyz
           </a>{' '}
-          to request account suspension.
+          to request a self-exclusion or account suspension.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>14. Termination</S>
+        <S>13. Changes to These Terms</S>
         <p>
-          We may suspend or terminate your access at any time for violation of these Terms or for
-          any other reason at our discretion. You may stop using the Service at any time. On
-          termination, your right to use the Service ceases immediately. Provisions that by their
-          nature should survive termination will do so.
+          We may update these Terms from time to time. We will post the new version with an updated
+          &quot;Last updated&quot; date. Continued use of the Services after changes means you
+          accept the updated Terms.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>15. Governing Law & Disputes</S>
+        <S>14. Governing Law &amp; Dispute Resolution</S>
         <p>
-          These Terms are governed by applicable law. Any disputes shall first be attempted to be
-          resolved through good-faith negotiation. If unresolved, disputes shall be submitted to
-          binding arbitration or the courts of competent jurisdiction. You waive any right to
-          participate in class-action proceedings to the extent permitted by law.
+          These Terms are governed by the laws of the Federal Republic of Nigeria. Any disputes
+          shall first be resolved through good-faith negotiation. If not resolved within 30 days,
+          disputes will be settled by arbitration in Nigeria or as otherwise required by applicable
+          law. You waive any right to participate in class-action proceedings to the extent
+          permitted by law.
         </p>
       </section>
 
       <section className="space-y-3">
-        <S>16. Changes to Terms</S>
+        <S>15. Contact</S>
         <p>
-          We reserve the right to modify these Terms at any time. We will post the updated Terms
-          with a new &quot;Last updated&quot; date. Your continued use of the Service after changes
-          constitutes acceptance of the revised Terms.
-        </p>
-      </section>
-
-      <section className="space-y-3">
-        <S>17. Contact</S>
-        <p>
-          For legal notices, support, or questions about these Terms, contact:{' '}
+          For questions or support regarding these Terms:{' '}
           <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">
             support@tycoonworld.xyz
           </a>
-          {' '}or via our{' '}
+          {' '}or our{' '}
           <a href="https://t.me/+xJLEjw9tbyQwMGVk" className="text-[#00F0FF] hover:underline">
             Telegram community
           </a>.
