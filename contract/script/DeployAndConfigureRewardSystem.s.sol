@@ -14,6 +14,8 @@ contract DeployAndConfigureRewardSystemScript is Script {
     function run() external {
         address tyc = vm.envAddress("TYC_ADDRESS");
         address usdc = vm.envAddress("USDC_ADDRESS");
+        address cusdc = vm.envOr("CUSDC_ADDRESS", usdc);
+        address usdt = vm.envOr("USDT_ADDRESS", usdc);
         address owner = vm.envAddress("TYCOON_OWNER");
         address proxy = vm.envAddress("TYCOON_PROXY_ADDRESS");
         address gameController = vm.envAddress("GAME_CONTROLLER");
@@ -21,7 +23,7 @@ contract DeployAndConfigureRewardSystemScript is Script {
         vm.startBroadcast();
 
         // 1. Deploy the new reward system
-        TycoonRewardSystem newRewardSystem = new TycoonRewardSystem(tyc, usdc, owner);
+        TycoonRewardSystem newRewardSystem = new TycoonRewardSystem(tyc, usdc, cusdc, usdt, owner);
         console.log("Deployed new TycoonRewardSystem at:", address(newRewardSystem));
 
         // 2. Configure Minters (Backend + Game)

@@ -12,6 +12,15 @@ import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Re
 /// @title TycoonRewardSystem
 /// @notice ERC-1155 contract for vouchers (redeemable for TYC) and collectibles (perks). Supports shop, burn-for-perk, and on-chain bundles.
 contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC1155Receiver {
+    // Payment token selection for purchases
+    // 0 = TYC, 1 = USDC, 2 = CUSDC, 3 = USDT
+    enum PaymentToken {
+        TYC,
+        USDC,
+        CUSDC,
+        USDT
+    }
+
     // Token ID ranges
     uint256 public constant VOUCHER_BASE = 1_000_000_000;
     uint256 public constant COLLECTIBLE_BASE = 2_000_000_000;
@@ -19,9 +28,12 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
     // Cash tiers for CASH_TIERED and TAX_REFUND (strength 1-5): 0, 10, 25, 50, 100, 250
 
     IERC20 public tycToken;
-    // Backward-compatible storage/getter name (`usdc`) used across existing contracts.
-    // In Tycoon app semantics this token is treated as USDCM.
+    // Stablecoin 1: USDC (treated as USDCM in Tycoon app semantics)
     IERC20 public usdc;
+    // Stablecoin 2: CUSDC (Celo's cUSD - native stablecoin)
+    IERC20 public cusdc;
+    // Stablecoin 3: USDT (Tether)
+    IERC20 public usdt;
 
     address public backendMinter;
     /// @notice Game contract (Tycoon proxy) can mint for register/game-end rewards. Set via setGameMinter.
@@ -31,11 +43,13 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
     uint256 private _nextVoucherId = VOUCHER_BASE;
     uint256 private _nextCollectibleId = COLLECTIBLE_BASE;
 
-    // Collectible metadata
+// Collectible metadata
     mapping(uint256 => TycoonLib.CollectiblePerk) public collectiblePerk;
     mapping(uint256 => uint256) public collectiblePerkStrength;
     mapping(uint256 => uint256) public collectibleTycPrice;
     mapping(uint256 => uint256) public collectibleUsdcPrice;
+    mapping(uint256 => uint256) public collectibleCusdcPrice;
+    mapping(uint256 => uint256) public collectibleUsdtPrice;
     mapping(uint256 => uint256) public shopStock;
     mapping(uint256 => uint256) public voucherRedeemValue;
 
@@ -58,12 +72,18 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
     event GameMinterUpdated(address indexed previous, address indexed newGameMinter);
     event VoucherRedeemerUpdated(address indexed account, bool allowed);
     event BaseURIUpdated(string newBaseURI);
-    event UsdcmTokenUpdated(address indexed previousToken, address indexed newToken);
+event UsdcmTokenUpdated(address indexed previousToken, address indexed newToken);
+    event CusdcTokenUpdated(address indexed previousToken, address indexed newToken);
+    event UsdtTokenUpdated(address indexed previousToken, address indexed newToken);
     event CashPerkActivated(uint256 indexed tokenId, address indexed burner, uint256 cashAmount);
     event CollectibleBought(uint256 indexed tokenId, address indexed buyer, uint256 price, bool usedUsdc);
+    event CollectibleBoughtWithToken(uint256 indexed tokenId, address indexed buyer, uint256 price, PaymentToken paymentToken);
     event CollectibleBurned(uint256 indexed tokenId, address indexed burner, TycoonLib.CollectiblePerk perk, uint256 strength);
     event CollectibleMinted(uint256 indexed tokenId, address indexed to, TycoonLib.CollectiblePerk perk, uint256 strength);
     event CollectiblePricesUpdated(uint256 indexed tokenId, uint256 tycPrice, uint256 usdcPrice);
+    event CollectiblePricesUpdatedExtended(
+        uint256 indexed tokenId, uint256 tycPrice, uint256 usdcPrice, uint256 cusdcPrice, uint256 usdtPrice
+    );
     event CollectibleRestocked(uint256 indexed tokenId, uint256 amount);
     event FundsWithdrawn(address indexed token, address indexed to, uint256 amount);
     event VoucherMinted(uint256 indexed tokenId, address indexed to, uint256 tycValue);
@@ -72,13 +92,15 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
     event BundleBought(uint256 indexed bundleId, address indexed buyer, uint256 price, bool usedUsdc);
     event BundleUpdated(uint256 indexed bundleId, bool active);
 
-    constructor(address _tycToken, address _usdc, address initialOwner)
+    constructor(address _tycToken, address _usdc, address _cusdc, address _usdt, address initialOwner)
         ERC1155("https://tycoon.game/api/metadata/")
         Ownable(initialOwner)
     {
-        require(_tycToken != address(0) && _usdc != address(0), "Invalid tokens");
+        require(_tycToken != address(0) && _usdc != address(0) && _cusdc != address(0) && _usdt != address(0), "Invalid tokens");
         tycToken = IERC20(_tycToken);
         usdc = IERC20(_usdc);
+        cusdc = IERC20(_cusdc);
+        usdt = IERC20(_usdt);
     }
 
     modifier onlyMinter() {
@@ -126,14 +148,40 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
         emit UsdcmTokenUpdated(previousToken, newUsdcmToken);
     }
 
-    /// @notice Backward-compatible alias for older integrations naming this token as USDC.
+/// @notice Backward-compatible alias for older integrations naming this token as USDC.
     function setUsdcToken(address newUsdcToken) external onlyOwner {
         setUsdcmToken(newUsdcToken);
+    }
+
+    /// @notice Update the CUSDC (cUSD) token address.
+    function setCusdcToken(address newCusdcToken) public onlyOwner {
+        require(newCusdcToken != address(0), "Invalid CUSDC");
+        address previousToken = address(cusdc);
+        cusdc = IERC20(newCusdcToken);
+        emit CusdcTokenUpdated(previousToken, newCusdcToken);
+    }
+
+    /// @notice Update the USDT token address.
+    function setUsdtToken(address newUsdtToken) public onlyOwner {
+        require(newUsdtToken != address(0), "Invalid USDT");
+        address previousToken = address(usdt);
+        usdt = IERC20(newUsdtToken);
+        emit UsdtTokenUpdated(previousToken, newUsdtToken);
     }
 
     /// @notice Canonical getter for clients expecting USDCM naming.
     function usdcm() external view returns (IERC20) {
         return usdc;
+    }
+
+    /// @notice Getter for CUSDC token.
+    function cusd() external view returns (IERC20) {
+        return cusdc;
+    }
+
+    /// @notice Getter for USDT token.
+    function usdtToken() external view returns (IERC20) {
+        return usdt;
     }
 
     function pause() external onlyOwner {
@@ -283,6 +331,8 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
         collectiblePerkStrength[tokenId] = strength;
         collectibleTycPrice[tokenId] = 0;
         collectibleUsdcPrice[tokenId] = 0;
+        collectibleCusdcPrice[tokenId] = 0;
+        collectibleUsdtPrice[tokenId] = 0;
         shopStock[tokenId] = 0;
         _mint(to, tokenId, 1, "");
         _addToOwned(to, tokenId, 1);
@@ -296,6 +346,30 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
         uint256 tycPrice,
         uint256 usdcPrice
     ) external onlyMinter {
+        _stockShop(amount, perk, strength, tycPrice, usdcPrice, 0, 0);
+    }
+
+    function stockShop(
+        uint256 amount,
+        TycoonLib.CollectiblePerk perk,
+        uint256 strength,
+        uint256 tycPrice,
+        uint256 usdcPrice,
+        uint256 cusdcPrice,
+        uint256 usdtPrice
+    ) external onlyMinter {
+        _stockShop(amount, perk, strength, tycPrice, usdcPrice, cusdcPrice, usdtPrice);
+    }
+
+    function _stockShop(
+        uint256 amount,
+        TycoonLib.CollectiblePerk perk,
+        uint256 strength,
+        uint256 tycPrice,
+        uint256 usdcPrice,
+        uint256 cusdcPrice,
+        uint256 usdtPrice
+    ) internal {
         _validateStrength(perk, strength);
         require(amount > 0, "Amount > 0");
         uint256 tokenId = _nextCollectibleId++;
@@ -303,15 +377,22 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
         collectiblePerkStrength[tokenId] = strength;
         collectibleTycPrice[tokenId] = tycPrice;
         collectibleUsdcPrice[tokenId] = usdcPrice;
+        collectibleCusdcPrice[tokenId] = cusdcPrice;
+        collectibleUsdtPrice[tokenId] = usdtPrice;
         shopStock[tokenId] = amount;
         _mint(address(this), tokenId, amount, "");
     }
 
-    function buyCollectible(uint256 tokenId, bool useUsdc) external whenNotPaused nonReentrant {
-        _buyCollectibleFor(msg.sender, tokenId, useUsdc);
+    function buyCollectible(uint256 tokenId, PaymentToken paymentToken) external whenNotPaused nonReentrant {
+        _buyCollectibleFor(msg.sender, tokenId, paymentToken);
     }
 
-    /// @notice Deliver a collectible to a user from shop stock without payment (e.g. for fiat purchases).
+    /// @notice Backward-compatible variant: false=TYC, true=USDC.
+    function buyCollectible(uint256 tokenId, bool useUsdc) external whenNotPaused nonReentrant {
+        _buyCollectibleFor(msg.sender, tokenId, useUsdc ? PaymentToken.USDC : PaymentToken.TYC);
+    }
+
+/// @notice Deliver a collectible to a user from shop stock without payment (e.g. for fiat purchases).
     function deliverCollectible(address to, uint256 tokenId) external onlyMinter {
         require(_isCollectible(tokenId), "Not collectible");
         require(shopStock[tokenId] >= 1, "Out of stock");
@@ -321,7 +402,19 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
         emit CollectibleBought(tokenId, to, 0, false);
     }
 
-    /// @notice Buy a collectible with USDC or TYC from a given payer (e.g. smart wallet). Callable by the payer or by the owner of the payer if payer is a contract with owner().
+    /// @notice Buy a collectible from a given payer using selected payment token.
+    function buyCollectibleFrom(address payer, uint256 tokenId, PaymentToken paymentToken) external whenNotPaused nonReentrant {
+        require(payer != address(0), "Zero payer");
+        if (msg.sender != payer) {
+            (bool ok, bytes memory data) = payer.staticcall(abi.encodeWithSignature("owner()"));
+            require(ok && data.length >= 32, "Not payer or payer owner");
+            address ownerOfPayer = abi.decode(data, (address));
+            require(ownerOfPayer == msg.sender, "Not payer or payer owner");
+        }
+        _buyCollectibleFor(payer, tokenId, paymentToken);
+    }
+
+    /// @notice Backward-compatible variant: false=TYC, true=USDC.
     function buyCollectibleFrom(address payer, uint256 tokenId, bool useUsdc) external whenNotPaused nonReentrant {
         require(payer != address(0), "Zero payer");
         if (msg.sender != payer) {
@@ -330,23 +423,21 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
             address ownerOfPayer = abi.decode(data, (address));
             require(ownerOfPayer == msg.sender, "Not payer or payer owner");
         }
-        _buyCollectibleFor(payer, tokenId, useUsdc);
+        _buyCollectibleFor(payer, tokenId, useUsdc ? PaymentToken.USDC : PaymentToken.TYC);
     }
 
-    function _buyCollectibleFor(address payer, uint256 tokenId, bool useUsdc) internal {
+    function _buyCollectibleFor(address payer, uint256 tokenId, PaymentToken paymentToken) internal {
         require(_isCollectible(tokenId), "Not collectible");
         require(shopStock[tokenId] >= 1, "Out of stock");
-        uint256 price = useUsdc ? collectibleUsdcPrice[tokenId] : collectibleTycPrice[tokenId];
+        uint256 price = _collectiblePrice(tokenId, paymentToken);
         require(price > 0, "Not for sale");
         shopStock[tokenId] -= 1;
-        if (useUsdc) {
-            require(usdc.transferFrom(payer, address(this), price), "USDC transfer failed");
-        } else {
-            require(tycToken.transferFrom(payer, address(this), price), "TYC transfer failed");
-        }
+        IERC20 paymentErc20 = _paymentTokenContract(paymentToken);
+        require(paymentErc20.transferFrom(payer, address(this), price), "Payment transfer failed");
         _safeTransferFrom(address(this), payer, tokenId, 1, "");
         _addToOwned(payer, tokenId, 1);
-        emit CollectibleBought(tokenId, payer, price, useUsdc);
+        emit CollectibleBought(tokenId, payer, price, paymentToken == PaymentToken.USDC);
+        emit CollectibleBoughtWithToken(tokenId, payer, price, paymentToken);
     }
 
     function burnCollectibleForPerk(uint256 tokenId) external nonReentrant {
@@ -403,11 +494,34 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
     }
 
     function updateCollectiblePrices(uint256 tokenId, uint256 newTycPrice, uint256 newUsdcPrice) external onlyMinter {
+        _updateCollectiblePrices(tokenId, newTycPrice, newUsdcPrice, collectibleCusdcPrice[tokenId], collectibleUsdtPrice[tokenId]);
+    }
+
+    function updateCollectiblePrices(
+        uint256 tokenId,
+        uint256 newTycPrice,
+        uint256 newUsdcPrice,
+        uint256 newCusdcPrice,
+        uint256 newUsdtPrice
+    ) external onlyMinter {
+        _updateCollectiblePrices(tokenId, newTycPrice, newUsdcPrice, newCusdcPrice, newUsdtPrice);
+    }
+
+    function _updateCollectiblePrices(
+        uint256 tokenId,
+        uint256 newTycPrice,
+        uint256 newUsdcPrice,
+        uint256 newCusdcPrice,
+        uint256 newUsdtPrice
+    ) internal {
         require(_isCollectible(tokenId), "Not collectible");
         require(collectiblePerk[tokenId] != TycoonLib.CollectiblePerk.NONE, "Unknown collectible");
         collectibleTycPrice[tokenId] = newTycPrice;
         collectibleUsdcPrice[tokenId] = newUsdcPrice;
+        collectibleCusdcPrice[tokenId] = newCusdcPrice;
+        collectibleUsdtPrice[tokenId] = newUsdtPrice;
         emit CollectiblePricesUpdated(tokenId, newTycPrice, newUsdcPrice);
+        emit CollectiblePricesUpdatedExtended(tokenId, newTycPrice, newUsdcPrice, newCusdcPrice, newUsdtPrice);
     }
 
     function getCollectibleInfo(uint256 tokenId)
@@ -429,6 +543,45 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
             collectibleUsdcPrice[tokenId],
             shopStock[tokenId]
         );
+    }
+
+    function getCollectibleInfoExtended(uint256 tokenId)
+        external
+        view
+        returns (
+            TycoonLib.CollectiblePerk perk,
+            uint256 strength,
+            uint256 tycPrice,
+            uint256 usdcPrice,
+            uint256 cusdcPrice,
+            uint256 usdtPrice,
+            uint256 stock
+        )
+    {
+        require(_isCollectible(tokenId), "Not collectible");
+        return (
+            collectiblePerk[tokenId],
+            collectiblePerkStrength[tokenId],
+            collectibleTycPrice[tokenId],
+            collectibleUsdcPrice[tokenId],
+            collectibleCusdcPrice[tokenId],
+            collectibleUsdtPrice[tokenId],
+            shopStock[tokenId]
+        );
+    }
+
+    function _collectiblePrice(uint256 tokenId, PaymentToken paymentToken) internal view returns (uint256) {
+        if (paymentToken == PaymentToken.TYC) return collectibleTycPrice[tokenId];
+        if (paymentToken == PaymentToken.USDC) return collectibleUsdcPrice[tokenId];
+        if (paymentToken == PaymentToken.CUSDC) return collectibleCusdcPrice[tokenId];
+        return collectibleUsdtPrice[tokenId];
+    }
+
+    function _paymentTokenContract(PaymentToken paymentToken) internal view returns (IERC20) {
+        if (paymentToken == PaymentToken.TYC) return tycToken;
+        if (paymentToken == PaymentToken.USDC) return usdc;
+        if (paymentToken == PaymentToken.CUSDC) return cusdc;
+        return usdt;
     }
 
     // -------------------------

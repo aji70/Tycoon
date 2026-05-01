@@ -24,6 +24,33 @@ import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
 import { getCeloRpcUrlForChainId, registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
 import { API_BASE_URL } from '@/lib/api';
 
+const REWARD_TOKEN_READ_ABI = [
+  { type: 'function', name: 'tycToken', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { type: 'function', name: 'usdc', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { type: 'function', name: 'cusdc', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { type: 'function', name: 'usdt', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+] as const;
+
+const REWARD_BUY_COLLECTIBLE_ENUM_ABI = [
+  {
+    type: 'function',
+    name: 'buyCollectible',
+    stateMutability: 'nonpayable',
+    inputs: [{ type: 'uint256' }, { type: 'uint8' }],
+    outputs: [],
+  },
+] as const;
+
+const REWARD_BUY_COLLECTIBLE_FROM_ENUM_ABI = [
+  {
+    type: 'function',
+    name: 'buyCollectibleFrom',
+    stateMutability: 'nonpayable',
+    inputs: [{ type: 'address' }, { type: 'uint256' }, { type: 'uint8' }],
+    outputs: [],
+  },
+] as const;
+
 // Fixed stake amount (adjust if needed)
 const STAKE_AMOUNT = 1; // 1 wei for testing? Or change to actual value like 0.01 ether = 10000000000000000n
 
@@ -1289,29 +1316,51 @@ export function useTotalGames() {
 
 /* ----------------------- Reward System Hooks ----------------------- */
 
-/** Read TYC and USDC token addresses from the reward contract (single source of truth). */
-export function useRewardTokenAddresses(): { tycAddress: Address | undefined; usdcAddress: Address | undefined; isLoading: boolean } {
+/** Read reward payment token addresses from the reward contract (single source of truth). */
+export function useRewardTokenAddresses(): {
+  tycAddress: Address | undefined;
+  usdcAddress: Address | undefined;
+  cusdcAddress: Address | undefined;
+  usdtAddress: Address | undefined;
+  isLoading: boolean;
+} {
   const chainId = useReadChainIdOrCelo();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
 
   const { data: tycAddress, isLoading: tycLoading } = useReadContract({
     address: contractAddress,
-    abi: RewardABI,
+    abi: REWARD_TOKEN_READ_ABI,
     functionName: 'tycToken',
     query: { enabled: !!contractAddress },
   });
 
   const { data: usdcAddress, isLoading: usdcLoading } = useReadContract({
     address: contractAddress,
-    abi: RewardABI,
+    abi: REWARD_TOKEN_READ_ABI,
     functionName: 'usdc',
+    query: { enabled: !!contractAddress },
+  });
+
+  const { data: cusdcAddress, isLoading: cusdcLoading } = useReadContract({
+    address: contractAddress,
+    abi: REWARD_TOKEN_READ_ABI,
+    functionName: 'cusdc',
+    query: { enabled: !!contractAddress },
+  });
+
+  const { data: usdtAddress, isLoading: usdtLoading } = useReadContract({
+    address: contractAddress,
+    abi: REWARD_TOKEN_READ_ABI,
+    functionName: 'usdt',
     query: { enabled: !!contractAddress },
   });
 
   return {
     tycAddress: tycAddress as Address | undefined,
     usdcAddress: usdcAddress as Address | undefined,
-    isLoading: tycLoading || usdcLoading,
+    cusdcAddress: cusdcAddress as Address | undefined,
+    usdtAddress: usdtAddress as Address | undefined,
+    isLoading: tycLoading || usdcLoading || cusdcLoading || usdtLoading,
   };
 }
 
@@ -1464,13 +1513,21 @@ export function useRewardBuyCollectible() {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const buy = useCallback(async (tokenId: bigint, useUsdc = false) => {
+  const buy = useCallback(async (tokenId: bigint, paymentToken: number | boolean = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
+    if (typeof paymentToken === 'boolean') {
+      return await writeContractAsync({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: 'buyCollectible',
+        args: [tokenId, paymentToken],
+      });
+    }
     return await writeContractAsync({
       address: contractAddress,
-      abi: RewardABI,
+      abi: REWARD_BUY_COLLECTIBLE_ENUM_ABI,
       functionName: 'buyCollectible',
-      args: [tokenId, useUsdc],
+      args: [tokenId, paymentToken],
     });
   }, [writeContractAsync, contractAddress]);
 
@@ -1484,13 +1541,21 @@ export function useRewardBuyCollectibleFrom() {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const buyFrom = useCallback(async (payer: Address, tokenId: bigint, useUsdc = false) => {
+  const buyFrom = useCallback(async (payer: Address, tokenId: bigint, paymentToken: number | boolean = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
+    if (typeof paymentToken === 'boolean') {
+      return await writeContractAsync({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: 'buyCollectibleFrom',
+        args: [payer, tokenId, paymentToken],
+      });
+    }
     return await writeContractAsync({
       address: contractAddress,
-      abi: RewardABI,
+      abi: REWARD_BUY_COLLECTIBLE_FROM_ENUM_ABI,
       functionName: 'buyCollectibleFrom',
-      args: [payer, tokenId, useUsdc],
+      args: [payer, tokenId, paymentToken],
     });
   }, [writeContractAsync, contractAddress]);
 

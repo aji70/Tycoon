@@ -13,13 +13,15 @@ contract DeployNewRewardSystemWithDualMinterScript is Script {
     function run() external {
         address tyc = vm.envAddress("TYC_ADDRESS");
         address usdc = vm.envAddress("USDC_ADDRESS");
+        address cusdc = vm.envOr("CUSDC_ADDRESS", usdc);
+        address usdt = vm.envOr("USDT_ADDRESS", usdc);
         address owner = vm.envAddress("TYCOON_OWNER");
         address rewardsFaucet = vm.envAddress("TYCOON_REWARDS_FAUCET_ADDRESS");
         address proxy = vm.envAddress("TYCOON_PROXY_ADDRESS");
 
         vm.startBroadcast();
 
-        TycoonRewardSystem newRewardSystem = new TycoonRewardSystem(tyc, usdc, owner);
+        TycoonRewardSystem newRewardSystem = new TycoonRewardSystem(tyc, usdc, cusdc, usdt, owner);
         console.log("New TycoonRewardSystem:", address(newRewardSystem));
 
         newRewardSystem.setBackendMinter(rewardsFaucet);
