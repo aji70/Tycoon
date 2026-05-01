@@ -25,6 +25,8 @@ contract DeployTycoonFullScript is Script {
     function run() external {
         address owner = vm.envAddress("TYCOON_OWNER");
         address usdc = vm.envAddress("USDC_ADDRESS");
+        address cusdc = vm.envOr("CUSDC_ADDRESS", usdc);
+        address usdt = vm.envOr("USDT_ADDRESS", usdc);
         address gameController = vm.envOr("GAME_CONTROLLER", owner);
 
         address tycAddr = _optAddress("TYC_ADDRESS");
@@ -46,7 +48,7 @@ contract DeployTycoonFullScript is Script {
 
         // 2. TycoonRewardSystem — deploy only if TYCOON_REWARD_SYSTEM not set
         if (rewardSystemAddr == address(0)) {
-            TycoonRewardSystem rewardSystem = new TycoonRewardSystem(tycAddr, usdc, owner);
+            TycoonRewardSystem rewardSystem = new TycoonRewardSystem(tycAddr, usdc, cusdc, usdt, owner);
             rewardSystemAddr = address(rewardSystem);
             console.log("TycoonRewardSystem:", rewardSystemAddr);
         } else {

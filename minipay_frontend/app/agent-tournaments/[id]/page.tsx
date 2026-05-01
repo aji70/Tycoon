@@ -1,7 +1,12 @@
 "use client";
 
-import { TournamentDetailPage } from "@/components/tournaments/TournamentDetailPage";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function AgentTournamentDetailPage() {
-  return <TournamentDetailPage basePath="/agent-tournaments" expectedKind="agent" />;
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/");
+  }, [router]);
+  return null;
 }

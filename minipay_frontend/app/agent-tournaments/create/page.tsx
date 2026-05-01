@@ -1,20 +1,12 @@
 "use client";
 
-import { CreateTournamentClient } from "@/components/tournaments/CreateTournamentClient";
-import {
-  AGENT_TOURNAMENTS_BASE,
-  tournamentCreatePath,
-} from "@/lib/tournamentRoutes";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function CreateAgentTournamentPage() {
-  return (
-    <CreateTournamentClient
-      variant="agent"
-      listHref={AGENT_TOURNAMENTS_BASE}
-      createHref={tournamentCreatePath("agent")}
-      detailBasePath={AGENT_TOURNAMENTS_BASE}
-      listLabel="Agent tournaments"
-      pageTitle="Create agent tournament"
-    />
-  );
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/");
+  }, [router]);
+  return null;
 }

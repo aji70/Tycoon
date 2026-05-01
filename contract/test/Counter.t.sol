@@ -32,7 +32,7 @@ contract TycoonTest is Test {
         vm.prank(owner);
         tycoonToken = new TycoonToken(owner);
         usdc = new TycoonToken(owner);
-        tycoonRewards = new TycoonRewardSystem(address(tycoonToken), address(usdc), owner);
+        tycoonRewards = new TycoonRewardSystem(address(tycoonToken), address(usdc), address(usdc), address(usdc), owner);
         tycoon = new Tycoon(owner, address(tycoonRewards));
 
         vm.prank(owner);
