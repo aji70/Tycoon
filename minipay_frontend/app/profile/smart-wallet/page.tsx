@@ -207,6 +207,16 @@ export default function ManageSmartWalletPage() {
   const handleRecreateSmartWallet = async () => {
     setRecreateSmartWalletPending(true);
     try {
+      // If user has no registry profile yet, bootstrap it first via create-wallet, then recreate
+      const registryWallet = fromRegistry.data;
+      const noProfile = !registryWallet || registryWallet === "0x0000000000000000000000000000000000000000";
+      if (noProfile) {
+        await apiClient.post("auth/create-smart-wallet", { chain: "CELO" });
+        await auth?.refetchGuest?.();
+        fromRegistry.refetch();
+        toast.success("Smart wallet created.");
+        return;
+      }
       const res = await apiClient.post<
         ApiResponse & { data?: { smart_wallet_address?: string; migration?: { status?: string; error?: string } } }
       >("auth/recreate-smart-wallet");
