@@ -293,6 +293,7 @@ export default function RewardAdminPanel() {
 
   const { tokenCount, allTokens, tycBalance, usdcBalance, bundleDefsForStock } = contract;
   const { anyPending, currentTxHash, pendingMinter, pendingVoucher, pendingCollectible, pendingStock, pendingStockBundle, pendingRestock, pendingUpdate, pendingPause, pendingWithdraw, pendingTycoonMinStake, pendingTycoonMinTurns, pendingTycoonController, pendingTycoonLogic, pendingTycoonUserRegistry, pendingTycoonGameFaucet, pendingTycoonRewardSystem, pendingCreateWallet, pendingVaultWithdraw } = pending;
+  const { syncStablePricesProgress } = state;
 
   if (!auth.isConnected || !auth.userAddress) {
     return (
@@ -733,6 +734,38 @@ export default function RewardAdminPanel() {
 
         {activeSection === 'manage' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+
+            {/* ── One-click: Sync CUSDC + USDT prices to match USDC ── */}
+            <div className="md:col-span-2 bg-gradient-to-r from-cyan-950/60 to-blue-950/60 rounded-2xl p-6 border border-cyan-500/40">
+              <h3 className="text-lg font-bold mb-1 flex items-center gap-2">
+                <RefreshCw className="w-5 h-5 text-cyan-400" /> Sync Stable Prices (CUSDC + USDT → USDC)
+              </h3>
+              <p className="text-gray-400 text-sm mb-4">
+                One click sets <strong className="text-cyan-300">CUSDC</strong> and{' '}
+                <strong className="text-cyan-300">USDT</strong> prices equal to the existing{' '}
+                <strong className="text-cyan-300">USDC</strong> price for every stocked perk.
+                Fixes the <code className="text-red-300 bg-black/30 px-1 rounded">"Not for sale"</code> revert when buying with USDT or cUSD.
+              </p>
+              <div className="flex items-center gap-4 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handlers.handleSyncAllStablePrices}
+                  disabled={anyPending || syncStablePricesProgress.active}
+                  className="px-6 py-3 rounded-xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {syncStablePricesProgress.active ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Syncing {syncStablePricesProgress.current}/{syncStablePricesProgress.total}…</>
+                  ) : (
+                    <><RefreshCw className="w-4 h-4" /> Sync All Stable Prices</>
+                  )}
+                </button>
+                {syncStablePricesProgress.active && (
+                  <p className="text-cyan-300 text-sm">
+                    Sending tx {syncStablePricesProgress.current} of {syncStablePricesProgress.total} — confirm each in your wallet.
+                  </p>
+                )}
+              </div>
+            </div>
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <Settings className="w-6 h-6 text-yellow-400" /> Set Backend Minter

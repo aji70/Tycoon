@@ -173,6 +173,11 @@ export function useRewardsAdmin() {
     current: 0,
     total: 0,
   });
+  const [syncStablePricesProgress, setSyncStablePricesProgress] = useState<{ active: boolean; current: number; total: number }>({
+    active: false,
+    current: 0,
+    total: 0,
+  });
   /** Backend /api/shop-admin bulk actions (owner or minter key on server). */
   const [backendShopBulk, setBackendShopBulk] = useState<null | "perks" | "bundles">(null);
 
@@ -773,6 +778,42 @@ export function useRewardsAdmin() {
     }
   };
 
+  const handleSyncAllStablePrices = async () => {
+    const collectibles = allTokens.filter(
+      (t): t is TokenDisplayItem & { perk: CollectiblePerk; strength: number } =>
+        t.type === "collectible" && t.perk != null && t.strength != null && t.usdcPrice > 0n
+    );
+    if (collectibles.length === 0) {
+      setStatus({ type: "error", message: "No stocked collectibles with a USDC price found." });
+      return;
+    }
+    setSyncStablePricesProgress({ active: true, current: 0, total: collectibles.length });
+    let updated = 0;
+    try {
+      for (let i = 0; i < collectibles.length; i++) {
+        setSyncStablePricesProgress((p) => ({ ...p, current: i + 1 }));
+        const item = collectibles[i];
+        const hash = await updateHook.update(
+          item.tokenId,
+          item.tycPrice,
+          item.usdcPrice,
+          item.usdcPrice, // cusdcPrice = same as usdc
+          item.usdcPrice, // usdtPrice  = same as usdc
+        );
+        if (publicClient && hash) {
+          await publicClient.waitForTransactionReceipt({ hash });
+        }
+        updated++;
+      }
+      setStatus({ type: "success", message: `Synced stable prices for ${updated} perk(s). CUSDC + USDT now match USDC.` });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Sync failed";
+      setStatus({ type: "error", message: msg });
+    } finally {
+      setSyncStablePricesProgress({ active: false, current: 0, total: 0 });
+    }
+  };
+
   const handleRestock = async () => {
     if (!restockTokenId || !restockAmount) return;
     await restockHook.restock(
@@ -905,6 +946,7 @@ export function useRewardsAdmin() {
     vaultCreditCeloReceipt.isLoading ||
     vaultCreditUsdc.isPending ||
     vaultCreditUsdcReceipt.isLoading ||
+    syncStablePricesProgress.active ||
     backendShopBulk != null;
 
   const currentTxHash =
@@ -1018,6 +1060,7 @@ export function useRewardsAdmin() {
       vaultWithdrawUsdcTo,
       setVaultWithdrawUsdcTo,
       stockAllProgress,
+      syncStablePricesProgress,
       backendShopBulk,
     },
     contract: {
@@ -1038,6 +1081,7 @@ export function useRewardsAdmin() {
       handleStockBundle,
       handleRestock,
       handleUpdatePrices,
+      handleSyncAllStablePrices,
       handleWithdraw,
       handleWithdrawAllUsdcToConnectedWallet,
       handleSetTycoonMinStake,
