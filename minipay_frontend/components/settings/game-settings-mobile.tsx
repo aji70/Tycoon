@@ -71,7 +71,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
   const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);
   const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${wagmiChainId}` || "unknown";
 
-  const [isFreeGame, setIsFreeGame] = useState(false);
+  const [isFreeGame, setIsFreeGame] = useState(true);
   const [isStarting, setIsStarting] = useState(false); // prevents double clicks
 
   const [settings, setSettings] = useState({
@@ -83,7 +83,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
     mortgage: true,
     evenBuild: true,
     startingCash: 1500,
-    stake: 10,
+    stake: 0,
     duration: 30,
   });
 

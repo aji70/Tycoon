@@ -1010,7 +1010,7 @@ export default function ProfilePageMobile() {
 
   const { data: ethBalance } = useBalance({ address: walletAddress });
 
-  const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
+  const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress, cusdcAddress, usdtAddress } = useRewardTokenAddresses();
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
   const guestAuth = useGuestAuthOptional();
@@ -1047,10 +1047,14 @@ export default function ProfilePageMobile() {
 
   const tycBalance = useBalance({ address: walletAddress, token: tycTokenAddress, query: { enabled: !!walletAddress && !!tycTokenAddress } });
   const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
+  const cusdcBalance = useBalance({ address: walletAddress, token: cusdcAddress, query: { enabled: !!walletAddress && !!cusdcAddress } });
+  const usdtBalance = useBalance({ address: walletAddress, token: usdtAddress, query: { enabled: !!walletAddress && !!usdtAddress } });
   const showDualBalances = !!smartWallet && !!walletAddress && smartWallet.toLowerCase() !== walletAddress.toLowerCase();
   const { data: ethBalanceSmart } = useBalance({ address: smartWallet, query: { enabled: !!smartWallet } });
   const tycBalanceSmart = useBalance({ address: smartWallet, token: tycTokenAddress, query: { enabled: !!smartWallet && !!tycTokenAddress } });
   const usdcBalanceSmart = useBalance({ address: smartWallet, token: usdcTokenAddress, query: { enabled: !!smartWallet && !!usdcTokenAddress } });
+  const cusdcBalanceSmart = useBalance({ address: smartWallet, token: cusdcAddress, query: { enabled: !!smartWallet && !!cusdcAddress } });
+  const usdtBalanceSmart = useBalance({ address: smartWallet, token: usdtAddress, query: { enabled: !!smartWallet && !!usdtAddress } });
 
   const showDualWallets = showDualBalances;
   const [activeWalletView, setActiveWalletView] = useState<'connected' | 'smart'>(() => (smartWallet ? 'smart' : 'connected'));
@@ -1301,8 +1305,9 @@ export default function ProfilePageMobile() {
       setSelectedPerkKey(null);
       tycBalance.refetch();
       tycBalanceSmart.refetch();
+      refetchVouchers();
     }
-  }, [txSuccess, txHash, reset, tycBalance, tycBalanceSmart]);
+  }, [txSuccess, txHash, reset, tycBalance, tycBalanceSmart, refetchVouchers]);
 
   useEffect(() => {
     setLocalDisplayName(profile?.displayName ?? '');
@@ -1617,6 +1622,20 @@ export default function ProfilePageMobile() {
                         : (usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2)),
                   },
                   {
+                    label: 'cUSD',
+                    value:
+                      activeWalletView === 'smart'
+                        ? (cusdcBalanceSmart.isLoading ? '...' : Number(cusdcBalanceSmart.data?.formatted || 0).toFixed(2))
+                        : (cusdcBalance.isLoading ? '...' : Number(cusdcBalance.data?.formatted || 0).toFixed(2)),
+                  },
+                  {
+                    label: 'USDT',
+                    value:
+                      activeWalletView === 'smart'
+                        ? (usdtBalanceSmart.isLoading ? '...' : Number(usdtBalanceSmart.data?.formatted || 0).toFixed(2))
+                        : (usdtBalance.isLoading ? '...' : Number(usdtBalance.data?.formatted || 0).toFixed(2)),
+                  },
+                  {
                     label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native',
                     value:
                       activeWalletView === 'smart'
@@ -1637,6 +1656,8 @@ export default function ProfilePageMobile() {
             {[
               { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2) },
               { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2) },
+              { label: 'cUSD', value: cusdcBalance.isLoading ? '...' : Number(cusdcBalance.data?.formatted || 0).toFixed(2) },
+              { label: 'USDT', value: usdtBalance.isLoading ? '...' : Number(usdtBalance.data?.formatted || 0).toFixed(2) },
               { label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0' },
             ].map(({ label, value }) => (
               <div key={label} className="profile-card rounded-xl p-3 text-center border border-white/10">
