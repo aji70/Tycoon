@@ -42,6 +42,13 @@ const Footer = () => {
             Privacy
           </Link>
           <span className="text-[#455A64] hidden sm:inline">·</span>
+          <Link
+            href="/cookies"
+            className="text-[#F0F7F7] hover:text-[#00F0FF] text-[12px] font-dmSans font-[400] transition-colors"
+          >
+            Cookies
+          </Link>
+          <span className="text-[#455A64] hidden sm:inline">·</span>
           <a
             href="https://t.me/+xJLEjw9tbyQwMGVk"
             className="text-[#F0F7F7] hover:text-[#00F0FF] text-[12px] font-dmSans font-[400] transition-colors"
@@ -92,8 +99,6 @@ const Footer = () => {
             className="text-[#F0F7F7] hover:text-[#00F0FF] transition-colors duration-300 ease-in-out text-[20px]"
             aria-label="Telegram"
           >
-            {/* Note: react-icons doesn't have a Telegram icon in the free set, so keeping Discord as placeholder */}
-            {/* If you install react-icons/tg or use a custom SVG, replace RxDiscordLogo with the correct icon */}
             <RxDiscordLogo />
           </Link>
         </div>
