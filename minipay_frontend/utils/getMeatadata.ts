@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 const isProduction = process.env.NODE_ENV === "production";
 const baseUrl = isProduction
-  ? "https://base-monopoly.vercel.app/"
+  ? "https://www.playtycoon.xyz"
   : `http://localhost:${process.env.PORT || 3000}`;
 
 const titleTemplate = "%s | Decentralized Monopoly Game";
@@ -88,7 +88,7 @@ export const getMetadata = ({
       type: "website",
       siteName: "Tycoon",
       locale: "en_US",
-      url: "https://base-monopoly.vercel.app/",
+      url: "https://www.playtycoon.xyz",
     },
     twitter: {
       card: "summary_large_image", // Ensures Twitter uses a large image for the preview

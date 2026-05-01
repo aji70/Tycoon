@@ -7,7 +7,7 @@ import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { House, Volume2, VolumeOff, Globe, Menu, X, ShoppingBag, Trophy, BookOpen, Bot, MessageCircle, FileText, Shield, LifeBuoy, ChevronRight } from 'lucide-react';
+import { House, Volume2, VolumeOff, Globe, Menu, X, ShoppingBag, Trophy, BookOpen, FileText, Shield, LifeBuoy, ChevronRight } from 'lucide-react';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { useConnect } from 'wagmi';
 import { injected } from 'wagmi/connectors';
@@ -35,10 +35,6 @@ interface NavBarMobileProps {
 const PREFETCH_ROUTES = [
   '/game-shop',
   '/leaderboard',
-  '/arena',
-  '/rooms',
-  '/tournaments',
-  '/agent-tournaments',
 ] as const;
 
 const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
@@ -84,7 +80,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
   const { address, isConnected } = useAppKitAccount();
   const { caipNetwork, chainId } = useAppKitNetwork();
   const { connect } = useConnect();
-  const { ready, authenticated, login, logout, user } = usePrivy();
+  const { ready, authenticated, login, logout } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
@@ -127,15 +123,25 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
     return mergeProfilesFromGuestUser(guestUser)?.avatar ?? null;
   }, [guestUser, pathname, storedProfileTick]);
 
-  // Resolve display name: on-chain username > guest username > email > truncated address
+  // Fetch backend username — same as hero section
+  const [backendUsername, setBackendUsername] = useState<string | null>(null);
+  useEffect(() => {
+    if (!address) { setBackendUsername(null); return; }
+    let active = true;
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? ''}/api/users/by-address/${address}?chain=Celo`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (active && data?.data?.username) setBackendUsername(data.data.username); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [address]);
+
+  // Exact same priority as hero section: guestUser.username > backend user.username > fetchedUsername (on-chain) > "Player"
   const displayName = useMemo(() => {
-    if (fetchedUsername) return fetchedUsername;
     if (guestUser?.username) return guestUser.username;
-    const email = typeof user?.email === 'string' ? user.email : (user?.email as { address?: string })?.address;
-    if (email) return email.length > 20 ? email.slice(0, 18) + '…' : email;
-    if (address) return `${address.slice(0, 6)}…${address.slice(-4)}`;
-    return 'Profile';
-  }, [fetchedUsername, guestUser, user, address]);
+    if (backendUsername) return backendUsername;
+    if (fetchedUsername) return fetchedUsername;
+    return 'Player';
+  }, [guestUser, backendUsername, fetchedUsername]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.ethereum?.isMiniPay) {
@@ -289,10 +295,6 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
                 {navItem('/how-to-play', <BookOpen size={18} />, 'How to Play')}
 
                 {hasGameSession && navItem(shopHref, <ShoppingBag size={18} />, 'Perk Shop', 'text-emerald-400/90')}
-                {hasGameSession && navItem('/tournaments', <Trophy size={18} />, 'Tournaments')}
-                {hasGameSession && navItem('/agent-tournaments', <Bot size={18} />, 'Agent Tournaments')}
-                {hasGameSession && navItem('/arena', <Bot size={18} />, 'Agents')}
-                {hasGameSession && navItem('/rooms', <MessageCircle size={18} />, 'Rooms')}
               </nav>
 
               {/* Legal & support — smaller, grouped */}
@@ -348,7 +350,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
                       onClick={() => { signOutGuestAndPrivy(); closeMobileMenu(); }}
                       className="w-full py-3.5 rounded-xl bg-[#011112]/80 hover:bg-[#022a2c]/80 border border-[#003B3E]/60 text-[#00F0FF] font-orbitron font-medium transition-all duration-200"
                     >
-                      {typeof user?.email === 'string' ? user.email : (user?.email as { address?: string })?.address ?? 'Signed in'} · Log out
+                      {displayName} · Log out
                     </button>
                   ) : (
                     <button

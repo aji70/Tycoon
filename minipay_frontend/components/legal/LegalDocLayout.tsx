@@ -89,8 +89,8 @@ export default function LegalDocLayout({
         <div className="mt-12 pt-6 border-t border-[#003B3E]/40 text-center">
           <p className="text-xs text-[#8AABAE] font-dmSans">
             Questions?{' '}
-            <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">
-              support@tycoonworld.xyz
+            <a href="mailto:support@playtycoon.xyz" className="text-[#00F0FF] hover:underline">
+              support@playtycoon.xyz
             </a>
             {' · '}
             <a href="https://t.me/+xJLEjw9tbyQwMGVk" className="text-[#00F0FF] hover:underline">

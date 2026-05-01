@@ -142,7 +142,7 @@ export default function PrivacyPage() {
         </div>
         <p className="text-[#C8E0E2]">
           To exercise any right, contact us at{' '}
-          <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">support@tycoonworld.xyz</a>.
+          <a href="mailto:support@playtycoon.xyz" className="text-[#00F0FF] hover:underline">support@playtycoon.xyz</a>.
           {' '}We will respond within 30 days.
         </p>
       </Section>
@@ -172,7 +172,7 @@ export default function PrivacyPage() {
           Our Services are strictly for users aged <strong className="text-white">18 and over</strong> (see our{' '}
           <a href="/terms" className="text-[#00F0FF] hover:underline">Terms of Service</a>).
           We do not knowingly collect personal data from anyone under 18. If you believe a minor has registered, contact us immediately at{' '}
-          <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">support@tycoonworld.xyz</a>
+          <a href="mailto:support@playtycoon.xyz" className="text-[#00F0FF] hover:underline">support@playtycoon.xyz</a>
           {' '}and we will delete the data promptly.
         </p>
       </Section>
@@ -186,7 +186,7 @@ export default function PrivacyPage() {
         <S icon={<Phone size={15} />}>12. Contact &amp; Supervisory Authorities</S>
         <p className="text-[#C8E0E2]">
           For questions, data requests, or complaints:{' '}
-          <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">support@tycoonworld.xyz</a>
+          <a href="mailto:support@playtycoon.xyz" className="text-[#00F0FF] hover:underline">support@playtycoon.xyz</a>
           {' '}or our{' '}
           <a href="https://t.me/+xJLEjw9tbyQwMGVk" className="text-[#00F0FF] hover:underline">Telegram community</a>.
         </p>

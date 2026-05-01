@@ -159,7 +159,7 @@ export default function TermsPage() {
         <S icon={<Gamepad2 size={15} />}>12. Responsible Gaming</S>
         <p>
           While Tycoon is not a gambling platform, we encourage responsible engagement. If you feel you are spending excessive time or money on the platform, please take a break. Contact{' '}
-          <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">support@tycoonworld.xyz</a>
+          <a href="mailto:support@playtycoon.xyz" className="text-[#00F0FF] hover:underline">support@playtycoon.xyz</a>
           {' '}to request a self-exclusion or account suspension.
         </p>
       </Section>
@@ -178,7 +178,7 @@ export default function TermsPage() {
         <S icon={<Phone size={15} />}>15. Contact</S>
         <p>
           For questions or support:{' '}
-          <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">support@tycoonworld.xyz</a>
+          <a href="mailto:support@playtycoon.xyz" className="text-[#00F0FF] hover:underline">support@playtycoon.xyz</a>
           {' '}or our{' '}
           <a href="https://t.me/+xJLEjw9tbyQwMGVk" className="text-[#00F0FF] hover:underline">Telegram community</a>.
         </p>
