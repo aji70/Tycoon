@@ -15,9 +15,14 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 interface ITycoonRewardSystem {
     function tycToken() external view returns (address);
     function usdc() external view returns (address);
+    function cusdc() external view returns (address);
+    function usdt() external view returns (address);
     function collectibleTycPrice(uint256 tokenId) external view returns (uint256);
     function collectibleUsdcPrice(uint256 tokenId) external view returns (uint256);
+    function collectibleCusdcPrice(uint256 tokenId) external view returns (uint256);
+    function collectibleUsdtPrice(uint256 tokenId) external view returns (uint256);
     function buyCollectible(uint256 tokenId, bool useUsdc) external;
+    function buyCollectible(uint256 tokenId, uint8 paymentToken) external;
     function burnCollectibleForPerk(uint256 tokenId) external;
     function buyBundle(uint256 bundleId, bool useUsdc) external;
     function bundles(uint256 bundleId) external view returns (
@@ -199,6 +204,9 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver, IERC721Receiver, IERC1271
     // -------------------------------------------------------------------------
     // Execution (Smart Account behaviour)
     // -------------------------------------------------------------------------
+    /// @notice Owner can call any contract. Daily cap is NOT enforced here — this is intentional:
+    /// executeCall is a power-user escape hatch for the owner only. If the owner key is compromised
+    /// all funds are at risk regardless; the daily cap is only meaningful for operator (backend) flows.
     function executeCall(address target, uint256 value, bytes calldata data) external payable onlyOwner returns (bytes memory) {
         (bool success, bytes memory result) = target.call{value: value}(data);
         if (!success) {
@@ -307,19 +315,34 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver, IERC721Receiver, IERC1271
         emit ApprovalERC20(token, spender, amount);
     }
 
-    /// @notice Owner can withdraw ERC20 directly when connected. USDC (6 decimals) counts toward same $100/day cap.
+    /// @notice Owner can withdraw ERC20 directly when connected. Only USDC/cUSD/USDT (6 decimals) count toward the daily cap; TYC and other tokens are uncapped.
     function withdrawERC20(address token, address to, uint256 amount) external onlyOwner {
         if (token == address(0) || to == address(0)) revert InvalidAddress();
-        if (dailyCapUsd6 != 0) _checkAndUpdateDailyCap(amount); // USDC is 6 decimals = USD
+        // Only apply daily cap for stablecoins (6-decimal USD-pegged tokens).
+        // TYC and other tokens have different decimals/value and must not be capped as USD.
+        address rs = rewardSystem;
+        bool isStable = rs != address(0) && (
+            token == ITycoonRewardSystem(rs).usdc() ||
+            token == ITycoonRewardSystem(rs).cusdc() ||
+            token == ITycoonRewardSystem(rs).usdt()
+        );
+        if (isStable && dailyCapUsd6 != 0) _checkAndUpdateDailyCap(amount);
         require(IERC20(token).transfer(to, amount), "Transfer failed");
         emit WithdrewERC20(token, to, amount);
     }
 
     /// @notice Operator withdraws ERC20 only with a signature from withdrawalAuthority (backend signs after PIN).
+    /// @dev Only stablecoins (USDC/cUSD/USDT) count toward the daily cap.
     function withdrawERC20WithAuth(address token, address to, uint256 amount, uint256 nonce, bytes calldata signature) external onlyOperator {
         if (withdrawalAuthority == address(0)) revert InvalidAddress();
         if (token == address(0) || to == address(0)) revert InvalidAddress();
-        if (dailyCapUsd6 != 0) _checkAndUpdateDailyCap(amount); // USDC is 6 decimals = USD
+        address rs = rewardSystem;
+        bool isStable = rs != address(0) && (
+            token == ITycoonRewardSystem(rs).usdc() ||
+            token == ITycoonRewardSystem(rs).cusdc() ||
+            token == ITycoonRewardSystem(rs).usdt()
+        );
+        if (isStable && dailyCapUsd6 != 0) _checkAndUpdateDailyCap(amount);
         bytes32 nonceKey = keccak256(abi.encodePacked(address(this), token, to, amount, nonce));
         require(!usedWithdrawalNonces[nonceKey], "Nonce used");
         usedWithdrawalNonces[nonceKey] = true;
@@ -336,7 +359,7 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver, IERC721Receiver, IERC1271
     // -------------------------------------------------------------------------
 
     /// @notice Operator buys a collectible from the shop using wallet funds. Requires authority signature.
-    /// @dev Internally approves exact price for RewardSystem then calls buyCollectible as this wallet.
+    /// @dev Uses the best available stable (cUSD > USDC > USDT) when useUsdc=true, or TYC when false.
     function buyCollectibleWithAuth(uint256 tokenId, bool useUsdc, uint256 maxPrice, uint256 nonce, bytes calldata signature)
         external
         onlyOperator
@@ -344,9 +367,7 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver, IERC721Receiver, IERC1271
         address rs = rewardSystem;
         if (rs == address(0)) revert ShopNotConfigured();
 
-        uint256 price = useUsdc
-            ? ITycoonRewardSystem(rs).collectibleUsdcPrice(tokenId)
-            : ITycoonRewardSystem(rs).collectibleTycPrice(tokenId);
+        (address token, uint256 price, uint8 paymentToken) = _resolvePayment(rs, tokenId, useUsdc);
         require(price > 0, "Not for sale");
         require(price <= maxPrice, "Price too high");
 
@@ -354,13 +375,29 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver, IERC721Receiver, IERC1271
         bytes32 hash = keccak256(abi.encodePacked(address(this), rs, tokenId, useUsdc, price, maxPrice, nonce));
         _requireValidAuthority(hash, nonce, signature, action);
 
-        address token = useUsdc ? ITycoonRewardSystem(rs).usdc() : ITycoonRewardSystem(rs).tycToken();
         if (token == address(0)) revert InvalidAddress();
         IERC20(token).approve(rs, price);
         emit ApprovalERC20(token, rs, price);
 
-        ITycoonRewardSystem(rs).buyCollectible(tokenId, useUsdc);
+        ITycoonRewardSystem(rs).buyCollectible(tokenId, paymentToken);
         emit ShopActionExecuted(action, tokenId, useUsdc);
+    }
+
+    /// @dev Resolves the best payment token, price, and PaymentToken enum value for a collectible purchase.
+    function _resolvePayment(address rs, uint256 tokenId, bool useUsdc)
+        internal view
+        returns (address token, uint256 price, uint8 paymentToken)
+    {
+        if (!useUsdc) {
+            return (ITycoonRewardSystem(rs).tycToken(), ITycoonRewardSystem(rs).collectibleTycPrice(tokenId), 0);
+        }
+        address cusdcAddr = ITycoonRewardSystem(rs).cusdc();
+        uint256 cusdcPrice = ITycoonRewardSystem(rs).collectibleCusdcPrice(tokenId);
+        if (cusdcAddr != address(0) && cusdcPrice > 0) return (cusdcAddr, cusdcPrice, 2);
+        address usdcAddr = ITycoonRewardSystem(rs).usdc();
+        uint256 usdcPrice = ITycoonRewardSystem(rs).collectibleUsdcPrice(tokenId);
+        if (usdcAddr != address(0) && usdcPrice > 0) return (usdcAddr, usdcPrice, 1);
+        return (ITycoonRewardSystem(rs).usdt(), ITycoonRewardSystem(rs).collectibleUsdtPrice(tokenId), 3);
     }
 
     /// @notice Operator buys a bundle from RewardSystem using wallet funds. Requires authority signature.

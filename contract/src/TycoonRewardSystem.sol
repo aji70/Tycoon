@@ -361,6 +361,7 @@ event UsdcmTokenUpdated(address indexed previousToken, address indexed newToken)
         _stockShop(amount, perk, strength, tycPrice, usdcPrice, cusdcPrice, usdtPrice);
     }
 
+    /// @dev Always mints a new tokenId. Use restockCollectible to add stock to an existing tokenId.
     function _stockShop(
         uint256 amount,
         TycoonLib.CollectiblePerk perk,
@@ -710,6 +711,7 @@ event UsdcmTokenUpdated(address indexed previousToken, address indexed newToken)
 
     function withdrawFunds(IERC20 token, address to, uint256 amount) external onlyOwner {
         require(to != address(0), "Zero address");
+        require(amount > 0, "Amount must be > 0");
         require(token.transfer(to, amount), "Transfer failed");
         emit FundsWithdrawn(address(token), to, amount);
     }

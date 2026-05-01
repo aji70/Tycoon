@@ -1790,13 +1790,25 @@ export function useRewardStockShop() {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const stock = useCallback(async (amount: number, perk: CollectiblePerk, strength: number, tycPrice = 0, usdcPrice = 0) => {
+  const stock = useCallback(async (
+    amount: number,
+    perk: CollectiblePerk,
+    strength: number,
+    tycPrice: bigint | number,
+    usdcPrice: bigint | number,
+    cusdcPrice: bigint | number = 0,
+    usdtPrice: bigint | number = 0,
+  ) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
+    const tycWei = typeof tycPrice === 'bigint' ? tycPrice : BigInt(tycPrice);
+    const usdcWei = typeof usdcPrice === 'bigint' ? usdcPrice : BigInt(usdcPrice);
+    const cusdcWei = typeof cusdcPrice === 'bigint' ? cusdcPrice : BigInt(cusdcPrice);
+    const usdtWei = typeof usdtPrice === 'bigint' ? usdtPrice : BigInt(usdtPrice);
     return await writeContractAsync({
       address: contractAddress,
       abi: RewardABI,
       functionName: 'stockShop',
-      args: [BigInt(amount), BigInt(perk), BigInt(strength), tycPrice, usdcPrice],
+      args: [BigInt(amount), BigInt(perk), BigInt(strength), tycWei, usdcWei, cusdcWei, usdtWei],
     });
   }, [writeContractAsync, contractAddress]);
 

@@ -595,19 +595,9 @@ export function useRewardsAdmin() {
     const selectedItem = INITIAL_COLLECTIBLES.find(
       (item) => item.perk === perk && item.strength === strength
     );
-    const tycPrice = selectedItem
-      ? parseUnits(selectedItem.tycPrice, 18)
-      : parseUnits("1.0", 18);
-    const usdcPrice = selectedItem
-      ? parseUnits(selectedItem.usdcPrice, 6)
-      : parseUnits("0.20", 6);
-    await stockShopHook.stock(
-      50,
-      perk as unknown as ContractCollectiblePerk,
-      strength,
-      Number(tycPrice),
-      Number(usdcPrice)
-    );
+    const tycPrice = selectedItem ? parseUnits(selectedItem.tycPrice, 18) : parseUnits("1.0", 18);
+    const usdcPrice = selectedItem ? parseUnits(selectedItem.usdcPrice, 6) : parseUnits("0.20", 6);
+    await stockShopHook.stock(50, perk as unknown as ContractCollectiblePerk, strength, tycPrice, usdcPrice, usdcPrice, usdcPrice);
   };
 
   const handleStockBundle = async (bundleName: string) => {
@@ -669,8 +659,10 @@ export function useRewardsAdmin() {
           50,
           item.perk as unknown as ContractCollectiblePerk,
           item.strength,
-          Number(tycPrice),
-          Number(usdcPrice)
+          tycPrice,
+          usdcPrice,
+          usdcPrice, // cUSD same price
+          usdcPrice, // USDT same price
         );
         if (publicClient && hash) {
           await publicClient.waitForTransactionReceipt({ hash });

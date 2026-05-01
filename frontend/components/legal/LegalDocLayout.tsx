@@ -3,12 +3,15 @@
 import { useCallback, useRef, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 
 export default function LegalDocLayout({
   title,
+  lastUpdated,
   children,
 }: {
   title: string;
+  lastUpdated?: string;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -26,9 +29,7 @@ export default function LegalDocLayout({
     } catch {
       router.push('/');
     } finally {
-      setTimeout(() => {
-        navigatingRef.current = false;
-      }, 500);
+      setTimeout(() => { navigatingRef.current = false; }, 500);
     }
   }, [router]);
 
@@ -48,14 +49,26 @@ export default function LegalDocLayout({
         </div>
       </div>
       <article className="max-w-3xl mx-auto px-4 py-10 pb-20">
-        <h1 className="font-orbitron text-2xl md:text-3xl text-[#00F0FF] mb-3">{title}</h1>
-        <p className="text-amber-200/95 text-sm border border-amber-500/35 rounded-xl p-4 mb-10 bg-amber-950/25 font-dmSans leading-relaxed">
-          <strong>Draft.</strong> This page is a placeholder until attorney-reviewed terms or privacy
-          language is in place. It is not legal advice.
-        </p>
+        <h1 className="font-orbitron text-2xl md:text-3xl text-[#00F0FF] mb-2">{title}</h1>
+        {lastUpdated && (
+          <p className="text-[#8AABAE] text-xs font-dmSans mb-6">Last updated: {lastUpdated}</p>
+        )}
+        <nav className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-dmSans text-[#8AABAE] mb-10 border-b border-[#003B3E]/40 pb-4">
+          <Link href="/terms" className="hover:text-[#00F0FF] transition-colors">Terms of Service</Link>
+          <span>·</span>
+          <Link href="/privacy" className="hover:text-[#00F0FF] transition-colors">Privacy Policy</Link>
+          <span>·</span>
+          <Link href="/cookies" className="hover:text-[#00F0FF] transition-colors">Cookies Policy</Link>
+        </nav>
         <div className="space-y-8 text-[#E0E7E9] text-sm md:text-[15px] leading-relaxed font-dmSans">
           {children}
         </div>
+        <p className="mt-12 text-xs text-[#8AABAE] font-dmSans border-t border-[#003B3E]/40 pt-6">
+          Questions? Contact us at{' '}
+          <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">support@tycoonworld.xyz</a>
+          {' '}or via our{' '}
+          <a href="https://t.me/+xJLEjw9tbyQwMGVk" className="text-[#00F0FF] hover:underline">Telegram community</a>.
+        </p>
       </article>
     </div>
   );

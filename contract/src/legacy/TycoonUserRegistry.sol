@@ -67,6 +67,11 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
     error NewOwnerHasProfile();
 
     modifier onlyGame() {
+        if (msg.sender != gameContract) revert OnlyGame();
+        _;
+    }
+
+    modifier onlyGameOrOwner() {
         if (msg.sender != gameContract && msg.sender != owner()) revert OnlyGame();
         _;
     }
@@ -126,7 +131,7 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
     }
 
     /// @notice Create a smart wallet for the user and bind profile. Called by game contract when user registers.
-    function createWalletForUser(address ownerAddress, string calldata username) external onlyGame nonReentrant returns (address wallet) {
+    function createWalletForUser(address ownerAddress, string calldata username) external onlyGameOrOwner nonReentrant returns (address wallet) {
         // Idempotent for wallet-first users: if ownerAddress is already a wallet we know about, return it.
         // This is needed because Tycoon.registerPlayerFor(wallet, ...) will still call createWalletForUser(wallet, username).
         if (ownerByWallet[ownerAddress] != address(0)) {
@@ -168,7 +173,7 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
 
     /// @notice Wallet-first signup: create a wallet and profile without an EOA yet.
     /// @dev Profile is keyed by the wallet address itself (owner = wallet). Later, linkEOAToProfile moves it to the user's EOA.
-    function createWalletForUserByBackend(string calldata username) external onlyGame nonReentrant returns (address wallet) {
+    function createWalletForUserByBackend(string calldata username) external onlyGameOrOwner nonReentrant returns (address wallet) {
         bytes32 nameHash = keccak256(bytes(username));
         if (ownerByUsername[nameHash] != address(0)) revert UsernameTaken();
 
@@ -307,6 +312,19 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
         try faucet.grantReward(recipient, action) returns (bool) {
             emit GameActionRewardGranted(user, action, recipient);
         } catch {}
+    }
+
+    /// @notice Registry owner can recover funds from wallets still owned by the registry (wallet-first profiles
+    /// where linkEOAToProfile was never called). Prevents permanent fund lock.
+    function recoverWalletFunds(address wallet, address token, address to, uint256 amount) external onlyOwner {
+        if (wallet == address(0) || to == address(0)) revert InvalidAddress();
+        // Only wallets still owned by this registry are eligible
+        require(TycoonUserWallet(payable(wallet)).owner() == address(this), "Not registry-owned");
+        if (token == address(0)) {
+            TycoonUserWallet(payable(wallet)).withdrawNative(payable(to), amount);
+        } else {
+            TycoonUserWallet(payable(wallet)).withdrawERC20(token, to, amount);
+        }
     }
 
     function getWallet(address ownerAddress) external view returns (address) {
