@@ -18,6 +18,7 @@ import {
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useAppKit } from "@reown/appkit/react";
 import { toast } from "react-toastify";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
@@ -356,7 +357,7 @@ const HeroSection: React.FC = () => {
         err?.message ||
         "Registration failed. Try again.";
       if (String(err?.message || "").toLowerCase().includes("insufficient funds")) {
-        message = "Insufficient gas funds";
+        message = "Not enough funds to cover the network fee.";
       }
 
       toast.update(toastId, {
@@ -383,7 +384,7 @@ const HeroSection: React.FC = () => {
         toast.error((res?.data as { message?: string })?.message ?? "Registration failed");
       }
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? err?.message ?? "Registration failed");
+      toast.error(err?.response?.data?.message ?? getContractErrorMessage(err, "Registration failed"));
     } finally {
       setRegisterOnChainLoading(false);
     }

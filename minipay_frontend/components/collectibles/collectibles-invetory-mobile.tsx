@@ -13,6 +13,7 @@ import {
 import { formatUnits, type Address, type Abi, erc20Abi } from "viem";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import Image from "next/image";
 
 import {
@@ -583,7 +584,7 @@ export default function CollectibleInventoryBar({
       if (status === 401) {
         toast.error("Please sign in to pay with Naira.");
       } else {
-        toast.error((e as Error)?.message ?? "Failed to start Naira payment");
+        toast.error(getContractErrorMessage(e, "Failed to start Naira payment"));
       }
     } finally {
       setNgnLoadingTokenId(null);

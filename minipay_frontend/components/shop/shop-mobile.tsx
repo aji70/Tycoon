@@ -671,7 +671,7 @@ export default function GameShopMobile() {
     } catch (e: unknown) {
       const status = (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
       if (status === 401) toast.error('Please sign in to pay with Naira.');
-      else toast.error((e as Error)?.message ?? 'Failed to start Naira payment');
+      else toast.error(getContractErrorMessage(e, 'Failed to start Naira payment'));
     } finally {
       setNgnLoadingTokenId(null);
     }
@@ -808,7 +808,7 @@ export default function GameShopMobile() {
       }
       toast.success('All bundles stocked');
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Failed to stock bundles');
+      toast.error(getContractErrorMessage(e, 'Failed to stock bundles'));
     } finally {
       setStockAllBundlesProgress({ active: false, current: 0, total: 0 });
     }
@@ -828,7 +828,7 @@ export default function GameShopMobile() {
         await redeemFor(voucherOwner, tokenId);
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Redemption failed');
+      toast.error(getContractErrorMessage(err, 'Redemption failed'));
     }
   };
 
@@ -867,9 +867,9 @@ export default function GameShopMobile() {
   }, [redeemForSuccess, resetRedeemFor]);
 
   useEffect(() => {
-    if (buyError) toast.error(buyError.message || 'Purchase failed');
-    if (redeemError) toast.error(redeemError.message || 'Redemption failed');
-    if (redeemForError) toast.error(redeemForError.message || 'Smart wallet redemption failed');
+    if (buyError) toast.error(getContractErrorMessage(buyError, 'Purchase failed'));
+    if (redeemError) toast.error(getContractErrorMessage(redeemError, 'Redemption failed'));
+    if (redeemForError) toast.error(getContractErrorMessage(redeemForError, 'Redemption failed'));
   }, [buyError, redeemError, redeemForError]);
 
   const handleBack = () => {
@@ -1087,7 +1087,7 @@ export default function GameShopMobile() {
                       ) : !hasPaymentMethod ? (
                         <><Wallet size={14} className="inline mr-2" /> Connect to buy</>
                       ) : (
-                        <><CreditCard size={14} className="inline mr-2" /> Buy with USDC</>
+                        <><CreditCard size={14} className="inline mr-2" /> Pay with digital dollars</>
                       )}
                     </button>
                     {b.price_ngn != null && b.price_ngn > 0 && (
@@ -1218,7 +1218,7 @@ export default function GameShopMobile() {
                         ) : payFromSmartWalletUnsupported ? (
                           'Use Connected wallet'
                         ) : (
-                          <> Buy with {activeStableLabel} — ${Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} </>
+                          <> Pay with digital dollars — ${Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} </>
                         )}
                       </button>
                       <button

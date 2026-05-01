@@ -73,8 +73,8 @@ export function DailyClaim({ chain, accountKey }: DailyClaimProps) {
           fetchStatus();
         }
       })
-      .catch((err: { message?: string }) => {
-        toast.error(err?.message || 'Claim failed. Try again later.');
+      .catch(() => {
+        toast.error('Claim failed. Try again later.');
       })
       .finally(() => setClaiming(false));
   };

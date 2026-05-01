@@ -17,7 +17,7 @@ import { getCornersPassed } from "@/components/game/board3d/positions";
 import { getDiceValues } from "@/components/game/constants";
 import { JAIL_POSITION, MOVE_ANIMATION_MS_PER_SQUARE } from "@/components/game/constants";
 import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
-import { isBenignTurnOrderError } from "@/lib/utils/contractErrors";
+import { isBenignTurnOrderError, getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
@@ -393,7 +393,7 @@ function Board3DMobileContent() {
       if (data?.message) toast.success(data.message);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
-      toast.error(err?.response?.data?.message || err?.message || "Failed to request start");
+      toast.error(err?.response?.data?.message || getContractErrorMessage(err, "Failed to request start"));
     } finally {
       setRequestStartLoading(false);
     }
@@ -2956,7 +2956,7 @@ function Board3DMobileContent() {
                     try {
                       await burnCollectible(pendingBarPerk.tokenId);
                     } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "Burn failed");
+                      toast.error(getContractErrorMessage(e, "Burn failed"));
                       setPendingBarPerk(null);
                     }
                   }}

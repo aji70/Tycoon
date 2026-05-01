@@ -426,7 +426,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
           {isFreeGame ? (
             <div className="py-6 text-center">
               <p className="text-3xl font-black text-yellow-400 mb-1">FREE</p>
-              <p className="text-green-300 text-sm">No crypto needed</p>
+              <p className="text-green-300 text-sm">Free to play</p>
             </div>
           ) : (
             <>

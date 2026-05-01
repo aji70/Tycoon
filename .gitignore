@@ -29,6 +29,7 @@ scripts/synthesis-register.local.env
 # Local test/utility scripts — do not push
 scripts/test-*.js
 scripts/create-*.js
+scripts/chaos.js
 
 # Local roadmap / implementation notes (do not commit)
 ADMIN_DASHBOARD_IMPLEMENTATION_PLAN.local.md

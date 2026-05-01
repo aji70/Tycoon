@@ -7,6 +7,7 @@ import { apiClient } from "@/lib/api";
 import { useExitGame, useGetGameByCode } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import { useGameTrades } from "@/hooks/useGameTrades";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import {
   isAIPlayer,
   calculateAiFavorability,
@@ -340,7 +341,7 @@ export function usePlayerSidebar({
         });
         if (res?.data?.success) toast.success("Property developed successfully");
       } catch (error: any) {
-        toast.error(error?.message || "Failed to develop property");
+        toast.error(getContractErrorMessage(error, "Failed to develop property"));
       }
     },
     [isNext, me, game.id]
@@ -358,7 +359,7 @@ export function usePlayerSidebar({
         if (res?.data?.success) toast.success("Property downgraded successfully");
         else toast.error(res.data?.message ?? "Failed to downgrade property");
       } catch (error: any) {
-        toast.error(error?.message || "Failed to downgrade property");
+        toast.error(getContractErrorMessage(error, "Failed to downgrade property"));
       }
     },
     [isNext, me, game.id]
@@ -376,7 +377,7 @@ export function usePlayerSidebar({
         if (res?.data?.success) toast.success("Property mortgaged successfully");
         else toast.error(res.data?.message ?? "Failed to mortgage property");
       } catch (error: any) {
-        toast.error(error?.message || "Failed to mortgage property");
+        toast.error(getContractErrorMessage(error, "Failed to mortgage property"));
       }
     },
     [isNext, me, game.id]
@@ -394,7 +395,7 @@ export function usePlayerSidebar({
         if (res?.data?.success) toast.success("Property unmortgaged successfully");
         else toast.error(res.data?.message ?? "Failed to unmortgage property");
       } catch (error: any) {
-        toast.error(error?.message || "Failed to unmortgage property");
+        toast.error(getContractErrorMessage(error, "Failed to unmortgage property"));
       }
     },
     [isNext, me, game.id]
@@ -419,8 +420,7 @@ export function usePlayerSidebar({
       } catch (error: any) {
         const message =
           error.response?.data?.message ||
-          error.message ||
-          "Failed to transfer property";
+          getContractErrorMessage(error, "Failed to transfer property");
         toast.error(message);
         console.error("Property transfer failed:", error);
       }
@@ -439,7 +439,7 @@ export function usePlayerSidebar({
           toast.success("Property returned to bank successfully");
         else toast.error(res.data?.message ?? "Failed to return property");
       } catch (error: any) {
-        toast.error(error?.message || "Failed to return property");
+        toast.error(getContractErrorMessage(error, "Failed to return property"));
       }
     },
     [game.id]
@@ -479,7 +479,7 @@ export function usePlayerSidebar({
         }
       } catch (err: any) {
         const errorMessage =
-          err.response?.data?.message || err.message || "Failed to claim property";
+          err.response?.data?.message || getContractErrorMessage(err, "Failed to claim property");
         console.error("Claim failed:", err);
         toast.error(errorMessage, { id: toastId });
       }
@@ -509,7 +509,7 @@ export function usePlayerSidebar({
         }, 1500);
       }
     } catch (err: any) {
-      toast.error(err?.message || "Something went wrong. Try again or refresh the page.", {
+      toast.error(getContractErrorMessage(err, "Something went wrong. Try again or refresh the page."), {
         id: toastId,
         duration: 8000,
       });

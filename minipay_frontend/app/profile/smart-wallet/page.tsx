@@ -9,6 +9,7 @@ import { useRewardTokenAddresses } from "@/context/ContractProvider";
 import { USDC_TOKEN_ADDRESS, NAIRA_VAULT_ADDRESSES, SMART_WALLET_OPERATOR_ADDRESSES, WITHDRAWAL_AUTHORITY_ADDRESSES, SWAP_EXECUTOR_ADDRESSES } from "@/constants/contracts";
 import { parseEther, formatUnits, type Address } from "viem";
 import { toast } from "react-toastify";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { Copy, Wallet, Coins, Loader2, Send, ArrowRightLeft, Banknote } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
@@ -149,7 +150,7 @@ export default function ManageSmartWalletPage() {
       setWithdrawCeloAmount("");
       setWithdrawCeloTo("");
     } catch (e) {
-      toast.error((e as Error)?.message ?? "Withdraw failed");
+      toast.error(getContractErrorMessage(e, "Withdraw failed"));
     }
   };
 
@@ -167,7 +168,7 @@ export default function ManageSmartWalletPage() {
       toast.success("Swap submitted. USDC will be credited to this smart wallet after the tx confirms.");
       setSwapCeloAmount("");
     } catch (e) {
-      toast.error((e as Error)?.message ?? "Swap failed");
+      toast.error(getContractErrorMessage(e, "Swap failed"));
     }
   };
 
@@ -187,7 +188,7 @@ export default function ManageSmartWalletPage() {
       setWithdrawUsdcAmount("");
       setWithdrawUsdcTo("");
     } catch (e) {
-      toast.error((e as Error)?.message ?? "Withdraw failed");
+      toast.error(getContractErrorMessage(e, "Withdraw failed"));
     }
   };
 
@@ -200,7 +201,7 @@ export default function ManageSmartWalletPage() {
       toast.success("Transfer submitted. Confirm in your wallet.");
       auth?.refetchGuest?.();
     } catch (e) {
-      toast.error((e as Error)?.message ?? "Transfer failed");
+      toast.error(getContractErrorMessage(e, "Transfer failed"));
     }
   };
 
@@ -229,7 +230,7 @@ export default function ManageSmartWalletPage() {
       }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
-      toast.error(err?.response?.data?.message ?? err?.message ?? "Failed to recreate");
+      toast.error(err?.response?.data?.message ?? getContractErrorMessage(err, "Failed to recreate"));
     } finally {
       setRecreateSmartWalletPending(false);
     }
@@ -707,7 +708,7 @@ export default function ManageSmartWalletPage() {
                       });
                       toast.success("NGN withdrawals enabled. Confirm in your wallet.");
                     } catch (e) {
-                      toast.error((e as Error)?.message ?? "Failed");
+                      toast.error(getContractErrorMessage(e, "Action failed"));
                     }
                   }}
                   disabled={pendingAny}
@@ -736,7 +737,7 @@ export default function ManageSmartWalletPage() {
                       });
                       toast.success("Managed withdrawals enabled. Confirm in your wallet.");
                     } catch (e) {
-                      toast.error((e as Error)?.message ?? "Failed");
+                      toast.error(getContractErrorMessage(e, "Action failed"));
                     }
                   }}
                   disabled={pendingAny}
@@ -765,7 +766,7 @@ export default function ManageSmartWalletPage() {
                       });
                       toast.success("PIN withdrawals enabled. Set your PIN below if you haven’t.");
                     } catch (e) {
-                      toast.error((e as Error)?.message ?? "Failed");
+                      toast.error(getContractErrorMessage(e, "Action failed"));
                     }
                   }}
                   disabled={pendingAny}
