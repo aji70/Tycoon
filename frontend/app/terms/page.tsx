@@ -27,7 +27,7 @@ const Ul = ({ items }: { items: string[] }) => (
 
 export default function TermsPage() {
   return (
-    <LegalDocLayout title="Terms of Service" lastUpdated="July 2025">
+    <LegalDocLayout title="Terms of Service" lastUpdated="May 2026">
 
       {/* NOT GAMBLING — bold red banner */}
       <div className="rounded-2xl overflow-hidden border border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.08)]">

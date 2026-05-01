@@ -59,7 +59,7 @@ const CookieTable = ({ label, badge, badgeColor, rows }: {
 
 export default function CookiesPage() {
   return (
-    <LegalDocLayout title="Cookies Policy" lastUpdated="July 2025">
+    <LegalDocLayout title="Cookies Policy" lastUpdated="May 2026">
 
       <div className="rounded-2xl border border-[#00F0FF]/20 bg-[#00F0FF]/5 px-5 py-4">
         <p className="text-[#C8F0F2] text-sm leading-relaxed">
