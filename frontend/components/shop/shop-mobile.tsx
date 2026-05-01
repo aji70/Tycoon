@@ -328,8 +328,18 @@ export default function GameShopMobile() {
   const preferredStable = useMemo<StableOption>(() => {
     const available = stableOptions.filter((s) => !!s.tokenAddress);
     if (available.length === 0) return { symbol: 'USDC', tokenAddress: undefined, paymentToken: 1, balance: 0 };
-    return [...available].sort((a, b) => b.balance - a.balance)[0];
-  }, [stableOptions]);
+    // Only pick a stable if at least one shop item has a non-zero price for it;
+    // otherwise fall back to USDC to avoid showing $0.00 when usdtPrice/cusdcPrice is unset on-chain.
+    const hasPriceFor = (symbol: StableSymbol) =>
+      shopItems.some((item) => {
+        const p =
+          symbol === 'CUSDC' ? item.cusdcPrice : symbol === 'USDT' ? item.usdtPrice : item.usdcPrice;
+        return Number(p) > 0;
+      });
+    const withPrice = available.filter((s) => hasPriceFor(s.symbol));
+    const pool = withPrice.length > 0 ? withPrice : available;
+    return [...pool].sort((a, b) => b.balance - a.balance)[0];
+  }, [stableOptions, shopItems]);
 
   const activeStableLabel = preferredStable.symbol === 'CUSDC' ? 'cUSD' : preferredStable.symbol;
   const activeStableBalance = Number.isFinite(preferredStable.balance) ? preferredStable.balance : 0;

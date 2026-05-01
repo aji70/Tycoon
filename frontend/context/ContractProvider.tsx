@@ -1819,8 +1819,23 @@ export function useRewardUpdateCollectiblePrices() {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const update = useCallback(async (tokenId: bigint, tycPrice: bigint, usdcPrice: bigint) => {
+  const update = useCallback(async (
+    tokenId: bigint,
+    tycPrice: bigint,
+    usdcPrice: bigint,
+    cusdcPrice?: bigint,
+    usdtPrice?: bigint,
+  ) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
+    // Use 5-param version when cusdc/usdt prices are provided
+    if (cusdcPrice !== undefined && usdtPrice !== undefined) {
+      return await writeContractAsync({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: 'updateCollectiblePrices',
+        args: [tokenId, tycPrice, usdcPrice, cusdcPrice, usdtPrice],
+      });
+    }
     return await writeContractAsync({
       address: contractAddress,
       abi: RewardABI,
