@@ -40,7 +40,7 @@ const BFCACHE_RELOAD_SCRIPT = `
 
 /** Safe metadataBase — invalid env (missing protocol, spaces) must not 500 the whole site. */
 function resolveMetadataBase(): URL {
-  const fallback = "https://www.tycoonworld.xyz";
+  const fallback = "https://www.playtycoon.xyz";
   const raw = (process.env.NEXT_PUBLIC_URL || process.env.NEXT_PUBLIC_SITE_URL || "")
     .trim()
     .replace(/\/$/, "");

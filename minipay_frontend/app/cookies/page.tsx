@@ -172,7 +172,7 @@ export default function CookiesPage() {
         <S icon={<Phone size={15} />}>8. Contact</S>
         <p className="text-[#C8E0E2]">
           For any questions about our use of cookies:{' '}
-          <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">support@tycoonworld.xyz</a>
+          <a href="mailto:support@playtycoon.xyz" className="text-[#00F0FF] hover:underline">support@playtycoon.xyz</a>
           {' '}or our{' '}
           <a href="https://t.me/+xJLEjw9tbyQwMGVk" className="text-[#00F0FF] hover:underline">Telegram community</a>.
         </p>
