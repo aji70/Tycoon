@@ -295,6 +295,16 @@ const HeroSectionMobile: React.FC = () => {
             setLocalRegistered(true);
             setLocalUsername(finalUsername);
 
+            // Fetch user data and set it immediately
+            try {
+              const userRes = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Celo`);
+              if (userRes?.success && userRes?.data) {
+                setUser(userRes.data as UserType);
+              }
+            } catch (err) {
+              console.error("Failed to fetch user after backend registration:", err);
+            }
+
             // Refresh all relevant data after backend registration
             if (refetchIsRegistered) await refetchIsRegistered();
             if (refetchUsername) await refetchUsername();
