@@ -351,24 +351,14 @@ const HeroSectionMobile: React.FC = () => {
             // Refetch to update UI
             if (refetchIsRegistered) refetchIsRegistered();
             if (refetchUsername) refetchUsername();
-            toast.success(
-              "
-              
-              
-              
-            );
+            toast.success("Welcome to Tycoon!");
             router.refresh();
             return;
           }
         } catch (_) {}
       }
       if (isAlreadyExists && isUserRegistered !== true) {
-        toast.success(
-          render: "Complete registration: sign the transaction in your wallet to register on-chain.",
-          type: "warning",
-          
-          autoClose: 6000,
-        );
+        toast("Complete registration: sign the transaction in your wallet to register on-chain.");
         return;
       }
 
@@ -377,12 +367,7 @@ const HeroSectionMobile: React.FC = () => {
         err?.response?.data?.error ||
         getContractErrorMessage(err, "Registration failed. Try again.");
 
-      toast.success(
-        render: message,
-        type: "error",
-        
-        autoClose: 6000,
-      );
+      toast.error(message);
     } finally {
       setLoading(false);
     }
