@@ -61,6 +61,7 @@ const HeroSectionMobile: React.FC = () => {
   const [guestLoading, setGuestLoading] = useState(false);
   const [registerOnChainLoading, setRegisterOnChainLoading] = useState(false);
   const [linkWalletLoading, setLinkWalletLoading] = useState(false);
+  const [justRegistered, setJustRegistered] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -169,15 +170,18 @@ const HeroSectionMobile: React.FC = () => {
 
   const [user, setUser] = useState<UserType | null>(null);
 
-  // Reset on disconnect
+  // Reset on disconnect or when registration completes
   useEffect(() => {
     if (!address) {
       setUser(null);
       setLocalRegistered(false);
       setLocalUsername("");
       setInputUsername("");
+      setJustRegistered(false);
+    } else if (registrationStatus === "fully-registered") {
+      setJustRegistered(false);
     }
-  }, [address]);
+  }, [address, registrationStatus]);
 
   // Fetch backend user
   useEffect(() => {
@@ -335,10 +339,13 @@ const HeroSectionMobile: React.FC = () => {
       setLocalUsername(finalUsername);
 
       // Refetch to update UI (wait for both to complete)
-      await Promise.all([
+      const [isRegResult] = await Promise.all([
         refetchIsRegistered?.(),
         refetchUsername?.(),
       ]);
+
+      // Mark as registered to immediately hide button
+      setJustRegistered(true);
 
       toast.success("Welcome to Tycoon!");
     } catch (err: any) {
@@ -635,7 +642,7 @@ const HeroSectionMobile: React.FC = () => {
             </div>
           )}
 
-          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
+          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && !justRegistered && (
             <>
             <button
               onClick={handleRegister}
