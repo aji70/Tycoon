@@ -244,6 +244,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
         // No gas — fall back to backend-sponsored multiplayer create
         toast.update(toastId, { render: "No gas detected. Creating via backend..." });
         const fallbackRes = await apiClient.post<any>("/games/create-multiplayer-as-guest", {
+          address,
           code: gameCode,
           mode: gameType,
           symbol: settings.symbol,

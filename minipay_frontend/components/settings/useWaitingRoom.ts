@@ -537,12 +537,12 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
         // No gas — fall back to backend-sponsored join
         toast.update(toastId, { render: "No gas detected. Joining via backend..." });
         await apiClient.post("/games/join-as-guest", {
+          address,
           code: game.code,
           symbol: playerSymbol.value,
           joinCode: game.code,
         });
         if (mountedRef.current) { setIsJoined(true); setError(null); }
-        toast.update(toastId, { render: "Successfully joined the game!", type: "success", isLoading: false, autoClose: 5000 });
         actionGuardRef.current = false;
         setActionLoading(false);
         return;

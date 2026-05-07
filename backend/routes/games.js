@@ -21,7 +21,7 @@ import gameController, {
   getAgentBindings,
 } from "../controllers/gameController.js";
 import { placeBid } from "../controllers/auctionController.js";
-import { requireAuth, optionalAuth } from "../middleware/auth.js";
+import { requireAuth, optionalAuth, requireAuthOrAddress } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -53,14 +53,14 @@ router.delete("/:id", gameController.remove);
 router.post("/create", create);
 router.post("/join", join);
 router.post("/leave", leave);
-router.post("/create-as-guest", requireAuth, createAsGuest);
-router.post("/create-multiplayer-as-guest", requireAuth, createMultiplayerAsGuest);
-router.post("/create-ai-as-guest", requireAuth, createAIAsGuest);
+router.post("/create-as-guest", requireAuthOrAddress, createAsGuest);
+router.post("/create-multiplayer-as-guest", requireAuthOrAddress, createMultiplayerAsGuest);
+router.post("/create-ai-as-guest", requireAuthOrAddress, createAIAsGuest);
 router.post("/create-onchain-agent-vs-ai", requireAuth, createOnchainAgentVsAI);
 router.post("/create-onchain-agent-vs-agent-lobby", requireAuth, createOnchainAgentVsAgentLobby);
 router.post("/create-agent-vs-agent", requireAuth, createAgentVsAgent);
 router.post("/create-agent-vs-ai", requireAuth, createAgentVsAI);
-router.post("/join-as-guest", requireAuth, joinAsGuest);
+router.post("/join-as-guest", requireAuthOrAddress, joinAsGuest);
 router.post("/:id/add-ai-players", addAIPlayers);
 router.get("/:id/agent-vs-agent-lobby", optionalAuth, getOnchainAgentVsAgentLobby);
 router.post("/:id/accept-agent-seat", requireAuth, acceptAgentSeat);
