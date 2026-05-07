@@ -136,7 +136,7 @@ const HeroSectionMobile: React.FC = () => {
       })
       .catch(() => {
         if (!cancelled) setBackendGame(null);
-      );
+      });
     return () => {
       cancelled = true;
     };
@@ -161,7 +161,7 @@ const HeroSectionMobile: React.FC = () => {
       .catch(() => {
         if (!cancelled) setGuestLastGame(null);
         if (!cancelled) setGuestGameCount(0);
-      );
+      });
     return () => {
       cancelled = true;
     };
@@ -242,7 +242,7 @@ const HeroSectionMobile: React.FC = () => {
         : null,
     guestGameCount: guestUser && !address ? guestGameCount : 0,
     isGuest: !!(guestUser && !address),
-  );
+  });
 
   const handleRegister = async () => {
     if (!address) {
@@ -280,7 +280,7 @@ const HeroSectionMobile: React.FC = () => {
             const backendRes = await apiClient.post<ApiResponse>("/users/register-on-chain", {
               address,
               chain: "Celo",
-            );
+            });
 
             if (!backendRes?.success) {
               throw new Error("Backend registration failed");
