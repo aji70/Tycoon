@@ -301,8 +301,17 @@ const HeroSectionMobile: React.FC = () => {
               console.error("Failed to fetch user after backend registration:", err);
             }
 
-            // Refresh all relevant data after backend registration
-            if (refetchIsRegistered) await refetchIsRegistered();
+            // Poll until contract is updated (backend-sponsored tx confirmed)
+            let contractUpdated = false;
+            for (let i = 0; i < 15; i++) {
+              await new Promise(r => setTimeout(r, 500));
+              const result = await refetchIsRegistered?.();
+              if (result?.data === true) {
+                contractUpdated = true;
+                break;
+              }
+            }
+
             if (refetchUsername) await refetchUsername();
           } else {
             // Re-throw non-gas errors to be handled below
@@ -325,12 +334,13 @@ const HeroSectionMobile: React.FC = () => {
       setLocalRegistered(true);
       setLocalUsername(finalUsername);
 
-      // Refetch to update UI
-      if (refetchIsRegistered) await refetchIsRegistered();
-      if (refetchUsername) await refetchUsername();
+      // Refetch to update UI (wait for both to complete)
+      await Promise.all([
+        refetchIsRegistered?.(),
+        refetchUsername?.(),
+      ]);
 
       toast.success("Welcome to Tycoon!");
-      router.refresh();
     } catch (err: any) {
       if (err?.code === 4001 || err?.message?.includes("User rejected")) {
         toast("Transaction cancelled");
@@ -352,7 +362,6 @@ const HeroSectionMobile: React.FC = () => {
             if (refetchIsRegistered) refetchIsRegistered();
             if (refetchUsername) refetchUsername();
             toast.success("Welcome to Tycoon!");
-            router.refresh();
             return;
           }
         } catch (_) {}
