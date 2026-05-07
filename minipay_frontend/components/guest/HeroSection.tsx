@@ -347,11 +347,8 @@ const HeroSection: React.FC = () => {
       if (refetchIsRegistered) await refetchIsRegistered();
       if (refetchUsername) await refetchUsername();
 
-      setLoading(false);
       toast.success("Welcome to Tycoon!");
-
-      // Refresh in background without waiting
-      setTimeout(() => router.refresh(), 1000);
+      router.refresh();
     } catch (err: any) {
       if (
         err?.code === 4001 ||
