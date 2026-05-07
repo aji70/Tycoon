@@ -18,7 +18,7 @@ import {
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useAppKit } from "@reown/appkit/react";
-import { toast } from "react-toastify";
+import toast from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
@@ -276,7 +276,6 @@ const HeroSection: React.FC = () => {
     }
 
     setLoading(true);
-    const toastId = toast.loading("Processing registration...");
 
     try {
       // Register on-chain if contract doesn't have this address (required for create game / create AI game)
@@ -294,11 +293,7 @@ const HeroSection: React.FC = () => {
 
           if (isInsufficientGas) {
             // Fall back to backend-sponsored registration
-            toast.update(toastId, {
-              render: "No gas available. Using backend registration...",
-              type: "info",
-              isLoading: true,
-            });
+            toast.loading("No gas available. Using backend registration...");
 
             const backendRes = await apiClient.post<ApiResponse>("/users/register-on-chain", {
               address,
@@ -353,12 +348,7 @@ const HeroSection: React.FC = () => {
       if (refetchIsRegistered) refetchIsRegistered();
       if (refetchUsername) refetchUsername();
 
-      toast.update(toastId, {
-        render: "Welcome to Tycoon!",
-        type: "success",
-        isLoading: false,
-        autoClose: 4000,
-      });
+      toast.success("Welcome to Tycoon!");
 
       router.refresh();
     } catch (err: any) {
@@ -367,12 +357,7 @@ const HeroSection: React.FC = () => {
         err?.message?.includes("User rejected") ||
         err?.message?.includes("User denied")
       ) {
-        toast.update(toastId, {
-          render: "Transaction cancelled",
-          type: "info",
-          isLoading: false,
-          autoClose: 3500,
-        });
+        toast("Transaction cancelled");
         return;
       }
 
@@ -406,12 +391,7 @@ const HeroSection: React.FC = () => {
       }
       // If 409 but contract says not registered: backend has user but chain doesn't — tell them to complete on-chain
       if (isAlreadyExists && isUserRegistered !== true) {
-        toast.update(toastId, {
-          render: "Complete registration: sign the transaction in your wallet to register on-chain.",
-          type: "warning",
-          isLoading: false,
-          autoClose: 6000,
-        });
+        toast("Complete registration: sign the transaction in your wallet to register on-chain.");
         return;
       }
 
@@ -420,12 +400,7 @@ const HeroSection: React.FC = () => {
         err?.response?.data?.error ||
         getContractErrorMessage(err, "Registration failed. Try again.");
 
-      toast.update(toastId, {
-        render: message,
-        type: "error",
-        isLoading: false,
-        autoClose: 6000,
-      });
+      toast.error(message);
     } finally {
       setLoading(false);
     }
