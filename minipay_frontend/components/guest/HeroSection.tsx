@@ -343,12 +343,13 @@ const HeroSection: React.FC = () => {
       setLocalRegistered(true);
       setLocalUsername(finalUsername);
 
-      // Refetch to update UI
-      if (refetchIsRegistered) await refetchIsRegistered();
-      if (refetchUsername) await refetchUsername();
+      // Refetch to update UI (wait for both to complete)
+      await Promise.all([
+        refetchIsRegistered?.(),
+        refetchUsername?.(),
+      ]);
 
       toast.success("Welcome to Tycoon!");
-      router.refresh();
     } catch (err: any) {
       if (
         err?.code === 4001 ||
