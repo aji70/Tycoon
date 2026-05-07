@@ -271,7 +271,7 @@ const HeroSection: React.FC = () => {
     }
 
     if (!finalUsername) {
-      toast.warn("Please enter a username");
+      toast("Please enter a username");
       return;
     }
 
