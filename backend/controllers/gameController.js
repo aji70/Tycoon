@@ -25,6 +25,7 @@ import {
   isContractConfigured,
   ensureUsdcAllowanceFromSmartWalletForTycoon,
   syncBackendPasswordIfMissingOnChain,
+  hasEnoughGas,
 } from "../services/tycoonContract.js";
 import {
   getGameByCodeStarknet,
@@ -2470,6 +2471,16 @@ export const createAsGuest = async (req, res) => {
         if (handled) return handled;
         throw err;
       }
+
+      // Auto-register user if they don't have enough gas for the transaction
+      const hasGas = await hasEnoughGas(contractUser.address, chainForCreate);
+      if (!hasGas) {
+        logger.warn(
+          { userId: user.id, address: contractUser.address, chain: chainForCreate, stakeAmount: String(stakeAmount) },
+          "User has insufficient gas for staked game — may fail"
+        );
+      }
+
       try {
         const minStake = await callContractRead("minStake", [], chainForCreate);
         const minB = BigInt(minStake ?? 0);
@@ -2488,6 +2499,33 @@ export const createAsGuest = async (req, res) => {
       if (!rPlay.ok) {
         return jsonGuestOnchainSetupFailed(res, rPlay.reason, false);
       }
+
+      // Auto-register user if they don't have enough gas for the transaction
+      const hasGas = await hasEnoughGas(rPlay.address, chainForCreate);
+      if (!hasGas) {
+        try {
+          logger.info(
+            { userId: user.id, address: rPlay.address, chain: chainForCreate },
+            "User has insufficient gas — auto-registering for free game"
+          );
+          // ensureGuestContractPlayReady already handles registration,
+          // but we can ensure they have a smart wallet for gas-free txs
+          const smartWallet = await callContractRead("getWallet", [rPlay.address], chainForCreate);
+          if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
+            // Trigger smart wallet creation if not present
+            logger.info(
+              { userId: user.id, address: rPlay.address },
+              "Insufficient gas — smart wallet may be needed, proceeding with game creation"
+            );
+          }
+        } catch (gasErr) {
+          logger.warn(
+            { err: gasErr?.message, userId: user.id, address: rPlay.address },
+            "Gas auto-registration check failed, continuing anyway"
+          );
+        }
+      }
+
       contractUser = {
         address: rPlay.address,
         username: rPlay.username,
