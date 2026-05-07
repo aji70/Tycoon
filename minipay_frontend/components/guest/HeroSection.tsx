@@ -350,7 +350,8 @@ const HeroSection: React.FC = () => {
       setLoading(false);
       toast.success("Welcome to Tycoon!");
 
-      router.refresh();
+      // Refresh in background without waiting
+      setTimeout(() => router.refresh(), 1000);
     } catch (err: any) {
       if (
         err?.code === 4001 ||
