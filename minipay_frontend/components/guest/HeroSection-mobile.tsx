@@ -377,7 +377,7 @@ const HeroSectionMobile: React.FC = () => {
     if (!guestAuth?.refetchGuest) return;
     setRegisterOnChainLoading(true);
     try {
-      const res = await apiClient.post<ApiResponse>("auth/register-on-chain", { chain: "Celo" );
+      const res = await apiClient.post<ApiResponse>("auth/register-on-chain", { chain: "Celo" });
       if (res?.data?.success) {
         await guestAuth.refetchGuest();
         const data = res?.data as { success?: boolean; alreadyRegistered?: boolean };
