@@ -328,22 +328,12 @@ const HeroSectionMobile: React.FC = () => {
       if (refetchIsRegistered) refetchIsRegistered();
       if (refetchUsername) refetchUsername();
 
-      toast.success(
-        "
-        
-        
-        
-      );
+      toast.success("Welcome to Tycoon!");
 
       router.refresh();
     } catch (err: any) {
       if (err?.code === 4001 || err?.message?.includes("User rejected")) {
-        toast.success(
-          render: "Transaction cancelled",
-          type: "info",
-          
-          autoClose: 3500,
-        );
+        toast("Transaction cancelled");
         return;
       }
 
