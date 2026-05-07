@@ -329,6 +329,7 @@ const HeroSectionMobile: React.FC = () => {
       if (refetchIsRegistered) refetchIsRegistered();
       if (refetchUsername) refetchUsername();
 
+      setLoading(false);
       toast.success("Welcome to Tycoon!");
 
       router.refresh();
