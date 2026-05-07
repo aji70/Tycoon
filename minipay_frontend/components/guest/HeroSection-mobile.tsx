@@ -78,9 +78,10 @@ const HeroSectionMobile: React.FC = () => {
   const {
     data: isUserRegistered,
     isLoading: isRegisteredLoading,
+    refetch: refetchIsRegistered,
   } = useIsRegistered(address);
 
-  const { data: fetchedUsername } = useGetUsername(address);
+  const { data: fetchedUsername, refetch: refetchUsername } = useGetUsername(address);
 
   const { data: gameCode } = usePreviousGameCode(address);
 
@@ -271,6 +272,10 @@ const HeroSectionMobile: React.FC = () => {
       setLocalRegistered(true);
       setLocalUsername(finalUsername);
 
+      // Refetch to update UI
+      if (refetchIsRegistered) refetchIsRegistered();
+      if (refetchUsername) refetchUsername();
+
       toast.update(toastId, {
         render: "Welcome to Tycoon!",
         type: "success",
@@ -301,6 +306,9 @@ const HeroSectionMobile: React.FC = () => {
           if (res?.success && res?.data) {
             setUser(res.data as UserType);
             setLocalUsername(finalUsername);
+            // Refetch to update UI
+            if (refetchIsRegistered) refetchIsRegistered();
+            if (refetchUsername) refetchUsername();
             toast.update(toastId, {
               render: "Welcome to Tycoon!",
               type: "success",
