@@ -315,7 +315,7 @@ const HeroSectionMobile: React.FC = () => {
           username: finalUsername,
           address,
           chain: "Celo",
-        );
+        });
 
         if (!res?.success) throw new Error("Failed to save user on backend");
         setUser({ username: finalUsername } as UserType);
