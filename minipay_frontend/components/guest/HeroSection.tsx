@@ -221,14 +221,14 @@ const HeroSection: React.FC = () => {
   const registrationStatus = useMemo(() => {
     if (address) {
       const hasBackend = !!user;
-      const hasOnChain = isUserRegistered === true;
-      if (hasBackend && hasOnChain) return "fully-registered";
+      const hasOnChain = isUserRegistered === true || localRegistered;
+      if ((hasBackend || localRegistered) && hasOnChain) return "fully-registered";
       if (hasBackend && !hasOnChain) return "backend-only";
       return "none";
     }
     if (guestUser) return "privy";
     return "disconnected";
-  }, [address, user, isUserRegistered, guestUser]);
+  }, [address, user, isUserRegistered, guestUser, localRegistered]);
 
   const displayUsername = useMemo(() => {
     if (guestUser) return guestUser.username;
