@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
-import { useAccount, useChainId, useSignMessage } from "wagmi";
+import { useAccount, useChainId, useSignMessage, usePublicClient } from "wagmi";
 import {
   useIsRegistered,
   useGetUsername,
@@ -15,6 +15,7 @@ import {
   useHasSmartWallet,
   useProfileOwner,
 } from "@/context/ContractProvider";
+import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePrivy } from "@privy-io/react-auth";
 import { useAppKit } from "@reown/appkit/react";
@@ -47,10 +48,13 @@ const HeroSection: React.FC = () => {
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
   const { open: openWallet } = useAppKit();
+  const publicClient = usePublicClient();
+  const isMiniPay = typeof window !== "undefined" && isMiniPayEmbeddedWallet();
   const { ready, authenticated, login, logout, connectWallet, user: privyUser } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
-  const isPrivyAuthed = ready && authenticated;
+  // MiniPay injects its own wallet — treat as authed even without Privy session
+  const isPrivyAuthed = (ready && authenticated) || isMiniPay;
   const signOutGuestAndPrivy = () => {
     guestAuth?.logoutGuest();
     if (isPrivyAuthed) void logout();
@@ -267,7 +271,10 @@ const HeroSection: React.FC = () => {
     try {
       // Register on-chain if contract doesn't have this address (required for create game / create AI game)
       if (isUserRegistered !== true) {
-        await registerPlayer(finalUsername);
+        const txHash = await registerPlayer(finalUsername);
+        if (txHash && publicClient) {
+          await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
+        }
       }
 
       // Create backend user if doesn't exist

@@ -937,7 +937,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
   const fetchEndByNetWorthStatus = useCallback(async () => {
     if (!game?.id || !isUntimed) return;
     try {
-      const res = await apiClient.post<ApiResponse>("/game-players/end-by-networth-status", { game_id: game.id });
+      const res = await apiClient.post<ApiResponse>("/game-players/getEndByNetWorthStatus", { game_id: game.id });
       if (res?.data?.success && res.data.data) {
         setEndByNetWorthStatus({
           vote_count: res.data.data.vote_count,
@@ -956,7 +956,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
     if (!me?.user_id || !game?.id || !isUntimed) return;
     setEndByNetWorthLoading(true);
     try {
-      const res = await apiClient.post<ApiResponse>("/game-players/vote-end-by-networth", {
+      const res = await apiClient.post<ApiResponse>("/game-players/voteEndByNetWorth", {
         game_id: game.id,
         user_id: me.user_id,
       });

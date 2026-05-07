@@ -307,7 +307,7 @@ export function useGameBoardLogic({
             recordTimeoutCalledForTurn.current = turnStartSec;
             const timedOutPlayer = currentPlayer;
             apiClient
-              .post<ApiResponse>("/game-players/record-timeout", {
+              .post<ApiResponse>("/game-players/recordTimeout", {
                 game_id: game.id,
                 user_id: me.user_id,
                 target_user_id: currentPlayer.user_id,
@@ -316,7 +316,7 @@ export function useGameBoardLogic({
                 fetchUpdatedGame();
                 if (timedOutPlayer) setTimeoutPopupPlayer(timedOutPlayer);
               })
-              .catch((err) => console.warn("record-timeout failed:", err));
+              .catch((err) => console.warn("recordTimeout failed:", err));
           }
         }
       }
@@ -813,7 +813,7 @@ export function useGameBoardLogic({
       if (!me?.user_id || !game?.id) return;
       setVotingLoading((prev) => ({ ...prev, [targetUserId]: true }));
       try {
-        const res = await apiClient.post<ApiResponse>("/game-players/vote-to-remove", {
+        const res = await apiClient.post<ApiResponse>("/game-players/voteToRemove", {
           game_id: game.id,
           user_id: me.user_id,
           target_user_id: targetUserId,
@@ -860,7 +860,7 @@ export function useGameBoardLogic({
   const fetchEndByNetWorthStatus = useCallback(async () => {
     if (!game?.id || !isUntimed) return;
     try {
-      const res = await apiClient.post<ApiResponse>("/game-players/end-by-networth-status", { game_id: game.id });
+      const res = await apiClient.post<ApiResponse>("/game-players/getEndByNetWorthStatus", { game_id: game.id });
       if (res?.data?.success && res.data.data) {
         setEndByNetWorthStatus({
           vote_count: res.data.data.vote_count,
@@ -880,7 +880,7 @@ export function useGameBoardLogic({
     touchActivity();
     setEndByNetWorthLoading(true);
     try {
-      const res = await apiClient.post<ApiResponse>("/game-players/vote-end-by-networth", {
+      const res = await apiClient.post<ApiResponse>("/game-players/voteEndByNetWorth", {
         game_id: game.id,
         user_id: me.user_id,
       });

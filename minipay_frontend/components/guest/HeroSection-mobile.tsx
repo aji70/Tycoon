@@ -18,6 +18,7 @@ import {
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useAppKit } from "@reown/appkit/react";
 import { toast } from "react-toastify";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
@@ -321,15 +322,10 @@ const HeroSectionMobile: React.FC = () => {
         return;
       }
 
-      let message =
-        err?.shortMessage ||
+      const message =
         err?.response?.data?.message ||
         err?.response?.data?.error ||
-        err?.message ||
-        "Registration failed. Try again.";
-      if (String(err?.message || "").toLowerCase().includes("insufficient funds")) {
-        message = "Not enough funds to cover the network fee.";
-      }
+        getContractErrorMessage(err, "Registration failed. Try again.");
 
       toast.update(toastId, {
         render: message,

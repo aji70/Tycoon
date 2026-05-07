@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
-import { useAccount, useChainId, useSignMessage } from "wagmi";
+import { useAccount, useChainId, useSignMessage, usePublicClient, useSwitchChain } from "wagmi";
 import {
   useIsRegistered,
   useGetUsername,
@@ -82,6 +82,7 @@ const HeroSection: React.FC = () => {
     data: isUserRegistered,
     isLoading: isRegisteredLoading,
     error: registeredError,
+    refetch: refetchIsRegistered,
   } = useIsRegistered(address);
 
   const { data: fetchedUsername } = useGetUsername(address);
@@ -272,7 +273,10 @@ const HeroSection: React.FC = () => {
     try {
       // Register on-chain if contract doesn't have this address (required for create game / create AI game)
       if (isUserRegistered !== true) {
-        await registerPlayer(finalUsername);
+        const txHash = await registerPlayer(finalUsername);
+        // Wait for the tx to be confirmed before proceeding
+        await provider.waitForTransaction(txHash);
+        await refetchIsRegistered();
       }
 
       // Create backend user if doesn't exist
@@ -350,15 +354,10 @@ const HeroSection: React.FC = () => {
         return;
       }
 
-      let message =
-        err?.shortMessage ||
+      const message =
         err?.response?.data?.message ||
         err?.response?.data?.error ||
-        err?.message ||
-        "Registration failed. Try again.";
-      if (String(err?.message || "").toLowerCase().includes("insufficient funds")) {
-        message = "Not enough funds to cover the network fee.";
-      }
+        getContractErrorMessage(err, "Registration failed. Try again.");
 
       toast.update(toastId, {
         render: message,
