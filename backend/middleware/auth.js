@@ -84,6 +84,10 @@ export async function requireAuthOrAddress(req, res, next) {
   return res.status(401).json({ success: false, message: "Authentication required" });
 }
 
+/**
+ * Require auth: 401 if no valid token or user.
+ */
+export async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ success: false, message: "Authentication required" });
