@@ -267,47 +267,49 @@ const HeroSectionMobile: React.FC = () => {
       if (isUserRegistered !== true) {
         try {
           await registerPlayer(finalUsername);
-          await new Promise(r => setTimeout(r, 500)); // brief delay for tx confirmation
         } catch (onChainErr: any) {
-          // Check if error is due to insufficient gas
           const isInsufficientGas =
             onChainErr?.message?.toLowerCase().includes("insufficient") ||
             onChainErr?.shortMessage?.toLowerCase().includes("insufficient");
 
           if (isInsufficientGas) {
-            // Fall back to backend-sponsored registration
-            toast.loading("No gas available. Using backend registration...");
-
-            const backendRes = await apiClient.post<ApiResponse>("/users/register-on-chain", {
-              address,
-              chain: "Celo",
-            });
-
-            if (!backendRes?.success) {
-              throw new Error("Backend registration failed");
-            }
-
-            // Update local state immediately after backend registration
-            setLocalRegistered(true);
-            setLocalUsername(finalUsername);
-
-            // Fetch user data and set it immediately
+            const gasToastId = toast.loading("No gas available. Using backend registration...");
             try {
-              const userRes = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Celo`);
-              if (userRes?.success && userRes?.data) {
-                setUser(userRes.data as UserType);
+              // Ensure backend user exists first
+              if (!user) {
+                const createRes = await apiClient.post<ApiResponse>("/users", {
+                  username: finalUsername,
+                  address,
+                  chain: "Celo",
+                });
+                if (createRes?.success && createRes?.data) {
+                  setUser(createRes.data as UserType);
+                } else if (createRes?.status !== 409) {
+                  throw new Error("Failed to create user before backend registration");
+                }
               }
-            } catch (err) {
-              console.error("Failed to fetch user after backend registration:", err);
+
+              const backendRes = await apiClient.post<ApiResponse>("/users/register-on-chain", {
+                address,
+                chain: "Celo",
+              });
+
+              if (!backendRes?.success) throw new Error("Backend registration failed");
+
+              const userRes = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Celo`);
+              if (userRes?.success && userRes?.data) setUser(userRes.data as UserType);
+
+              setLocalRegistered(true);
+              setLocalUsername(finalUsername);
+              await Promise.all([refetchIsRegistered?.(), refetchUsername?.()]);
+              toast.dismiss(gasToastId);
+              toast.success("Welcome to Tycoon!");
+              return;
+            } catch (backendErr: any) {
+              toast.dismiss(gasToastId);
+              throw backendErr;
             }
-
-            // Wait for backend-sponsored tx to be mined
-            await new Promise(r => setTimeout(r, 3000));
-
-            if (refetchIsRegistered) await refetchIsRegistered();
-            if (refetchUsername) await refetchUsername();
           } else {
-            // Re-throw non-gas errors to be handled below
             throw onChainErr;
           }
         }
