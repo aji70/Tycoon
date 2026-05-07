@@ -61,7 +61,6 @@ const HeroSectionMobile: React.FC = () => {
   const [guestLoading, setGuestLoading] = useState(false);
   const [registerOnChainLoading, setRegisterOnChainLoading] = useState(false);
   const [linkWalletLoading, setLinkWalletLoading] = useState(false);
-  const [justRegistered, setJustRegistered] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -170,18 +169,15 @@ const HeroSectionMobile: React.FC = () => {
 
   const [user, setUser] = useState<UserType | null>(null);
 
-  // Reset on disconnect or when registration completes
+  // Reset on disconnect
   useEffect(() => {
     if (!address) {
       setUser(null);
       setLocalRegistered(false);
       setLocalUsername("");
       setInputUsername("");
-      setJustRegistered(false);
-    } else if (registrationStatus === "fully-registered") {
-      setJustRegistered(false);
     }
-  }, [address, registrationStatus]);
+  }, [address]);
 
   // Fetch backend user
   useEffect(() => {
@@ -305,17 +301,10 @@ const HeroSectionMobile: React.FC = () => {
               console.error("Failed to fetch user after backend registration:", err);
             }
 
-            // Poll until contract is updated (backend-sponsored tx confirmed)
-            let contractUpdated = false;
-            for (let i = 0; i < 15; i++) {
-              await new Promise(r => setTimeout(r, 500));
-              const result = await refetchIsRegistered?.();
-              if (result?.data === true) {
-                contractUpdated = true;
-                break;
-              }
-            }
+            // Wait for backend-sponsored tx to be mined
+            await new Promise(r => setTimeout(r, 3000));
 
+            if (refetchIsRegistered) await refetchIsRegistered();
             if (refetchUsername) await refetchUsername();
           } else {
             // Re-throw non-gas errors to be handled below
@@ -343,9 +332,6 @@ const HeroSectionMobile: React.FC = () => {
         refetchIsRegistered?.(),
         refetchUsername?.(),
       ]);
-
-      // Mark as registered to immediately hide button
-      setJustRegistered(true);
 
       toast.success("Welcome to Tycoon!");
     } catch (err: any) {
@@ -642,7 +628,7 @@ const HeroSectionMobile: React.FC = () => {
             </div>
           )}
 
-          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && !justRegistered && (
+          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
             <>
             <button
               onClick={handleRegister}

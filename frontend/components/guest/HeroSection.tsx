@@ -67,7 +67,6 @@ const HeroSection: React.FC = () => {
   const [guestLoading, setGuestLoading] = useState(false);
   const [registerOnChainLoading, setRegisterOnChainLoading] = useState(false);
   const [linkWalletLoading, setLinkWalletLoading] = useState(false);
-  const [justRegistered, setJustRegistered] = useState(false);
 
   const {
     write: registerPlayer,
@@ -159,18 +158,15 @@ const HeroSection: React.FC = () => {
 
   const [user, setUser] = useState<UserType | null>(null);
 
-  // Reset on disconnect or when registration completes
+  // Reset on disconnect
   useEffect(() => {
     if (!address) {
       setUser(null);
       setLocalRegistered(false);
       setLocalUsername("");
       setInputUsername("");
-      setJustRegistered(false);
-    } else if (registrationStatus === "fully-registered") {
-      setJustRegistered(false);
     }
-  }, [address, registrationStatus]);
+  }, [address]);
 
   // Fetch backend user
   useEffect(() => {
@@ -301,9 +297,6 @@ const HeroSection: React.FC = () => {
       // Refetch to update UI
       if (refetchIsRegistered) refetchIsRegistered();
       if (refetchUsername) refetchUsername();
-
-      // Mark as registered to immediately hide button
-      setJustRegistered(true);
 
       toast.update(toastId, {
         render: "Welcome to Tycoon!",
@@ -670,7 +663,7 @@ const HeroSection: React.FC = () => {
           )}
 
           {/* "Let's Go!" for wallet users (backend-only or none) — only when Privy-authed */}
-          {address && isPrivyAuthed && registrationStatus !== "fully-registered" && !loading && !justRegistered && (
+          {address && isPrivyAuthed && registrationStatus !== "fully-registered" && !loading && (
             <button
               onClick={handleRegister}
               disabled={
