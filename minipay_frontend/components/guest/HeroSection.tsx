@@ -301,7 +301,9 @@ const HeroSection: React.FC = () => {
               throw new Error("Backend registration failed");
             }
 
-            await refetchIsRegistered();
+            // Refresh all relevant data after backend registration
+            if (refetchIsRegistered) await refetchIsRegistered();
+            if (refetchUsername) await refetchUsername();
           } else {
             // Re-throw non-gas errors to be handled below
             throw onChainErr;
