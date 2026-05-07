@@ -44,6 +44,7 @@ const HeroSection: React.FC = () => {
   const { address, isConnecting } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
+  const publicClient = usePublicClient();
   const { open: openWallet } = useAppKit();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
@@ -282,8 +283,6 @@ const HeroSection: React.FC = () => {
       if (isUserRegistered !== true) {
         try {
           const txHash = await registerPlayer(finalUsername);
-          // Wait for the tx to be confirmed before proceeding
-          await provider.waitForTransaction(txHash);
           await refetchIsRegistered();
         } catch (onChainErr: any) {
           // Check if error is due to insufficient gas

@@ -267,6 +267,7 @@ const HeroSectionMobile: React.FC = () => {
       if (isUserRegistered !== true) {
         try {
           await registerPlayer(finalUsername);
+          await new Promise(r => setTimeout(r, 500)); // brief delay for tx confirmation
         } catch (onChainErr: any) {
           // Check if error is due to insufficient gas
           const isInsufficientGas =
