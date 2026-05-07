@@ -371,6 +371,31 @@ export function useRegisterPlayer() {
   return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
+export function useRegisterPlayerWithoutWallet() {
+  const chainId = useChainId();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const write = useCallback(
+    async (username: string) => {
+      if (!contractAddress) throw new Error('Contract not deployed on this chain');
+      if (!username.trim()) throw new Error('Username cannot be empty');
+
+      const hash = await writeContractAsync({
+        address: contractAddress,
+        abi: TycoonABI,
+        functionName: 'registerPlayerWithoutWallet',
+        args: [username.trim()],
+      });
+      return hash;
+    },
+    [writeContractAsync, contractAddress]
+  );
+
+  return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
 export function useCreateGame(
   creatorUsername: string,
   gameType: string,

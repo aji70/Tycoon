@@ -10,6 +10,7 @@ import {
   useIsRegistered,
   useGetUsername,
   useRegisterPlayer,
+  useRegisterPlayerWithoutWallet,
   usePreviousGameCode,
   useGetGameByCode,
   useHasSmartWallet,
@@ -74,9 +75,16 @@ const HeroSection: React.FC = () => {
   }, [isMiniPay, address, isConnecting, openWallet]);
 
   const {
-    write: registerPlayer,
+    write: registerPlayerWithWallet,
     isPending: registerPending,
+  } = useRegisterPlayerWithoutWallet();
+
+  const {
+    write: registerPlayerLegacy,
   } = useRegisterPlayer();
+
+  // Use optimized registration when wallet is connected, otherwise use legacy
+  const registerPlayer = address ? registerPlayerWithWallet : registerPlayerLegacy;
 
   const {
     data: isUserRegistered,

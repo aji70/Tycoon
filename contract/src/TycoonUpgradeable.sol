@@ -279,6 +279,40 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
         return totalUsers;
     }
 
+    /// @notice Register without creating smart wallet (for minipay/mobile users with direct wallet connection)
+    function registerPlayerWithoutWallet(string memory username) external returns (uint256) {
+        TycoonLib.validateUsername(username);
+        require(users[username].playerAddress == address(0), "Username taken");
+        require(!registered[msg.sender], "Already registered");
+
+        totalUsers++;
+        uint64 ts = uint64(block.timestamp);
+
+        users[username] = TycoonLib.User({
+            id: totalUsers,
+            username: username,
+            playerAddress: msg.sender,
+            registeredAt: ts,
+            gamesPlayed: 0,
+            gamesWon: 0,
+            gamesLost: 0,
+            totalStaked: 0,
+            totalEarned: 0,
+            totalWithdrawn: 0,
+            propertiesbought: 0,
+            propertiesSold: 0
+        });
+
+        registered[msg.sender] = true;
+        addressToUsername[msg.sender] = username;
+        addressVerified[msg.sender] = true;
+
+        rewardSystem.mintVoucher(msg.sender, 2 * TOKEN_REWARD);
+
+        emit PlayerCreated(username, msg.sender, ts);
+        return totalUsers;
+    }
+
     /// @notice Backend registers a user on behalf of an address (e.g. before they connect wallet). They get no perks until verifyAddress(signature).
     function registerPlayerFor(address playerAddress, string memory username, bytes32 passwordHash)
         external
