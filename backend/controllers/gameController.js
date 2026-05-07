@@ -2335,8 +2335,10 @@ export const join = async (req, res) => {
 };
 
 /** True if this user can use guest create/join (backend signs for them). */
-function canUseGuestFlow(user) {
-  return user && (user.is_guest === true || (user.privy_did && String(user.privy_did).trim()));
+function canUseGuestFlow(user, req) {
+  if (!user) return false;
+  if (req?.resolvedByAddress) return true;
+  return user.is_guest === true || (user.privy_did && String(user.privy_did).trim());
 }
 
 /** 403 when ensureGuestContractPlayReady fails — includes `reason` for debugging (RPC, env, registration). */
@@ -2417,7 +2419,7 @@ function respondGuestStakeSetupError(err, res) {
 export const createAsGuest = async (req, res) => {
   try {
     const user = req.user;
-    if (!canUseGuestFlow(user)) {
+    if (!canUseGuestFlow(user, req)) {
       return res.status(403).json({ success: false, message: "Guest authentication required" });
     }
 
@@ -2678,7 +2680,7 @@ export const createMultiplayerAsGuest = async (req, res) => {
 export const joinAsGuest = async (req, res) => {
   try {
     const user = req.user;
-    if (!canUseGuestFlow(user)) {
+    if (!canUseGuestFlow(user, req)) {
       return res.status(403).json({ success: false, message: "Guest authentication required" });
     }
 
@@ -2869,7 +2871,7 @@ export const joinAsGuest = async (req, res) => {
 export const createAIAsGuest = async (req, res) => {
   try {
     const user = req.user;
-    if (!canUseGuestFlow(user)) {
+    if (!canUseGuestFlow(user, req)) {
       return res.status(403).json({ success: false, message: "Guest authentication required" });
     }
 

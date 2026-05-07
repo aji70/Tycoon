@@ -244,6 +244,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
         // No gas — use backend-sponsored flow
         toast.update(toastId, { render: "No gas detected. Creating via backend..." });
         const fallbackRes = await apiClient.post<any>("/games/create-ai-as-guest", {
+          address,
           code: gameCode,
           symbol: settings.symbol,
           number_of_players: totalPlayers,
