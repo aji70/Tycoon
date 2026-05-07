@@ -877,6 +877,32 @@ export async function testContractConnection(chain = "CELO") {
 }
 
 /**
+ * Check if an address has sufficient gas balance for transactions.
+ * @param {string} address - Wallet address (0x...)
+ * @param {string} [chain] - Chain (CELO, POLYGON, BASE). Default CELO.
+ * @param {string|bigint} [minWei] - Minimum gas balance required in wei (default 100000000000000 = 0.0001 native token)
+ * @returns {Promise<boolean>} True if balance >= minWei, false otherwise
+ */
+export async function hasEnoughGas(address, chain = "CELO", minWei = "100000000000000n") {
+  try {
+    const { rpcUrl, chainId } = getChainConfig(chain);
+    if (!rpcUrl || !chainId) return false;
+
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const network = new Network(networkName, chainId);
+    const provider = getCachedProvider(rpcUrl, network);
+
+    const balance = await provider.getBalance(address);
+    const minBalance = typeof minWei === "string" ? BigInt(minWei.replace("n", "")) : BigInt(minWei);
+
+    return balance >= minBalance;
+  } catch (err) {
+    logger.warn({ err: err?.message, address, chain }, "hasEnoughGas check failed");
+    return false;
+  }
+}
+
+/**
  * Set on-chain turn count for a player (call once when they reach min turns, e.g. 20).
  * @param {string|bigint} gameId - On-chain game id
  * @param {string} playerAddress - Player wallet address (0x...)
