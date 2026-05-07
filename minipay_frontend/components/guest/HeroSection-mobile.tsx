@@ -415,8 +415,8 @@ const HeroSectionMobile: React.FC = () => {
     try {
       const chain = chainIdToBackendChain(chainId);
       const message = `Link Tycoon account: ${guestUser.username || "Player"}`;
-      const signature = await signMessageAsync({ message );
-      const res = await guestAuth.linkWallet({ walletAddress: address, chain, message, signature );
+      const signature = await signMessageAsync({ message });
+      const res = await guestAuth.linkWallet({ walletAddress: address, chain, message, signature });
       if (res.success) {
         await guestAuth.refetchGuest();
         toast.success("Wallet linked. You can play now.");
