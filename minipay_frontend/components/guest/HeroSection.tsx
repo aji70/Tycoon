@@ -273,10 +273,39 @@ const HeroSection: React.FC = () => {
     try {
       // Register on-chain if contract doesn't have this address (required for create game / create AI game)
       if (isUserRegistered !== true) {
-        const txHash = await registerPlayer(finalUsername);
-        // Wait for the tx to be confirmed before proceeding
-        await provider.waitForTransaction(txHash);
-        await refetchIsRegistered();
+        try {
+          const txHash = await registerPlayer(finalUsername);
+          // Wait for the tx to be confirmed before proceeding
+          await provider.waitForTransaction(txHash);
+          await refetchIsRegistered();
+        } catch (onChainErr: any) {
+          // Check if error is due to insufficient gas
+          const isInsufficientGas =
+            onChainErr?.message?.toLowerCase().includes("insufficient") ||
+            onChainErr?.shortMessage?.toLowerCase().includes("insufficient");
+
+          if (isInsufficientGas) {
+            // Fall back to backend-sponsored registration
+            toast.update(toastId, {
+              render: "No gas available. Using backend registration...",
+              type: "info",
+              isLoading: true,
+            });
+
+            const backendRes = await apiClient.post<ApiResponse>("auth/register-on-chain", {
+              chain: "Celo",
+            });
+
+            if (!backendRes?.success) {
+              throw new Error("Backend registration failed");
+            }
+
+            await refetchIsRegistered();
+          } else {
+            // Re-throw non-gas errors to be handled below
+            throw onChainErr;
+          }
+        }
       }
 
       // Create backend user if doesn't exist

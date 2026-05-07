@@ -255,7 +255,36 @@ const HeroSectionMobile: React.FC = () => {
 
     try {
       if (isUserRegistered !== true) {
-        await registerPlayer(finalUsername);
+        try {
+          await registerPlayer(finalUsername);
+        } catch (onChainErr: any) {
+          // Check if error is due to insufficient gas
+          const isInsufficientGas =
+            onChainErr?.message?.toLowerCase().includes("insufficient") ||
+            onChainErr?.shortMessage?.toLowerCase().includes("insufficient");
+
+          if (isInsufficientGas) {
+            // Fall back to backend-sponsored registration
+            toast.update(toastId, {
+              render: "No gas available. Using backend registration...",
+              type: "info",
+              isLoading: true,
+            });
+
+            const backendRes = await apiClient.post<ApiResponse>("auth/register-on-chain", {
+              chain: "Celo",
+            });
+
+            if (!backendRes?.success) {
+              throw new Error("Backend registration failed");
+            }
+
+            await refetchIsRegistered();
+          } else {
+            // Re-throw non-gas errors to be handled below
+            throw onChainErr;
+          }
+        }
       }
 
       if (!user) {
