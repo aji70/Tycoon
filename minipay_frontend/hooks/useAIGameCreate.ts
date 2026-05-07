@@ -229,8 +229,44 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
 
     try {
       toast.update(toastId, { render: "Creating AI game..." });
-      const onChainGameId = await createAiGame(usernameNow);
-      if (!onChainGameId) throw new Error("Failed to create game on-chain");
+      let onChainGameId: string | number | undefined;
+      let usedBackendFallback = false;
+
+      try {
+        onChainGameId = await createAiGame(usernameNow);
+        if (!onChainGameId) throw new Error("Failed to create game on-chain");
+      } catch (onChainErr: any) {
+        const isNoGas =
+          onChainErr?.message?.toLowerCase().includes("insufficient") ||
+          onChainErr?.shortMessage?.toLowerCase().includes("insufficient");
+        if (!isNoGas) throw onChainErr;
+
+        // No gas — use backend-sponsored flow
+        toast.update(toastId, { render: "No gas detected. Creating via backend..." });
+        const fallbackRes = await apiClient.post<any>("/games/create-ai-as-guest", {
+          code: gameCode,
+          symbol: settings.symbol,
+          number_of_players: totalPlayers,
+          is_minipay: isMiniPay,
+          chain: chainName,
+          duration: settings.duration,
+          ai_difficulty: settings.aiDifficulty,
+          ai_difficulty_mode: settings.aiDifficultyMode,
+          settings: {
+            auction: settings.auction,
+            rent_in_prison: settings.rentInPrison,
+            mortgage: settings.mortgage,
+            even_build: settings.evenBuild,
+            starting_cash: settings.startingCash,
+          },
+        });
+        const fallbackData = (fallbackRes as any)?.data;
+        const fallbackId = fallbackData?.data?.id ?? fallbackData?.id;
+        if (!fallbackId) throw new Error("Backend did not return game ID");
+        toast.update(toastId, { render: "Battle begins! Good luck, Tycoon!", type: "success", isLoading: false, autoClose: 5000 });
+        router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/ai-play?gameCode=${gameCode}`);
+        return;
+      }
 
       toast.update(toastId, { render: "Saving game to server..." });
 

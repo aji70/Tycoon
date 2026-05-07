@@ -231,8 +231,44 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
       }
 
       toast.update(toastId, { render: "Creating game on-chain..." });
-      const onChainGameId = await createGame();
-      if (!onChainGameId) throw new Error("No game ID received from contract");
+      let onChainGameId: any;
+      try {
+        onChainGameId = await createGame();
+        if (!onChainGameId) throw new Error("No game ID received from contract");
+      } catch (onChainErr: any) {
+        const isNoGas =
+          onChainErr?.message?.toLowerCase().includes("insufficient") ||
+          onChainErr?.shortMessage?.toLowerCase().includes("insufficient");
+        if (!isNoGas) throw onChainErr;
+
+        // No gas — fall back to backend-sponsored multiplayer create
+        toast.update(toastId, { render: "No gas detected. Creating via backend..." });
+        const fallbackRes = await apiClient.post<any>("/games/create-multiplayer-as-guest", {
+          code: gameCode,
+          mode: gameType,
+          symbol: settings.symbol,
+          number_of_players: settings.maxPlayers,
+          stake: 0,
+          starting_cash: settings.startingCash,
+          is_minipay: isMiniPay,
+          chain: chainName,
+          duration: settings.duration,
+          settings: {
+            auction: settings.auction,
+            rent_in_prison: settings.rentInPrison,
+            mortgage: settings.mortgage,
+            even_build: settings.evenBuild,
+            starting_cash: settings.startingCash,
+          },
+        });
+        const fallbackData = (fallbackRes as any)?.data;
+        const fallbackId = fallbackData?.data?.id ?? fallbackData?.id;
+        if (!fallbackId) throw new Error("Backend did not return game ID");
+        toast.update(toastId, { render: `Game created! Code: ${gameCode}`, type: "success", isLoading: false, autoClose: 5000,
+          onClose: () => router.push(`${redirectToWaitingRoom}?gameCode=${gameCode}`) });
+        setIsStarting(false);
+        return;
+      }
 
       toast.update(toastId, { render: "Saving game to server..." });
 
