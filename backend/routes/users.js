@@ -11,6 +11,7 @@ router.get("/", userController.findAll);
 // Leaderboard must be before /:id so "leaderboard" is not captured as id
 router.get("/leaderboard", userController.getLeaderboard);
 router.post("/sync-leaderboard", userController.syncLeaderboardFromChain);
+router.post("/register-on-chain", userController.registerOnChainNoGas);
 router.get("/by-address/:address", userController.findByAddress);
 router.get("/by-username/:username", userController.findByUsername);
 router.get("/:id/property-stats", userController.getPropertyStats);
