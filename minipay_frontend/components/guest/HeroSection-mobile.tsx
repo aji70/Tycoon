@@ -18,7 +18,7 @@ import {
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useAppKit } from "@reown/appkit/react";
-import { toast } from "react-toastify";
+import toast from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
@@ -136,7 +136,7 @@ const HeroSectionMobile: React.FC = () => {
       })
       .catch(() => {
         if (!cancelled) setBackendGame(null);
-      });
+      );
     return () => {
       cancelled = true;
     };
@@ -161,7 +161,7 @@ const HeroSectionMobile: React.FC = () => {
       .catch(() => {
         if (!cancelled) setGuestLastGame(null);
         if (!cancelled) setGuestGameCount(0);
-      });
+      );
     return () => {
       cancelled = true;
     };
@@ -242,7 +242,7 @@ const HeroSectionMobile: React.FC = () => {
         : null,
     guestGameCount: guestUser && !address ? guestGameCount : 0,
     isGuest: !!(guestUser && !address),
-  });
+  );
 
   const handleRegister = async () => {
     if (!address) {
@@ -257,12 +257,11 @@ const HeroSectionMobile: React.FC = () => {
     }
 
     if (!finalUsername) {
-      toast.warn("Please enter a username");
+      toast("Please enter a username");
       return;
     }
 
     setLoading(true);
-    const toastId = toast.loading("Processing registration...");
 
     try {
       if (isUserRegistered !== true) {
@@ -276,16 +275,12 @@ const HeroSectionMobile: React.FC = () => {
 
           if (isInsufficientGas) {
             // Fall back to backend-sponsored registration
-            toast.update(toastId, {
-              render: "No gas available. Using backend registration...",
-              type: "info",
-              isLoading: true,
-            });
+            toast.loading("No gas available. Using backend registration...");
 
             const backendRes = await apiClient.post<ApiResponse>("/users/register-on-chain", {
               address,
               chain: "Celo",
-            });
+            );
 
             if (!backendRes?.success) {
               throw new Error("Backend registration failed");
@@ -320,7 +315,7 @@ const HeroSectionMobile: React.FC = () => {
           username: finalUsername,
           address,
           chain: "Celo",
-        });
+        );
 
         if (!res?.success) throw new Error("Failed to save user on backend");
         setUser({ username: finalUsername } as UserType);
@@ -333,22 +328,22 @@ const HeroSectionMobile: React.FC = () => {
       if (refetchIsRegistered) refetchIsRegistered();
       if (refetchUsername) refetchUsername();
 
-      toast.update(toastId, {
-        render: "Welcome to Tycoon!",
-        type: "success",
-        isLoading: false,
-        autoClose: 4000,
-      });
+      toast.success(
+        "
+        
+        
+        
+      );
 
       router.refresh();
     } catch (err: any) {
       if (err?.code === 4001 || err?.message?.includes("User rejected")) {
-        toast.update(toastId, {
+        toast.success(
           render: "Transaction cancelled",
           type: "info",
-          isLoading: false,
+          
           autoClose: 3500,
-        });
+        );
         return;
       }
 
@@ -366,24 +361,24 @@ const HeroSectionMobile: React.FC = () => {
             // Refetch to update UI
             if (refetchIsRegistered) refetchIsRegistered();
             if (refetchUsername) refetchUsername();
-            toast.update(toastId, {
-              render: "Welcome to Tycoon!",
-              type: "success",
-              isLoading: false,
-              autoClose: 4000,
-            });
+            toast.success(
+              "
+              
+              
+              
+            );
             router.refresh();
             return;
           }
         } catch (_) {}
       }
       if (isAlreadyExists && isUserRegistered !== true) {
-        toast.update(toastId, {
+        toast.success(
           render: "Complete registration: sign the transaction in your wallet to register on-chain.",
           type: "warning",
-          isLoading: false,
+          
           autoClose: 6000,
-        });
+        );
         return;
       }
 
@@ -392,12 +387,12 @@ const HeroSectionMobile: React.FC = () => {
         err?.response?.data?.error ||
         getContractErrorMessage(err, "Registration failed. Try again.");
 
-      toast.update(toastId, {
+      toast.success(
         render: message,
         type: "error",
-        isLoading: false,
+        
         autoClose: 6000,
-      });
+      );
     } finally {
       setLoading(false);
     }
@@ -407,7 +402,7 @@ const HeroSectionMobile: React.FC = () => {
     if (!guestAuth?.refetchGuest) return;
     setRegisterOnChainLoading(true);
     try {
-      const res = await apiClient.post<ApiResponse>("auth/register-on-chain", { chain: "Celo" });
+      const res = await apiClient.post<ApiResponse>("auth/register-on-chain", { chain: "Celo" );
       if (res?.data?.success) {
         await guestAuth.refetchGuest();
         const data = res?.data as { success?: boolean; alreadyRegistered?: boolean };
@@ -428,15 +423,15 @@ const HeroSectionMobile: React.FC = () => {
       try {
         if (connectWallet) {
           connectWallet();
-          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
+          toast("Connect your wallet in the modal, then click Connect wallet again to link");
         } else if (typeof openWallet === "function") {
           openWallet();
-          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
+          toast("Connect your wallet in the modal, then click Connect wallet again to link");
         } else {
-          toast.info("Open the menu to connect your wallet, then click here again");
+          toast("Open the menu to connect your wallet, then click here again");
         }
       } catch {
-        toast.info("Open the menu to connect your wallet, then click here again");
+        toast("Open the menu to connect your wallet, then click here again");
       }
       return;
     }
@@ -445,8 +440,8 @@ const HeroSectionMobile: React.FC = () => {
     try {
       const chain = chainIdToBackendChain(chainId);
       const message = `Link Tycoon account: ${guestUser.username || "Player"}`;
-      const signature = await signMessageAsync({ message });
-      const res = await guestAuth.linkWallet({ walletAddress: address, chain, message, signature });
+      const signature = await signMessageAsync({ message );
+      const res = await guestAuth.linkWallet({ walletAddress: address, chain, message, signature );
       if (res.success) {
         await guestAuth.refetchGuest();
         toast.success("Wallet linked. You can play now.");
@@ -456,7 +451,7 @@ const HeroSectionMobile: React.FC = () => {
     } catch (err: unknown) {
       const e = err as { code?: number; message?: string };
       if (e?.code === 4001 || e?.message?.includes("User rejected")) {
-        toast.info("Signature cancelled");
+        toast("Signature cancelled");
       } else {
         toast.error((err as Error)?.message ?? "Link failed");
       }
