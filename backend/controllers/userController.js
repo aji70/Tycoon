@@ -1,6 +1,11 @@
 import User from "../models/User.js";
 import { getUserPropertyStats } from "../utils/userPropertyStats.js";
-import { callContractRead, getSmartWalletAddress, isContractConfigured } from "../services/tycoonContract.js";
+import { callContractRead, getSmartWalletAddress, isContractConfigured, registerPlayerFor } from "../services/tycoonContract.js";
+import crypto from "crypto";
+import { ethers } from "ethers";
+import { buildContractUsername } from "../utils/ensureContractAuth.js";
+import logger from "../config/logger.js";
+import db from "../config/database.js";
 
 /**
  * User Controller
@@ -256,6 +261,69 @@ const userController = {
     } catch (error) {
       console.error("Leaderboard error:", error);
       res.status(500).json({ error: error.message });
+    }
+  },
+
+  /**
+   * POST /api/users/register-on-chain
+   * Register an EOA user on-chain without gas (backend-sponsored).
+   * Body: { address, chain }
+   * User must exist in the backend database first (created during registration).
+   */
+  async registerOnChainNoGas(req, res) {
+    try {
+      const { address, chain } = req.body || {};
+
+      if (!address) {
+        return res.status(400).json({ success: false, message: "Address is required" });
+      }
+
+      const chainNorm = User.normalizeChain(chain || "CELO");
+      if (!isContractConfigured(chainNorm)) {
+        return res.status(503).json({ success: false, message: "Contract not configured for this network" });
+      }
+
+      // Find user by address
+      const user = await User.resolveUserByAddress(address, chainNorm);
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found. Register first." });
+      }
+
+      // Check if already registered on-chain
+      const isRegistered = await callContractRead("registered", [address], chainNorm);
+      if (isRegistered) {
+        return res.status(200).json({ success: true, alreadyRegistered: true, message: "Already registered on-chain" });
+      }
+
+      // Generate password hash for backend-sponsored registration
+      const secret = crypto.randomBytes(32).toString("hex");
+      const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
+
+      // Build contract username
+      const onChainU = buildContractUsername(user.id, user.username || address.slice(0, 10));
+
+      // Register on-chain (backend-sponsored)
+      await registerPlayerFor(address, onChainU, passwordHash, chainNorm);
+
+      // Get smart wallet address and update database
+      const smartWalletAddress = await getSmartWalletAddress(address, chainNorm);
+      await db("users")
+        .where({ id: user.id })
+        .update({ password_hash: passwordHash, smart_wallet_address: smartWalletAddress || null });
+
+      logger.info({ userId: user.id, address, chain: chainNorm }, "registerOnChainNoGas: registered user on contract");
+
+      return res.status(200).json({
+        success: true,
+        alreadyRegistered: false,
+        message: "Registered on-chain. You can create games now.",
+      });
+    } catch (err) {
+      logger.error({ err: err?.message, address: req.body?.address }, "registerOnChainNoGas failed");
+      return res.status(500).json({
+        success: false,
+        message: "Registration failed. Try again.",
+      });
     }
   },
 

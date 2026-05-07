@@ -271,7 +271,8 @@ const HeroSectionMobile: React.FC = () => {
               isLoading: true,
             });
 
-            const backendRes = await apiClient.post<ApiResponse>("auth/register-on-chain", {
+            const backendRes = await apiClient.post<ApiResponse>("/users/register-on-chain", {
+              address,
               chain: "Celo",
             });
 
