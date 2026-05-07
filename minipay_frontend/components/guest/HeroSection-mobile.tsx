@@ -326,8 +326,8 @@ const HeroSectionMobile: React.FC = () => {
       setLocalUsername(finalUsername);
 
       // Refetch to update UI
-      if (refetchIsRegistered) refetchIsRegistered();
-      if (refetchUsername) refetchUsername();
+      if (refetchIsRegistered) await refetchIsRegistered();
+      if (refetchUsername) await refetchUsername();
 
       setLoading(false);
       toast.success("Welcome to Tycoon!");
