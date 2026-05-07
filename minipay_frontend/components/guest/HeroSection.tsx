@@ -309,6 +309,10 @@ const HeroSection: React.FC = () => {
               throw new Error("Backend registration failed");
             }
 
+            // Update local state immediately after backend registration
+            setLocalRegistered(true);
+            setLocalUsername(finalUsername);
+
             // Refresh all relevant data after backend registration
             if (refetchIsRegistered) await refetchIsRegistered();
             if (refetchUsername) await refetchUsername();
