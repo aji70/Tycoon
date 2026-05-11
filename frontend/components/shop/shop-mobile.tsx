@@ -328,18 +328,8 @@ export default function GameShopMobile() {
   const preferredStable = useMemo<StableOption>(() => {
     const available = stableOptions.filter((s) => !!s.tokenAddress);
     if (available.length === 0) return { symbol: 'USDC', tokenAddress: undefined, paymentToken: 1, balance: 0 };
-    // Only pick a stable if at least one shop item has a non-zero price for it;
-    // otherwise fall back to USDC to avoid showing $0.00 when usdtPrice/cusdcPrice is unset on-chain.
-    const hasPriceFor = (symbol: StableSymbol) =>
-      shopItems.some((item) => {
-        const p =
-          symbol === 'CUSDC' ? item.cusdcPrice : symbol === 'USDT' ? item.usdtPrice : item.usdcPrice;
-        return Number(p) > 0;
-      });
-    const withPrice = available.filter((s) => hasPriceFor(s.symbol));
-    const pool = withPrice.length > 0 ? withPrice : available;
-    return [...pool].sort((a, b) => b.balance - a.balance)[0];
-  }, [stableOptions, shopItems]);
+    return [...available].sort((a, b) => b.balance - a.balance)[0];
+  }, [stableOptions]);
 
   const activeStableLabel = preferredStable.symbol === 'CUSDC' ? 'cUSD' : preferredStable.symbol;
   const activeStableBalance = Number.isFinite(preferredStable.balance) ? preferredStable.balance : 0;
@@ -681,7 +671,7 @@ export default function GameShopMobile() {
     } catch (e: unknown) {
       const status = (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
       if (status === 401) toast.error('Please sign in to pay with Naira.');
-      else toast.error((e as Error)?.message ?? 'Failed to start Naira payment');
+      else toast.error(getContractErrorMessage(e, 'Failed to start Naira payment'));
     } finally {
       setNgnLoadingTokenId(null);
     }
@@ -818,7 +808,7 @@ export default function GameShopMobile() {
       }
       toast.success('All bundles stocked');
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Failed to stock bundles');
+      toast.error(getContractErrorMessage(e, 'Failed to stock bundles'));
     } finally {
       setStockAllBundlesProgress({ active: false, current: 0, total: 0 });
     }
@@ -838,7 +828,7 @@ export default function GameShopMobile() {
         await redeemFor(voucherOwner, tokenId);
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Redemption failed');
+      toast.error(getContractErrorMessage(err, 'Redemption failed'));
     }
   };
 
@@ -877,9 +867,9 @@ export default function GameShopMobile() {
   }, [redeemForSuccess, resetRedeemFor]);
 
   useEffect(() => {
-    if (buyError) toast.error(buyError.message || 'Purchase failed');
-    if (redeemError) toast.error(redeemError.message || 'Redemption failed');
-    if (redeemForError) toast.error(redeemForError.message || 'Smart wallet redemption failed');
+    if (buyError) toast.error(getContractErrorMessage(buyError, 'Purchase failed'));
+    if (redeemError) toast.error(getContractErrorMessage(redeemError, 'Redemption failed'));
+    if (redeemForError) toast.error(getContractErrorMessage(redeemForError, 'Redemption failed'));
   }, [buyError, redeemError, redeemForError]);
 
   const handleBack = () => {
@@ -1097,7 +1087,7 @@ export default function GameShopMobile() {
                       ) : !hasPaymentMethod ? (
                         <><Wallet size={14} className="inline mr-2" /> Connect to buy</>
                       ) : (
-                        <><CreditCard size={14} className="inline mr-2" /> Buy with USDC</>
+                        <><CreditCard size={14} className="inline mr-2" /> Pay with digital dollars</>
                       )}
                     </button>
                     {b.price_ngn != null && b.price_ngn > 0 && (
@@ -1228,7 +1218,7 @@ export default function GameShopMobile() {
                         ) : payFromSmartWalletUnsupported ? (
                           'Use Connected wallet'
                         ) : (
-                          <> Buy with {activeStableLabel} — ${Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} </>
+                          <> Pay with digital dollars — ${Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} </>
                         )}
                       </button>
                       <button
