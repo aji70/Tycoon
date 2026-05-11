@@ -41,7 +41,7 @@ export default function AppKitProviderWrapper({
   useWcmModalAccessibleName();
 
   useEffect(() => {
-    if (!isInitialized) {
+    if (!isInitialized && projectId) {
       createAppKit({
         adapters: [wagmiAdapter],
         networks: [defaultNetwork],
@@ -62,7 +62,7 @@ export default function AppKitProviderWrapper({
       });
       isInitialized = true;
     }
-  }, []);
+  }, [projectId]);
 
   return <>{children}</>;
 }

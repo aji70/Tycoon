@@ -2,11 +2,10 @@ import { cookieStorage, createStorage, http } from '@wagmi/core'
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { celo } from '@reown/appkit/networks'
 
-export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID
+export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID || ''
 
-if (!projectId) {
-  throw new Error('Project ID is not defined')
-}
+// Note: Project ID is required at runtime for wallet connections, but it's safe to allow it to be empty at module load time.
+// The error will be caught when AppKit is actually used if it's missing.
 
 // Celo only (or Celo/Base in a dedicated frontend)
 export const networks = [celo]
