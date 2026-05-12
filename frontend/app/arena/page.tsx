@@ -13,17 +13,14 @@ import styles from "./arena.module.css";
 import ArenaMobile from "@/components/arena/arena-mobile";
 import AgentsPage from "@/components/agents/agents-page";
 import { isAgentStyleTournament, tournamentDetailPath } from "@/lib/tournamentRoutes";
-import {
-  Swords,
-  Search,
-  Trophy,
-  Target,
-  UserRound,
-  ChevronLeft,
-  ChevronRight,
-  Zap,
-  Wallet,
-} from "lucide-react";
+import { ArenaStage1NoAgent } from "@/components/arena/arena-stage-1-no-agent";
+import { ArenaStage3NoCaps } from "@/components/arena/arena-stage-3-no-caps";
+import { ArenaTabBar } from "@/components/arena/arena-tab-bar";
+import { ArenaDiscoverTab } from "@/components/arena/arena-discover-tab";
+import { ArenaLeaderboardTab } from "@/components/arena/arena-leaderboard-tab";
+import { ArenaMyAgentsTab } from "@/components/arena/arena-my-agents-tab";
+import { ArenaChallengesTab } from "@/components/arena/arena-challenges-tab";
+import { Swords } from "lucide-react";
 
 /** Multi-opponent batch games from Discover tab. */
 const MAX_DISCOVER_OPPONENTS = 7;
@@ -600,9 +597,34 @@ export default function ArenaPage() {
     return <ArenaMobile />;
   }
 
+  // STAGE DETECTION
+  const hasAgents = myAgents.length > 0;
+  const hasSpendingCaps = approvedAgentIds.length > 0;
+
+  // STAGE 1: No agents
+  if (!hasAgents && isAuthed) {
+    return <ArenaStage1NoAgent />;
+  }
+
+  // STAGE 3: Agent exists but no spending caps
+  if (hasAgents && !hasSpendingCaps && activeTab !== "discover" && activeTab !== "leaderboard") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 p-8">
+        <ArenaStage3NoCaps
+          myAgents={myAgents}
+          onTabChange={setActiveTab}
+          onOpenManageCaps={(agentId) => {
+            setActiveTab("my-agents");
+            setMyAgentsSubTab("manage");
+            setOpenTournamentSpendingJumpAgentId(agentId);
+          }}
+        />
+      </div>
+    );
+  }
+
   const discoverList = agents.filter((agent) => !myAgents.some((m) => m.id === agent.id));
   const hasNextDiscoverPage = agents.length >= 20;
-  const showDiscoverPagination = activeTab === "discover" && (page > 1 || hasNextDiscoverPage);
 
   return (
     <div className={styles.pageShell}>
@@ -632,827 +654,159 @@ export default function ArenaPage() {
           </div>
         </header>
 
-        <nav className={styles.tabBar} aria-label="Arena sections">
-          <button
-            type="button"
-            className={`${styles.tab} ${activeTab === "discover" ? styles.active : ""}`}
-            onClick={() => {
-              setActiveTab("discover");
-              setPage(1);
-            }}
-          >
-            <span className={styles.tabIcon}>
-              <Search className="w-4 h-4" aria-hidden />
-            </span>
-            Discover
-          </button>
-          <button
-            type="button"
-            className={`${styles.tab} ${activeTab === "challenges" ? styles.active : ""}`}
-            onClick={() => setActiveTab("challenges")}
-          >
-            <span className={styles.tabIcon}>
-              <Zap className="w-4 h-4" aria-hidden />
-            </span>
-            Challenges
-          </button>
-          <button
-            type="button"
-            className={`${styles.tab} ${activeTab === "leaderboard" ? styles.active : ""}`}
-            onClick={() => setActiveTab("leaderboard")}
-          >
-            <span className={styles.tabIcon}>
-              <Trophy className="w-4 h-4" aria-hidden />
-            </span>
-            Leaderboard
-          </button>
-          <button
-            type="button"
-            className={`${styles.tab} ${activeTab === "tournaments" ? styles.active : ""}`}
-            onClick={() => setActiveTab("tournaments")}
-          >
-            <span className={styles.tabIcon}>
-              <Target className="w-4 h-4" aria-hidden />
-            </span>
-            Tournaments
-          </button>
-          <button
-            type="button"
-            className={`${styles.tab} ${activeTab === "my-agents" ? styles.active : ""}`}
-            onClick={() => {
-              setActiveTab("my-agents");
-              setMyAgentsSubTab("overview");
-            }}
-          >
-            <span className={styles.tabIcon}>
-              <UserRound className="w-4 h-4" aria-hidden />
-            </span>
-            My agents
-          </button>
-        </nav>
+        <ArenaTabBar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          hasSpendingCaps={hasSpendingCaps}
+        />
 
-      {error && activeTab !== "my-agents" && activeTab !== "challenges" && <div className={styles.error}>{error}</div>}
-      {loading && activeTab !== "my-agents" && activeTab !== "challenges" && <div className={styles.loading}>Loading</div>}
+        {activeTab === "discover" && (
+          <ArenaDiscoverTab
+            agents={agents}
+            myAgents={myAgents}
+            selectedOpponents={selectedOpponents}
+            onToggleSelect={toggleOpponentSelect}
+            onStartMatch={startArenaGame}
+            challengerAgentId={challengerAgentId}
+            onChangeChallengerAgent={setChallengerAgentId}
+            stakeAmount={stakeAmountUsdc}
+            onStakeChange={setStakeAmountUsdc}
+            isStarting={arenaStarting}
+            page={page}
+            onPreviousPage={() => setPage((p) => Math.max(1, p - 1))}
+            onNextPage={() => setPage((p) => p + 1)}
+            hasNextPage={agents.length >= 20}
+          />
+        )}
 
-      {activeTab === "discover" && isAuthed && myAgents.length > 0 && (
-        <section className={styles.challengePanel} aria-label="Challenge setup">
-          <div className={styles.challengePanelHead}>
-            <h2 className={styles.challengePanelTitle}>Challenge setup</h2>
-            <span className={styles.challengeCountPill}>
-              {selectedOpponents.length}/{maxOpponentPicks} picked
-            </span>
-          </div>
-          <p className={styles.challengeHint}>
-            Pick up to {maxOpponentPicks} opponent{maxOpponentPicks === 1 ? "" : "s"} below, then Start.
-          </p>
-          <details className={styles.challengeDiscoverDetails}>
-            <summary>Timing, match length &amp; wallet notes</summary>
-            <p>
-              On-chain setup often takes 1–3 minutes — keep this tab open. Matches run 30 minutes. For a faster lobby, try{" "}
-              <a href="/agent-battles" className={styles.challengeDiscoverLink}>
-                Agent Battles
-              </a>
-              . Wallet spending caps apply to tournament entry and the Challenges tab only; they are not required on Discover.
-            </p>
-          </details>
-          <div className={styles.challengeToolbar}>
-            <div className={styles.challengeField}>
-              <div className={styles.challengesLabelRow}>
-                <span className={styles.challengeFieldLabel}>Playing as</span>
-                {challengerAgentId != null ? (
-                  <button
-                    type="button"
-                    className={`${styles.tournamentLinkBtn} ${styles.challengesCapsLinkBtn}`}
-                    onClick={() => {
-                      setActiveTab("my-agents");
-                      setMyAgentsSubTab("manage");
-                      setOpenTournamentSpendingJumpAgentId(challengerAgentId);
-                    }}
-                  >
-                    Edit caps
-                  </button>
-                ) : null}
-              </div>
-              <select
-                className={styles.agentSelect}
-                value={challengerAgentId ?? ""}
-                onChange={(e) => setChallengerAgentId(Number(e.target.value))}
-                aria-label="Your agent for challenges"
-              >
-                {myAgents.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className={styles.challengeActions}>
-              <button
-                type="button"
-                className={styles.btnSendCompact}
-                onClick={startArenaGame}
-                disabled={arenaStarting || selectedOpponents.length === 0}
-              >
-                {arenaStarting
-                  ? "On-chain setup…"
-                  : `Start${selectedOpponents.length > 0 ? ` · ${selectedOpponents.length + 1}` : ""}`}
-              </button>
-              {selectedOpponents.length > 0 && (
-                <button type="button" className={styles.btnClearCompact} onClick={() => setSelectedOpponents([])}>
-                  Clear
-                </button>
-              )}
-            </div>
-          </div>
-        </section>
-      )}
+        {activeTab === "challenges" && (
+          <ArenaChallengesTab
+            agents={discoverList}
+            myAgents={myAgents}
+            tournamentPerms={tournamentPerms}
+            subMode={challengesSubTab}
+            onSubModeChange={setChallengesSubTab}
+            challengerAgentId={challengerAgentId}
+            onChangeChallengerAgent={setChallengerAgentId}
+            selectedOpponent={humanVsOpponentId}
+            onSelectOpponent={(id) => setHumanVsOpponentId((curr) => (curr === id ? null : id))}
+            stakeAmount={challengesSubTab === "agentVsAgent" ? stakeAmountUsdc : humanVsStakeUsdc}
+            onStakeChange={challengesSubTab === "agentVsAgent" ? setStakeAmountUsdc : setHumanVsStakeUsdc}
+            onDeploy={challengesSubTab === "agentVsAgent" ? startArenaGame : startHumanVsAgentGame}
+            isDeploying={challengesSubTab === "agentVsAgent" ? arenaStarting : humanVsStarting}
+          />
+        )}
 
-      {activeTab === "discover" && (
-        <>
-          <div className={styles.agentsGrid}>
-            {discoverList.map((agent) => (
-              <div key={agent.id} className={`${styles.agentCard} ${styles.agentCardDiscover}`}>
-                <div className={styles.agentDiscoverTop}>
-                  <h3 title={agent.name}>{agent.name}</h3>
-                  <div
-                    className={styles.tierbadgeCompact}
-                    style={{ backgroundColor: TierColors[agent.tier_color] }}
-                  >
-                    {tierLabelOf(agent)}
-                  </div>
-                </div>
-                <div className={styles.agentDiscoverMeta}>
-                  <span>
-                    XP <strong>{xpOf(agent)}</strong>
-                  </span>
-                  <span>
-                    8004 <strong>{agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "—"}</strong>
-                  </span>
-                </div>
-                <div className={styles.agentDiscoverFooter}>
-                  <span className={styles.creatorNameCompact} title={`by ${agent.username}`}>
-                    by {agent.username}
-                  </span>
-                  {isAuthed && myAgents.length > 0 && (
-                    <div className={styles.agentDiscoverPick}>
-                      <button
-                        type="button"
-                        className={`${styles.pickBtn} ${
-                          selectedOpponents.includes(agent.id) ? styles.pickBtnOn : styles.pickBtnOff
-                        }`}
-                        onClick={() => toggleOpponentSelect(agent.id)}
-                        aria-pressed={selectedOpponents.includes(agent.id)}
-                      >
-                        {selectedOpponents.includes(agent.id) ? "✓" : "+ Pick"}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          {!loading && discoverList.length === 0 && (
-            <div className={styles.emptyDiscover}>
-              <strong>No public agents on this page</strong>
-              Try another page, make your agent public in My agents, or check back later.
-            </div>
-          )}
-          {showDiscoverPagination && (
-            <div className={styles.paginationBar}>
-              <button
-                type="button"
-                className={styles.pageBtn}
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                <ChevronLeft className="w-4 h-4" aria-hidden />
-                Previous
-              </button>
-              <span className={styles.pageIndicator}>Page {page}</span>
-              <button
-                type="button"
-                className={styles.pageBtn}
-                disabled={!hasNextDiscoverPage}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-                <ChevronRight className="w-4 h-4" aria-hidden />
-              </button>
-            </div>
-          )}
-        </>
-      )}
+        {activeTab === "leaderboard" && (
+          <ArenaLeaderboardTab
+            leaderboard={leaderboard}
+            loading={loading}
+            myAgentId={challengerAgentId ?? undefined}
+          />
+        )}
 
-      {activeTab === "challenges" && (
-        <section className={styles.challengePanel} aria-label="Approved agents and challenges">
-          <div className={styles.challengePanelHead}>
-            <h2 className={styles.challengePanelTitle}>Challenges</h2>
-          </div>
-          <p className={styles.challengeHint}>
-            You set <strong style={{ color: "#e8fbff" }}>per-match</strong> and optional <strong style={{ color: "#e8fbff" }}>daily</strong> caps on your wallet; everyone here has spending enabled.
-          </p>
-
-          <div className={styles.challengeSubTabs} role="tablist" aria-label="Challenge type">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={challengesSubTab === "agentVsAgent"}
-              className={`${styles.challengeSubTab} ${challengesSubTab === "agentVsAgent" ? styles.challengeSubTabActive : ""}`}
-              onClick={() => setChallengesSubTab("agentVsAgent")}
-            >
-              Agent vs agent
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={challengesSubTab === "youVsAgent"}
-              className={`${styles.challengeSubTab} ${challengesSubTab === "youVsAgent" ? styles.challengeSubTabActive : ""}`}
-              onClick={() => setChallengesSubTab("youVsAgent")}
-            >
-              You vs agent
-            </button>
-          </div>
-
-          {challengesSubTab === "agentVsAgent" && (
-            <>
-              {challengesLoading ? (
-                <p className={styles.challengeHint}>Loading approved agents…</p>
-              ) : !isAuthed ? (
-                <p className={styles.challengeHint}>Sign in to see your approved agents.</p>
-              ) : approvedAgentsForChallenges.length === 0 ? (
-                <div className={styles.emptyDiscover} style={{ padding: "20px 16px" }}>
-                  <strong>No approved agents</strong>
-                  <p style={{ marginTop: 8, fontSize: "0.9rem", color: "rgba(255,255,255,0.7)" }}>
-                    Enable spending in{" "}
-                    <button
-                      type="button"
-                      className={styles.tournamentLinkBtn}
-                      style={{ display: "inline", padding: "2px 8px", margin: 0 }}
-                      onClick={() => {
-                        setActiveTab("my-agents");
-                        setMyAgentsSubTab("manage");
-                        if (myAgents.length === 1) setOpenTournamentSpendingJumpAgentId(myAgents[0].id);
-                      }}
-                    >
-                      My agents → Manage &amp; spending
-                    </button>
-                    {" "}(wallet spending modal per agent). Or use the <strong style={{ color: "#e8fbff" }}>You vs agent</strong> tab to play yourself without an agent seat.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <p className={styles.challengesSectionEyebrow}>Your agents · spending caps</p>
-                  <div className={styles.agentsGrid} style={{ marginBottom: 16 }}>
-                    {approvedAgentsForChallenges.map((agent) => {
-                      const perm = tournamentPerms[agent.id];
-                      return (
-                        <div key={agent.id} className={`${styles.agentCard} ${styles.agentCardDiscover}`}>
-                          <div className={styles.agentDiscoverTop}>
-                            <h3 title={agent.name}>{agent.name}</h3>
-                            <div
-                              className={styles.tierbadgeCompact}
-                              style={{ backgroundColor: TierColors[agent.tier_color] }}
-                            >
-                              {tierLabelOf(agent)}
-                            </div>
-                          </div>
-                          <div className={styles.challengesOpponentMeta}>
-                            <span>
-                              Per match <strong>{formatUsdcDisplay(perm?.max_entry_fee_usdc)}</strong>
-                            </span>
-                            <span>
-                              Daily <strong>{formatUsdcDisplay(perm?.daily_cap_usdc)}</strong>
-                            </span>
-                            {perm?.chain ? (
-                              <span className={styles.challengesOpponentMetaFull}>
-                                Chain <strong>{perm.chain}</strong>
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className={styles.challengesOpponentsHeader}>
-                    <h3 className={styles.challengePanelTitle}>Pick opponent</h3>
-                    <span className={styles.challengeCountPill}>{discoverList.length} available</span>
-                  </div>
-                  <div className={styles.agentsGrid} style={{ marginTop: 4, marginBottom: 8 }}>
-                    {discoverList.map((agent) => (
-                      <div key={agent.id} className={`${styles.agentCard} ${styles.agentCardDiscover}`}>
-                        <div className={styles.agentDiscoverTop}>
-                          <h3 title={agent.name}>{agent.name}</h3>
-                          <div
-                            className={styles.tierbadgeCompact}
-                            style={{ backgroundColor: TierColors[agent.tier_color] }}
-                          >
-                            {tierLabelOf(agent)}
-                          </div>
-                        </div>
-                        <div className={styles.challengesOpponentMeta}>
-                          <span>
-                            XP <strong>{xpOf(agent)}</strong>
-                          </span>
-                          <span>
-                            Per match <strong>{formatUsdcDisplay(agent.max_entry_fee_usdc)}</strong>
-                          </span>
-                          <span>
-                            Daily <strong>{formatUsdcDisplay(agent.daily_cap_usdc)}</strong>
-                          </span>
-                          {agent.chain ? (
-                            <span>
-                              Chain <strong>{agent.chain}</strong>
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className={styles.agentDiscoverFooter}>
-                          <span className={styles.creatorNameCompact}>by {agent.username}</span>
-                          <div className={styles.agentDiscoverPick}>
-                            <button
-                              type="button"
-                              className={`${styles.pickBtn} ${selectedOpponents.includes(agent.id) ? styles.pickBtnOn : styles.pickBtnOff}`}
-                              onClick={() => toggleOpponentSelect(agent.id)}
-                              aria-pressed={selectedOpponents.includes(agent.id)}
-                            >
-                              {selectedOpponents.includes(agent.id) ? "✓" : "+ Pick"}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {!loading && discoverList.length === 0 && (
-                    <div className={styles.emptyDiscover} style={{ padding: 16, marginBottom: 12 }}>
-                      <strong>No approved opponents yet</strong>
-                      <p style={{ marginTop: 8, fontSize: "0.9rem", color: "rgba(255,255,255,0.7)" }}>
-                        Other users’ agents will appear here once they enable wallet spending in{" "}
-                        <strong>My agents → Tournament wallet spending</strong>. Share that they should approve their agents to join the Challenges pool.
-                      </p>
-                    </div>
-                  )}
-
-                  <div className={styles.challengesCreateBlock}>
-                    <div className={styles.challengesCreateHeader}>
-                      <h3 className={styles.challengePanelTitle}>Create game</h3>
-                      <span className={styles.challengesMetaPill}>1 opponent · 30 min</span>
-                    </div>
-                    <p className={styles.challengesOneLiner}>
-                      After you pick an opponent above, choose your agent and stake, then Start. For batch games (up to {MAX_DISCOVER_OPPONENTS}), use Discover.
-                    </p>
-                    <div className={styles.challengesFormTwoCol}>
-                      <div className={styles.challengeField}>
-                        <div className={styles.challengesLabelRow}>
-                          <span className={styles.challengeFieldLabel}>Your agent</span>
-                          {challengerAgentId != null ? (
-                            <button
-                              type="button"
-                              className={`${styles.tournamentLinkBtn} ${styles.challengesCapsLinkBtn}`}
-                              onClick={() => {
-                                setActiveTab("my-agents");
-                                setMyAgentsSubTab("manage");
-                                setOpenTournamentSpendingJumpAgentId(challengerAgentId);
-                              }}
-                            >
-                              Edit caps
-                            </button>
-                          ) : null}
-                        </div>
-                        <select
-                          className={styles.agentSelect}
-                          value={challengerAgentId ?? ""}
-                          onChange={(e) => setChallengerAgentId(Number(e.target.value))}
-                          aria-label="Your agent for challenges"
-                        >
-                          {approvedAgentsForChallenges.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className={styles.challengeField}>
-                        <span className={styles.challengeFieldLabel}>Stake (USDC)</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="0 for free"
-                          value={stakeAmountUsdc}
-                          onChange={(e) => setStakeAmountUsdc(e.target.value)}
-                          className={styles.agentSelect}
-                        />
-                        <p className={styles.challengesStakeOneLiner}>
-                          Same stake both sides · winner 95% · ties split after house cut · leave 0 for free play.
-                        </p>
-                        <details className={styles.challengesStakeDetails}>
-                          <summary>Server / tie-break detail</summary>
-                          <p>
-                            Tie pools use env <code>TOURNAMENT_DRAW_HOUSE_CUT_PERCENT</code> (default 5%). Example: set to 10 for a 45% / 45% / 10% split.
-                          </p>
-                        </details>
-                      </div>
-                    </div>
-                    <div className={styles.challengeActions}>
-                      <button
-                        type="button"
-                        className={styles.btnSendCompact}
-                        onClick={startArenaGame}
-                        disabled={arenaStarting || selectedOpponents.length === 0}
-                      >
-                        {arenaStarting ? "On-chain setup…" : `Start${selectedOpponents.length > 0 ? ` · ${selectedOpponents.length + 1}` : ""}`}
-                      </button>
-                      {selectedOpponents.length > 0 && (
-                        <button type="button" className={styles.btnClearCompact} onClick={() => setSelectedOpponents([])}>
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-
-          {challengesSubTab === "youVsAgent" && (
-            <>
-              {!isAuthed ? (
-                <p className={styles.challengeHint}>Sign in to play yourself vs an agent.</p>
-              ) : (
-                <>
-                  <div
-                    className={styles.emptyDiscover}
-                    style={{
-                      padding: "14px 14px 16px",
-                      marginBottom: 16,
-                      border: "1px solid rgba(0, 255, 255, 0.2)",
-                      borderRadius: 12,
-                      background: "rgba(0, 40, 50, 0.28)",
-                    }}
-                  >
-                    <h3 className={styles.challengePanelTitle} style={{ fontSize: "0.95rem", marginBottom: 6 }}>
-                      You vs agent
-                    </h3>
-                    <p className={styles.challengeHint} style={{ marginBottom: 12, fontSize: "0.82rem", lineHeight: 1.45 }}>
-                      You’re seat 1; the agent is seat 2. Stakes use both smart wallets (your contract login + wallet; opponent must allow spending).
-                    </p>
-                    <div className={styles.challengeField} style={{ marginBottom: 12 }}>
-                      <span className={styles.challengeFieldLabel}>Stake (USDC)</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0 for free"
-                        value={humanVsStakeUsdc}
-                        onChange={(e) => setHumanVsStakeUsdc(e.target.value)}
-                        className={styles.agentSelect}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      className={styles.btnSendCompact}
-                      onClick={startHumanVsAgentGame}
-                      disabled={humanVsStarting || humanVsOpponentId == null || challengesLoading}
-                    >
-                      {humanVsStarting ? "On-chain setup…" : "Start"}
-                    </button>
-                  </div>
-
-                  {challengesLoading ? (
-                    <p className={styles.challengeHint}>Loading opponents…</p>
-                  ) : (
-                    <>
-                      <p className={styles.challengeHint} style={{ marginTop: 4, marginBottom: 4 }}>
-                        Opponents (approved to spend): {discoverList.length}
-                      </p>
-                      <div className={styles.agentsGrid} style={{ marginTop: 8 }}>
-                        {discoverList.map((agent) => (
-                          <div key={agent.id} className={`${styles.agentCard} ${styles.agentCardDiscover}`}>
-                            <div className={styles.agentDiscoverTop}>
-                              <h3 title={agent.name}>{agent.name}</h3>
-                              <div
-                                className={styles.tierbadgeCompact}
-                                style={{ backgroundColor: TierColors[agent.tier_color] }}
-                              >
-                                {tierLabelOf(agent)}
-                              </div>
-                            </div>
-                            <div className={styles.agentDiscoverMeta} style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
-                              <span>XP <strong>{xpOf(agent)}</strong></span>
-                              <span>Max per match: <strong>{formatUsdcDisplay(agent.max_entry_fee_usdc)}</strong></span>
-                              <span>Daily total cap: <strong>{formatUsdcDisplay(agent.daily_cap_usdc)}</strong></span>
-                              {agent.chain && <span>Chain: {agent.chain}</span>}
-                            </div>
-                            <div className={styles.agentDiscoverFooter}>
-                              <span className={styles.creatorNameCompact}>by {agent.username}</span>
-                              <div className={styles.agentDiscoverPick}>
-                                <button
-                                  type="button"
-                                  className={`${styles.pickBtn} ${humanVsOpponentId === agent.id ? styles.pickBtnOn : styles.pickBtnOff}`}
-                                  onClick={() => setHumanVsOpponentId((id) => (id === agent.id ? null : agent.id))}
-                                  aria-pressed={humanVsOpponentId === agent.id}
-                                >
-                                  {humanVsOpponentId === agent.id ? "✓ You play" : "You play vs"}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      {!loading && discoverList.length === 0 && (
-                        <div className={styles.emptyDiscover} style={{ padding: 16 }}>
-                          <strong>No approved opponents yet</strong>
-                          <p style={{ marginTop: 8, fontSize: "0.9rem", color: "rgba(255,255,255,0.7)" }}>
-                            Other users’ agents appear here when they enable tournament spending.
-                          </p>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-            </>
-          )}
-        </section>
-      )}
-
-      {activeTab === "tournaments" && (
-        <section className={styles.tournamentPanel} aria-label="Agent tournaments">
-          <h2>Tournaments</h2>
-          {ARENA_TOURNAMENTS_COMING_SOON ? (
-            <>
-              <p className={styles.tournamentComingSoonBadge} role="status">
-                Coming soon
-              </p>
-              <p className={styles.tournamentExplainer}>
-                Bracket tournaments, registration, and prize pools are not available in the Arena yet. We&apos;ll enable
-                browsing, creating events, and joining from here in a future release.
-              </p>
-              <div className={styles.tournamentActions}>
-                <button type="button" disabled className={`${styles.tournamentLinkBtn} ${styles.tournamentBtnDisabled}`}>
-                  <span>All tournaments</span>
-                  <span className={styles.tournamentBtnSoon}>Coming soon</span>
-                </button>
-                <button type="button" disabled className={`${styles.tournamentLinkBtn} ${styles.tournamentBtnDisabled}`}>
-                  <span>Create tournament</span>
-                  <span className={styles.tournamentBtnSoon}>Coming soon</span>
-                </button>
-              </div>
-              <p className={styles.tournamentEmpty}>Open registration and full tournament flows will appear here when we launch.</p>
-            </>
-          ) : (
-            <>
-              <p className={styles.tournamentExplainer}>
-                Agent tournaments only: your bot represents you (same smart-wallet flow as Challenges). Invited-bots events
-                only allow the Discover agents the organizer picked; open agent-only events accept any registered agent. Open
-                an event to pick your agent and join.
-              </p>
-              <div className={styles.tournamentActions}>
-                <Link href="/agent-tournaments" className={styles.tournamentLinkBtn}>
-                  All agent tournaments
-                </Link>
-                <Link href="/agent-tournaments/create?from=arena" className={styles.tournamentLinkBtn}>
-                  Create agent tournament
-                </Link>
-              </div>
-              {tournamentsLoading ? (
-                <p className={styles.tournamentEmpty}>Loading open tournaments…</p>
-              ) : tournamentsError ? (
-                <p className={styles.error} style={{ marginTop: 0 }}>
-                  {tournamentsError}
+        {activeTab === "tournaments" && (
+          <section className={styles.tournamentPanel} aria-label="Agent tournaments">
+            <h2>Tournaments</h2>
+            {ARENA_TOURNAMENTS_COMING_SOON ? (
+              <>
+                <p className={styles.tournamentComingSoonBadge} role="status">
+                  Coming soon
                 </p>
-              ) : openTournaments.length === 0 ? (
-                <p className={styles.tournamentEmpty}>No tournaments in registration right now. Create one or check back later.</p>
-              ) : (
-                <ul className={styles.tournamentList}>
-                  {openTournaments.map((t) => (
-                    <li key={t.id} className={styles.tournamentRow}>
-                      <div className={styles.tournamentRowMain}>
-                        <p className={styles.tournamentRowTitle}>{t.name}</p>
-                        <p className={styles.tournamentRowMeta}>
-                          {t.chain} · {formatTournamentEntryFee(t.entry_fee_wei)}
-                          {t.prize_source ? ` · ${String(t.prize_source).replace(/_/g, " ").toLowerCase()}` : ""}
-                          {String(t.visibility || "").toUpperCase() === "BOT_SELECTION"
-                            ? " · invited bots"
-                            : t.is_agent_only
-                              ? " · open · agents only"
-                              : ""}
-                          {typeof t.participant_count === "number" && typeof t.max_players === "number"
-                            ? ` · ${t.participant_count}/${t.max_players} players`
-                            : ""}
-                        </p>
-                      </div>
-                      <Link href={tournamentHref(t)} className={styles.tournamentRowCta}>
-                        Open →
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-        </section>
-      )}
-
-      {activeTab === "leaderboard" && (
-        <div className={styles.leaderboardTable}>
-          <table>
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Agent Name</th>
-                <th>Creator</th>
-                <th>Tier</th>
-                <th>XP</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leaderboard.map((entry) => (
-                <tr
-                  key={entry.id}
-                  className={
-                    entry.rank === 1
-                      ? styles.rowTop1
-                      : entry.rank === 2
-                        ? styles.rowTop2
-                        : entry.rank === 3
-                          ? styles.rowTop3
-                          : undefined
-                  }
-                >
-                  <td
-                    className={`${styles.rank} ${
-                      entry.rank === 1 ? styles.rank1 : entry.rank === 2 ? styles.rank2 : entry.rank === 3 ? styles.rank3 : ""
-                    }`}
-                  >
-                    {entry.rank}
-                  </td>
-                  <td className={styles.agentName}>{entry.name}</td>
-                  <td>{entry.username}</td>
-                  <td>
-                    <span
-                      className={styles.lbTierBadge}
-                      style={{ backgroundColor: TierColors[entry.tier_color] }}
-                    >
-                      {tierLabelOf(entry)}
-                    </span>
-                  </td>
-                  <td className={styles.elo}>{xpOf(entry)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {activeTab === "my-agents" && (
-        <div className={styles.myAgentsEmbed}>
-          {authLoading ? (
-            <p className={styles.challengeHint}>Loading session…</p>
-          ) : isAuthed ? (
-            <>
-              <div className={styles.myAgentsSubTabs} role="tablist" aria-label="My agents views">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={myAgentsSubTab === "overview"}
-                  className={`${styles.myAgentsSubTab} ${myAgentsSubTab === "overview" ? styles.myAgentsSubTabActive : ""}`}
-                  onClick={() => setMyAgentsSubTab("overview")}
-                >
-                  Quick view
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={myAgentsSubTab === "manage"}
-                  className={`${styles.myAgentsSubTab} ${myAgentsSubTab === "manage" ? styles.myAgentsSubTabActive : ""}`}
-                  onClick={() => setMyAgentsSubTab("manage")}
-                >
-                  Manage &amp; spending
-                </button>
-              </div>
-              {myAgentsSubTab === "overview" ? (
-                <div className={styles.myAgents}>
-                  {myAgents.length > 0 ? (
-                    <div className={styles.myAgentsGrid}>
-                      {myAgents.map((agent) => {
-                        const tp = tournamentPerms[agent.id];
-                        const spendOn = Boolean(tp?.enabled);
-                        return (
-                        <div key={agent.id} className={styles.agentCard}>
-                          <div className={styles.agentHeader}>
-                            <h3>{agent.name}</h3>
-                            <div
-                              className={styles.tierbadge}
-                              style={{ backgroundColor: TierColors[agent.tier_color] }}
-                            >
-                              {tierLabelOf(agent)}
-                            </div>
-                          </div>
-                          <div className={styles.spendChipRow}>
-                            <span className={`${styles.spendChip} ${spendOn ? styles.spendChipOn : styles.spendChipOff}`}>
-                              <Wallet className="w-3.5 h-3.5 shrink-0" aria-hidden />
-                              {spendOn ? "Wallet caps on" : "Wallet caps off"}
-                            </span>
-                            {spendOn && tp ? (
-                              <span className={`${styles.spendChip} ${styles.spendChipOn}`} style={{ opacity: 0.92 }}>
-                                {formatUsdcDisplay(tp.max_entry_fee_usdc)}/match
-                                {tp.daily_cap_usdc ? ` · ${formatUsdcDisplay(tp.daily_cap_usdc)}/day` : ""}
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className={styles.quickCapsuleGrid}>
-                            <div className={styles.quickCapsule}>
-                              <span className={styles.quickCapsuleLabel}>Status</span>
-                              <span className={styles.quickCapsuleValue}>{agent.status || "—"}</span>
-                            </div>
-                            <div className={styles.quickCapsule}>
-                              <span className={styles.quickCapsuleLabel}>XP</span>
-                              <span className={styles.quickCapsuleValue}>{xpOf(agent)}</span>
-                            </div>
-                            <div className={styles.quickCapsule}>
-                              <span className={styles.quickCapsuleLabel}>Discover</span>
-                              <span className={styles.quickCapsuleValue}>{agent.is_public ? "Public" : "Private"}</span>
-                            </div>
-                          </div>
-                          <div className={styles.statRow} style={{ marginBottom: 4 }}>
-                            <span className={styles.label}>ERC-8004</span>
-                            <span className={styles.value} style={{ fontSize: "0.85rem", textAlign: "right" }}>
-                              {agent.erc8004_agent_id ? String(agent.erc8004_agent_id) : "—"}
-                            </span>
-                          </div>
-                          {agent.erc8004_agent_id ? (
-                            <p className={styles.challengeHint} style={{ marginTop: 0, marginBottom: 12, fontSize: "0.75rem" }}>
-                              Linked agents get higher shown XP and earn more from games, tournaments, and trades.
-                            </p>
-                          ) : null}
-                          <div className={styles.agentFooter}>
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                              <button
-                                type="button"
-                                className={agent.is_public ? styles.btnSecondary : styles.btnPrimary}
-                                onClick={() => toggleAgentPublic(agent.id, agent.is_public || false)}
-                              >
-                                {agent.is_public ? "Hide from Discover" : "Show in Discover"}
-                              </button>
-                              <button
-                                type="button"
-                                className={styles.btnSecondary}
-                                onClick={() => handleRegisterOnCelo(agent)}
-                                disabled={!isCelo || (isRegisteringErc8004 && registeringErc8004Id === agent.id)}
-                                title={
-                                  isCelo
-                                    ? agent.erc8004_agent_id
-                                      ? "Mint a new ERC-8004 ID and replace the stored link"
-                                      : "Register on ERC-8004 with your browser wallet"
-                                    : "Switch to Celo"
-                                }
-                              >
-                                {isRegisteringErc8004 && registeringErc8004Id === agent.id
-                                  ? "Registering…"
-                                  : agent.erc8004_agent_id
-                                    ? "Re-link on Celo (wallet)"
-                                    : "Register on Celo (browser wallet)"}
-                              </button>
-                            </div>
-                            <button
-                              type="button"
-                              className={styles.walletCapsCta}
-                              onClick={() => {
-                                setMyAgentsSubTab("manage");
-                                setOpenTournamentSpendingJumpAgentId(agent.id);
-                              }}
-                            >
-                              <Trophy className="w-4 h-4 shrink-0" aria-hidden />
-                              {spendOn ? "Edit wallet spending caps" : "Set up wallet spending"}
-                            </button>
-                          </div>
-                        </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className={styles.challengeHint} style={{ textAlign: "center" }}>
-                      No agents yet. Open <strong>Manage &amp; spending</strong> to create one.
-                    </p>
-                  )}
+                <p className={styles.tournamentExplainer}>
+                  Bracket tournaments, registration, and prize pools are not available in the Arena yet. We&apos;ll enable
+                  browsing, creating events, and joining from here in a future release.
+                </p>
+                <div className={styles.tournamentActions}>
+                  <button type="button" disabled className={`${styles.tournamentLinkBtn} ${styles.tournamentBtnDisabled}`}>
+                    <span>All tournaments</span>
+                    <span className={styles.tournamentBtnSoon}>Coming soon</span>
+                  </button>
+                  <button type="button" disabled className={`${styles.tournamentLinkBtn} ${styles.tournamentBtnDisabled}`}>
+                    <span>Create tournament</span>
+                    <span className={styles.tournamentBtnSoon}>Coming soon</span>
+                  </button>
                 </div>
-              ) : (
-                <AgentsPage
-                  embeddedInArena
-                  onSpendingCapsSaved={refreshArenaTournamentPerms}
-                  openTournamentSpendingForAgentId={openTournamentSpendingJumpAgentId}
-                  onTournamentSpendingModalOpened={clearTournamentSpendingJump}
-                />
-              )}
-            </>
+                <p className={styles.tournamentEmpty}>Open registration and full tournament flows will appear here when we launch.</p>
+              </>
+            ) : (
+              <>
+                <p className={styles.tournamentExplainer}>
+                  Agent tournaments only: your bot represents you (same smart-wallet flow as Challenges). Invited-bots events
+                  only allow the Discover agents the organizer picked; open agent-only events accept any registered agent. Open
+                  an event to pick your agent and join.
+                </p>
+                <div className={styles.tournamentActions}>
+                  <Link href="/agent-tournaments" className={styles.tournamentLinkBtn}>
+                    All agent tournaments
+                  </Link>
+                  <Link href="/agent-tournaments/create?from=arena" className={styles.tournamentLinkBtn}>
+                    Create agent tournament
+                  </Link>
+                </div>
+                {tournamentsLoading ? (
+                  <p className={styles.tournamentEmpty}>Loading open tournaments…</p>
+                ) : tournamentsError ? (
+                  <p className={styles.error} style={{ marginTop: 0 }}>
+                    {tournamentsError}
+                  </p>
+                ) : openTournaments.length === 0 ? (
+                  <p className={styles.tournamentEmpty}>No tournaments in registration right now. Create one or check back later.</p>
+                ) : (
+                  <ul className={styles.tournamentList}>
+                    {openTournaments.map((t) => (
+                      <li key={t.id} className={styles.tournamentRow}>
+                        <div className={styles.tournamentRowMain}>
+                          <p className={styles.tournamentRowTitle}>{t.name}</p>
+                          <p className={styles.tournamentRowMeta}>
+                            {t.chain} · {formatTournamentEntryFee(t.entry_fee_wei)}
+                            {t.prize_source ? ` · ${String(t.prize_source).replace(/_/g, " ").toLowerCase()}` : ""}
+                            {String(t.visibility || "").toUpperCase() === "BOT_SELECTION"
+                              ? " · invited bots"
+                              : t.is_agent_only
+                                ? " · open · agents only"
+                                : ""}
+                            {typeof t.participant_count === "number" && typeof t.max_players === "number"
+                              ? ` · ${t.participant_count}/${t.max_players} players`
+                              : ""}
+                          </p>
+                        </div>
+                        <Link href={tournamentHref(t)} className={styles.tournamentRowCta}>
+                          Open →
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </section>
+        )}
+
+        {activeTab === "my-agents" && (
+          myAgentsSubTab === "manage" ? (
+            <AgentsPage
+              embeddedInArena
+              onSpendingCapsSaved={refreshArenaTournamentPerms}
+              openTournamentSpendingForAgentId={openTournamentSpendingJumpAgentId}
+              onTournamentSpendingModalOpened={clearTournamentSpendingJump}
+            />
           ) : (
-            <p className={styles.challengeHint}>
-              Sign in (guest or from the header) to create and manage agents.
-            </p>
-          )}
-        </div>
-      )}
+            <ArenaMyAgentsTab
+              myAgents={myAgents}
+              tournamentPerms={tournamentPerms}
+              subTab={myAgentsSubTab}
+              onSubTabChange={setMyAgentsSubTab}
+              onTogglePublic={toggleAgentPublic}
+              onOpenManageCaps={(agentId) => {
+                setMyAgentsSubTab("manage");
+                setOpenTournamentSpendingJumpAgentId(agentId);
+              }}
+              onRegisterOnCelo={handleRegisterOnCelo}
+              isRegisteringId={registeringErc8004Id}
+            />
+          )
+        )}
       </div>
 
       <ArenaOnchainModal
