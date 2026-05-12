@@ -1,8 +1,6 @@
 "use client";
 
-import { useMediaQuery } from "@/components/useMediaQuery";
-import GameSettings from "@/components/settings/game-settings";
-import GameSttingsMobile from "@/components/settings/game-settings-mobile";
+import GameSettingsOptimized from "@/components/settings/GameSettingsOptimized";
 
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
@@ -10,7 +8,6 @@ import { useIsRegistered } from "@/context/ContractProvider";
 import { Loader2, AlertCircle } from "lucide-react";
 
 export default function GameSettingsPage() {
-  const isMobile = useMediaQuery("(max-width: 768px)");
   const router = useRouter();
   const { address } = useAccount();
 
@@ -55,7 +52,7 @@ export default function GameSettingsPage() {
   // User is registered → show the settings
   return (
     <main className="w-full overflow-x-hidden">
-      {isMobile ? <GameSttingsMobile /> : <GameSettings />}
+      <GameSettingsOptimized />
     </main>
   );
 }
