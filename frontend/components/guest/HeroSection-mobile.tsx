@@ -452,13 +452,10 @@ const HeroSectionMobile: React.FC = () => {
       ref={parallaxRef}
       className="relative w-full min-h-screen min-h-[100dvh] bg-[#010F10] overflow-hidden z-0"
     >
-      {/* Background Image with parallax */}
+      {/* Background Image - no parallax on mobile */}
       <motion.div
         className="absolute inset-0"
-        animate={{
-          x: mousePosition.x * 8,
-          y: mousePosition.y * 8,
-        }}
+        animate={{}}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
         <Image

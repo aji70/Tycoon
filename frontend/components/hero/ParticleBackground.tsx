@@ -10,12 +10,9 @@ export function ParticleBackground() {
     setIsMobile(window.innerWidth < 768);
   }, []);
 
-  // Disable on mobile for better performance
-  if (isMobile) {
-    return null;
-  }
-
   useEffect(() => {
+    if (isMobile) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -75,7 +72,7 @@ export function ParticleBackground() {
 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  }, [isMobile]);
 
   return (
     <canvas
