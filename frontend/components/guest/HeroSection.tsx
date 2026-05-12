@@ -31,7 +31,6 @@ import { HUDLevelBadge } from "@/components/hero/HUDLevelBadge";
 import { NeonTitle } from "@/components/hero/NeonTitle";
 import { GlowButton } from "@/components/hero/GlowButton";
 import { WorldStatsBar } from "@/components/hero/WorldStatsBar";
-import { ProfileDropdown } from "@/components/hero/ProfileDropdown";
 
 function chainIdToBackendChain(chainId: number): string {
   if (chainId === 137 || chainId === 80001) return "POLYGON";
@@ -68,6 +67,7 @@ const HeroSection: React.FC = () => {
     if (isPrivyAuthed) void logout();
   };
 
+  const [isMobile, setIsMobile] = useState(false);
   const [loading, setLoading] = useState(false);
   const [inputUsername, setInputUsername] = useState("");
   const [localRegistered, setLocalRegistered] = useState(false);
@@ -166,8 +166,15 @@ const HeroSection: React.FC = () => {
     };
   }, [guestUser, address]);
 
-  // Parallax mouse tracking
+  // Detect mobile and disable parallax for better performance
   useEffect(() => {
+    setIsMobile(window.innerWidth < 768);
+  }, []);
+
+  // Parallax mouse tracking - disabled on mobile
+  useEffect(() => {
+    if (isMobile) return;
+
     const handleMouseMove = (e: MouseEvent) => {
       if (!parallaxRef.current) return;
       const rect = parallaxRef.current.getBoundingClientRect();
@@ -178,7 +185,7 @@ const HeroSection: React.FC = () => {
 
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
+  }, [isMobile]);
 
   const [user, setUser] = useState<UserType | null>(null);
 
@@ -498,13 +505,17 @@ const HeroSection: React.FC = () => {
       ref={parallaxRef}
       className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-hidden bg-[#010F10]"
     >
-      {/* Background with parallax */}
+      {/* Background with parallax - disabled on mobile */}
       <motion.div
         className="w-full h-full overflow-hidden absolute inset-0"
-        animate={{
-          x: mousePosition.x * 10,
-          y: mousePosition.y * 10,
-        }}
+        animate={
+          isMobile
+            ? {}
+            : {
+                x: mousePosition.x * 10,
+                y: mousePosition.y * 10,
+              }
+        }
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
         <Image
@@ -776,14 +787,6 @@ const HeroSection: React.FC = () => {
               >
                 Agent Battles
               </GlowButton>
-
-              {/* Profile Dropdown with Sign Out */}
-              {(guestUser || isPrivyAuthed) && (
-                <ProfileDropdown
-                  username={displayUsername}
-                  onSignOut={signOutGuestAndPrivy}
-                />
-              )}
             </div>
           ) : null}
 
