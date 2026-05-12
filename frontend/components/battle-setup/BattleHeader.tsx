@@ -7,9 +7,9 @@ interface BattleHeaderProps {
 
 export function BattleHeader({ onBack }: BattleHeaderProps) {
   return (
-    <div className="relative mb-12">
+    <div className="relative mb-6 md:mb-12">
       {/* Glowing background */}
-      <div className="absolute -inset-4 bg-gradient-to-r from-cyan-500/20 via-cyan-400/10 to-cyan-500/20 rounded-2xl blur-3xl opacity-60" />
+      <div className="absolute -inset-4 bg-gradient-to-r from-cyan-500/20 via-cyan-400/10 to-cyan-500/20 rounded-lg md:rounded-2xl blur-3xl opacity-60" />
 
       <div className="relative">
         <motion.button
@@ -17,7 +17,7 @@ export function BattleHeader({ onBack }: BattleHeaderProps) {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.4 }}
           onClick={onBack}
-          className="mb-6 flex items-center gap-2 text-cyan-400 hover:text-cyan-300 font-orbitron text-sm font-bold transition"
+          className="mb-3 md:mb-6 flex items-center gap-2 text-cyan-400 hover:text-cyan-300 font-orbitron text-xs md:text-sm font-bold transition"
         >
           ← BACK TO BASE
         </motion.button>
@@ -28,8 +28,8 @@ export function BattleHeader({ onBack }: BattleHeaderProps) {
           transition={{ duration: 0.5 }}
           className="text-center"
         >
-          <h1 className="text-5xl md:text-6xl font-black font-orbitron uppercase tracking-wider mb-3">
-            <span className="text-4xl md:text-5xl">⚔️</span>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black font-orbitron uppercase tracking-wider mb-2 md:mb-3">
+            <span className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl">⚔️</span>
             <br />
             <span className="bg-gradient-to-r from-cyan-400 via-cyan-300 to-cyan-500 bg-clip-text text-transparent drop-shadow-lg"
               style={{
@@ -42,7 +42,7 @@ export function BattleHeader({ onBack }: BattleHeaderProps) {
               BATTLE SETUP
             </span>
           </h1>
-          <p className="text-cyan-300/70 font-dmSans text-sm tracking-widest uppercase mt-2">
+          <p className="text-cyan-300/70 font-dmSans text-xs sm:text-sm tracking-widest uppercase mt-1 md:mt-2">
             Configure Your Match • Engage Enemy • Dominate
           </p>
         </motion.div>

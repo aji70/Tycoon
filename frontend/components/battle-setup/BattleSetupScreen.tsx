@@ -59,8 +59,8 @@ export default function BattleSetupScreen() {
       <ScanlineOverlay />
 
       {/* Content */}
-      <div className="relative z-10 flex items-center justify-center min-h-screen p-4 sm:p-6 lg:p-8">
-        <div className="w-full max-w-6xl">
+      <div className="relative z-10 flex items-center justify-center min-h-screen p-3 sm:p-4 md:p-6 lg:p-8">
+        <div className="w-full max-w-[1100px] mx-auto">
           {/* Header */}
           <BattleHeader onBack={() => router.push("/")} />
 
@@ -69,10 +69,10 @@ export default function BattleSetupScreen() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="grid lg:grid-cols-3 gap-6 mb-8"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 lg:gap-6 mb-6 md:mb-8"
           >
             {/* Column 1: Piece & Opponents */}
-            <div className="space-y-6">
+            <div className="space-y-3 md:space-y-4 lg:space-y-6">
               {/* Piece Selector */}
               <LoadoutCard
                 icon="🎯"
@@ -107,7 +107,7 @@ export default function BattleSetupScreen() {
             </div>
 
             {/* Column 2: Difficulty & Cash */}
-            <div className="space-y-6">
+            <div className="space-y-3 md:space-y-4 lg:space-y-6">
               {/* AI Difficulty - BOSS MODE dangerous */}
               <LoadoutCard
                 icon="⚡"
@@ -154,7 +154,7 @@ export default function BattleSetupScreen() {
             </div>
 
             {/* Column 3: Duration & House Rules */}
-            <div className="space-y-6">
+            <div className="space-y-3 md:space-y-4 lg:space-y-6">
               {/* Game Duration */}
               <LoadoutCard
                 icon={<Clock className="w-6 h-6" />}

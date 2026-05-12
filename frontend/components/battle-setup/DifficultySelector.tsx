@@ -23,8 +23,8 @@ export function DifficultySelector({
   onRandomModeChange,
 }: DifficultySelectorProps) {
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+    <div className="space-y-3 md:space-y-4">
+      <div className="grid grid-cols-3 gap-2 md:gap-3">
         {difficulties.map((diff, idx) => (
           <motion.button
             key={diff.id}
@@ -34,7 +34,7 @@ export function DifficultySelector({
             onClick={() => onChange(diff.id)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className={`relative p-4 rounded-xl transition-all duration-300 border-2 font-orbitron ${
+            className={`relative p-2 md:p-4 rounded-lg md:rounded-xl transition-all duration-300 border-2 font-orbitron ${
               selected === diff.id
                 ? diff.danger
                   ? "border-red-500 bg-red-600/30 shadow-lg shadow-red-600/60"
@@ -49,18 +49,18 @@ export function DifficultySelector({
               <motion.div
                 animate={{ opacity: [0.4, 0.8, 0.4] }}
                 transition={{ duration: 2, repeat: Infinity }}
-                className="absolute -inset-1 bg-gradient-to-r from-red-600/40 to-orange-600/30 rounded-xl blur-lg -z-10"
+                className="absolute -inset-1 bg-gradient-to-r from-red-600/40 to-orange-600/30 rounded-lg md:rounded-xl blur-lg -z-10"
               />
             )}
 
             {/* Normal glow */}
             {!diff.danger && selected === diff.id && (
-              <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500/30 to-cyan-400/20 rounded-xl blur-lg -z-10" />
+              <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500/30 to-cyan-400/20 rounded-lg md:rounded-xl blur-lg -z-10" />
             )}
 
-            <div className="text-2xl mb-1">{diff.icon}</div>
-            <div className="text-sm font-bold text-white">{diff.label}</div>
-            <div className="text-xs opacity-70 text-slate-300">{diff.desc}</div>
+            <div className="text-xl md:text-2xl mb-1">{diff.icon}</div>
+            <div className="text-xs md:text-sm font-bold text-white">{diff.label}</div>
+            <div className="text-xs opacity-70 text-slate-300 hidden md:block">{diff.desc}</div>
 
             {selected === diff.id && (
               <motion.div

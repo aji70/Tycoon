@@ -52,7 +52,7 @@ export default function PlayAI3DPage() {
 
   return (
     <main className="w-full overflow-x-hidden min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950">
-      {isMobile ? <PlayWithAI3DMobile /> : <PlayWithAI3D />}
+      <PlayWithAI3D />
     </main>
   );
 }
