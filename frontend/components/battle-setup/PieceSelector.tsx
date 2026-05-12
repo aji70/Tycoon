@@ -9,7 +9,7 @@ interface PieceSelectorProps {
 
 export function PieceSelector({ selected, onChange }: PieceSelectorProps) {
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+    <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-3">
       {GamePieces.map((piece, idx) => (
         <motion.button
           key={piece.id}
@@ -19,7 +19,7 @@ export function PieceSelector({ selected, onChange }: PieceSelectorProps) {
           onClick={() => onChange(piece.id)}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className={`relative p-4 rounded-xl transition-all duration-300 border-2 group ${
+          className={`relative p-2 md:p-4 rounded-lg md:rounded-xl transition-all duration-300 border-2 group ${
             selected === piece.id
               ? "border-cyan-400 bg-cyan-500/20 shadow-lg shadow-cyan-500/50"
               : "border-cyan-500/30 bg-slate-800/40 hover:border-cyan-400/60"
@@ -29,12 +29,12 @@ export function PieceSelector({ selected, onChange }: PieceSelectorProps) {
           {selected === piece.id && (
             <motion.div
               layoutId="selectedPiece"
-              className="absolute -inset-1 bg-gradient-to-r from-cyan-500/30 to-cyan-400/20 rounded-xl blur-lg -z-10"
+              className="absolute -inset-1 bg-gradient-to-r from-cyan-500/30 to-cyan-400/20 rounded-lg md:rounded-xl blur-lg -z-10"
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
             />
           )}
 
-          <div className="text-3xl mb-2">{piece.emoji}</div>
+          <div className="text-2xl md:text-3xl mb-1 md:mb-2">{piece.emoji}</div>
           <div className="text-xs font-orbitron text-cyan-300 font-bold text-center">
             {piece.name}
           </div>
