@@ -1,10 +1,11 @@
 "use client";
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import herobg from "@/public/heroBg.png";
 import Image from "next/image";
 import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { useAccount, useChainId, useSignMessage, usePublicClient } from "wagmi";
 import {
   useIsRegistered,
@@ -24,6 +25,13 @@ import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
+import { ParticleBackground } from "@/components/hero/ParticleBackground";
+import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
+import { HUDLevelBadge } from "@/components/hero/HUDLevelBadge";
+import { NeonTitle } from "@/components/hero/NeonTitle";
+import { GlowButton } from "@/components/hero/GlowButton";
+import { WorldStatsBar } from "@/components/hero/WorldStatsBar";
+import { ProfileDropdown } from "@/components/hero/ProfileDropdown";
 
 function chainIdToBackendChain(chainId: number): string {
   if (chainId === 137 || chainId === 80001) return "POLYGON";
@@ -109,6 +117,8 @@ const HeroSection: React.FC = () => {
   const [backendGame, setBackendGame] = useState<{ status: string; is_ai?: boolean } | null>(null);
   const [guestLastGame, setGuestLastGame] = useState<{ code: string; status: string; is_ai?: boolean } | null>(null);
   const [guestGameCount, setGuestGameCount] = useState(0);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const parallaxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!gameCode || typeof gameCode !== "string") {
@@ -155,6 +165,20 @@ const HeroSection: React.FC = () => {
       cancelled = true;
     };
   }, [guestUser, address]);
+
+  // Parallax mouse tracking
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!parallaxRef.current) return;
+      const rect = parallaxRef.current.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      setMousePosition({ x, y });
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
 
   const [user, setUser] = useState<UserType | null>(null);
 
@@ -470,12 +494,23 @@ const HeroSection: React.FC = () => {
   }
 
   return (
-    <section className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10]">
-      <div className="w-full h-full overflow-hidden">
+    <section
+      ref={parallaxRef}
+      className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-hidden bg-[#010F10]"
+    >
+      {/* Background with parallax */}
+      <motion.div
+        className="w-full h-full overflow-hidden absolute inset-0"
+        animate={{
+          x: mousePosition.x * 10,
+          y: mousePosition.y * 10,
+        }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      >
         <Image
           src={herobg}
           alt="Hero Background"
-          className="w-full h-full object-cover hero-bg-zoom"
+          className="w-full h-full object-cover"
           width={1440}
           height={1024}
           priority
@@ -483,36 +518,37 @@ const HeroSection: React.FC = () => {
           sizes="100vw"
           quality={80}
         />
-      </div>
+      </motion.div>
 
-      <div className="w-full h-auto absolute top-0 left-0 flex items-center justify-center">
-        <h1 className="text-center uppercase font-kronaOne font-normal text-transparent big-hero-text w-full text-[40px] sm:text-[40px] md:text-[80px] lg:text-[135px] relative before:absolute before:content-[''] before:w-full before:h-full before:bg-gradient-to-b before:from-transparent lg:before:via-[#010F10]/80 before:to-[#010F10] before:top-0 before:left-0 before:z-1">
-          TYCOON
-        </h1>
-      </div>
+      {/* Particle effects */}
+      <ParticleBackground />
 
-      <main className="w-full h-full absolute top-0 left-0 z-2 bg-transparent flex flex-col lg:justify-center items-center gap-1">
-        {/* Welcome Message + Level */}
+      {/* Scanline and grid overlay */}
+      <ScanlineOverlay />
+
+      {/* Gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#010F10]/20 to-[#010F10]/60 z-5" />
+
+      <main className="w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col lg:justify-center items-center gap-1 px-4">
+        {/* Welcome Message + Enhanced HUD Level */}
         {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "privy") && !loading && (
-          <div className="mt-20 md:mt-28 lg:mt-0 flex flex-col items-center gap-2">
-            <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
+          <div className="mt-20 md:mt-28 lg:mt-0 flex flex-col items-center gap-4">
+            <motion.p
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center"
+            >
               Welcome back, {displayUsername}!
-            </p>
+            </motion.p>
             {levelInfo && (
-              <div className="flex flex-col items-center gap-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="game-badge text-[10px] md:text-xs">LEVEL {levelInfo.level}</span>
-                  <span className="game-level-label text-[10px] md:text-xs opacity-90">{levelInfo.label}</span>
-                </div>
-                {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
-                  <div className="w-32 h-1.5 rounded-full bg-[#0E282A] overflow-hidden border border-[#003B3E]/60">
-                    <div
-                      className="h-full rounded-full bg-[#00F0FF] transition-all duration-500"
-                      style={{ width: `${Math.round(levelInfo.progress * 100)}%` }}
-                    />
-                  </div>
-                )}
-              </div>
+              <HUDLevelBadge
+                level={levelInfo.level}
+                label={levelInfo.label}
+                progress={levelInfo.progress}
+                maxXp={levelInfo.xpForNextLevel || 100}
+                currentXp={levelInfo.currentXp || 0}
+              />
             )}
           </div>
         )}
@@ -550,12 +586,7 @@ const HeroSection: React.FC = () => {
           />
         </div>
 
-        <h1 className="block-text font-[900] font-orbitron lg:text-[116px] md:text-[98px] text-[54px] lg:leading-[120px] md:leading-[100px] leading-[60px] tracking-[-0.02em] uppercase text-[#17ffff] relative">
-          TYCOON
-          <span className="absolute top-0 left-[69%] text-[#0FF0FC] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 animate-pulse">
-            ?
-          </span>
-        </h1>
+        <NeonTitle text="TYCOON" size="lg" />
 
         <div className="w-full px-4 md:w-[70%] lg:w-[55%] text-center text-[#F0F7F7] -tracking-[2%]">
           <TypeAnimation
@@ -587,75 +618,44 @@ const HeroSection: React.FC = () => {
         <div className="z-1 w-full flex min-h-[152px] flex-col justify-center items-center mt-6 gap-4">
           {/* EOA mandatory Privy: wallet connected but not signed in with Privy — must sign in with Privy to continue */}
           {address && !isPrivyAuthed && !loading && (
-            <div className="w-[80%] md:w-[400px] flex flex-col gap-4 items-center">
+            <div className="w-full flex flex-col gap-4 items-center">
               <p className="text-[#869298] text-sm text-center font-dmSans">
                 Sign in with Privy to continue
               </p>
-              <button
-                type="button"
+              <GlowButton
                 onClick={() => login()}
-                className="relative group w-full sm:w-auto min-w-[220px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
+                variant="primary"
+                size="lg"
               >
-                <svg
-                  width="260"
-                  height="52"
-                  viewBox="0 0 260 52"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-[260px] transform scale-x-[-1]"
-                >
-                  <path
-                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
-                    fill="#00F0FF"
-                    stroke="#0E282A"
-                    strokeWidth={2}
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] font-orbitron font-[700] z-2">
-                  Sign in with Privy
-                </span>
-              </button>
+                Sign in with Privy
+              </GlowButton>
             </div>
           )}
 
           {/* Wallet: username input for new users (only when Privy-authed) */}
           {address && isPrivyAuthed && registrationStatus === "none" && !loading && (
-            <input
+            <motion.input
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
               type="text"
               value={inputUsername}
               onChange={(e) => setInputUsername(e.target.value)}
               placeholder="Choose your tycoon name"
-              className="w-[80%] md:w-[260px] h-[45px] bg-[#0E1415] rounded-[12px] border-[1px] border-[#003B3E] outline-none px-3 text-[#17ffff] font-orbitron font-[400] text-[16px] text-center placeholder:text-[#455A64] placeholder:font-dmSans focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0E1415] focus:border-cyan-500/50"
+              className="w-[80%] md:w-[260px] h-[45px] bg-[#0E1415] rounded-[12px] border-[2px] border-[#003B3E] outline-none px-3 text-[#17ffff] font-orbitron font-[400] text-[16px] text-center placeholder:text-[#455A64] placeholder:font-dmSans focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0E1415] focus:border-cyan-500 transition-colors duration-300"
             />
           )}
 
           {/* When disconnected: "Let's Go!" = Sign in with email only (Privy). Wallet can be added after sign-in in Profile. */}
           {!address && registrationStatus === "disconnected" && !loading && (
-            <div className="w-[80%] md:w-[400px] flex flex-col gap-4 items-center">
-              <button
-                type="button"
+            <div className="w-full flex flex-col gap-4 items-center">
+              <GlowButton
                 onClick={() => login()}
-                className="relative group w-full sm:w-auto min-w-[220px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
+                variant="primary"
+                size="lg"
               >
-                <svg
-                  width="260"
-                  height="52"
-                  viewBox="0 0 260 52"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-[260px] transform scale-x-[-1]"
-                >
-                  <path
-                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
-                    fill="#00F0FF"
-                    stroke="#0E282A"
-                    strokeWidth={2}
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] font-orbitron font-[700] z-2">
-                  Let&apos;s Go!
-                </span>
-              </button>
+                Let&apos;s Go!
+              </GlowButton>
               <p className="text-[#869298] text-xs text-center font-dmSans">
                 Sign in with email · Add a wallet later in Profile if you want
               </p>
@@ -664,34 +664,19 @@ const HeroSection: React.FC = () => {
 
           {/* "Let's Go!" for wallet users (backend-only or none) — only when Privy-authed */}
           {address && isPrivyAuthed && registrationStatus !== "fully-registered" && !loading && (
-            <button
+            <GlowButton
               onClick={handleRegister}
               disabled={
                 loading ||
                 registerPending ||
                 (registrationStatus === "none" && !inputUsername.trim())
               }
-              className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
+              variant="primary"
+              size="lg"
+              glow={!disabled}
             >
-              <svg
-                width="260"
-                height="52"
-                viewBox="0 0 260 52"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]"
-              >
-                <path
-                  d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
-                  fill="#00F0FF"
-                  stroke="#0E282A"
-                  strokeWidth={1}
-                />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] -tracking-[2%] font-orbitron font-[700] z-2">
-                {loading || registerPending ? "Registering..." : "Let's Go!"}
-              </span>
-            </button>
+              {loading || registerPending ? "Registering..." : "Let's Go!"}
+            </GlowButton>
           )}
           {address && isPrivyAuthed && registrationStatus !== "fully-registered" && !loading && (
             <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
@@ -701,46 +686,41 @@ const HeroSection: React.FC = () => {
 
           {/* Register + Link wallet: when Privy/guest without smart wallet — hide when action buttons are shown */}
           {(registrationStatus === "privy" || (address && isPrivyAuthed && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || isPrivyAuthed) && !loading && !((address && registrationStatus === "fully-registered" && isPrivyAuthed) || (registrationStatus === "privy" && (guestUser || isPrivyAuthed))) && (
-            <div className="flex flex-col items-center gap-4 mt-4">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="flex flex-col items-center gap-4 mt-4"
+            >
               <p className="text-[#869298] text-sm text-center max-w-sm">
                 Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.
               </p>
               <div className="flex flex-wrap justify-center gap-3">
                 {canRegisterOnChain && (
-                  <button
-                    type="button"
+                  <GlowButton
                     onClick={handleRegisterOnChain}
                     disabled={registerOnChainLoading}
-                    className="relative group w-[200px] h-[44px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
+                    variant="primary"
+                    size="sm"
                   >
-                    <svg width="200" height="44" viewBox="0 0 200 44" fill="none" className="absolute inset-0 w-full h-full">
-                      <path d="M8 1H192C196.418 1 198.997 5.85486 196.601 9.5127L178.167 39.5127C177.151 41.0646 175.42 42 173.565 42H8C4.96243 42 2.5 39.5376 2.5 36.5V8.5C2.5 5.46243 4.96243 3 8 3Z" fill="#00F0FF" stroke="#0E282A" strokeWidth={1} />
-                    </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-[700] z-2">
-                      {registerOnChainLoading ? "Registering..." : "Register"}
-                    </span>
-                  </button>
+                    {registerOnChainLoading ? "Registering..." : "Register"}
+                  </GlowButton>
                 )}
                 {needsTransferToLink && (
                   <p className="text-amber-300/90 text-xs text-center max-w-[280px]">
                     Transfer profile first: open Profile and use &quot;Transfer profile to address&quot; with this wallet, then link here.
                   </p>
                 )}
-                <button
-                  type="button"
+                <GlowButton
                   onClick={needsTransferToLink ? () => { router.push("/profile"); toast.info("Use Transfer profile to address with your current wallet, then come back and Link."); } : handleLinkWallet}
                   disabled={linkWalletLoading}
-                  className="relative group w-[200px] h-[44px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
+                  variant="secondary"
+                  size="sm"
                 >
-                  <svg width="200" height="44" viewBox="0 0 200 44" fill="none" className="absolute inset-0 w-full h-full">
-                    <path d="M8 1H192C196.418 1 198.997 5.85486 196.601 9.5127L178.167 39.5127C177.151 41.0646 175.42 42 173.565 42H8C4.96243 42 2.5 39.5376 2.5 36.5V8.5C2.5 5.46243 4.96243 3 8 3Z" fill="#003B3E" stroke="#00F0FF" strokeWidth={1} />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-sm font-orbitron font-[700] z-2">
-                    {linkWalletLoading ? "Linking..." : needsTransferToLink ? "Go to Profile" : address ? "Link wallet" : "Connect wallet"}
-                  </span>
-                </button>
+                  {linkWalletLoading ? "Linking..." : needsTransferToLink ? "Go to Profile" : address ? "Link wallet" : "Connect wallet"}
+                </GlowButton>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {/* Action buttons: require Privy for EOA; guest/Privy. Show when fully set up (hasSmartWallet preferred, but allow linked/registered users to try). */}
@@ -749,146 +729,61 @@ const HeroSection: React.FC = () => {
               {/* Continue Previous Game - Highlighted (wallet: from contract; guest: from my-games) */}
               {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
                 (guestUser && guestLastGame && guestLastGame.status !== "COMPLETED" && guestLastGame.status !== "CANCELLED")) && (
-                <button
+                <GlowButton
                   onClick={handleContinuePrevious}
-                  className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
+                  variant="primary"
+                  size="lg"
+                  icon={<Gamepad2 className="w-5 h-5" />}
                 >
-                  <svg
-                    width="300"
-                    height="56"
-                    viewBox="0 0 300 56"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="absolute top-0 left-0 w-full h-full transform scale-x-[-1] group-hover:animate-pulse"
-                  >
-                    <path
-                      d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
-                      fill="#00F0FF"
-                      stroke="#0E282A"
-                      strokeWidth={2}
-                    />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[20px] font-orbitron font-[700] z-2">
-                    <Gamepad2 className="mr-2 w-7 h-7" />
-                    Continue Game
-                  </span>
-                </button>
+                  Continue Game
+                </GlowButton>
               )}
 
               {/* Play with Friends */}
-              <button
+              <GlowButton
                 onClick={() => router.push("/game-settings-3d")}
-                className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+                variant="secondary"
+                size="sm"
+                icon={<Gamepad2 className="w-4 h-4" />}
               >
-                <svg
-                  width="227"
-                  height="40"
-                  viewBox="0 0 227 40"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full transform scale-x-[-1] scale-y-[-1]"
-                >
-                  <path
-                    d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                    fill="#003B3E"
-                    stroke="#003B3E"
-                    strokeWidth={1}
-                    className="group-hover:stroke-[#00F0FF] transition-all duration-300"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
-                  <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
-                  Multiplayer
-                </span>
-              </button>
+                Multiplayer
+              </GlowButton>
 
               {/* Join Room */}
-              <button
+              <GlowButton
                 onClick={() => router.push("/join-room-3d")}
-                className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+                variant="tertiary"
+                size="sm"
+                icon={<Dices className="w-4 h-4" />}
               >
-                <svg
-                  width="140"
-                  height="40"
-                  viewBox="0 0 140 40"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full"
-                >
-                  <path
-                    d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                    fill="#0E1415"
-                    stroke="#003B3E"
-                    strokeWidth={1}
-                    className="group-hover:stroke-[#00F0FF] transition-all duration-300"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
-                  <Dices className="mr-1.5 w-[16px] h-[16px]" />
-                  Join Room
-                </span>
-              </button>
-
-              {(guestUser || isPrivyAuthed) && (
-                <button
-                  type="button"
-                  onClick={() => signOutGuestAndPrivy()}
-                  className="text-[#869298] hover:text-[#00F0FF] font-dmSans text-xs"
-                >
-                  Sign out
-                </button>
-              )}
+                Join Room
+              </GlowButton>
 
               {/* Challenge AI */}
-              <button
+              <GlowButton
                 onClick={() => router.push("/play-ai-3d")}
-                className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
+                variant="primary"
+                size="lg"
               >
-                <svg
-                  width="260"
-                  height="52"
-                  viewBox="0 0 260 52"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full transform scale-x-[-1] group-hover:animate-pulse"
-                >
-                  <path
-                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
-                    fill="#00F0FF"
-                    stroke="#0E282A"
-                    strokeWidth={1}
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
-                  Challenge AI!
-                </span>
-              </button>
+                Challenge AI!
+              </GlowButton>
 
               {/* Agent Battles */}
-              <button
+              <GlowButton
                 onClick={() => router.push("/arena")}
-                className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
+                variant="secondary"
+                size="lg"
               >
-                <svg
-                  width="260"
-                  height="52"
-                  viewBox="0 0 260 52"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]"
-                >
-                  <path
-                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
-                    fill="#003B3E"
-                    stroke="#00F0FF"
-                    strokeWidth={1}
-                    className="group-hover:stroke-[#0FF0FC] transition-all duration-300"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
-                  Agent Battles
-                </span>
-              </button>
+                Agent Battles
+              </GlowButton>
+
+              {/* Profile Dropdown with Sign Out */}
+              {(guestUser || isPrivyAuthed) && (
+                <ProfileDropdown
+                  username={displayUsername}
+                  onSignOut={signOutGuestAndPrivy}
+                />
+              )}
             </div>
           ) : null}
 
@@ -899,6 +794,13 @@ const HeroSection: React.FC = () => {
           )}
         </div>
       </main>
+
+      {/* World Stats Bar */}
+      <WorldStatsBar
+        playersOnline={1234}
+        propertiesOwned={5678}
+        tokensInPlay="12.5M"
+      />
     </section>
   );
 };
