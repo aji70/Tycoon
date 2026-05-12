@@ -99,8 +99,8 @@ export default function BattleSetupOptimized() {
                             : "border-cyan-500/30 bg-slate-800/40 hover:border-cyan-400/60"
                         }`}
                       >
-                        <div className="text-2xl mb-1">{PIECE_EMOJI[piece.id]}</div>
-                        <div className="text-xs font-orbitron text-cyan-300 font-bold text-center line-clamp-3 px-0.5">
+                        <div className="text-xl mb-1">{PIECE_EMOJI[piece.id]}</div>
+                        <div className="text-[10px] font-orbitron text-cyan-300 font-bold text-center line-clamp-2 px-0.5 leading-tight">
                           {piece.name}
                         </div>
                         {settings.symbol === piece.id && (
