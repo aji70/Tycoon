@@ -7,6 +7,18 @@ interface PieceSelectorProps {
   onChange: (id: string) => void;
 }
 
+const PIECE_EMOJI: Record<string, string> = {
+  hat: "🎩",
+  car: "🚗",
+  dog: "🐕",
+  thimble: "🔧",
+  wheelbarrow: "🛒",
+  battleship: "🚢",
+  boot: "👢",
+  iron: "♨️",
+  top_hat: "🎩",
+};
+
 export function PieceSelector({ selected, onChange }: PieceSelectorProps) {
   return (
     <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-3">
@@ -19,7 +31,7 @@ export function PieceSelector({ selected, onChange }: PieceSelectorProps) {
           onClick={() => onChange(piece.id)}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className={`relative p-2 md:p-4 rounded-lg md:rounded-xl transition-all duration-300 border-2 group ${
+          className={`relative p-2 md:p-4 rounded-lg md:rounded-xl transition-all duration-300 border-2 group flex flex-col items-center justify-center min-h-24 ${
             selected === piece.id
               ? "border-cyan-400 bg-cyan-500/20 shadow-lg shadow-cyan-500/50"
               : "border-cyan-500/30 bg-slate-800/40 hover:border-cyan-400/60"
@@ -34,8 +46,8 @@ export function PieceSelector({ selected, onChange }: PieceSelectorProps) {
             />
           )}
 
-          <div className="text-2xl md:text-3xl mb-1 md:mb-2">{piece.emoji}</div>
-          <div className="text-xs font-orbitron text-cyan-300 font-bold text-center">
+          <div className="text-2xl md:text-3xl mb-1 md:mb-2">{PIECE_EMOJI[piece.id] || "?"}</div>
+          <div className="text-xs font-orbitron text-cyan-300 font-bold text-center truncate px-1 max-w-full">
             {piece.name}
           </div>
 

@@ -1,8 +1,7 @@
 "use client";
 
 import { useMediaQuery } from "@/components/useMediaQuery";
-import PlayWithAI3D from "@/components/settings/game-ai-3d";
-import PlayWithAI3DMobile from "@/components/settings/game-ai-3d-mobile";
+import BattleSetupWizard from "@/components/battle-setup/BattleSetupWizard";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useIsRegistered } from "@/context/ContractProvider";
@@ -52,7 +51,7 @@ export default function PlayAI3DPage() {
 
   return (
     <main className="w-full overflow-x-hidden min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950">
-      <PlayWithAI3D />
+      <BattleSetupWizard />
     </main>
   );
 }
