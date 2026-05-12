@@ -483,7 +483,7 @@ const HeroSectionMobile: React.FC = () => {
       <div className="relative z-20 flex flex-col items-center px-4 sm:px-5 pt-[calc(env(safe-area-inset-top)+8rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] min-h-screen min-h-[100dvh]">
         {/* Title - Neon effect for mobile */}
         <div className="relative w-full flex justify-center mt-0 sm:mt-2">
-          <NeonTitle text="TYCOON" size="sm" />
+          <NeonTitle text="TYCOON" size="md" />
         </div>
 
         {/* Welcome / Loading message + Enhanced Level */}
