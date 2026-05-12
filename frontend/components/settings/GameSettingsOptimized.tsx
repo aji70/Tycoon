@@ -96,7 +96,7 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
   const [settings, setSettings] = useState({
     symbol: "hat",
     maxPlayers: 2,
-    privateRoom: true,
+    privateRoom: false,
     auction: true,
     rentInPrison: false,
     mortgage: true,
