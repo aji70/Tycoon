@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { FaUsers, FaUser, FaCoins, FaBrain } from "react-icons/fa6";
-import { House } from "lucide-react";
+import { FaCoins } from "react-icons/fa6";
+import { motion } from "framer-motion";
 import {
   Select,
   SelectContent,
@@ -11,11 +11,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/game-switch";
-import { MdPrivateConnectivity } from "react-icons/md";
 import { RiAuctionFill } from "react-icons/ri";
 import { GiBank, GiPrisoner } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
 import { useRouter } from "next/navigation";
+import {
+  WARoomHeader,
+  PieceTileSelector,
+  PlayerSlots,
+  CashPicker,
+  DurationDial,
+  PrivateLock,
+  WARoomLaunchButton,
+} from "@/components/game-setup";
 import {
   useAccount,
   useChainId,
@@ -305,22 +313,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
     <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col pb-10 pt-[70px]">
       {/* Header */}
       <div className="px-5 pt-6 pb-4">
-        <div className="flex justify-between items-center">
-          <button
-            onClick={() => router.push("/")}
-            className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition"
-          >
-            <House className="w-5 h-5" />
-            <span className="font-bold text-sm">BACK</span>
-          </button>
-          <div>
-            <h1 className="text-2xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-              CREATE
-            </h1>
-            <p className="text-[10px] text-cyan-400/80">Human vs human. AI: use Play vs AI.</p>
-          </div>
-          <div className="w-14" />
-        </div>
+        <WARoomHeader />
       </div>
 
       {/* Main content */}
@@ -361,58 +354,29 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
           </div>
         )}
 
-        {/* Your Piece & Max Players - compact row */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-gradient-to-br from-cyan-900/35 to-blue-900/35 rounded-xl p-4 border border-cyan-500/25">
-            <div className="flex items-center gap-2 mb-2">
-              <FaUser className="w-4 h-4 text-cyan-400" />
-              <h3 className="text-sm font-bold text-cyan-300">Your Piece</h3>
-            </div>
-            <Select value={settings.symbol} onValueChange={(v) => setSettings(p => ({ ...p, symbol: v }))}>
-              <SelectTrigger className="h-10 bg-black/60 border-cyan-500/30 text-white text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {GamePieces.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        {/* Your Piece - Mobile version */}
+        <div className="bg-gradient-to-br from-cyan-900/35 to-blue-900/35 rounded-xl p-4 border border-cyan-500/25">
+          <PieceTileSelector
+            value={settings.symbol}
+            onChange={(v) => setSettings((p) => ({ ...p, symbol: v }))}
+          />
+        </div>
 
-          <div className="bg-gradient-to-br from-purple-900/35 to-pink-900/35 rounded-xl p-4 border border-purple-500/25">
-            <div className="flex items-center gap-2 mb-2">
-              <FaUsers className="w-4 h-4 text-purple-400" />
-              <h3 className="text-sm font-bold text-purple-300">Players</h3>
-            </div>
-            <Select value={settings.maxPlayers.toString()} onValueChange={(v) => setSettings(p => ({ ...p, maxPlayers: +v }))}>
-              <SelectTrigger className="h-10 bg-black/60 border-purple-500/30 text-white text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[2,3,4,5,6,7,8].map(n => (
-                  <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        {/* Max Players - Mobile version */}
+        <div className="bg-gradient-to-br from-purple-900/35 to-pink-900/35 rounded-xl p-4 border border-purple-500/25">
+          <PlayerSlots
+            count={settings.maxPlayers}
+            onChange={(n) => setSettings((p) => ({ ...p, maxPlayers: n }))}
+            max={8}
+          />
         </div>
 
         {/* Private Room */}
         <div className="bg-black/60 rounded-xl p-4 border border-gray-600/60">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <MdPrivateConnectivity className="w-5 h-5 text-emerald-400" />
-              <div>
-                <h3 className="text-sm font-bold text-white">Private</h3>
-                <p className="text-gray-400 text-[10px]">Code only</p>
-              </div>
-            </div>
-            <Switch
-              checked={settings.privateRoom}
-              onCheckedChange={(v) => setSettings(p => ({ ...p, privateRoom: v }))}
-            />
-          </div>
+          <PrivateLock
+            checked={settings.privateRoom}
+            onCheckedChange={(v) => setSettings((p) => ({ ...p, privateRoom: v }))}
+          />
         </div>
 
         {/* Stake - hidden for guests */}
@@ -467,67 +431,76 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
         </div>
         )}
 
-        {/* Starting Cash & Duration */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-gradient-to-br from-amber-900/35 to-orange-900/35 rounded-xl p-4 border border-amber-500/25">
-            <div className="flex items-center gap-2 mb-2">
-              <FaCoins className="w-4 h-4 text-amber-400" />
-              <h3 className="text-sm font-bold text-amber-300">Cash</h3>
-            </div>
-            <Select value={settings.startingCash.toString()} onValueChange={(v) => setSettings(p => ({ ...p, startingCash: +v }))}>
-              <SelectTrigger className="h-10 bg-black/60 border-amber-500/30 text-white text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="500">$500</SelectItem>
-                <SelectItem value="1000">$1,000</SelectItem>
-                <SelectItem value="1500">$1,500</SelectItem>
-                <SelectItem value="2000">$2,000</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        {/* Starting Cash */}
+        <div className="bg-gradient-to-br from-amber-900/35 to-orange-900/35 rounded-xl p-4 border border-amber-500/25">
+          <CashPicker
+            value={settings.startingCash}
+            onChange={(v) => setSettings((p) => ({ ...p, startingCash: v }))}
+          />
+        </div>
 
-          <div className="bg-gradient-to-br from-indigo-900/35 to-purple-900/35 rounded-xl p-4 border border-indigo-500/25">
-            <div className="flex items-center gap-2 mb-2">
-              <FaBrain className="w-4 h-4 text-indigo-400" />
-              <h3 className="text-sm font-bold text-indigo-300">Time</h3>
-            </div>
-            <Select value={settings.duration.toString()} onValueChange={(v) => setSettings(p => ({ ...p, duration: +v }))}>
-              <SelectTrigger className="h-10 bg-black/60 border-indigo-500/30 text-white text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="30">30m</SelectItem>
-                <SelectItem value="45">45m</SelectItem>
-                <SelectItem value="60">60m</SelectItem>
-                <SelectItem value="90">90m</SelectItem>
-                <SelectItem value="0">∞</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        {/* Duration */}
+        <div className="bg-gradient-to-br from-indigo-900/35 to-purple-900/35 rounded-xl p-4 border border-indigo-500/25">
+          <DurationDial
+            value={settings.duration}
+            onChange={(v) => setSettings((p) => ({ ...p, duration: v }))}
+          />
         </div>
 
         {/* House Rules */}
         <div className="bg-black/60 rounded-xl p-4 border border-cyan-500/30">
-          <h3 className="text-base font-bold text-cyan-400 mb-3 text-center">House Rules</h3>
+          <h3 className="text-base font-bold text-cyan-400 mb-3 text-center uppercase tracking-wider">MISSION PARAMETERS</h3>
           <div className="space-y-2">
             {[
-              { icon: RiAuctionFill, label: "Auction Unsold", key: "auction" },
-              { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
-              { icon: GiBank, label: "Mortgages", key: "mortgage" },
-              { icon: IoBuild, label: "Even Build", key: "evenBuild" },
-            ].map((item) => (
-              <div key={item.key} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <item.icon className="w-4 h-4 text-cyan-400" />
-                  <span className="text-gray-300 text-sm">{item.label}</span>
-                </div>
-                <Switch
-                  checked={settings[item.key as keyof typeof settings] as boolean}
-                  onCheckedChange={(v) => setSettings(p => ({ ...p, [item.key]: v }))}
-                />
-              </div>
-            ))}
+              { icon: RiAuctionFill, label: "Auction Unsold", desc: "Property auctions enabled", key: "auction" },
+              { icon: GiPrisoner, label: "Rent in Jail", desc: "Rent payable in jail", key: "rentInPrison" },
+              { icon: GiBank, label: "Mortgages", desc: "Mortgaging allowed", key: "mortgage" },
+              { icon: IoBuild, label: "Even Build", desc: "Fair building rule", key: "evenBuild" },
+            ].map((item) => {
+              const isActive = settings[item.key as keyof typeof settings] as boolean;
+              return (
+                <motion.button
+                  key={item.key}
+                  onClick={() => setSettings(p => ({ ...p, [item.key]: !isActive }))}
+                  className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all ${
+                    isActive
+                      ? "border-cyan-500/60 bg-cyan-500/15"
+                      : "border-cyan-500/20 bg-slate-800/30"
+                  }`}
+                  whileHover={{ scale: 1.01 }}
+                >
+                  <div className="flex items-center gap-2 flex-1">
+                    <motion.div
+                      animate={{ rotate: isActive ? 10 : 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <item.icon className={`w-4 h-4 ${isActive ? "text-cyan-400" : "text-cyan-500/50"}`} />
+                    </motion.div>
+                    <div className="text-left">
+                      <p className="text-xs font-orbitron font-bold text-white uppercase">{item.label}</p>
+                      <p className="text-[10px] text-cyan-300/60">{item.desc}</p>
+                    </div>
+                  </div>
+
+                  {/* Military toggle - compact for mobile */}
+                  <motion.div
+                    className={`w-12 h-6 rounded-full border-2 flex items-center p-0.5 transition-all flex-shrink-0 ${
+                      isActive
+                        ? "border-cyan-500 bg-cyan-600/40"
+                        : "border-cyan-500/30 bg-slate-700/60"
+                    }`}
+                  >
+                    <motion.div
+                      animate={{ x: isActive ? 20 : 2 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                      className={`w-4 h-4 rounded-full ${
+                        isActive ? "bg-cyan-300" : "bg-slate-500"
+                      } shadow-lg`}
+                    />
+                  </motion.div>
+                </motion.button>
+              );
+            })}
           </div>
         </div>
 
@@ -539,32 +512,42 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
           </div>
         )}
 
-        {/* CREATE BUTTON */}
-        <div className="pt-4 pb-6 flex flex-col items-center gap-2">
-          <button
+        {/* Guest Banner - Announcement style */}
+        {isGuest && (
+          <motion.div
+            className="mt-4 p-4 rounded-lg bg-yellow-900/30 border border-yellow-500/50 flex items-center justify-center gap-3"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <motion.span
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ repeat: Infinity, duration: 1 }}
+              className="text-xl"
+            >
+              💛
+            </motion.span>
+            <div className="text-center">
+              <p className="text-yellow-300 font-orbitron font-bold text-xs">GUEST GAMES ARE FREE</p>
+              <p className="text-yellow-300/70 text-[10px] mt-0.5">Connect a wallet to stake</p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Launch Button */}
+        <div className="pt-4 pb-6">
+          <WARoomLaunchButton
             onClick={() => {
               setCreateError(null);
               playGuard.submit(() => handlePlay());
             }}
             disabled={!canCreate || playGuard.isSubmitting || isStarting || (!isGuest && (isCreatePending || approvePending || approveConfirming))}
-            className="w-full py-4 text-lg font-orbitron font-bold tracking-wide
-                       bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10]
-                       hover:brightness-110 active:scale-[0.98]
-                       rounded-xl shadow-lg transition-all duration-300
-                       disabled:opacity-60 disabled:cursor-not-allowed border-2 border-[#00F0FF]/40"
-            title={!canCreate ? "Connect wallet and register to create a game" : undefined}
-          >
-            {playGuard.isSubmitting || isStarting || (!isGuest && (approvePending || approveConfirming))
-              ? "Processing…"
-              : !isGuest && isCreatePending
-              ? "Creating…"
-              : isFreeGame
-              ? "START FREE GAME"
-              : "CREATE GAME"}
-          </button>
-          {!canCreate && (
-            <p className="text-slate-500 text-xs text-center">Connect your wallet and register to create a game.</p>
-          )}
+            isSubmitting={playGuard.isSubmitting || isStarting}
+            isFreeGame={isFreeGame}
+            approvePending={approvePending}
+            approveConfirming={approveConfirming}
+            isCreatePending={isCreatePending}
+            canCreate={canCreate}
+          />
         </div>
       </div>
     </div>

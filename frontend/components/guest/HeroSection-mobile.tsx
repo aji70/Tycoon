@@ -30,7 +30,6 @@ import { HUDLevelBadge } from "@/components/hero/HUDLevelBadge";
 import { NeonTitle } from "@/components/hero/NeonTitle";
 import { GlowButton } from "@/components/hero/GlowButton";
 import { WorldStatsBar } from "@/components/hero/WorldStatsBar";
-import { ProfileDropdown } from "@/components/hero/ProfileDropdown";
 
 function chainIdToBackendChain(chainId: number): string {
   if (chainId === 137 || chainId === 80001) return "POLYGON";
@@ -107,7 +106,6 @@ const HeroSectionMobile: React.FC = () => {
   const [backendGame, setBackendGame] = useState<{ status: string; is_ai?: boolean } | null>(null);
   const [guestLastGame, setGuestLastGame] = useState<{ code: string; status: string; is_ai?: boolean } | null>(null);
   const [guestGameCount, setGuestGameCount] = useState(0);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const parallaxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -744,14 +742,6 @@ const HeroSectionMobile: React.FC = () => {
               >
                 Agent Battles
               </GlowButton>
-
-              {/* Profile Dropdown with Sign Out */}
-              {(guestUser || isPrivyAuthed) && (
-                <ProfileDropdown
-                  username={displayUsername}
-                  onSignOut={signOutGuestAndPrivy}
-                />
-              )}
             </div>
           ) : null}
 
