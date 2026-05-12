@@ -21,9 +21,10 @@ export function NeonTitle({ text, size = "lg" }: NeonTitleProps) {
       className="relative perspective"
       style={{
         perspective: "1000px",
+        willChange: "auto",
       }}
     >
-      <div className="relative">
+      <div className="relative" style={{ backfaceVisibility: "hidden" }}>
         {/* Main neon text - sharp and readable */}
         <motion.h1
           animate={{
@@ -40,6 +41,9 @@ export function NeonTitle({ text, size = "lg" }: NeonTitleProps) {
           className={`${sizeClasses[size]} font-kronaOne font-bold uppercase tracking-tighter text-[#00F0FF] relative z-10`}
           style={{
             textShadow: "0 0 8px rgba(0, 240, 255, 0.8), 0 0 16px rgba(0, 240, 255, 0.6)",
+            WebkitFontSmoothing: "antialiased",
+            MozOsxFontSmoothing: "grayscale",
+            textRendering: "geometricPrecision",
           }}
         >
           {text}
