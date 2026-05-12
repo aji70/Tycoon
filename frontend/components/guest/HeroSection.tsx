@@ -674,21 +674,20 @@ const HeroSection: React.FC = () => {
           )}
 
           {/* "Let's Go!" for wallet users (backend-only or none) — only when Privy-authed */}
-          {address && isPrivyAuthed && registrationStatus !== "fully-registered" && !loading && (
-            <GlowButton
-              onClick={handleRegister}
-              disabled={
-                loading ||
-                registerPending ||
-                (registrationStatus === "none" && !inputUsername.trim())
-              }
-              variant="primary"
-              size="lg"
-              glow={!disabled}
-            >
-              {loading || registerPending ? "Registering..." : "Let's Go!"}
-            </GlowButton>
-          )}
+          {address && isPrivyAuthed && registrationStatus !== "fully-registered" && !loading && (() => {
+            const isDisabled = loading || registerPending || (registrationStatus === "none" && !inputUsername.trim());
+            return (
+              <GlowButton
+                onClick={handleRegister}
+                disabled={isDisabled}
+                variant="primary"
+                size="lg"
+                glow={!isDisabled}
+              >
+                {loading || registerPending ? "Registering..." : "Let's Go!"}
+              </GlowButton>
+            );
+          })()}
           {address && isPrivyAuthed && registrationStatus !== "fully-registered" && !loading && (
             <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
               Creates your game account &amp; smart wallet
