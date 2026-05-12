@@ -16,7 +16,6 @@ import { GiBank, GiPrisoner } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
 import { useRouter } from "next/navigation";
 import {
-  WARoomHeader,
   PieceTileSelector,
   PlayerSlots,
   CashPicker,
@@ -24,6 +23,7 @@ import {
   PrivateLock,
   WARoomLaunchButton,
 } from "@/components/game-setup";
+import { BattleHeader } from "@/components/battle-setup/BattleHeader";
 import {
   useAccount,
   useChainId,
@@ -59,6 +59,18 @@ interface GameCreateResponse {
 
 const USDC_DECIMALS = 6;
 const stakePresets = [1, 5, 10, 25, 50, 100];
+
+const PIECE_EMOJI: Record<string, string> = {
+  hat: "🎩",
+  car: "🚗",
+  dog: "🐕",
+  thimble: "🔧",
+  wheelbarrow: "🛒",
+  battleship: "🚢",
+  boot: "👢",
+  iron: "♨️",
+  top_hat: "🎩",
+};
 
 interface GameSettingsOptimizedProps {
   /** After creating game, redirect to this waiting room (default: /game-waiting). e.g. /game-waiting-3d for 3D. */
@@ -246,6 +258,13 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
 
   const canCreate = isGuest || (address && username && isUserRegistered);
 
+  const houseRules = [
+    { icon: RiAuctionFill, label: "Auction Unsold", key: "auction", desc: "Automatic property auctions" },
+    { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison", desc: "Pay rent while imprisoned" },
+    { icon: GiBank, label: "Allow Mortgages", key: "mortgage", desc: "Mortgage property for cash" },
+    { icon: IoBuild, label: "Even Building", key: "evenBuild", desc: "Balanced house distribution" },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 relative overflow-hidden flex flex-col">
       {/* Scanline overlay */}
@@ -255,94 +274,212 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
       <div className="relative z-10 flex-1 flex items-start justify-center p-3 sm:p-4 md:p-6 lg:p-8">
         <div className="w-full max-w-7xl mx-auto">
           {/* Header */}
-          <WARoomHeader />
+          <div className="flex items-center justify-between mb-8">
+            <h1 className="font-orbitron text-2xl md:text-3xl font-bold text-cyan-300">⚔️ CREATE GAME</h1>
+            <button
+              onClick={() => router.push("/")}
+              className="px-4 py-2 text-sm font-orbitron text-cyan-300 hover:text-cyan-100 transition-colors"
+            >
+              BACK
+            </button>
+          </div>
 
           {/* Desktop: Two-column layout | Mobile: Single column vertical */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-8">
             {/* LEFT COLUMN */}
             <div className="space-y-4 md:space-y-6">
-              {/* Your Piece */}
+              {/* Select Piece */}
               <div>
                 <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Your Piece</p>
-                <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 rounded-xl md:rounded-2xl p-3 md:p-6 border border-cyan-500/30">
-                  <PieceTileSelector
-                    value={settings.symbol}
-                    onChange={(v) => setSettings((p) => ({ ...p, symbol: v }))}
-                  />
+                {/* Mobile: Horizontal scroll */}
+                <div className="md:hidden overflow-x-auto pb-2">
+                  <div className="flex gap-2 min-w-min">
+                    {GamePieces.map((piece, idx) => (
+                      <motion.button
+                        key={piece.id}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.3, delay: idx * 0.05 }}
+                        onClick={() => setSettings((p) => ({ ...p, symbol: piece.id }))}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className={`relative p-2 rounded-lg transition-all duration-300 border-2 flex-shrink-0 w-24 h-28 flex flex-col items-center justify-center ${
+                          settings.symbol === piece.id
+                            ? "border-cyan-400 bg-cyan-500/20 shadow-lg shadow-cyan-500/50"
+                            : "border-cyan-500/30 bg-slate-800/40 hover:border-cyan-400/60"
+                        }`}
+                      >
+                        <div className="text-xl mb-1">{PIECE_EMOJI[piece.id]}</div>
+                        <div className="text-[10px] font-orbitron text-cyan-300 font-bold text-center line-clamp-2 px-0.5 leading-tight">
+                          {piece.name}
+                        </div>
+                        {settings.symbol === piece.id && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute -top-2 -right-2 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg shadow-cyan-500/60"
+                          >
+                            ✓
+                          </motion.div>
+                        )}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Desktop: 5-column grid */}
+                <div className="hidden md:grid grid-cols-5 gap-2">
+                  {GamePieces.map((piece, idx) => (
+                    <motion.button
+                      key={piece.id}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.3, delay: idx * 0.05 }}
+                      onClick={() => setSettings((p) => ({ ...p, symbol: piece.id }))}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={`relative p-2 rounded-lg transition-all duration-300 border-2 flex flex-col items-center justify-center py-3 ${
+                        settings.symbol === piece.id
+                          ? "border-cyan-400 bg-cyan-500/20 shadow-lg shadow-cyan-500/50"
+                          : "border-cyan-500/30 bg-slate-800/40 hover:border-cyan-400/60"
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">{PIECE_EMOJI[piece.id]}</div>
+                      <div className="text-xs font-orbitron text-cyan-300 font-bold text-center truncate px-1">
+                        {piece.name}
+                      </div>
+                      {settings.symbol === piece.id && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="absolute -top-2 -right-2 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg shadow-cyan-500/60"
+                        >
+                          ✓
+                        </motion.div>
+                      )}
+                    </motion.button>
+                  ))}
                 </div>
               </div>
 
-              {/* Max Players */}
+              {/* Max Players Formation */}
               <div>
                 <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Max Players</p>
-                <div className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 rounded-xl md:rounded-2xl p-3 md:p-6 border border-purple-500/30">
-                  <PlayerSlots
-                    count={settings.maxPlayers}
-                    onChange={(n) => setSettings((p) => ({ ...p, maxPlayers: n }))}
-                    max={8}
-                  />
+
+                {/* Number buttons row */}
+                <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
+                  {[2, 3, 4, 5, 6, 7, 8].map((num) => (
+                    <motion.button
+                      key={num}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setSettings((p) => ({ ...p, maxPlayers: num }))}
+                      className={`py-2 rounded-lg font-orbitron font-bold text-sm transition-all duration-300 border-2 ${
+                        settings.maxPlayers === num
+                          ? "border-cyan-400 bg-cyan-500/20 text-cyan-300 shadow-lg shadow-cyan-500/40"
+                          : "border-cyan-500/30 bg-slate-800/40 text-cyan-400/60 hover:border-cyan-400/60"
+                      }`}
+                    >
+                      {num}
+                    </motion.button>
+                  ))}
+                </div>
+
+                {/* Avatar slots - Desktop only */}
+                <div className="hidden md:grid grid-cols-8 gap-2 mt-3">
+                  {[...Array(8)].map((_, idx) => (
+                    <motion.div
+                      key={idx}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: idx < settings.maxPlayers ? 1 : 0.3, scale: 1 }}
+                      transition={{ duration: 0.3, delay: idx * 0.05 }}
+                      className={`aspect-square rounded-lg border-2 flex items-center justify-center transition-all ${
+                        idx < settings.maxPlayers
+                          ? "border-cyan-500 bg-cyan-500/10 shadow-lg shadow-cyan-500/30"
+                          : "border-cyan-500/20 bg-slate-800/20"
+                      }`}
+                    >
+                      <div className="text-lg">👤</div>
+                    </motion.div>
+                  ))}
                 </div>
               </div>
 
-              {/* Private Room */}
-              <div>
-                <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Room Access</p>
-                <div className="bg-black/60 rounded-xl md:rounded-2xl p-3 md:p-6 border border-gray-600">
-                  <PrivateLock
-                    checked={settings.privateRoom}
-                    onCheckedChange={(v) => setSettings((p) => ({ ...p, privateRoom: v }))}
-                  />
+              {/* Private/Free Games */}
+              <div className="space-y-3">
+                {/* Private Room */}
+                <div>
+                  <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Room Access</p>
+                  <div className="bg-black/60 rounded-xl md:rounded-2xl p-3 md:p-4 border border-gray-600">
+                    <PrivateLock
+                      checked={settings.privateRoom}
+                      onCheckedChange={(v) => setSettings((p) => ({ ...p, privateRoom: v }))}
+                    />
+                  </div>
                 </div>
+
+                {/* Free Game Toggle - Non-guests only */}
+                {!isGuest && (
+                  <div>
+                    <div className="bg-black/60 rounded-lg p-3 border border-yellow-600/50">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <FaCoins className="w-4 h-4 text-yellow-400" />
+                          <div>
+                            <h3 className="text-xs font-bold text-yellow-300">Free Game</h3>
+                            <p className="text-gray-400 text-[10px]">No stake</p>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={isFreeGame}
+                          onCheckedChange={(checked) => {
+                            setIsFreeGame(checked);
+                            if (checked) {
+                              setSettings(prev => ({ ...prev, stake: 0 }));
+                              setCustomStake("0");
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Guest Free Games Banner */}
+                {isGuest && (
+                  <div className="bg-black/60 rounded-lg p-3 border border-yellow-600/50">
+                    <div className="flex items-center gap-2">
+                      <FaCoins className="w-4 h-4 text-yellow-400" />
+                      <div>
+                        <h3 className="text-xs font-bold text-yellow-300">Guest Games Free</h3>
+                        <p className="text-gray-400 text-[10px]">Connect wallet for stakes</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* RIGHT COLUMN */}
             <div className="space-y-4 md:space-y-6">
-              {/* Starting Cash */}
-              <div>
-                <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Starting Cash</p>
-                <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-xl md:rounded-2xl p-3 md:p-6 border border-amber-500/30">
-                  <CashPicker
-                    value={settings.startingCash}
-                    onChange={(v) => setSettings((p) => ({ ...p, startingCash: v }))}
-                  />
-                </div>
-              </div>
-
-              {/* Game Duration */}
-              <div>
-                <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Game Duration</p>
-                <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 rounded-xl md:rounded-2xl p-3 md:p-6 border border-indigo-500/30">
-                  <DurationDial
-                    value={settings.duration}
-                    onChange={(v) => setSettings((p) => ({ ...p, duration: v }))}
-                  />
-                </div>
-              </div>
-
               {/* Entry Stake - Non-guests only */}
               {!isGuest && (
                 <div>
                   <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Entry Stake</p>
-                  <div className={`bg-gradient-to-b from-green-900/60 to-emerald-900/60 rounded-xl md:rounded-2xl p-3 md:p-6 border border-green-500/40 transition-opacity duration-300 ${isFreeGame ? 'opacity-50' : ''}`}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <FaCoins className="w-5 h-5 md:w-6 md:h-6 text-green-400" />
-                      <span className="text-green-300 font-orbitron font-bold text-sm">Stake</span>
-                    </div>
-
+                  <div className={`bg-gradient-to-b from-green-900/60 to-emerald-900/60 rounded-xl md:rounded-2xl p-3 md:p-4 border border-green-500/40 transition-opacity duration-300 ${isFreeGame ? 'opacity-50' : ''}`}>
                     {isFreeGame ? (
-                      <div className="py-6 text-center">
-                        <p className="text-2xl md:text-3xl font-black text-yellow-400">FREE</p>
+                      <div className="py-3 text-center">
+                        <p className="text-lg md:text-xl font-black text-yellow-400">FREE</p>
                         <p className="text-xs text-yellow-300/90">No entry fee</p>
                       </div>
                     ) : (
                       <>
-                        <div className="grid grid-cols-3 gap-1 md:gap-2 mb-3">
+                        <div className="grid grid-cols-3 gap-1 mb-2">
                           {stakePresets.map((amount) => (
                             <button
                               key={amount}
                               onClick={() => handleStakeSelect(amount)}
-                              className={`py-2 px-1 md:py-3 md:px-2 rounded-lg text-xs font-bold transition-all hover:scale-105 ${
+                              className={`py-1.5 px-1 rounded-lg text-xs font-bold transition-all hover:scale-105 ${
                                 settings.stake === amount
                                   ? "bg-gradient-to-br from-yellow-400 to-amber-500 text-black shadow-lg"
                                   : "bg-black/60 border border-gray-600 text-gray-300"
@@ -357,78 +494,53 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
                           type="number"
                           min="0.01"
                           step="0.01"
-                          placeholder="Custom ≥ 0.01"
+                          placeholder="Custom"
                           value={customStake}
                           onChange={(e) => handleCustomStake(e.target.value)}
-                          className="w-full px-2 py-2 md:px-3 md:py-2 bg-black/60 border border-green-500/50 rounded-lg text-white text-xs text-center focus:outline-none focus:border-green-400 disabled:opacity-50"
+                          className="w-full px-2 py-1.5 bg-black/60 border border-green-500/50 rounded-lg text-white text-xs text-center focus:outline-none focus:border-green-400 disabled:opacity-50"
                           disabled={isFreeGame}
                         />
 
-                        <div className="mt-2 text-center">
-                          <p className="text-xs text-gray-400">Current</p>
-                          <p className="text-lg md:text-xl font-bold text-green-400">
-                            {settings.stake} USDC
-                          </p>
-                        </div>
+                        <p className="text-xs text-gray-400 text-center mt-1">
+                          {settings.stake} USDC
+                        </p>
                       </>
                     )}
                   </div>
                 </div>
               )}
 
-              {/* Free Game Toggle */}
-              {!isGuest && (
-                <div>
-                  <div className="bg-black/60 rounded-xl md:rounded-2xl p-3 md:p-6 border border-yellow-600/50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FaCoins className="w-5 h-5 md:w-6 md:h-6 text-yellow-400" />
-                        <div>
-                          <h3 className="text-sm md:text-base font-bold text-yellow-300">Free Game</h3>
-                          <p className="text-gray-400 text-xs">No USDC cost</p>
-                        </div>
-                      </div>
-                      <Switch
-                        checked={isFreeGame}
-                        onCheckedChange={(checked) => {
-                          setIsFreeGame(checked);
-                          if (checked) {
-                            setSettings(prev => ({ ...prev, stake: 0 }));
-                            setCustomStake("0");
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
+              {/* Starting Cash */}
+              <div>
+                <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Starting Cash</p>
+                <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-xl md:rounded-2xl p-3 md:p-4 border border-amber-500/30">
+                  <CashPicker
+                    value={settings.startingCash}
+                    onChange={(v) => setSettings((p) => ({ ...p, startingCash: v }))}
+                  />
                 </div>
-              )}
+              </div>
 
-              {/* Guest Free Games Banner */}
-              {isGuest && (
-                <div className="bg-black/60 rounded-xl md:rounded-2xl p-3 md:p-6 border border-yellow-600/50">
-                  <div className="flex items-center gap-2">
-                    <FaCoins className="w-5 h-5 md:w-6 md:h-6 text-yellow-400" />
-                    <div>
-                      <h3 className="text-sm md:text-base font-bold text-yellow-300">Guest Games Free</h3>
-                      <p className="text-gray-400 text-xs">Connect wallet for staked games</p>
-                    </div>
-                  </div>
+              {/* Game Duration */}
+              <div>
+                <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Game Duration</p>
+                <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 rounded-xl md:rounded-2xl p-3 md:p-4 border border-indigo-500/30">
+                  <DurationDial
+                    value={settings.duration}
+                    onChange={(v) => setSettings((p) => ({ ...p, duration: v }))}
+                  />
                 </div>
-              )}
+              </div>
+
             </div>
           </div>
 
           {/* House Rules - Full width */}
           <div className="mb-8">
             <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Mission Parameters</p>
-            <div className="bg-black/60 rounded-xl md:rounded-2xl p-3 md:p-6 border border-cyan-500/30">
-              <div className="grid grid-cols-2 gap-2 md:gap-3">
-                {[
-                  { icon: RiAuctionFill, label: "Auction Unsold", key: "auction" },
-                  { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
-                  { icon: GiBank, label: "Allow Mortgages", key: "mortgage" },
-                  { icon: IoBuild, label: "Even Building", key: "evenBuild" },
-                ].map((rule, idx) => {
+            <div className="bg-black/60 rounded-xl md:rounded-2xl p-3 md:p-4 border border-cyan-500/30">
+              <div className="grid grid-cols-2 gap-2">
+                {houseRules.map((rule, idx) => {
                   const isActive = settings[rule.key as keyof typeof settings];
                   return (
                     <motion.div
