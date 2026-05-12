@@ -91,7 +91,7 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
   const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);
   const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${wagmiChainId}` || "unknown";
 
-  const [isFreeGame, setIsFreeGame] = useState(false);
+  const [isFreeGame, setIsFreeGame] = useState(true);
 
   const [settings, setSettings] = useState({
     symbol: "hat",
@@ -512,8 +512,8 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
 
               {/* Starting Cash */}
               <div>
-                <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Starting Cash</p>
-                <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-xl md:rounded-2xl p-3 md:p-4 border border-amber-500/30">
+                <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-2">Starting Cash</p>
+                <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-lg p-2 border border-amber-500/30">
                   <CashPicker
                     value={settings.startingCash}
                     onChange={(v) => setSettings((p) => ({ ...p, startingCash: v }))}
@@ -523,8 +523,8 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
 
               {/* Game Duration */}
               <div>
-                <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Game Duration</p>
-                <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 rounded-xl md:rounded-2xl p-3 md:p-4 border border-indigo-500/30">
+                <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-2">Game Duration</p>
+                <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 rounded-lg p-2 border border-indigo-500/30">
                   <DurationDial
                     value={settings.duration}
                     onChange={(v) => setSettings((p) => ({ ...p, duration: v }))}
@@ -532,56 +532,55 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
                 </div>
               </div>
 
-            </div>
-          </div>
-
-          {/* House Rules - Full width */}
-          <div className="mb-8">
-            <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Mission Parameters</p>
-            <div className="bg-black/60 rounded-xl md:rounded-2xl p-3 md:p-4 border border-cyan-500/30">
-              <div className="grid grid-cols-2 gap-2">
-                {houseRules.map((rule, idx) => {
-                  const isActive = settings[rule.key as keyof typeof settings];
-                  return (
-                    <motion.div
-                      key={rule.key}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.2, delay: idx * 0.05 }}
-                      className={`flex flex-col items-center p-2 rounded-lg border-2 transition-all gap-2 ${
-                        isActive
-                          ? "border-cyan-500/60 bg-cyan-500/15"
-                          : "border-cyan-500/20 bg-slate-800/30"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1">
-                        {typeof rule.icon === 'function' ? <rule.icon className="w-4 h-4 text-cyan-400" /> : <span className="text-lg text-cyan-400">{rule.icon}</span>}
-                        <span className="text-xs font-orbitron font-bold text-white uppercase text-center">
-                          {rule.label}
-                        </span>
-                      </div>
-
-                      <motion.button
-                        onClick={() =>
-                          setSettings((p) => ({ ...p, [rule.key]: !(p[rule.key as keyof typeof p] as boolean) }))
-                        }
-                        className={`relative w-8 h-4 md:w-10 md:h-5 rounded-full transition-all duration-300 border-2 ${
-                          isActive
-                            ? "border-cyan-500 bg-gradient-to-r from-cyan-600 to-cyan-500 shadow-lg shadow-cyan-500/40"
-                            : "border-cyan-500/30 bg-slate-700/60"
-                        }`}
-                      >
+              {/* Mission Parameters - Desktop: fits in right column, Mobile: below */}
+              <div className="md:col-span-1">
+                <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Mission Parameters</p>
+                <div className="bg-black/60 rounded-xl md:rounded-2xl p-3 md:p-4 border border-cyan-500/30">
+                  <div className="grid grid-cols-2 gap-2">
+                    {houseRules.map((rule, idx) => {
+                      const isActive = settings[rule.key as keyof typeof settings];
+                      return (
                         <motion.div
-                          animate={{ x: isActive ? 16 : 2 }}
-                          transition={{ type: "spring", stiffness: 600, damping: 25 }}
-                          className={`absolute top-0.5 w-3 h-3 md:w-4 md:h-4 rounded-full transition-colors ${
-                            isActive ? "bg-white shadow-lg shadow-cyan-400/50" : "bg-slate-500"
+                          key={rule.key}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.2, delay: idx * 0.05 }}
+                          className={`flex flex-col items-center p-2 rounded-lg border-2 transition-all gap-2 ${
+                            isActive
+                              ? "border-cyan-500/60 bg-cyan-500/15"
+                              : "border-cyan-500/20 bg-slate-800/30"
                           }`}
-                        />
-                      </motion.button>
-                    </motion.div>
-                  );
-                })}
+                        >
+                          <div className="flex items-center gap-1">
+                            {typeof rule.icon === 'function' ? <rule.icon className="w-4 h-4 text-cyan-400" /> : <span className="text-lg text-cyan-400">{rule.icon}</span>}
+                            <span className="text-xs font-orbitron font-bold text-white uppercase text-center">
+                              {rule.label}
+                            </span>
+                          </div>
+
+                          <motion.button
+                            onClick={() =>
+                              setSettings((p) => ({ ...p, [rule.key]: !(p[rule.key as keyof typeof p] as boolean) }))
+                            }
+                            className={`relative w-8 h-4 md:w-10 md:h-5 rounded-full transition-all duration-300 border-2 ${
+                              isActive
+                                ? "border-cyan-500 bg-gradient-to-r from-cyan-600 to-cyan-500 shadow-lg shadow-cyan-500/40"
+                                : "border-cyan-500/30 bg-slate-700/60"
+                            }`}
+                          >
+                            <motion.div
+                              animate={{ x: isActive ? 16 : 2 }}
+                              transition={{ type: "spring", stiffness: 600, damping: 25 }}
+                              className={`absolute top-0.5 w-3 h-3 md:w-4 md:h-4 rounded-full transition-colors ${
+                                isActive ? "bg-white shadow-lg shadow-cyan-400/50" : "bg-slate-500"
+                              }`}
+                            />
+                          </motion.button>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -597,6 +596,7 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
               isFreeGame={isFreeGame}
               isCreatePending={isCreatePending}
               canCreate={canCreate}
+              text="CREATE GAME"
             />
           </div>
         </div>
