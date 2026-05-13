@@ -9,6 +9,15 @@ export const seed = async (knex) => {
 
   const boardVariants = [
     {
+      id: "nigeria",
+      name: "Nigeria",
+      region: "West Africa",
+      description: "Properties across Nigeria - the giant of Africa",
+      flag_url: "/flags/nigeria.svg",
+      property_count: 40,
+      active: true,
+    },
+    {
       id: "kaduna-nigeria",
       name: "Kaduna",
       region: "Nigeria",

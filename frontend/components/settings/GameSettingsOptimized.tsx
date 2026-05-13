@@ -109,6 +109,7 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
 
   const BOARD_OPTIONS = [
     { value: "default", label: "🎲 Classic Monopoly" },
+    { value: "nigeria", label: "🇳🇬 Nigeria" },
     { value: "kaduna-nigeria", label: "🇳🇬 Kaduna, Nigeria" },
     { value: "ghana", label: "🇬🇭 Ghana" },
     { value: "kenya", label: "🇰🇪 Kenya" },
