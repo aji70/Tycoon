@@ -92,6 +92,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
 
   const BOARD_OPTIONS = [
     { value: "default", label: "🎲 Classic Monopoly" },
+    { value: "nigeria", label: "🇳🇬 Nigeria" },
     { value: "kaduna-nigeria", label: "🇳🇬 Kaduna, Nigeria" },
     { value: "ghana", label: "🇬🇭 Ghana" },
     { value: "kenya", label: "🇰🇪 Kenya" },
