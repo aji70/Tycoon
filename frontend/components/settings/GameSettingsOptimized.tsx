@@ -104,7 +104,22 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
     startingCash: 1500,
     stake: 10,
     duration: 30,
+    boardId: "default",
   });
+
+  const BOARD_OPTIONS = [
+    { value: "default", label: "🎲 Classic Monopoly" },
+    { value: "kaduna-nigeria", label: "🇳🇬 Kaduna, Nigeria" },
+    { value: "ghana", label: "🇬🇭 Ghana" },
+    { value: "kenya", label: "🇰🇪 Kenya" },
+    { value: "south-africa", label: "🇿🇦 South Africa" },
+    { value: "indonesia", label: "🇮🇩 Indonesia" },
+    { value: "philippines", label: "🇵🇭 Philippines" },
+    { value: "vietnam", label: "🇻🇳 Vietnam" },
+    { value: "colombia", label: "🇨🇴 Colombia" },
+    { value: "brazil", label: "🇧🇷 Brazil" },
+    { value: "argentina", label: "🇦🇷 Argentina" },
+  ];
 
   const [customStake, setCustomStake] = useState<string>("");
   const [createError, setCreateError] = useState<string | null>(null);
@@ -208,6 +223,7 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
           stake: finalStake,
           is_private: settings.privateRoom,
           chain: chainName,
+          board_id: settings.boardId,
           game_rules: {
             auction: settings.auction,
             rent_in_prison: settings.rentInPrison,
@@ -529,6 +545,25 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
                     value={settings.duration}
                     onChange={(v) => setSettings((p) => ({ ...p, duration: v }))}
                   />
+                </div>
+              </div>
+
+              {/* Select Board */}
+              <div>
+                <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-2">Board Variant</p>
+                <div className="bg-gradient-to-br from-emerald-900/40 to-teal-900/40 rounded-lg border border-emerald-500/30">
+                  <Select value={settings.boardId} onValueChange={(v) => setSettings((p) => ({ ...p, boardId: v }))}>
+                    <SelectTrigger className="border-0 bg-transparent text-cyan-400 font-orbitron text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-cyan-500/30">
+                      {BOARD_OPTIONS.map((board) => (
+                        <SelectItem key={board.value} value={board.value} className="font-orbitron text-cyan-300">
+                          {board.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

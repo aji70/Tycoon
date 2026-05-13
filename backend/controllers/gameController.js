@@ -391,6 +391,7 @@ const gameController = {
         chain,
         id: contractGameId,
         game_type,
+        board_id,
       } = req.body;
       const normalizedChain = User.normalizeChain(chain);
       const user = await User.resolveUserByAddress(address, normalizedChain);
@@ -413,6 +414,7 @@ const gameController = {
         chain,
         contract_game_id: contractGameId != null ? String(contractGameId) : null,
         game_type: game_type || (is_ai ? GAME_TYPES.AI_HUMAN_VS_AI : GAME_TYPES.PVP_HUMAN),
+        board_id: board_id || "default",
       });
 
       const chat = await Chat.create({
@@ -2435,6 +2437,7 @@ export const createAsGuest = async (req, res) => {
       chain,
       stake = 0,
       use_usdc,
+      board_id,
     } = req.body;
 
     const stakeNum = Number(stake) || 0;
@@ -2607,6 +2610,7 @@ export const createAsGuest = async (req, res) => {
       duration,
       chain: chain || "BASE",
       contract_game_id: String(onChainGameId),
+      board_id: board_id || "default",
     });
 
     const chat = await Chat.create({ game_id: game.id, status: "open" });
