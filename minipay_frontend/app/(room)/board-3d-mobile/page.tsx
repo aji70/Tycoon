@@ -242,16 +242,17 @@ function Board3DMobileContent() {
     enabled: !!game?.id,
   });
 
-  const isLiveGame = !!gameCode && !!game;
+  const effectiveGameCode = gameCode || game?.code || null;
+  const isLiveGame = !!effectiveGameCode && !!game;
   const isMultiplayer = !!game && game.is_ai === false;
 
   // Multiplayer: socket for live updates
   useEffect(() => {
-    if (!gameCode || !SOCKET_URL || !game || game.is_ai !== false) return;
+    if (!effectiveGameCode || !SOCKET_URL || !game || game.is_ai !== false) return;
     const socket = socketService.connect(SOCKET_URL);
-    socketService.joinGameRoom(gameCode);
+    socketService.joinGameRoom(effectiveGameCode);
     const onGameUpdate = (data: { gameCode: string }) => {
-      if (data.gameCode === gameCode) {
+      if (data.gameCode === effectiveGameCode) {
         refetchGame();
         queryClient.invalidateQueries({ queryKey: ["game_properties"] });
         refetchGameProperties();

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { useAccount, useChainId, useSignMessage, usePublicClient, useSwitchChain } from "wagmi";
 import {
   useIsRegistered,
@@ -24,6 +25,10 @@ import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
+import { ParticleBackground } from "@/components/hero/ParticleBackground";
+import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
+import { NeonTitle } from "@/components/hero/NeonTitle";
+import { WorldStatsBar } from "@/components/hero/WorldStatsBar";
 
 function chainIdToBackendChain(chainId: number): string {
   return "CELO";
@@ -123,6 +128,8 @@ const HeroSection: React.FC = () => {
   const [backendGame, setBackendGame] = useState<{ status: string; is_ai?: boolean } | null>(null);
   const [guestLastGame, setGuestLastGame] = useState<{ code: string; status: string; is_ai?: boolean } | null>(null);
   const [guestGameCount, setGuestGameCount] = useState(0);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const parallaxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!gameCode || typeof gameCode !== "string") {
@@ -169,6 +176,23 @@ const HeroSection: React.FC = () => {
       cancelled = true;
     };
   }, [guestUser, address]);
+
+  // Parallax mouse tracking - desktop only
+  useEffect(() => {
+    const isMobile = window.innerWidth < 768;
+    if (isMobile) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!parallaxRef.current) return;
+      const rect = parallaxRef.current.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      setMousePosition({ x, y });
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
 
   const [user, setUser] = useState<UserType | null>(null);
 
@@ -496,21 +520,30 @@ const HeroSection: React.FC = () => {
 
   if (isConnecting) {
     return (
-      <div className="w-full h-screen flex items-center justify-center">
-        <p className="font-orbitron text-[#00F0FF] text-[16px]">
-          Connecting to wallet...
-        </p>
+      <div className="w-full h-screen flex items-center justify-center bg-[#010F10]">
+        <p className="font-orbitron text-[#00F0FF] text-lg">Connecting to wallet...</p>
       </div>
     );
   }
 
   return (
-    <section className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10]">
-      <div className="w-full h-full overflow-hidden">
+    <section
+      ref={parallaxRef}
+      className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-hidden bg-[#010F10]"
+    >
+      {/* Background with parallax - disabled on mobile */}
+      <motion.div
+        className="w-full h-full overflow-hidden absolute inset-0"
+        animate={{
+          x: window.innerWidth < 768 ? 0 : mousePosition.x * 10,
+          y: window.innerWidth < 768 ? 0 : mousePosition.y * 10,
+        }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      >
         <Image
           src={herobg}
           alt="Hero Background"
-          className="w-full h-full object-cover hero-bg-zoom"
+          className="w-full h-full object-cover"
           width={1440}
           height={1024}
           priority
@@ -518,21 +551,29 @@ const HeroSection: React.FC = () => {
           sizes="100vw"
           quality={80}
         />
-      </div>
+      </motion.div>
 
-      <div className="w-full h-auto absolute top-0 left-0 flex items-center justify-center">
-        <h1 className="text-center uppercase font-kronaOne font-normal text-transparent big-hero-text w-full text-[40px] sm:text-[40px] md:text-[80px] lg:text-[135px] relative before:absolute before:content-[''] before:w-full before:h-full before:bg-gradient-to-b before:from-transparent lg:before:via-[#010F10]/80 before:to-[#010F10] before:top-0 before:left-0 before:z-1">
-          TYCOON
-        </h1>
-      </div>
+      {/* Particle effects */}
+      <ParticleBackground />
 
-      <main className="w-full h-full absolute top-0 left-0 z-2 bg-transparent flex flex-col lg:justify-center items-center gap-1">
-        {/* Welcome Message + Level */}
+      {/* Scanline and grid overlay */}
+      <ScanlineOverlay />
+
+      {/* Gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#010F10]/20 to-[#010F10]/60 z-5" />
+
+      <main className="w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col lg:justify-start md:justify-center justify-start items-center gap-1 px-4 pt-8 md:pt-0 lg:pt-16">
+        {/* Welcome Message */}
         {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "privy") && !loading && (
-          <div className="mt-20 md:mt-28 lg:mt-0 flex flex-col items-center gap-2">
-            <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
+          <div className="mt-20 md:mt-28 lg:mt-0 flex flex-col items-center gap-4">
+            <motion.p
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center"
+            >
               Welcome back, {displayUsername}!
-            </p>
+            </motion.p>
             {levelInfo && (
               <div className="flex flex-col items-center gap-1.5">
                 <div className="flex items-center gap-2">
@@ -585,12 +626,7 @@ const HeroSection: React.FC = () => {
           />
         </div>
 
-        <h1 className="block-text font-[900] font-orbitron lg:text-[116px] md:text-[98px] text-[54px] lg:leading-[120px] md:leading-[100px] leading-[60px] tracking-[-0.02em] uppercase text-[#17ffff] relative">
-          TYCOON
-          <span className="absolute top-0 left-[69%] text-[#0FF0FC] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 animate-pulse">
-            ?
-          </span>
-        </h1>
+        <NeonTitle text="TYCOON" size="lg" />
 
         <div className="w-full px-4 md:w-[70%] lg:w-[55%] text-center text-[#F0F7F7] -tracking-[2%]">
           <TypeAnimation
@@ -909,6 +945,13 @@ const HeroSection: React.FC = () => {
           )}
         </div>
       </main>
+
+      {/* World Stats Bar */}
+      <WorldStatsBar
+        playersOnline={1234}
+        propertiesOwned={5678}
+        tokensInPlay="12.5M"
+      />
     </section>
   );
 };
