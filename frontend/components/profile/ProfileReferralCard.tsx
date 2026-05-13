@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useAccount } from "wagmi";
 import { Gift, Copy, Check, Loader2 } from "lucide-react";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
@@ -39,15 +40,24 @@ type Props = {
 
 export default function ProfileReferralCard({ enabled = true, className = "" }: Props) {
   const [copied, setCopied] = useState<"code" | "link" | null>(null);
+  const { address } = useAccount();
 
   const query = useQuery({
-    queryKey: ["referral-me"],
+    queryKey: ["referral-me", address],
     queryFn: async () => {
-      const res = await apiClient.get("referral/me");
+      const hasToken = hasBackendToken();
+      const params: Record<string, string> = {};
+
+      // If wallet connected but no token, pass address to backend
+      if (address && !hasToken) {
+        params.address = address;
+      }
+
+      const res = await apiClient.get("referral/me", { params });
       const backend = res.data as { success?: boolean; data?: ReferralMePayload } | undefined;
       return backend?.data ?? null;
     },
-    enabled: enabled && hasBackendToken(),
+    enabled: enabled && (hasBackendToken() || !!address),
     staleTime: 60_000,
     retry: false,
   });
