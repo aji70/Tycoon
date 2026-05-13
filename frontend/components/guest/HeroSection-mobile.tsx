@@ -480,7 +480,7 @@ const HeroSectionMobile: React.FC = () => {
       <div className="absolute inset-0 bg-gradient-to-b from-[#010F10]/40 via-transparent to-[#010F10]/90 z-5" aria-hidden />
 
       {/* Content Container - safe area for notches & home indicator */}
-      <div className="relative z-20 flex flex-col items-center px-4 sm:px-5 pt-[calc(env(safe-area-inset-top)+8rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] min-h-screen min-h-[100dvh]">
+      <div className="relative z-20 flex flex-col items-center px-4 sm:px-5 pt-[calc(env(safe-area-inset-top)+8rem)] pb-[max(env(safe-area-inset-bottom),8rem)] min-h-screen min-h-[100dvh]">
         {/* Title - Neon effect for mobile */}
         <div className="relative w-full flex justify-center mt-0 sm:mt-2">
           <NeonTitle text="TYCOON" size="md" />
@@ -545,7 +545,7 @@ const HeroSectionMobile: React.FC = () => {
         </p>
 
         {/* Main action area — min-height avoids CLS when Privy / registration UI hydrates */}
-        <div className="mt-8 sm:mt-10 w-full max-w-[380px] flex min-h-[220px] flex-col items-center gap-5 sm:gap-6 flex-1">
+        <div className="mt-4 sm:mt-6 w-full max-w-[380px] flex min-h-[100px] flex-col items-center gap-5 sm:gap-6 flex-1">
           {/* EOA mandatory Privy: wallet connected but not signed in with Privy */}
           {address && !isPrivyAuthed && !loading && (
             <div className="w-full flex flex-col gap-3 items-center">

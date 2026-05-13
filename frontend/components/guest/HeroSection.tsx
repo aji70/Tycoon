@@ -540,7 +540,7 @@ const HeroSection: React.FC = () => {
       {/* Gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#010F10]/20 to-[#010F10]/60 z-5" />
 
-      <main className="w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col lg:justify-center items-center gap-1 px-4">
+      <main className="w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col lg:justify-start md:justify-center justify-start items-center gap-1 px-4 pt-8 md:pt-0 lg:pt-16">
         {/* Welcome Message + Enhanced HUD Level */}
         {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "privy") && !loading && (
           <div className="mt-20 md:mt-28 lg:mt-0 flex flex-col items-center gap-4">
@@ -626,7 +626,7 @@ const HeroSection: React.FC = () => {
           </p>
         </div>
 
-        <div className="z-1 w-full flex min-h-[152px] flex-col justify-center items-center mt-6 gap-4">
+        <div className="z-1 w-full flex min-h-[60px] flex-col justify-center items-center mt-2 gap-4">
           {/* EOA mandatory Privy: wallet connected but not signed in with Privy — must sign in with Privy to continue */}
           {address && !isPrivyAuthed && !loading && (
             <div className="w-full flex flex-col gap-4 items-center">

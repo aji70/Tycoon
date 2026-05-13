@@ -11,13 +11,13 @@
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px 20px 32px;
+  padding: 0 20px 32px;
 }
 
 .hero {
   text-align: center;
-  margin-bottom: 28px;
-  padding: 28px 24px 26px;
+  margin-bottom: 16px;
+  padding: 16px 24px 14px;
   border-radius: 20px;
   background: linear-gradient(155deg, rgba(14, 32, 42, 0.55) 0%, rgba(8, 18, 26, 0.45) 100%);
   border: 1px solid rgba(0, 240, 255, 0.14);
@@ -46,7 +46,7 @@
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1.1;
-  margin: 0 0 14px;
+  margin: 0 0 8px;
   background: linear-gradient(120deg, #f0fdff 0%, #9ef0ff 40%, #00d8ea 100%);
   -webkit-background-clip: text;
   background-clip: text;
@@ -56,7 +56,7 @@
 .heroSubtitle {
   font-size: 1.05rem;
   color: #8aa8b0;
-  margin: 0 auto 18px;
+  margin: 0 auto 10px;
   max-width: 38rem;
   line-height: 1.55;
 }
@@ -80,7 +80,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 8px;
   padding: 10px 18px;
   border-radius: 999px;
   font-size: 0.9rem;
