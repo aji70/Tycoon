@@ -618,7 +618,7 @@ const HeroSectionMobile: React.FC = () => {
               <p className="text-[#869298] text-sm text-center px-2 max-w-sm">
                 Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.
               </p>
-              <div className="flex flex-wrap justify-center gap-3">
+              <div className="flex flex-wrap justify-center gap-3 mb-4">
                 {canRegisterOnChain && (
                   <GlowButton
                     onClick={handleRegisterOnChain}
