@@ -901,7 +901,7 @@ const HeroSection: React.FC = () => {
           {/* Action buttons: require Privy for EOA; guest/Privy. Show when fully set up (hasSmartWallet preferred, but allow linked/registered users to try). */}
           {((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) ? (
             <motion.div
-              className="flex flex-wrap justify-center items-center gap-2 mb-8"
+              className="flex flex-wrap justify-center items-center gap-2 mb-20"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}

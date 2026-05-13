@@ -1966,7 +1966,9 @@ export default function ProfilePageMobile() {
         </section>
 
         <div className="px-4 py-4 space-y-4">
-          {guestUser?.id && <DailyClaim chain="CELO" accountKey={guestUser.id} />}
+          {(guestUser?.id || walletAddress) && (
+            <DailyClaim chain="CELO" accountKey={guestUser?.id || walletAddress} />
+          )}
           <ProfileReferralCard />
         </div>
 
