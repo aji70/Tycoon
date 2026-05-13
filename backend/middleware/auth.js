@@ -65,10 +65,11 @@ export async function requireAuthOrAddress(req, res, next) {
     }
   }
 
-  // Address fallback path
-  const address = req.body?.address;
+  // Address fallback path (from body or query)
+  const address = req.body?.address || req.query?.address;
+  const chain = req.body?.chain || req.query?.chain || "CELO";
   if (address && /^0x[a-fA-F0-9]{40}$/.test(address.trim())) {
-    const user = await User.resolveUserByAddress(address.trim(), req.body?.chain || "CELO").catch(() => null);
+    const user = await User.resolveUserByAddress(address.trim(), chain).catch(() => null);
     if (!user) return res.status(404).json({ success: false, message: "User not found for this address. Register first." });
     const st = String(user.account_status || "active").toLowerCase();
     if (st === "banned" || st === "suspended") {
