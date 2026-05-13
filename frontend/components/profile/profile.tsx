@@ -492,17 +492,17 @@ function GuestProfileView({
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="relative rounded-3xl overflow-hidden mb-8 sm:mb-10 profile-hero"
+          className="relative rounded-3xl overflow-hidden mb-8 sm:mb-10 profile-hero shadow-lg shadow-cyan-500/10"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-teal-500/10" />
-          <div className="absolute inset-0 border border-cyan-500/20 rounded-3xl" />
+          <div className="absolute inset-0 border border-cyan-500/40 rounded-3xl" />
           <div className="relative p-6 sm:p-8">
             <div className="flex flex-col lg:flex-row items-start gap-6 lg:gap-8">
               <div className="relative group shrink-0 mx-auto lg:mx-0">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-[0_0_40px_rgba(0,240,255,0.15)] border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-[#030c0d] block"
+                  className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-[0_0_40px_rgba(0,240,255,0.15)] shadow-cyan-400/30 border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-[#030c0d] block group-hover:ring-cyan-500/40"
                   aria-label="Update avatar"
                 >
                   <span className="absolute inset-0 [&>img]:object-cover">
@@ -512,7 +512,7 @@ function GuestProfileView({
                       <Image src={avatar} alt="Avatar" width={128} height={128} className="w-full h-full object-cover" />
                     )}
                   </span>
-                  <span className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="absolute inset-0 bg-cyan-900/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     <span className="w-12 h-12 rounded-full bg-cyan-500/30 flex items-center justify-center">
                       <Camera className="w-6 h-6 text-white" />
                     </span>
@@ -617,10 +617,10 @@ function GuestProfileView({
                           ].map(({ label, value, color }) => (
                             <div
                               key={`c-${label}`}
-                              className={`flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center balance-${color}`}
+                              className="flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-cyan-500/20 bg-slate-800/60 text-center hover:border-cyan-500/40 transition-all"
                             >
-                              <p className="text-[8px] font-medium uppercase tracking-wider text-white/45 leading-none">{label}</p>
-                              <p className="text-xs font-bold text-white truncate mt-0.5 leading-tight tabular-nums">{value}</p>
+                              <p className="text-[8px] font-medium uppercase tracking-wider text-cyan-400/60 leading-none">{label}</p>
+                              <p className="text-xs font-bold text-cyan-300 font-mono truncate mt-0.5 leading-tight tabular-nums">{value}</p>
                             </div>
                           ))}
                         </div>
@@ -679,10 +679,10 @@ function GuestProfileView({
                 key={id}
                 type="button"
                 onClick={() => setProfileTab(id)}
-                className={`flex-1 min-w-[160px] flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-semibold text-sm transition-all ${
+                className={`flex-1 min-w-[160px] flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-orbitron text-sm transition-all ${
                   profileTab === id
-                    ? 'bg-cyan-500/20 border-2 border-cyan-500/50 text-cyan-200'
-                    : 'bg-white/5 border border-white/10 text-white/70 hover:border-white/20 hover:text-white/90'
+                    ? 'border-2 border-cyan-400 bg-cyan-500/20 text-cyan-300 shadow-lg shadow-cyan-500/30'
+                    : 'border border-cyan-500/30 bg-slate-800/40 text-cyan-400/60 hover:border-cyan-400/60'
                 }`}
               >
                 <Icon className="w-4 h-4 shrink-0" />
@@ -713,14 +713,14 @@ function GuestProfileView({
                     {(() => {
                       const levelInfo = getLevelFromActivity({ gamesPlayed: displayStats.gamesPlayed, gamesWon: displayStats.gamesWon });
                       return (
-                        <div className="mb-4 p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-2">
+                        <div className="mb-4 p-4 rounded-xl bg-[#0E282A]/80 border border-cyan-500/40 shadow-lg shadow-cyan-500/10 flex flex-col gap-2">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] font-medium text-cyan-400/90 uppercase tracking-widest">Level</span>
-                            <span className="font-bold text-cyan-300">Level {levelInfo.level} · {levelInfo.label}</span>
+                            <span className="font-orbitron text-[10px] text-cyan-400/90 uppercase tracking-widest">Level</span>
+                            <span className="font-orbitron font-bold text-cyan-300">Level {levelInfo.level} · {levelInfo.label}</span>
                           </div>
                           {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
                             <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                              <div className="h-full rounded-full bg-cyan-500/80 transition-all duration-500" style={{ width: `${Math.round(levelInfo.progress * 100)}%` }} />
+                              <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all duration-500" style={{ width: `${Math.round(levelInfo.progress * 100)}%` }} />
                             </div>
                           )}
                         </div>
@@ -734,11 +734,11 @@ function GuestProfileView({
                         { icon: Coins, label: 'Losses', value: String(displayStats.gamesLost), accent: 'slate', valueClass: 'text-slate-300' },
                         { icon: BarChart2, label: 'Win rate', value: displayStats.winRate, accent: 'emerald', valueClass: 'text-emerald-300' },
                       ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-                        <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
-                          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
+                        <div key={label} className="bg-slate-800/60 border border-cyan-500/20 rounded-2xl p-4 flex items-center gap-3 hover:border-cyan-500/40 transition-all">
+                          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0"><Icon className="w-5 h-5" /></div>
                           <div className="min-w-0">
                             <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                            <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
+                            <p className={`font-bold font-orbitron text-base truncate ${valueClass}`}>{value}</p>
                           </div>
                         </div>
                       ))}
@@ -750,11 +750,11 @@ function GuestProfileView({
                         { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(displayStats.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
                         { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(displayStats.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
                       ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-                        <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
-                          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
+                        <div key={label} className="bg-slate-800/60 border border-cyan-500/20 rounded-2xl p-4 flex items-center gap-3 hover:border-cyan-500/40 transition-all">
+                          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0"><Icon className="w-5 h-5" /></div>
                           <div className="min-w-0">
                             <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                            <p className={`font-bold text-sm truncate ${valueClass}`}>{value}</p>
+                            <p className={`font-bold font-orbitron text-sm truncate ${valueClass}`}>{value}</p>
                           </div>
                         </div>
                       ))}
@@ -1481,17 +1481,17 @@ export default function Profile() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="relative rounded-3xl overflow-hidden mb-8 sm:mb-10 profile-hero"
+          className="relative rounded-3xl overflow-hidden mb-8 sm:mb-10 profile-hero shadow-lg shadow-cyan-500/10"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-teal-500/10" />
-          <div className="absolute inset-0 border border-cyan-500/20 rounded-3xl" />
+          <div className="absolute inset-0 border border-cyan-500/40 rounded-3xl" />
           <div className="relative p-6 sm:p-8">
             <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
               <div className="relative group shrink-0">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-[0_0_40px_rgba(0,240,255,0.15)] focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-[#030c0d] block"
+                  className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-[0_0_40px_rgba(0,240,255,0.15)] shadow-cyan-400/30 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-[#030c0d] block group-hover:ring-cyan-500/40"
                 >
                   {profile?.avatar ? (
                     <img src={profile.avatar} alt="Profile" className="w-full h-full object-cover" />
@@ -1500,7 +1500,7 @@ export default function Profile() {
                       <Image src={avatar} alt="Avatar" width={128} height={128} className="w-full h-full object-cover" />
                     </span>
                   )}
-                  <span className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="absolute inset-0 bg-cyan-900/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     <span className="w-12 h-12 rounded-full bg-cyan-500/30 flex items-center justify-center">
                       <Camera className="w-6 h-6 text-white" />
                     </span>
@@ -1630,9 +1630,9 @@ export default function Profile() {
                       color: 'slate',
                     },
                   ].map(({ label, value, color }) => (
-                    <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
-                      <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
-                      <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
+                    <div key={label} className="flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 border border-cyan-500/20 bg-slate-800/60 hover:border-cyan-500/40 transition-all">
+                      <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-cyan-400/60">{label}</p>
+                      <p className="text-base sm:text-lg font-bold text-cyan-300 font-mono truncate mt-0.5">{value}</p>
                     </div>
                   ))}
                 </div>
@@ -1662,10 +1662,10 @@ export default function Profile() {
                 key={id}
                 type="button"
                 onClick={() => setProfileTab(id)}
-                className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-semibold text-sm transition-all ${
+                className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-orbitron text-sm transition-all ${
                   profileTab === id
-                    ? 'bg-cyan-500/20 border-2 border-cyan-500/50 text-cyan-200'
-                    : 'bg-white/5 border border-white/10 text-white/70 hover:border-white/20 hover:text-white/90'
+                    ? 'border-2 border-cyan-400 bg-cyan-500/20 text-cyan-300 shadow-lg shadow-cyan-500/30'
+                    : 'border border-cyan-500/30 bg-slate-800/40 text-cyan-400/60 hover:border-cyan-400/60'
                 }`}
               >
                 <Icon className="w-4 h-4 shrink-0" />
@@ -1702,15 +1702,15 @@ export default function Profile() {
                 {effectiveUserData && (() => {
                   const levelInfo = getLevelFromActivity({ gamesPlayed: effectiveUserData.gamesPlayed, gamesWon: effectiveUserData.gamesWon });
                   return (
-                    <div className="mb-4 p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-2">
+                    <div className="mb-4 p-4 rounded-xl bg-[#0E282A]/80 border border-cyan-500/40 shadow-lg shadow-cyan-500/10 flex flex-col gap-2">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-medium text-cyan-400/90 uppercase tracking-widest">Level</span>
-                        <span className="font-bold text-cyan-300">Level {levelInfo.level} · {levelInfo.label}</span>
+                        <span className="font-orbitron text-[10px] text-cyan-400/90 uppercase tracking-widest">Level</span>
+                        <span className="font-orbitron font-bold text-cyan-300">Level {levelInfo.level} · {levelInfo.label}</span>
                       </div>
                       {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
                         <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-cyan-500/80 transition-all duration-500"
+                            className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all duration-500"
                             style={{ width: `${Math.round(levelInfo.progress * 100)}%` }}
                           />
                         </div>
@@ -1725,13 +1725,13 @@ export default function Profile() {
                     { icon: Coins, label: 'Losses', value: String(effectiveUserData?.gamesLost ?? 0), accent: 'slate', valueClass: 'text-slate-300' },
                     { icon: BarChart2, label: 'Win rate', value: effectiveUserData?.winRate ?? '0%', accent: 'emerald', valueClass: 'text-emerald-300' },
                   ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-                    <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
+                    <div key={label} className="bg-slate-800/60 border border-cyan-500/20 rounded-2xl p-4 flex items-center gap-3 hover:border-cyan-500/40 transition-all">
+                      <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
                         <Icon className="w-5 h-5" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                        <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
+                        <p className={`font-bold font-orbitron text-base truncate ${valueClass}`}>{value}</p>
                       </div>
                     </div>
                   ))}
@@ -1742,13 +1742,13 @@ export default function Profile() {
                     { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(effectiveUserData?.totalEarned ?? 0) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
                     { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(effectiveUserData?.totalWithdrawn ?? 0) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
                   ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-                    <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
+                    <div key={label} className="bg-slate-800/60 border border-cyan-500/20 rounded-2xl p-4 flex items-center gap-3 hover:border-cyan-500/40 transition-all">
+                      <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
                         <Icon className="w-5 h-5" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                        <p className={`font-bold text-sm truncate ${valueClass}`}>{value}</p>
+                        <p className={`font-bold font-orbitron text-sm truncate ${valueClass}`}>{value}</p>
                       </div>
                     </div>
                   ))}
