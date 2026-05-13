@@ -529,7 +529,7 @@ const HeroSection: React.FC = () => {
   return (
     <section
       ref={parallaxRef}
-      className="z-0 w-full h-screen relative overflow-hidden bg-[#010F10]"
+      className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-hidden bg-[#010F10]"
     >
       {/* Background with parallax - disabled on mobile */}
       <motion.div
@@ -562,45 +562,21 @@ const HeroSection: React.FC = () => {
       {/* Gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#010F10]/20 to-[#010F10]/60 z-5" />
 
-      <main className="w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col justify-start items-center gap-1 px-4 pt-8">
+      <main className="w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col lg:justify-start md:justify-center justify-start items-center gap-1 px-4 pt-8 md:pt-0 lg:pt-16">
         {/* Welcome Message */}
         {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "privy") && !loading && (
-          <div className="mt-12 flex flex-col items-center gap-4 px-4">
+          <div className="mt-20 md:mt-28 lg:mt-0 flex flex-col items-center gap-4">
             <motion.p
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="font-orbitron text-[18px] font-[700] text-[#00F0FF] text-center drop-shadow-lg"
+              className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center drop-shadow-lg"
               style={{
                 textShadow: "0 0 10px rgba(0, 240, 255, 0.8), 0 0 20px rgba(0, 240, 255, 0.4)",
               }}
             >
               Welcome back, {displayUsername}!
             </motion.p>
-
-            {/* HUD Block */}
-            <motion.div
-              className="flex gap-2 border border-cyan-500/40 rounded p-2 text-[12px] font-orbitron"
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-            >
-              <div className="text-[#00F0FF]">LEVEL <span className="text-white font-bold">26</span></div>
-              <div className="text-[#00F0FF]">STATUS <span className="text-cyan-400 font-bold">Elite</span></div>
-            </motion.div>
-
-            {/* XP Bar */}
-            <motion.div
-              className="flex flex-col items-center gap-1 text-[11px]"
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            >
-              <div className="text-[#00F0FF]/70 font-orbitron">XP PROGRESS 60/70</div>
-              <div className="h-1 bg-cyan-500 w-32 rounded"/>
-              <div className="text-[#00F0FF] font-orbitron font-bold">⚡ READY FOR BATTLE</div>
-            </motion.div>
-
             {levelInfo && (
               <motion.div
                 className="flex flex-col items-center gap-3 bg-gradient-to-b from-[#0E282A]/80 to-[#0A1719]/80 rounded-lg p-4 border border-[#00F0FF]/40 backdrop-blur-sm"
@@ -622,11 +598,11 @@ const HeroSection: React.FC = () => {
                   >
                     LEVEL {levelInfo.level}
                   </motion.span>
-                  <span className="game-level-label text-[11px] text-[#00F0FF]/90 font-orbitron font-semibold tracking-wider">{levelInfo.label}</span>
+                  <span className="game-level-label text-[10px] md:text-xs text-[#00F0FF]/90 font-orbitron font-semibold tracking-wider">{levelInfo.label}</span>
                 </div>
                 {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
                   <motion.div
-                    className="w-48 flex flex-col gap-1"
+                    className="w-32 md:w-56 flex flex-col gap-1"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.3 }}
@@ -654,20 +630,14 @@ const HeroSection: React.FC = () => {
         )}
 
         {loading && (
-          <div className="mt-16">
-            <p className="font-orbitron text-[16px] font-[700] text-[#00F0FF] text-center">
+          <div className="mt-20 md:mt-28 lg:mt-0">
+            <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
               Registering... Please wait.
             </p>
           </div>
         )}
 
-        <motion.div
-          className="flex justify-center items-center gap-3 mt-4"
-          style={{ overflow: "visible", whiteSpace: "nowrap" }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.8 }}
-        >
+        <div className="flex justify-center items-center md:gap-6 gap-3 mt-4 md:mt-6 lg:mt-4">
           <TypeAnimation
             sequence={[
               "Conquer",
@@ -688,28 +658,16 @@ const HeroSection: React.FC = () => {
             wrapper="span"
             speed={40}
             repeat={Infinity}
-            className="font-orbitron text-[20px] font-[700] text-[#F0F7F7] text-center block"
+            className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-[#F0F7F7] text-center block"
             style={{
               textShadow: "0 0 8px rgba(0, 240, 255, 0.6), 0 0 16px rgba(0, 240, 255, 0.3)",
             }}
           />
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.5, duration: 0.8 }}
-        >
-          <NeonTitle text="TYCOON" size="lg" />
-        </motion.div>
+        <NeonTitle text="TYCOON" size="lg" />
 
-        <motion.div
-          className="w-full px-4 text-center text-[#F0F7F7] -tracking-[2%]"
-          style={{ overflow: "visible", whiteSpace: "nowrap" }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4, duration: 0.8 }}
-        >
+        <div className="w-full px-4 md:w-[70%] lg:w-[55%] text-center text-[#F0F7F7] -tracking-[2%]">
           <TypeAnimation
             sequence={[
               "Roll the dice",
@@ -726,23 +684,23 @@ const HeroSection: React.FC = () => {
             wrapper="span"
             speed={50}
             repeat={Infinity}
-            className="font-orbitron text-[18px] font-[700] text-[#F0F7F7] text-center block"
+            className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-[#F0F7F7] text-center block"
             style={{
               textShadow: "0 0 6px rgba(0, 240, 255, 0.5), 0 0 12px rgba(0, 240, 255, 0.2)",
             }}
           />
-          <p className="font-dmSans font-[400] text-[13px] text-[#F0F7F7] mt-3 leading-relaxed">
+          <p className="font-dmSans font-[400] md:text-[18px] text-[14px] text-[#F0F7F7] mt-4">
             Step into Tycoon — the Web3 twist on the classic game of strategy,
             ownership, and fortune. Play solo against AI, compete in multiplayer
             rooms, collect tokens, complete quests, and become the ultimate
             blockchain tycoon.
           </p>
-        </motion.div>
+        </div>
 
         <div className="z-1 w-full flex min-h-[152px] flex-col justify-center items-center mt-6 gap-4">
           {/* EOA mandatory Privy: wallet connected but not signed in with Privy — must sign in with Privy to continue */}
           {address && !walletSessionReady && !loading && (
-            <div className="w-[85%] max-w-xs flex flex-col gap-4 items-center">
+            <div className="w-[80%] md:w-[400px] flex flex-col gap-4 items-center">
               <p className="text-[#869298] text-sm text-center font-dmSans">
                 Wallet connected. Continue with wallet.
               </p>
@@ -780,13 +738,13 @@ const HeroSection: React.FC = () => {
               value={inputUsername}
               onChange={(e) => setInputUsername(e.target.value)}
               placeholder="Choose your tycoon name"
-              className="w-[85%] max-w-xs h-[42px] bg-[#0E1415] rounded-[12px] border-[1px] border-[#003B3E] outline-none px-3 text-[#17ffff] font-orbitron font-[400] text-[14px] text-center placeholder:text-[#455A64] placeholder:font-dmSans focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0E1415] focus:border-cyan-500/50"
+              className="w-[80%] md:w-[260px] h-[45px] bg-[#0E1415] rounded-[12px] border-[1px] border-[#003B3E] outline-none px-3 text-[#17ffff] font-orbitron font-[400] text-[16px] text-center placeholder:text-[#455A64] placeholder:font-dmSans focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0E1415] focus:border-cyan-500/50"
             />
           )}
 
           {/* When disconnected: primary path is wallet connect. */}
           {!address && registrationStatus === "disconnected" && !loading && (
-            <div className="w-[85%] max-w-xs flex flex-col gap-4 items-center">
+            <div className="w-[80%] md:w-[400px] flex flex-col gap-4 items-center">
               <button
                 type="button"
                 onClick={() => openWallet?.()}
@@ -900,8 +858,7 @@ const HeroSection: React.FC = () => {
 
           {/* Action buttons: require Privy for EOA; guest/Privy. Show when fully set up (hasSmartWallet preferred, but allow linked/registered users to try). */}
           {((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) ? (
-            <motion.div
-              className="flex flex-wrap justify-center items-center gap-2"
+            <div className="flex flex-wrap justify-center items-center gap-4">
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
@@ -909,9 +866,9 @@ const HeroSection: React.FC = () => {
               {/* Continue Previous Game - Highlighted (wallet: from contract; guest: from my-games) */}
               {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
                 (guestUser && guestLastGame && guestLastGame.status !== "COMPLETED" && guestLastGame.status !== "CANCELLED")) && (
-                <motion.button
+                <button
                   onClick={handleContinuePrevious}
-                  className="relative group w-[240px] h-[48px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
+                  className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -933,17 +890,17 @@ const HeroSection: React.FC = () => {
                       }}
                     />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[14px] font-orbitron font-[700] z-2">
-                    <Gamepad2 className="mr-1.5 w-4 h-4" />
-                    Continue
+                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[20px] font-orbitron font-[700] z-2">
+                    <Gamepad2 className="mr-2 w-7 h-7" />
+                    Continue Game
                   </span>
-                </motion.button>
+                </button>
               )}
 
               {/* Play with Friends */}
               <button
                 onClick={() => router.push("/game-settings-3d")}
-                className="relative group w-[110px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer text-[11px]"
+                className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
               >
                 <svg
                   width="227"
@@ -994,20 +951,20 @@ const HeroSection: React.FC = () => {
                 </span>
               </button>
 
+              {(guestUser || walletSessionReady) && (
+                <button
+                  type="button"
+                  onClick={() => signOutGuestAndPrivy()}
+                  className="text-[#869298] hover:text-[#00F0FF] font-dmSans text-xs"
+                >
+                  Sign out
+                </button>
+              )}
+
               {/* Challenge AI */}
-              <motion.button
+              <button
                 onClick={() => router.push("/play-ai-3d")}
-                className="relative group w-[240px] h-[48px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.98 }}
-                animate={{
-                  boxShadow: [
-                    "0 0 10px rgba(0, 240, 255, 0)",
-                    "0 0 20px rgba(0, 240, 255, 0.6)",
-                    "0 0 10px rgba(0, 240, 255, 0)",
-                  ]
-                }}
-                transition={{ duration: 3, repeat: Infinity }}
+                className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
               >
                 <svg
                   width="260"
@@ -1022,17 +979,14 @@ const HeroSection: React.FC = () => {
                     fill="#00F0FF"
                     stroke="#0E282A"
                     strokeWidth={1}
-                    style={{
-                      filter: "drop-shadow(0 0 6px rgba(0, 240, 255, 0.8))"
-                    }}
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
                   Challenge AI!
                 </span>
-              </motion.button>
+              </button>
 
-            </motion.div>
+            </div>
           ) : null}
 
           {!address && !guestUser && !walletSessionReady && (
