@@ -90,8 +90,26 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
     );
   }
 
-  if (!code) {
-    return null;
+  const showPlaceholder = !code && !query.isLoading && !query.isError;
+
+  if (showPlaceholder) {
+    return (
+      <div
+        className={`rounded-2xl border border-cyan-500/30 bg-slate-800/60 p-4 sm:p-5 shadow-lg shadow-cyan-500/5 ${className}`}
+      >
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center shrink-0">
+            <Gift className="w-5 h-5 text-cyan-300" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/90 mb-1 font-orbitron">Invite Friends</p>
+            <p className="text-xs text-cyan-300/70">
+              Sign in to see your unique referral code and start earning <span className="font-semibold text-amber-400">$0.10 USDC</span> for every friend who joins!
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -116,7 +134,7 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
             </span>
             <button
               type="button"
-              onClick={() => copyText("Code", code, "code")}
+              onClick={() => copyText("Code", code!, "code")}
               className="p-2 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 transition shrink-0"
               title="Copy code"
             >
