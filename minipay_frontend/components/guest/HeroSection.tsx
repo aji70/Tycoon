@@ -982,7 +982,7 @@ const HeroSection: React.FC = () => {
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
-                  Challenge AI!
+                  Challenge AI
                 </span>
               </button>
 

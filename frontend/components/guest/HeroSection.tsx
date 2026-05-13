@@ -775,7 +775,7 @@ const HeroSection: React.FC = () => {
                 variant="primary"
                 size="lg"
               >
-                Challenge AI!
+                Challenge AI
               </GlowButton>
 
               {/* Agent Battles */}

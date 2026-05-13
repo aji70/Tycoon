@@ -728,7 +728,7 @@ const HeroSectionMobile: React.FC = () => {
                 variant="primary"
                 size="md"
               >
-                Challenge AI!
+                Challenge AI
               </GlowButton>
 
               {/* Agent Battles */}
