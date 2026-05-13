@@ -67,14 +67,14 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
     }
   }, []);
 
-  if (!enabled || !hasBackendToken()) {
+  if (!enabled) {
     return null;
   }
 
   if (query.isLoading) {
     return (
       <div
-        className={`rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4 flex items-center gap-3 text-emerald-200/80 text-sm ${className}`}
+        className={`rounded-2xl border border-cyan-500/25 bg-cyan-500/5 p-4 flex items-center gap-3 text-cyan-200/80 text-sm ${className}`}
       >
         <Loader2 className="w-5 h-5 animate-spin shrink-0" />
         Loading referral link…
@@ -96,28 +96,31 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
 
   return (
     <div
-      className={`rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-cyan-500/5 p-4 sm:p-5 ${className}`}
+      className={`rounded-2xl border border-cyan-500/30 bg-slate-800/60 p-4 sm:p-5 shadow-lg shadow-cyan-500/5 ${className}`}
     >
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
-          <Gift className="w-5 h-5 text-emerald-300" />
+        <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center shrink-0">
+          <Gift className="w-5 h-5 text-cyan-300" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-400/90 mb-1">Invite friends</p>
-          <p className="text-xs text-white/60 mb-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/90 mb-1 font-orbitron">Invite Friends</p>
+          <p className="text-xs text-cyan-300/70 mb-1">
+            Earn <span className="font-semibold text-amber-400">$0.10 USDC</span> for every friend who signs up with your code
+          </p>
+          <p className="text-xs text-cyan-300/70 mb-1">
             Share your link. New players who open the site with <span className="font-mono text-white/80">?ref=</span> your code will have it applied at sign-in.
           </p>
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <span className="font-mono text-sm text-emerald-200 bg-black/30 px-3 py-1.5 rounded-lg border border-emerald-500/20 truncate max-w-full">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="font-mono text-sm text-cyan-300 bg-[#0A1A1B] px-3 py-1.5 rounded-lg border border-cyan-500/40 truncate max-w-full">
               {code}
             </span>
             <button
               type="button"
               onClick={() => copyText("Code", code, "code")}
-              className="p-2 rounded-lg bg-white/10 hover:bg-emerald-500/20 border border-white/10 text-emerald-200 transition shrink-0"
+              className="p-2 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 transition shrink-0"
               title="Copy code"
             >
-              {copied === "code" ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+              {copied === "code" ? <Check className="w-4 h-4 text-cyan-400" /> : <Copy className="w-4 h-4" />}
             </button>
           </div>
           {shareUrl ? (
@@ -125,17 +128,28 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
               <button
                 type="button"
                 onClick={() => copyText("Link", shareUrl, "link")}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-600/80 hover:bg-emerald-500 text-black text-xs font-bold transition"
+                className="w-full px-3 py-2 rounded-xl border-2 border-cyan-400 bg-cyan-500/20 text-cyan-300 text-xs font-bold font-orbitron transition hover:shadow-lg hover:shadow-cyan-500/30"
               >
-                {copied === "link" ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                Copy invite link
+                {copied === "link" ? <Check className="w-4 h-4 inline mr-1" /> : <Copy className="w-4 h-4 inline mr-1" />}
+                Copy Invite Link
               </button>
             </div>
           ) : null}
-          <p className="text-[11px] text-white/45 mt-3">
-            Friends invited (signed up with your code):{" "}
-            <span className="text-emerald-300/90 font-semibold tabular-nums">{data?.directReferralsCount ?? 0}</span>
-          </p>
+          {(() => {
+            const referralCount = data?.directReferralsCount ?? 0;
+            const earnedAmount = (referralCount * 0.10).toFixed(2);
+            return (
+              <div className="mt-3 pt-3 border-t border-cyan-500/20 space-y-1">
+                <p className="text-[11px] text-cyan-300/70">
+                  Friends invited:{" "}
+                  <span className="font-semibold text-cyan-300 tabular-nums">{referralCount}</span>
+                  {" "}·{" "}
+                  Total earned:{" "}
+                  <span className="font-bold text-amber-400 tabular-nums">${earnedAmount} USDC</span>
+                </p>
+              </div>
+            );
+          })()}
           {data?.referredByUserId != null && (
             <p className="text-[11px] text-white/40 mt-1">
               You were referred by{" "}
