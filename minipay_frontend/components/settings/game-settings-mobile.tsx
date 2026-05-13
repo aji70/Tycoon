@@ -87,7 +87,22 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
     startingCash: 1500,
     stake: 0,
     duration: 30,
+    boardId: "default",
   });
+
+  const BOARD_OPTIONS = [
+    { value: "default", label: "🎲 Classic Monopoly" },
+    { value: "kaduna-nigeria", label: "🇳🇬 Kaduna, Nigeria" },
+    { value: "ghana", label: "🇬🇭 Ghana" },
+    { value: "kenya", label: "🇰🇪 Kenya" },
+    { value: "south-africa", label: "🇿🇦 South Africa" },
+    { value: "indonesia", label: "🇮🇩 Indonesia" },
+    { value: "philippines", label: "🇵🇭 Philippines" },
+    { value: "vietnam", label: "🇻🇳 Vietnam" },
+    { value: "colombia", label: "🇨🇴 Colombia" },
+    { value: "brazil", label: "🇧🇷 Brazil" },
+    { value: "argentina", label: "🇦🇷 Argentina" },
+  ];
 
   const [customStake, setCustomStake] = useState<string>("");
   const [createError, setCreateError] = useState<string | null>(null);
@@ -171,6 +186,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
           is_minipay: isMiniPay,
           chain: chainName,
           duration: settings.duration,
+          board_id: settings.boardId,
           use_usdc: false,
           settings: {
             auction: settings.auction,
@@ -227,6 +243,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
           stake: finalStake,
           is_private: false,
           chain: chainName,
+          board_id: settings.boardId,
           game_rules: {
             auction: settings.auction,
             rent_in_prison: settings.rentInPrison,
@@ -450,6 +467,28 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
                     }`}
                   >
                     {duration.label}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* BOARD VARIANT */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Board Variant</p>
+              <div className="grid grid-cols-2 gap-2">
+                {BOARD_OPTIONS.map((board) => (
+                  <motion.button
+                    key={board.value}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSettings((p) => ({ ...p, boardId: board.value }))}
+                    className={`py-2 px-2 rounded-lg font-orbitron text-xs font-bold transition-all border-2 flex items-center justify-center gap-1 ${
+                      settings.boardId === board.value
+                        ? "border-cyan-400 bg-cyan-500/20 text-cyan-300"
+                        : "border-cyan-500/30 bg-slate-800/40 text-cyan-400/60 hover:border-cyan-400/60"
+                    }`}
+                  >
+                    <span>{board.label.split(" ")[0]}</span>
                   </motion.button>
                 ))}
               </div>
