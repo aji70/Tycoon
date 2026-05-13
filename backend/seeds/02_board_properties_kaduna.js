@@ -1,0 +1,92 @@
+/**
+ * Kaduna, Nigeria - Board Properties
+ * Properties based on real landmarks and neighborhoods in Kaduna
+ */
+
+export const seed = async (knex) => {
+  const boardId = "kaduna-nigeria";
+
+  const properties = [
+    // Corner 0: GO
+    { id: 0, board_id: boardId, name: "GO", type: "corner", price: 0, color: "#2ecc71", grid_row: 11, grid_col: 1, rent_site_only: 0, rent_one_house: 0, rent_two_houses: 0, rent_three_houses: 0, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+
+    // Brown Group
+    { id: 1, board_id: boardId, name: "Nnamdi Azikiwe Stadium", type: "property", price: 60, color: "#8B4513", grid_row: 11, grid_col: 2, rent_site_only: 2, rent_one_house: 10, rent_two_houses: 30, rent_three_houses: 90, rent_four_houses: 160, rent_hotel: 250, cost_of_house: 50 },
+    { id: 2, board_id: boardId, name: "COMMUNITY CHEST", type: "community_chest", price: 0, color: "#8B4513", grid_row: 11, grid_col: 3, rent_site_only: 0, rent_one_house: 0, rent_two_houses: 0, rent_three_houses: 0, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+    { id: 3, board_id: boardId, name: "Kaduna Central Market", type: "property", price: 60, color: "#8B4513", grid_row: 11, grid_col: 4, rent_site_only: 4, rent_one_house: 20, rent_two_houses: 60, rent_three_houses: 180, rent_four_houses: 320, rent_hotel: 450, cost_of_house: 50 },
+    { id: 4, board_id: boardId, name: "INCOME TAX", type: "income_tax", price: 0, color: "#fff", grid_row: 11, grid_col: 5, rent_site_only: 0, rent_one_house: 0, rent_two_houses: 0, rent_three_houses: 0, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+
+    // Railway 1
+    { id: 5, board_id: boardId, name: "Kaduna Railway Station", type: "property", price: 200, color: "railroad", grid_row: 11, grid_col: 6, rent_site_only: 25, rent_one_house: 50, rent_two_houses: 100, rent_three_houses: 200, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+
+    // Light Blue Group
+    { id: 6, board_id: boardId, name: "Kajuru Castle", type: "property", price: 100, color: "#87CEEB", grid_row: 11, grid_col: 7, rent_site_only: 6, rent_one_house: 30, rent_two_houses: 90, rent_three_houses: 270, rent_four_houses: 400, rent_hotel: 550, cost_of_house: 50 },
+    { id: 7, board_id: boardId, name: "CHANCE", type: "chance", price: 0, color: "#87CEEB", grid_row: 11, grid_col: 8, rent_site_only: 0, rent_one_house: 0, rent_two_houses: 0, rent_three_houses: 0, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+    { id: 8, board_id: boardId, name: "Emir's Palace District", type: "property", price: 100, color: "#87CEEB", grid_row: 11, grid_col: 9, rent_site_only: 8, rent_one_house: 40, rent_two_houses: 100, rent_three_houses: 300, rent_four_houses: 450, rent_hotel: 600, cost_of_house: 50 },
+    { id: 9, board_id: boardId, name: "Barnawa Residential Area", type: "property", price: 120, color: "#87CEEB", grid_row: 11, grid_col: 10, rent_site_only: 10, rent_one_house: 50, rent_two_houses: 150, rent_three_houses: 450, rent_four_houses: 625, rent_hotel: 750, cost_of_house: 50 },
+
+    // Corner 1: JAIL/JUST VISITING
+    { id: 10, board_id: boardId, name: "JAIL/JUST VISITING", type: "corner", price: 0, color: "#7f8c8d", grid_row: 11, grid_col: 11, rent_site_only: 0, rent_one_house: 0, rent_two_houses: 0, rent_three_houses: 0, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+
+    // Pink Group
+    { id: 11, board_id: boardId, name: "Kakuri Industrial Zone", type: "property", price: 140, color: "#FF69B4", grid_row: 10, grid_col: 11, rent_site_only: 12, rent_one_house: 60, rent_two_houses: 180, rent_three_houses: 500, rent_four_houses: 700, rent_hotel: 900, cost_of_house: 100 },
+    { id: 12, board_id: boardId, name: "Water Works (Utility)", type: "property", price: 150, color: "utility", grid_row: 9, grid_col: 11, rent_site_only: 4, rent_one_house: 10, rent_two_houses: 0, rent_three_houses: 0, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+    { id: 13, board_id: boardId, name: "Ungwar Sarki Quarter", type: "property", price: 140, color: "#FF69B4", grid_row: 8, grid_col: 11, rent_site_only: 14, rent_one_house: 70, rent_two_houses: 200, rent_three_houses: 550, rent_four_houses: 750, rent_hotel: 950, cost_of_house: 100 },
+    { id: 14, board_id: boardId, name: "Kaduna High Court", type: "property", price: 160, color: "#FF69B4", grid_row: 7, grid_col: 11, rent_site_only: 16, rent_one_house: 80, rent_two_houses: 220, rent_three_houses: 600, rent_four_houses: 800, rent_hotel: 1000, cost_of_house: 100 },
+
+    // Railway 2
+    { id: 15, board_id: boardId, name: "Kaduna-Abuja Express", type: "property", price: 200, color: "railroad", grid_row: 6, grid_col: 11, rent_site_only: 25, rent_one_house: 50, rent_two_houses: 100, rent_three_houses: 200, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+
+    // Orange Group
+    { id: 16, board_id: boardId, name: "Kachia Road Commercial", type: "property", price: 180, color: "#FFA500", grid_row: 5, grid_col: 11, rent_site_only: 18, rent_one_house: 90, rent_two_houses: 250, rent_three_houses: 700, rent_four_houses: 875, rent_hotel: 1050, cost_of_house: 100 },
+    { id: 17, board_id: boardId, name: "COMMUNITY CHEST", type: "community_chest", price: 0, color: "#FFA500", grid_row: 4, grid_col: 11, rent_site_only: 0, rent_one_house: 0, rent_two_houses: 0, rent_three_houses: 0, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+    { id: 18, board_id: boardId, name: "Saminaka Trading Center", type: "property", price: 180, color: "#FFA500", grid_row: 3, grid_col: 11, rent_site_only: 20, rent_one_house: 100, rent_two_houses: 300, rent_three_houses: 750, rent_four_houses: 925, rent_hotel: 1100, cost_of_house: 100 },
+    { id: 19, board_id: boardId, name: "Tudun Wada District", type: "property", price: 200, color: "#FFA500", grid_row: 2, grid_col: 11, rent_site_only: 22, rent_one_house: 110, rent_two_houses: 330, rent_three_houses: 800, rent_four_houses: 975, rent_hotel: 1150, cost_of_house: 100 },
+
+    // Corner 2: FREE PARKING
+    { id: 20, board_id: boardId, name: "FREE PARKING", type: "corner", price: 0, color: "#3498db", grid_row: 1, grid_col: 11, rent_site_only: 0, rent_one_house: 0, rent_two_houses: 0, rent_three_houses: 0, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+
+    // Red Group
+    { id: 21, board_id: boardId, name: "Nasarawa State Border", type: "property", price: 220, color: "#FF0000", grid_row: 1, grid_col: 10, rent_site_only: 24, rent_one_house: 120, rent_two_houses: 360, rent_three_houses: 850, rent_four_houses: 1025, rent_hotel: 1200, cost_of_house: 150 },
+    { id: 22, board_id: boardId, name: "CHANCE", type: "chance", price: 0, color: "#FF0000", grid_row: 1, grid_col: 9, rent_site_only: 0, rent_one_house: 0, rent_two_houses: 0, rent_three_houses: 0, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+    { id: 23, board_id: boardId, name: "Mando Commercial Hub", type: "property", price: 220, color: "#FF0000", grid_row: 1, grid_col: 8, rent_site_only: 26, rent_one_house: 130, rent_two_houses: 390, rent_three_houses: 900, rent_four_houses: 1100, rent_hotel: 1300, cost_of_house: 150 },
+    { id: 24, board_id: boardId, name: "Kaduna State University", type: "property", price: 240, color: "#FF0000", grid_row: 1, grid_col: 7, rent_site_only: 28, rent_one_house: 150, rent_two_houses: 450, rent_three_houses: 1000, rent_four_houses: 1200, rent_hotel: 1400, cost_of_house: 150 },
+
+    // Railway 3
+    { id: 25, board_id: boardId, name: "Zaria Northern Railway", type: "property", price: 200, color: "railroad", grid_row: 1, grid_col: 6, rent_site_only: 25, rent_one_house: 50, rent_two_houses: 100, rent_three_houses: 200, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+
+    // Yellow Group
+    { id: 26, board_id:boardId, name: "Rigasa Industrial Estate", type: "property", price: 260, color: "#FFD700", grid_row: 1, grid_col: 5, rent_site_only: 30, rent_one_house: 160, rent_two_houses: 480, rent_three_houses: 1100, rent_four_houses: 1300, rent_hotel: 1500, cost_of_house: 150 },
+    { id: 27, board_id: boardId, name: "Kaniyye Park Residences", type: "property", price: 260, color: "#FFD700", grid_row: 1, grid_col: 4, rent_site_only: 32, rent_one_house: 170, rent_two_houses: 510, rent_three_houses: 1150, rent_four_houses: 1400, rent_hotel: 1600, cost_of_house: 150 },
+    { id: 28, board_id: boardId, name: "Electricity (Utility)", type: "property", price: 150, color: "utility", grid_row: 1, grid_col: 3, rent_site_only: 4, rent_one_house: 10, rent_two_houses: 0, rent_three_houses: 0, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+    { id: 29, board_id: boardId, name: "Gwari Stadium Area", type: "property", price: 280, color: "#FFD700", grid_row: 1, grid_col: 2, rent_site_only: 34, rent_one_house: 180, rent_two_houses: 540, rent_three_houses: 1200, rent_four_houses: 1500, rent_hotel: 1800, cost_of_house: 150 },
+
+    // Corner 3: GO TO JAIL
+    { id: 30, board_id: boardId, name: "GO TO JAIL", type: "corner", price: 0, color: "#e74c3c", grid_row: 1, grid_col: 1, rent_site_only: 0, rent_one_house: 0, rent_two_houses: 0, rent_three_houses: 0, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+
+    // Dark Blue Group
+    { id: 31, board_id: boardId, name: "Saminaka Gardens", type: "property", price: 300, color: "#228B22", grid_row: 2, grid_col: 1, rent_site_only: 36, rent_one_house: 200, rent_two_houses: 600, rent_three_houses: 1400, rent_four_houses: 1700, rent_hotel: 2000, cost_of_house: 200 },
+    { id: 32, board_id: boardId, name: "Kachia Forest Park", type: "property", price: 300, color: "#228B22", grid_row: 3, grid_col: 1, rent_site_only: 38, rent_one_house: 220, rent_two_houses: 660, rent_three_houses: 1500, rent_four_houses: 1800, rent_hotel: 2200, cost_of_house: 200 },
+    { id: 33, board_id: boardId, name: "COMMUNITY CHEST", type: "community_chest", price: 0, color: "#228B22", grid_row: 4, grid_col: 1, rent_site_only: 0, rent_one_house: 0, rent_two_houses: 0, rent_three_houses: 0, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+    { id: 34, board_id: boardId, name: "Kaduna Metropolis", type: "property", price: 320, color: "#228B22", grid_row: 5, grid_col: 1, rent_site_only: 40, rent_one_house: 220, rent_two_houses: 660, rent_three_houses: 1600, rent_four_houses: 1900, rent_hotel: 2400, cost_of_house: 200 },
+
+    // Railway 4
+    { id: 35, board_id: boardId, name: "Kaduna South Express", type: "property", price: 200, color: "railroad", grid_row: 6, grid_col: 1, rent_site_only: 25, rent_one_house: 50, rent_two_houses: 100, rent_three_houses: 200, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+
+    // Dark Blue Group (continued)
+    { id: 36, board_id: boardId, name: "CHANCE", type: "chance", price: 0, color: "#0000CD", grid_row: 7, grid_col: 1, rent_site_only: 0, rent_one_house: 0, rent_two_houses: 0, rent_three_houses: 0, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+    { id: 37, board_id: boardId, name: "International Hotel District", type: "property", price: 350, color: "#0000CD", grid_row: 8, grid_col: 1, rent_site_only: 45, rent_one_house: 250, rent_two_houses: 700, rent_three_houses: 1500, rent_four_houses: 1800, rent_hotel: 2200, cost_of_house: 200 },
+    { id: 38, board_id: boardId, name: "LUXURY TAX", type: "luxury_tax", price: 0, color: "#0000CD", grid_row: 9, grid_col: 1, rent_site_only: 0, rent_one_house: 0, rent_two_houses: 0, rent_three_houses: 0, rent_four_houses: 0, rent_hotel: 0, cost_of_house: 0 },
+    { id: 39, board_id: boardId, name: "Kaduna CBD Gold Coast", type: "property", price: 400, color: "#0000CD", grid_row: 10, grid_col: 1, rent_site_only: 50, rent_one_house: 300, rent_two_houses: 750, rent_three_houses: 2000, rent_four_houses: 2400, rent_hotel: 2800, cost_of_house: 200 },
+  ];
+
+  // Delete existing properties for this board
+  await knex("properties").where({ board_id: boardId }).del();
+
+  // Insert properties
+  for (const prop of properties) {
+    await knex("properties").insert(prop);
+  }
+
+  console.log(`✓ Seeded ${properties.length} properties for Kaduna, Nigeria`);
+};
