@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
-import { Gift, Copy, Check, Loader2 } from "lucide-react";
+import { Gift, Copy, Check, Loader2, Zap } from "lucide-react";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
 
@@ -40,7 +40,9 @@ type Props = {
 
 export default function ProfileReferralCard({ enabled = true, className = "" }: Props) {
   const [copied, setCopied] = useState<"code" | "link" | null>(null);
+  const [generating, setGenerating] = useState(false);
   const { address } = useAccount();
+  const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: ["referral-me", address],
@@ -77,6 +79,20 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
     }
   }, []);
 
+  const handleGenerateCode = useCallback(async () => {
+    if (!address) return;
+    setGenerating(true);
+    try {
+      await apiClient.get("referral/me", { params: { address } });
+      await queryClient.invalidateQueries({ queryKey: ["referral-me", address] });
+      toast.success("Referral code generated!");
+    } catch (err) {
+      toast.error("Failed to generate code");
+    } finally {
+      setGenerating(false);
+    }
+  }, [address, queryClient]);
+
   if (!enabled) {
     return null;
   }
@@ -103,6 +119,43 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
   const showPlaceholder = !code && !query.isLoading && !query.isError;
 
   if (showPlaceholder) {
+    if (address) {
+      return (
+        <div
+          className={`rounded-2xl border border-cyan-500/30 bg-slate-800/60 p-4 sm:p-5 shadow-lg shadow-cyan-500/5 ${className}`}
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center shrink-0">
+              <Gift className="w-5 h-5 text-cyan-300" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/90 mb-2 font-orbitron">Invite Friends</p>
+              <p className="text-xs text-cyan-300/70 mb-3">
+                Generate your unique referral code and start earning <span className="font-semibold text-amber-400">$0.10 USDC</span> for every friend who joins!
+              </p>
+              <button
+                onClick={handleGenerateCode}
+                disabled={generating}
+                className="w-full px-3 py-2 rounded-xl border-2 border-cyan-400 bg-cyan-500/20 text-cyan-300 text-xs font-bold font-orbitron transition hover:shadow-lg hover:shadow-cyan-500/30 disabled:opacity-50"
+              >
+                {generating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 inline mr-1 animate-spin" />
+                    Generating…
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4 inline mr-1" />
+                    Generate Code
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div
         className={`rounded-2xl border border-cyan-500/30 bg-slate-800/60 p-4 sm:p-5 shadow-lg shadow-cyan-500/5 ${className}`}
