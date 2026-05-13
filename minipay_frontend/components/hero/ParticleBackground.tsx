@@ -11,6 +11,8 @@ export function ParticleBackground() {
   }, []);
 
   useEffect(() => {
+    if (isMobile) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -20,7 +22,6 @@ export function ParticleBackground() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    const particleCount = isMobile ? 15 : 30;
     const particles: Array<{
       x: number;
       y: number;
@@ -30,14 +31,14 @@ export function ParticleBackground() {
       opacity: number;
     }> = [];
 
-    // Create particles (fewer on mobile for performance)
-    for (let i = 0; i < particleCount; i++) {
+    // Create particles
+    for (let i = 0; i < 30; i++) {
       particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * (isMobile ? 0.3 : 0.5),
-        vy: (Math.random() - 0.5) * (isMobile ? 0.3 : 0.5),
-        size: Math.random() * (isMobile ? 1 : 1.5),
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        size: Math.random() * 1.5,
         opacity: Math.random() * 0.5 + 0.2,
       });
     }
@@ -77,7 +78,7 @@ export function ParticleBackground() {
     <canvas
       ref={canvasRef}
       className="absolute inset-0 pointer-events-none"
-      style={{ opacity: isMobile ? 0.3 : 0.4 }}
+      style={{ opacity: 0.4 }}
     />
   );
 }

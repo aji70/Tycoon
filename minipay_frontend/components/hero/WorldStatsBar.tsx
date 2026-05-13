@@ -55,7 +55,7 @@ export function WorldStatsBar({
     >
       <div className="w-full px-4">
         <div className="max-w-5xl mx-auto">
-          <div className="flex justify-center items-center gap-4 flex-wrap">
+          <div className="flex justify-center items-center gap-8 md:gap-16 flex-wrap">
             {stats.map((stat, i) => (
               <motion.div
                 key={stat.label}
@@ -64,11 +64,11 @@ export function WorldStatsBar({
                 transition={{ duration: 0.5, delay: 0.7 + i * 0.1 }}
                 className="text-center"
               >
-                <div className="text-[10px] font-orbitron text-[#00F0FF]/70 uppercase tracking-wider mb-1">
+                <div className="text-xs font-orbitron text-[#00F0FF]/70 uppercase tracking-wider mb-1">
                   {stat.label}
                 </div>
                 <div className="relative">
-                  <div className="text-xs font-orbitron font-bold text-[#17ffff]">
+                  <div className="text-sm md:text-lg font-orbitron font-bold text-[#17ffff]">
                     {stat.value}
                   </div>
                   <div className="absolute -inset-2 rounded opacity-0 group-hover:opacity-100 transition duration-300 blur-lg -z-10"

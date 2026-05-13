@@ -1,17 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { FaUsers, FaUser, FaCoins, FaBrain } from "react-icons/fa6";
-import { House } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/game-switch";
-import { MdPrivateConnectivity } from "react-icons/md";
+import { FaCoins } from "react-icons/fa6";
+import { motion } from "framer-motion";
 import { RiAuctionFill } from "react-icons/ri";
 import { GiBank, GiPrisoner } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
@@ -46,11 +37,22 @@ interface GameCreateResponse {
     id?: string | number;
   };
   id?: string | number;
-  [key: string]: any;
 }
 
 const USDC_DECIMALS = 6;
 const stakePresets = [1, 5, 10, 25, 50, 100];
+
+const PIECE_EMOJI: Record<string, string> = {
+  hat: "🎩",
+  car: "🚗",
+  dog: "🐕",
+  thimble: "🔧",
+  wheelbarrow: "🛒",
+  battleship: "🚢",
+  boot: "👢",
+  iron: "♨️",
+  top_hat: "🎩",
+};
 
 interface GameSettingsMobileProps {
   /** After creating game, redirect to this waiting room (default: /game-waiting). e.g. /game-waiting-3d for 3D. */
@@ -72,12 +74,12 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
   const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${wagmiChainId}` || "unknown";
 
   const [isFreeGame, setIsFreeGame] = useState(true);
-  const [isStarting, setIsStarting] = useState(false); // prevents double clicks
+  const [isStarting, setIsStarting] = useState(false);
 
   const [settings, setSettings] = useState({
     symbol: "hat",
     maxPlayers: 2,
-    privateRoom: true,
+    includeStakedGames: false,
     auction: true,
     rentInPrison: false,
     mortgage: true,
@@ -154,11 +156,10 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
   const handlePlay = async () => {
     if (isStarting) return;
     setIsStarting(true);
-    const toastId = toast.loading("Preparing game...");
+    const toastId = toast.loading("Creating game...");
 
     if (isGuest) {
       try {
-        toast.update(toastId, { render: "Creating game (guest)..." });
         const res = await apiClient.post<any>("/games/create-as-guest", {
           code: gameCode,
           mode: gameType,
@@ -198,108 +199,50 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
     }
 
     if (!address || !username || !isUserRegistered) {
-      toast.error("Connect wallet & register first!", { autoClose: 5000 });
-      setIsStarting(false);
-      return;
-    }
-
-    if (!contractAddress) {
-      toast.error("Game contract not available on this network.");
-      setIsStarting(false);
-      return;
-    }
-
-    if (!isFreeGame && !usdcTokenAddress) {
-      toast.error("USDC not supported on current network.");
+      toast.update(toastId, { render: "Please register first", type: "error", isLoading: false });
       setIsStarting(false);
       return;
     }
 
     try {
-      if (!isFreeGame) {
-        toast.update(toastId, { render: "Checking USDC allowance..." });
-        await refetchAllowance();
-
-        const allowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : 0;
-        if (allowance < stakeAmount) {
-          toast.update(toastId, { render: "Approving USDC (one-time)..." });
-          await approveUSDC(usdcTokenAddress!, contractAddress, stakeAmount);
-
-          await new Promise(r => setTimeout(r, 4000));
+      const allowanceNeeded = stakeAmount > 0n;
+      if (allowanceNeeded) {
+        if (!usdcAllowance || usdcAllowance < stakeAmount) {
+          toast.update(toastId, { render: "Approving USDC...", type: "info", isLoading: true });
+          await approveUSDC?.();
           await refetchAllowance();
         }
       }
 
-      toast.update(toastId, { render: "Creating game on-chain..." });
-      let onChainGameId: any;
-      try {
-        onChainGameId = await createGame();
-        if (!onChainGameId) throw new Error("No game ID received from contract");
-      } catch (onChainErr: any) {
-        const isNoGas =
-          onChainErr?.message?.toLowerCase().includes("insufficient") ||
-          onChainErr?.shortMessage?.toLowerCase().includes("insufficient");
-        if (!isNoGas) throw onChainErr;
+      toast.update(toastId, { render: "Creating your game...", type: "info", isLoading: true });
+      await createGame?.();
 
-        // No gas — fall back to backend-sponsored multiplayer create
-        toast.update(toastId, { render: "No gas detected. Creating via backend..." });
-        const fallbackRes = await apiClient.post<any>("/games/create-multiplayer-as-guest", {
-          address,
+      try {
+        const saveRes = await apiClient.post<GameCreateResponse>("/games", {
           code: gameCode,
-          mode: gameType,
-          symbol: settings.symbol,
-          number_of_players: settings.maxPlayers,
-          stake: 0,
+          creator_address: address,
+          max_players: settings.maxPlayers,
           starting_cash: settings.startingCash,
-          is_minipay: isMiniPay,
+          symbol: settings.symbol,
+          stake: finalStake,
+          is_private: false,
           chain: chainName,
-          duration: settings.duration,
-          settings: {
+          game_rules: {
             auction: settings.auction,
             rent_in_prison: settings.rentInPrison,
             mortgage: settings.mortgage,
             even_build: settings.evenBuild,
-            starting_cash: settings.startingCash,
           },
         });
-        const fallbackData = (fallbackRes as any)?.data;
-        const fallbackId = fallbackData?.data?.id ?? fallbackData?.id;
-        if (!fallbackId) throw new Error("Backend did not return game ID");
-        toast.update(toastId, { render: `Game created! Code: ${gameCode}`, type: "success", isLoading: false, autoClose: 5000,
-          onClose: () => router.push(`${redirectToWaitingRoom}?gameCode=${gameCode}`) });
-        setIsStarting(false);
-        return;
-      }
 
-      toast.update(toastId, { render: "Saving game to server..." });
+        const dbGameId =
+          typeof saveRes === 'string' || typeof saveRes === 'number'
+            ? saveRes
+            : saveRes?.data?.data?.id ?? saveRes?.data?.id ?? saveRes?.id;
 
-      const saveRes = await apiClient.post<any>("/games", {
-        id: onChainGameId.toString(),
-        code: gameCode,
-        mode: gameType,
-        address,
-        symbol: settings.symbol,
-        number_of_players: settings.maxPlayers,
-        stake: finalStake,
-        starting_cash: settings.startingCash,
-        is_ai: false,
-        is_minipay: isMiniPay,
-        chain: chainName,
-        duration: settings.duration,
-        use_usdc: !isFreeGame,
-        settings: {
-          auction: settings.auction,
-          rent_in_prison: settings.rentInPrison,
-          mortgage: settings.mortgage,
-          even_build: settings.evenBuild,
-        },
-      });
-
-      const dbGameId = extractGameId(saveRes);
-
-      if (!dbGameId) {
-        console.error("Backend response without ID:", JSON.stringify(saveRes, null, 2));
-        throw new Error("Server didn't return game ID");
+        if (!dbGameId) throw new Error("Backend did not return game ID");
+      } catch (err: any) {
+        throw new Error(err.response?.data?.message || "Failed to save game");
       }
 
       toast.update(toastId, {
@@ -310,298 +253,459 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
         onClose: () => router.push(`${redirectToWaitingRoom}?gameCode=${gameCode}`),
       });
     } catch (err: any) {
-      console.error("Game creation failed:", err);
-
-      const message = getContractErrorMessage(err, "Failed to create game. Try again.");
+      const message = getContractErrorMessage(err, "Failed to create game. Please try again.");
       setCreateError(message);
-
       toast.update(toastId, {
         render: message,
         type: "error",
         isLoading: false,
-        autoClose: 9000,
+        autoClose: 8000,
       });
-    } finally {
-      setIsStarting(false);
     }
+    setIsStarting(false);
   };
 
   const canCreate = isGuest || (address && username && isUserRegistered);
 
-  if (!isGuest && isRegisteredLoading) {
-    return (
-      <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover">
-        <p className="text-[#00F0FF] text-3xl font-orbitron animate-pulse text-center px-8">
-          LOADING ARENA...
-        </p>
-      </div>
-    );
-  }
+  const houseRules = [
+    { icon: RiAuctionFill, label: "Auction Unsold", key: "auction" },
+    { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
+    { icon: GiBank, label: "Allow Mortgages", key: "mortgage" },
+    { icon: IoBuild, label: "Even Building", key: "evenBuild" },
+  ];
 
   return (
-    <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col pb-10 pt-[70px]">
-      {/* Header */}
-      <div className="px-5 pt-6 pb-4">
-        <div className="flex justify-between items-center">
-          <button
-            onClick={() => router.push("/")}
-            className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition"
-          >
-            <House className="w-5 h-5" />
-            <span className="font-bold text-sm">BACK</span>
-          </button>
-          <div>
-            <h1 className="text-2xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-              CREATE
-            </h1>
-            <p className="text-[10px] text-cyan-400/80">Human vs human. AI: use Play vs AI.</p>
-          </div>
-          <div className="w-14" />
-        </div>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 relative overflow-hidden flex flex-col">
+      {/* Content */}
+      <div className="relative z-10 flex-1 flex items-start justify-center p-4">
+        <div className="w-full max-w-md mx-auto">
+          {/* HEADER */}
+          <div className="relative mb-8">
+            {/* Glowing background */}
+            <div className="absolute -inset-4 bg-gradient-to-r from-cyan-500/20 via-purple-500/10 to-cyan-500/20 rounded-lg blur-3xl opacity-60" />
 
-      {/* Main content */}
-      <div className="flex-1 px-5 space-y-4 pb-6 overflow-y-auto">
-        {/* Free Game Toggle - hidden for guests (guest games are free only) */}
-        {!isGuest && (
-        <div className="bg-black/65 rounded-xl p-4 border border-yellow-600/40">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FaCoins className="w-5 h-5 text-yellow-400" />
-              <div>
-                <h3 className="text-sm font-bold text-yellow-300">Free Game</h3>
-                <p className="text-gray-400 text-[10px]">No entry fee • Pure fun</p>
+            <div className="relative">
+              <motion.button
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.4 }}
+                onClick={() => router.push("/")}
+                className="mb-4 flex items-center gap-2 text-cyan-400 hover:text-cyan-300 font-orbitron text-xs font-bold transition"
+              >
+                ← BACK TO BASE
+              </motion.button>
+
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="text-center"
+              >
+                <h1 className="text-3xl font-black font-orbitron uppercase tracking-wider mb-2">
+                  <span className="text-2xl">⚡</span>
+                  <br />
+                  <span
+                    className="bg-gradient-to-r from-cyan-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent"
+                    style={{
+                      textShadow: `
+                        0 0 20px rgba(0, 240, 255, 0.5),
+                        0 0 40px rgba(0, 240, 255, 0.3)
+                      `,
+                    }}
+                  >
+                    CREATE GAME
+                  </span>
+                </h1>
+                <p className="text-cyan-300/70 font-dmSans text-xs tracking-widest uppercase mt-2">
+                  Load Your Warrior • Configure Your Match • Prepare For Battle
+                </p>
+              </motion.div>
+            </div>
+          </div>
+
+          {/* MAIN CONTENT - Single column stack */}
+          <div className="space-y-6">
+            {/* SELECT PIECE */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Your Piece</p>
+              <div className="overflow-x-auto pb-2">
+                <div className="flex gap-2 min-w-min">
+                  {GamePieces.map((piece, idx) => (
+                    <motion.button
+                      key={piece.id}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.3, delay: idx * 0.05 }}
+                      onClick={() => setSettings((p) => ({ ...p, symbol: piece.id }))}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={`relative p-2 rounded-lg transition-all duration-300 border-2 flex-shrink-0 w-20 h-24 flex flex-col items-center justify-center ${
+                        settings.symbol === piece.id
+                          ? "border-cyan-400 bg-cyan-500/20 shadow-lg shadow-cyan-500/50"
+                          : "border-cyan-500/30 bg-slate-800/40 hover:border-cyan-400/60"
+                      }`}
+                    >
+                      <div className="text-xl mb-1">{PIECE_EMOJI[piece.id]}</div>
+                      <div className="text-[9px] font-orbitron text-cyan-300 font-bold text-center line-clamp-2 px-0.5 leading-tight">
+                        {piece.name}
+                      </div>
+                      {settings.symbol === piece.id && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="absolute -top-2 -right-2 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg shadow-cyan-500/60"
+                        >
+                          ✓
+                        </motion.div>
+                      )}
+                    </motion.button>
+                  ))}
+                </div>
               </div>
             </div>
-            <Switch
-              checked={isFreeGame}
-              onCheckedChange={(checked) => {
-                setIsFreeGame(checked);
-                if (checked) {
-                  setSettings(p => ({ ...p, stake: 0 }));
-                  setCustomStake("0");
-                }
-              }}
-            />
-          </div>
-        </div>
-        )}
-        {isGuest && (
-          <div className="bg-black/65 rounded-xl p-4 border border-yellow-600/40">
-            <div className="flex items-center gap-2">
-              <FaCoins className="w-5 h-5 text-yellow-400" />
-              <div>
-                <h3 className="text-sm font-bold text-yellow-300">Guest games are free</h3>
-                <p className="text-gray-400 text-[10px]">Connect a wallet to create staked games</p>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* Your Piece & Max Players - compact row */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-gradient-to-br from-cyan-900/35 to-blue-900/35 rounded-xl p-4 border border-cyan-500/25">
-            <div className="flex items-center gap-2 mb-2">
-              <FaUser className="w-4 h-4 text-cyan-400" />
-              <h3 className="text-sm font-bold text-cyan-300">Your Piece</h3>
-            </div>
-            <Select value={settings.symbol} onValueChange={(v) => setSettings(p => ({ ...p, symbol: v }))}>
-              <SelectTrigger className="h-10 bg-black/60 border-cyan-500/30 text-white text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {GamePieces.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="bg-gradient-to-br from-purple-900/35 to-pink-900/35 rounded-xl p-4 border border-purple-500/25">
-            <div className="flex items-center gap-2 mb-2">
-              <FaUsers className="w-4 h-4 text-purple-400" />
-              <h3 className="text-sm font-bold text-purple-300">Players</h3>
-            </div>
-            <Select value={settings.maxPlayers.toString()} onValueChange={(v) => setSettings(p => ({ ...p, maxPlayers: +v }))}>
-              <SelectTrigger className="h-10 bg-black/60 border-purple-500/30 text-white text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[2,3,4,5,6,7,8].map(n => (
-                  <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Private Room */}
-        <div className="bg-black/60 rounded-xl p-4 border border-gray-600/60">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <MdPrivateConnectivity className="w-5 h-5 text-emerald-400" />
-              <div>
-                <h3 className="text-sm font-bold text-white">Private</h3>
-                <p className="text-gray-400 text-[10px]">Code only</p>
-              </div>
-            </div>
-            <Switch
-              checked={settings.privateRoom}
-              onCheckedChange={(v) => setSettings(p => ({ ...p, privateRoom: v }))}
-            />
-          </div>
-        </div>
-
-        {/* Stake - hidden for guests */}
-        {!isGuest && (
-        <div className={`bg-gradient-to-b from-green-900/55 to-emerald-900/55 rounded-xl p-4 border ${isFreeGame ? 'border-yellow-600/40 opacity-75' : 'border-green-500/40'}`}>
-          <div className="flex items-center gap-2 mb-3">
-            <FaCoins className="w-5 h-5 text-green-400" />
-            <h3 className="text-sm font-bold text-green-300">Entry Stake</h3>
-          </div>
-
-          {isFreeGame ? (
-            <div className="py-6 text-center">
-              <p className="text-3xl font-black text-yellow-400 mb-1">FREE</p>
-              <p className="text-green-300 text-sm">Free to play</p>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                {stakePresets.map((amt) => (
-                  <button
-                    key={amt}
-                    onClick={() => handleStakeSelect(amt)}
-                    className={`py-2 rounded-lg font-bold text-xs transition-all active:scale-95 ${
-                      settings.stake === amt
-                        ? "bg-gradient-to-br from-yellow-400 to-amber-500 text-black shadow"
-                        : "bg-black/65 border border-gray-600 text-gray-300"
+            {/* MAX PLAYERS / OPPONENT SLOTS */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Max Players</p>
+              <div className="grid grid-cols-6 gap-2 mb-3">
+                {[2, 3, 4, 5, 6, 7].map((num) => (
+                  <motion.button
+                    key={num}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSettings((p) => ({ ...p, maxPlayers: num }))}
+                    className={`py-2 rounded-lg font-orbitron font-bold text-sm transition-all duration-300 border-2 ${
+                      settings.maxPlayers === num
+                        ? "border-cyan-400 bg-cyan-500/20 text-cyan-300 shadow-lg shadow-cyan-500/40"
+                        : "border-cyan-500/30 bg-slate-800/40 text-cyan-400/60 hover:border-cyan-400/60"
                     }`}
                   >
-                    {amt}
-                  </button>
+                    {num}
+                  </motion.button>
                 ))}
               </div>
 
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                placeholder="Custom ≥ 0.01"
-                value={customStake}
-                onChange={(e) => handleCustomStake(e.target.value)}
-                className="w-full px-3 py-2.5 bg-black/60 border border-green-500/50 rounded-lg text-white text-center text-sm focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-500/50 focus:ring-offset-2 focus:ring-offset-black mb-3"
-              />
-
-              <div className="text-center">
-                <p className="text-xs text-gray-400">Current Stake</p>
-                <p className="text-xl font-bold text-green-400">
-                  {settings.stake} USDC
-                </p>
+              {/* Avatar slots */}
+              <div className="grid grid-cols-6 gap-2">
+                {[...Array(7)].map((_, idx) => (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: idx < settings.maxPlayers ? 1 : 0.3, scale: 1 }}
+                    transition={{ duration: 0.3, delay: idx * 0.05 }}
+                    className={`aspect-square rounded-lg border-2 flex items-center justify-center transition-all ${
+                      idx < settings.maxPlayers
+                        ? "border-cyan-500 bg-cyan-500/10 shadow-lg shadow-cyan-500/30"
+                        : "border-cyan-500/20 bg-slate-800/20"
+                    }`}
+                  >
+                    <div className="text-lg">👤</div>
+                  </motion.div>
+                ))}
               </div>
-            </>
-          )}
-        </div>
-        )}
-
-        {/* Starting Cash & Duration */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-gradient-to-br from-amber-900/35 to-orange-900/35 rounded-xl p-4 border border-amber-500/25">
-            <div className="flex items-center gap-2 mb-2">
-              <FaCoins className="w-4 h-4 text-amber-400" />
-              <h3 className="text-sm font-bold text-amber-300">Cash</h3>
             </div>
-            <Select value={settings.startingCash.toString()} onValueChange={(v) => setSettings(p => ({ ...p, startingCash: +v }))}>
-              <SelectTrigger className="h-10 bg-black/60 border-amber-500/30 text-white text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="500">$500</SelectItem>
-                <SelectItem value="1000">$1,000</SelectItem>
-                <SelectItem value="1500">$1,500</SelectItem>
-                <SelectItem value="2000">$2,000</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
-          <div className="bg-gradient-to-br from-indigo-900/35 to-purple-900/35 rounded-xl p-4 border border-indigo-500/25">
-            <div className="flex items-center gap-2 mb-2">
-              <FaBrain className="w-4 h-4 text-indigo-400" />
-              <h3 className="text-sm font-bold text-indigo-300">Time</h3>
+            {/* STARTING CASH */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Starting Cash</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[500, 1000, 1500, 2000].map((amount) => (
+                  <motion.button
+                    key={amount}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSettings((p) => ({ ...p, startingCash: amount }))}
+                    className={`py-2 px-2 rounded-lg font-orbitron text-xs font-bold transition-all border-2 flex items-center justify-center gap-1 ${
+                      settings.startingCash === amount
+                        ? "border-cyan-400 bg-cyan-500/20 text-cyan-300"
+                        : "border-cyan-500/30 bg-slate-800/40 text-cyan-400/60 hover:border-cyan-400/60"
+                    }`}
+                  >
+                    💰 ${amount}
+                  </motion.button>
+                ))}
+              </div>
             </div>
-            <Select value={settings.duration.toString()} onValueChange={(v) => setSettings(p => ({ ...p, duration: +v }))}>
-              <SelectTrigger className="h-10 bg-black/60 border-indigo-500/30 text-white text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="30">30m</SelectItem>
-                <SelectItem value="45">45m</SelectItem>
-                <SelectItem value="60">60m</SelectItem>
-                <SelectItem value="90">90m</SelectItem>
-                <SelectItem value="0">∞</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
 
-        {/* House Rules */}
-        <div className="bg-black/60 rounded-xl p-4 border border-cyan-500/30">
-          <h3 className="text-base font-bold text-cyan-400 mb-3 text-center">House Rules</h3>
-          <div className="space-y-2">
-            {[
-              { icon: RiAuctionFill, label: "Auction Unsold", key: "auction" },
-              { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
-              { icon: GiBank, label: "Mortgages", key: "mortgage" },
-              { icon: IoBuild, label: "Even Build", key: "evenBuild" },
-            ].map((item) => (
-              <div key={item.key} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <item.icon className="w-4 h-4 text-cyan-400" />
-                  <span className="text-gray-300 text-sm">{item.label}</span>
+            {/* GAME DURATION */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Game Duration</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 30, label: "30m" },
+                  { value: 45, label: "45m" },
+                  { value: 60, label: "60m" },
+                  { value: 90, label: "90m" },
+                  { value: 0, label: "No Limit" },
+                ].map((duration) => (
+                  <motion.button
+                    key={duration.value}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSettings((p) => ({ ...p, duration: duration.value }))}
+                    className={`py-2 px-3 rounded-full font-orbitron text-xs font-bold transition-all border-2 ${
+                      settings.duration === duration.value
+                        ? "border-cyan-400 bg-cyan-500/20 text-cyan-300"
+                        : "border-cyan-500/30 bg-slate-800/40 text-cyan-400/60 hover:border-cyan-400/60"
+                    }`}
+                  >
+                    {duration.label}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* ROOM ACCESS - Always Public */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Room Access</p>
+              <motion.div
+                className="relative p-3 rounded-lg border-2 border-cyan-500/30 bg-slate-800/40"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🔓</span>
+                    <div>
+                      <span className="text-xs font-orbitron font-bold text-white">
+                        PUBLIC
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <Switch
-                  checked={settings[item.key as keyof typeof settings] as boolean}
-                  onCheckedChange={(v) => setSettings(p => ({ ...p, [item.key]: v }))}
-                />
+
+                <div
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 border-2 mt-2 border-cyan-500/30 bg-slate-700/60 cursor-not-allowed opacity-60"
+                >
+                  <div
+                    className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-slate-500"
+                  />
+                </div>
+              </motion.div>
+            </div>
+
+            {/* FREE GAMES TOGGLE - Non-guests only */}
+            {!isGuest && (
+              <div>
+                <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Game Type</p>
+                <motion.div
+                  className={`relative p-3 rounded-lg border-2 transition-all ${
+                    isFreeGame
+                      ? "border-yellow-600/50 bg-yellow-900/20"
+                      : "border-green-500/40 bg-green-900/20"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{isFreeGame ? "🎮" : "💰"}</span>
+                      <div>
+                        <span className="text-xs font-orbitron font-bold text-white">
+                          {isFreeGame ? "FREE GAMES" : "STAKED GAMES"}
+                        </span>
+                        <p className="text-[10px] text-gray-400">{isFreeGame ? "No stake" : "Entry fee required"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <motion.button
+                    onClick={() => {
+                      setIsFreeGame(!isFreeGame);
+                      if (!isFreeGame) {
+                        setSettings((prev) => ({ ...prev, stake: 0 }));
+                        setCustomStake("");
+                      }
+                    }}
+                    className={`relative w-12 h-6 rounded-full transition-all duration-300 border-2 mt-2 ${
+                      isFreeGame
+                        ? "border-yellow-600 bg-gradient-to-r from-yellow-600 to-yellow-500 shadow-lg shadow-yellow-500/40"
+                        : "border-green-500 bg-gradient-to-r from-green-600 to-green-500 shadow-lg shadow-green-500/40"
+                    }`}
+                  >
+                    <motion.div
+                      animate={{ x: isFreeGame ? 24 : 2 }}
+                      transition={{ type: "spring", stiffness: 600, damping: 25 }}
+                      className={`absolute top-0.5 w-5 h-5 rounded-full transition-colors ${
+                        isFreeGame ? "bg-white shadow-lg shadow-yellow-400/50" : "bg-white shadow-lg shadow-green-400/50"
+                      }`}
+                    />
+                  </motion.button>
+                </motion.div>
               </div>
-            ))}
-          </div>
-        </div>
+            )}
 
-        {/* Create error — inline above submit */}
-        {createError && (
-          <div className="mt-4 p-4 rounded-xl bg-red-950/30 border border-red-500/30" role="alert">
-            <p className="text-red-400 text-sm font-medium text-center">{createError}</p>
-            <p className="text-slate-500 text-xs text-center mt-1">Fix any issues above or try again.</p>
-          </div>
-        )}
+            {/* ENTRY STAKE (Non-guests only) */}
+            {!isGuest && (
+              <div>
+                <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Entry Stake</p>
+                <div
+                  className={`p-3 rounded-lg border-2 transition-opacity duration-300 ${
+                    isFreeGame
+                      ? "border-yellow-600/50 bg-yellow-900/20 opacity-60"
+                      : "border-green-500/40 bg-green-900/20"
+                  }`}
+                >
+                  {isFreeGame ? (
+                    <div className="py-3 text-center">
+                      <p className="text-lg font-black text-yellow-400">FREE</p>
+                      <p className="text-xs text-yellow-300/90">No entry fee</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-3 gap-1 mb-2">
+                        {stakePresets.map((amount) => (
+                          <button
+                            key={amount}
+                            onClick={() => handleStakeSelect(amount)}
+                            className={`py-1.5 px-1 rounded-lg text-xs font-bold transition-all hover:scale-105 ${
+                              settings.stake === amount
+                                ? "bg-gradient-to-br from-yellow-400 to-amber-500 text-black shadow-lg"
+                                : "bg-black/60 border border-gray-600 text-gray-300"
+                            }`}
+                          >
+                            {amount}
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        placeholder="Custom USDC"
+                        value={customStake}
+                        onChange={(e) => handleCustomStake(e.target.value)}
+                        className="w-full px-2 py-1.5 bg-black/60 border border-green-500/50 rounded-lg text-white text-xs text-center focus:outline-none focus:border-green-400 disabled:opacity-50"
+                        disabled={isFreeGame}
+                      />
+                      <p className="text-xs text-cyan-400 text-center mt-1">
+                        {settings.stake} USDC
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
-        {/* CREATE BUTTON */}
-        <div className="pt-4 pb-6 flex flex-col items-center gap-2">
-          <button
-            onClick={() => {
-              setCreateError(null);
-              playGuard.submit(() => handlePlay());
-            }}
-            disabled={!canCreate || playGuard.isSubmitting || isStarting || (!isGuest && (isCreatePending || approvePending || approveConfirming))}
-            className="w-full py-4 text-lg font-orbitron font-bold tracking-wide
-                       bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10]
-                       hover:brightness-110 active:scale-[0.98]
-                       rounded-xl shadow-lg transition-all duration-300
-                       disabled:opacity-60 disabled:cursor-not-allowed border-2 border-[#00F0FF]/40"
-            title={!canCreate ? "Connect wallet and register to create a game" : undefined}
-          >
-            {playGuard.isSubmitting || isStarting || (!isGuest && (approvePending || approveConfirming))
-              ? "Processing…"
-              : !isGuest && isCreatePending
-              ? "Creating…"
-              : isFreeGame
-              ? "START FREE GAME"
-              : "CREATE GAME"}
-          </button>
-          {!canCreate && (
-            <p className="text-slate-500 text-xs text-center">Connect your wallet and register to create a game.</p>
-          )}
+            {/* INCLUDE STAKED GAMES TOGGLE */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Game Pool</p>
+              <motion.div
+                className={`relative p-3 rounded-lg border-2 transition-all ${
+                  settings.includeStakedGames
+                    ? "border-cyan-500/60 bg-cyan-500/15"
+                    : "border-cyan-500/30 bg-slate-800/40"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{settings.includeStakedGames ? "💰" : "🎮"}</span>
+                    <div>
+                      <span className="text-xs font-orbitron font-bold text-white">
+                        {settings.includeStakedGames ? "STAKED GAMES" : "FREE GAMES"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <motion.button
+                  onClick={() => setSettings((p) => ({ ...p, includeStakedGames: !p.includeStakedGames }))}
+                  className={`relative w-12 h-6 rounded-full transition-all duration-300 border-2 mt-2 ${
+                    settings.includeStakedGames
+                      ? "border-cyan-500 bg-gradient-to-r from-cyan-600 to-cyan-500 shadow-lg shadow-cyan-500/40"
+                      : "border-cyan-500/30 bg-slate-700/60"
+                  }`}
+                >
+                  <motion.div
+                    animate={{ x: settings.includeStakedGames ? 24 : 2 }}
+                    transition={{ type: "spring", stiffness: 600, damping: 25 }}
+                    className={`absolute top-0.5 w-5 h-5 rounded-full transition-colors ${
+                      settings.includeStakedGames ? "bg-white shadow-lg shadow-cyan-400/50" : "bg-slate-500"
+                    }`}
+                  />
+                </motion.button>
+              </motion.div>
+            </div>
+
+            {/* GUEST GAMES FREE BANNER */}
+            {isGuest && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="bg-gradient-to-r from-yellow-900/40 to-amber-900/40 rounded-lg p-3 border border-yellow-600/50 animate-pulse"
+              >
+                <div className="flex items-center gap-2">
+                  <FaCoins className="w-4 h-4 text-yellow-400" />
+                  <div>
+                    <h3 className="text-xs font-bold text-yellow-300">Guest Games Free</h3>
+                    <p className="text-gray-400 text-[10px]">Connect wallet for stakes</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* HOUSE RULES */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Mission Parameters</p>
+              <div className="grid grid-cols-2 gap-2">
+                {houseRules.map((rule, idx) => {
+                  const isActive = settings[rule.key as keyof typeof settings];
+                  return (
+                    <motion.div
+                      key={rule.key}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.2, delay: idx * 0.05 }}
+                      className={`flex flex-col items-center p-2 rounded-lg border-2 transition-all gap-2 ${
+                        isActive
+                          ? "border-cyan-500/60 bg-cyan-500/15"
+                          : "border-cyan-500/20 bg-slate-800/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1 text-center">
+                        <span className="text-lg text-cyan-400 flex-shrink-0">{<rule.icon />}</span>
+                        <span className="text-xs font-orbitron font-bold text-white uppercase text-center">
+                          {rule.label}
+                        </span>
+                      </div>
+
+                      <motion.button
+                        onClick={() =>
+                          setSettings((p) => ({ ...p, [rule.key]: !(p[rule.key as keyof typeof p] as boolean) }))
+                        }
+                        className={`relative w-10 h-5 rounded-full transition-all duration-300 border-2 ${
+                          isActive
+                            ? "border-cyan-500 bg-gradient-to-r from-cyan-600 to-cyan-500 shadow-lg shadow-cyan-500/40"
+                            : "border-cyan-500/30 bg-slate-700/60"
+                        }`}
+                      >
+                        <motion.div
+                          animate={{ x: isActive ? 20 : 2 }}
+                          transition={{ type: "spring", stiffness: 600, damping: 25 }}
+                          className={`absolute top-0.5 w-4 h-4 rounded-full transition-colors ${
+                            isActive ? "bg-white shadow-lg shadow-cyan-400/50" : "bg-slate-500"
+                          }`}
+                        />
+                      </motion.button>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* LAUNCH BUTTON */}
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.3 }}
+              onClick={() => playGuard.submit(() => handlePlay())}
+              disabled={!canCreate || playGuard.isSubmitting || (!isGuest && isCreatePending)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="w-full py-4 mt-4 text-base font-bold rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-cyan-400/60 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-slate-900 shadow-lg shadow-cyan-500/40"
+            >
+              {playGuard.isSubmitting || (!isGuest && isCreatePending)
+                ? "⏳ LOADING..."
+                : "⚡ INITIATE MATCH"}
+            </motion.button>
+          </div>
         </div>
       </div>
     </div>

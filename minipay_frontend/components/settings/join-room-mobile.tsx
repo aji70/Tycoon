@@ -2,7 +2,6 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IoHomeOutline, IoArrowForwardOutline } from "react-icons/io5";
 import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
@@ -10,10 +9,10 @@ import { Game } from "@/lib/types/games";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { SkeletonGameGrid } from "@/components/ui/SkeletonCard";
-import EmptyState from "@/components/ui/EmptyState";
-import { Users } from "lucide-react";
 import { JoinRoomAuthModal, JoinRoomAuthStickyBar } from "@/components/settings/join-room-auth-ui";
 import { useJoinRoomAuthContinuation } from "@/components/settings/useJoinRoomAuthContinuation";
+import { motion } from "framer-motion";
+import { Loader2 } from "lucide-react";
 
 interface JoinRoomMobileProps {
   /** When game is RUNNING, redirect here (default: /game-play). e.g. /board-3d-multi for 3D. */
@@ -222,215 +221,231 @@ export default function JoinRoom({
   }, [router, redirectCreateNew, queueAfterAuth]);
 
   return (
-    <section className="w-full min-h-screen bg-settings bg-cover bg-fixed bg-center bg-[#010F10]">
-      <main className="w-full min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6 lg:px-8">
-        <div className="w-full max-w-xl lg:max-w-4xl bg-[#0A1A1B]/80 p-6 sm:p-8 lg:p-12 rounded-2xl shadow-2xl border border-[#00F0FF]/50 backdrop-blur-md">
-          <JoinRoomAuthStickyBar canAct={canAct} authLoading={authLoading} />
-          <JoinRoomAuthModal open={modalOpen} hint={modalHint} onDismiss={cancelModal} />
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-orbitron mb-8 lg:mb-12 text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent animate-pulse">
-            Join Tycoon
-          </h2>
-
-          {/* Top Section: Enter Code and Create New Side by Side */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-            {/* Enter Game Code */}
-            <div className="space-y-6">
-              <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] text-center font-orbitron">
-                Enter Game Code
-              </h3>
-
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                  type="text"
-                  value={code}
-                  onChange={(e) => {
-                    setCode(e.target.value);
-                    if (error) setError(null);
+    <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 relative overflow-hidden flex flex-col">
+      <div className="relative z-10 flex-1 flex items-start justify-center p-4">
+        <div className="w-full max-w-md mx-auto">
+          <div className="relative mb-8">
+            <div className="absolute -inset-4 bg-gradient-to-r from-cyan-500/20 via-cyan-400/10 to-cyan-500/20 rounded-lg blur-3xl opacity-60" />
+            <div className="relative text-center">
+              <h1 className="text-3xl font-black font-orbitron uppercase tracking-wider mb-2">
+                <span className="text-2xl">⚔️</span>
+                <br />
+                <span
+                  className="bg-gradient-to-r from-cyan-400 via-cyan-300 to-cyan-500 bg-clip-text text-transparent"
+                  style={{
+                    textShadow: `
+                      0 0 20px rgba(0, 240, 255, 0.5),
+                      0 0 40px rgba(0, 240, 255, 0.3)
+                    `,
                   }}
-                  onKeyDown={(e) => e.key === "Enter" && !joinByCodeGuard.isSubmitting && joinByCodeGuard.submit(() => handleJoinByCode())}
-                  placeholder="ABCD1234"
-                  className="flex-1 bg-[#0A1A1B] text-[#F0F7F7] px-5 py-4 rounded-xl border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-lg uppercase tracking-wider shadow-inner"
-                  maxLength={12}
-                />
-                <button
-                  onClick={() => joinByCodeGuard.submit(() => handleJoinByCode())}
-                  disabled={loading || joinByCodeGuard.isSubmitting || !normalizedCode}
-                  className="bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black font-orbitron font-extrabold px-8 py-4 rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  title={!normalizedCode ? "Enter a game code to join" : undefined}
                 >
-                  {loading || joinByCodeGuard.isSubmitting ? "Joining…" : "Join"}
-                  <IoArrowForwardOutline className="w-6 h-6" />
-                </button>
-              </div>
-              {!normalizedCode && !error && (
-                <p className="text-slate-500 text-xs text-center">Enter a 6-character game code above to join.</p>
-              )}
-              {error && (
-                <p className="text-red-400 text-sm text-center bg-red-900/30 border border-red-500/30 p-3 rounded-lg font-orbitron" role="alert">
-                  {error}
-                </p>
-              )}
-            </div>
-
-            {/* Create New Game */}
-            <div className="space-y-6 text-center">
-              <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] text-center font-orbitron">
-                Create New Game
-              </h3>
-              <p className="text-[#869298] text-sm mb-4">Want to host?</p>
-              <button
-                onClick={handleCreateNew}
-                className="bg-gradient-to-r from-[#00FFAA] to-[#00F0FF] text-black font-orbitron font-extrabold px-8 py-4 rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-[#00FFAA]/50 transform hover:scale-105 w-full md:w-auto"
-              >
-                Create New Game
-              </button>
+                  JOIN TYCOON
+                </span>
+              </h1>
+              <p className="text-cyan-300/70 font-dmSans text-xs tracking-widest uppercase mt-2">
+                Find Your Match · Enter The Arena · Dominate
+              </p>
             </div>
           </div>
 
-          {/* Games Section */}
-          <div className="space-y-12">
-            {canAct && fetchError && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-xl bg-red-950/30 border border-red-500/30" role="alert">
-                <p className="text-red-400 text-sm font-medium">{fetchError}</p>
-                <button
-                  type="button"
-                  onClick={() => fetchGames()}
-                  className="shrink-0 min-h-[44px] px-4 py-2 rounded-lg bg-[#00F0FF] text-[#010F10] font-bold font-orbitron text-sm hover:bg-[#00F0FF]/90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A1A1B]"
-                >
-                  Try again
-                </button>
-              </div>
-            )}
-            {canAct && (
-              <>
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] font-orbitron">
-                      Browse open games
-                    </h3>
-                    <select
-                      value={timeFilter}
-                      onChange={(e) => setTimeFilter(Number(e.target.value))}
-                      className="bg-[#0A1A1B] text-[#F0F7F7] px-3 py-2 rounded-lg border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-sm"
-                    >
-                      {timeOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+          <JoinRoomAuthStickyBar canAct={canAct} authLoading={authLoading} />
+          <JoinRoomAuthModal open={modalOpen} hint={modalHint} onDismiss={cancelModal} />
 
-                  {fetchingPending ? (
-                    <>
-                      <p className="text-[#869298] text-sm text-center mb-2">Loading open games…</p>
-                      <SkeletonGameGrid count={6} gridClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" />
-                    </>
-                  ) : pendingGames.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {pendingGames.map((game) => (
-                        <div
-                          key={game.id}
-                          className="bg-[#010F10]/70 p-5 rounded-xl border border-[#00F0FF]/40 hover:border-[#00F0FF] transition-all shadow-md hover:shadow-[#00F0FF]/50 flex flex-col items-center justify-between group"
-                        >
-                          <div className="text-center mb-4">
-                            <p className="text-[#F0F7F7] font-orbitron font-bold text-lg">
-                              Code: {game.code}
-                            </p>
-                            <p className="text-[#869298] text-sm">
-                              Players: {game.players.length}/{game.number_of_players} • Pending
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => handleJoinPublicGame(game)}
-                            className="bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black font-orbitron font-bold px-4 py-2 rounded-lg hover:opacity-90 transition-all shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105"
-                          >
-                            Join
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState
-                      icon={<Users className="w-14 h-14 text-[#00F0FF]/70" />}
-                      title="No open games right now"
-                      description="Create a new game or enter a code above to join one."
-                      action={
-                        canAct
-                          ? { label: "Create new game", href: redirectCreateNew }
-                          : {
-                              label: "Create new game",
-                              onClick: () =>
-                                queueAfterAuth("Host a new game after you sign in.", () =>
-                                  router.push(redirectCreateNew)
-                                ),
-                            }
-                      }
-                      className="border-[#00F0FF]/20 bg-[#010F10]/50 text-center"
-                    />
-                  )}
-                </div>
-
-                {(fetchingRecent || activeRecentGames.length > 0) && (
-                  <div className="space-y-6">
-                    <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] text-center font-orbitron">
-                      Continue Game
-                    </h3>
-                    {fetchingRecent ? (
+          <div className="space-y-6">
+            {/* ENTER ACCESS CODE */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Enter Access Code</p>
+              <div className="bg-black/60 rounded-xl p-3 border border-cyan-500/30 space-y-3">
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="text"
+                    value={code}
+                    onChange={(e) => {
+                      setCode(e.target.value);
+                      if (error) setError(null);
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && !joinByCodeGuard.isSubmitting && joinByCodeGuard.submit(() => handleJoinByCode())}
+                    placeholder="ABCD1234"
+                    className="w-full bg-[#0A1A1B] text-cyan-300 font-mono px-3 py-2 rounded-lg border border-cyan-500/60 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/30 text-sm uppercase tracking-wide"
+                    maxLength={12}
+                  />
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => joinByCodeGuard.submit(() => handleJoinByCode())}
+                    disabled={loading || joinByCodeGuard.isSubmitting || !normalizedCode}
+                    className={`w-full px-4 py-2 rounded-lg font-orbitron font-bold text-sm transition-all border-2 flex items-center justify-center gap-1 whitespace-nowrap ${
+                      !normalizedCode || loading || joinByCodeGuard.isSubmitting
+                        ? "border-cyan-500/30 bg-slate-800/40 text-cyan-400/60"
+                        : "border-cyan-400 bg-cyan-500/20 text-cyan-300 shadow-lg shadow-cyan-500/40 hover:shadow-cyan-500/60"
+                    }`}
+                  >
+                    {loading || joinByCodeGuard.isSubmitting ? (
                       <>
-                        <p className="text-[#869298] text-sm text-center mb-2">Loading your games…</p>
-                        <SkeletonGameGrid count={3} gridClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" />
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Joining...
                       </>
                     ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {activeRecentGames.map((game) => (
-                        <button
-                          key={game.id}
-                          onClick={() => handleContinueGame(game)}
-                          className="bg-[#010F10]/70 p-5 rounded-xl border border-[#00F0FF]/40 hover:border-[#00F0FF] transition-all shadow-md hover:shadow-[#00F0FF]/50 flex flex-col items-center justify-between group"
+                      <>⚡ JOIN MATCH</>
+                    )}
+                  </motion.button>
+                </div>
+                {error && (
+                  <p className="text-red-400 text-xs bg-red-900/30 border border-red-500/30 p-2 rounded-lg font-orbitron" role="alert">
+                    {error}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* HOST BATTLE */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Host Battle</p>
+              <div className="bg-black/60 rounded-xl p-3 border border-cyan-500/30 h-full flex items-center">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleCreateNew}
+                  className="w-full px-4 py-2 rounded-lg font-orbitron font-bold text-sm transition-all border-2 border-cyan-400 bg-cyan-500/20 text-cyan-300 shadow-lg shadow-cyan-500/40 hover:shadow-cyan-500/60"
+                >
+                  🎮 HOST A MATCH
+                </motion.button>
+              </div>
+            </div>
+
+            {/* LIVE BATTLEGROUNDS */}
+            {canAct && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest">Live Battlegrounds</p>
+                  <div className="overflow-x-auto pb-1">
+                    <div className="flex gap-1 min-w-min">
+                      {timeOptions.map((opt) => (
+                        <motion.button
+                          key={opt.value}
+                          whileHover={{ scale: 1.05 }}
+                          onClick={() => setTimeFilter(opt.value)}
+                          className={`px-2 py-1 rounded-lg font-orbitron text-xs transition-all border-2 whitespace-nowrap ${
+                            timeFilter === opt.value
+                              ? "border-cyan-400 bg-cyan-500/20 text-cyan-300 shadow-lg shadow-cyan-500/40"
+                              : "border-cyan-500/20 bg-slate-800/40 text-cyan-400/60 hover:border-cyan-400/40"
+                          }`}
                         >
-                          <div className="text-center mb-4">
-                            <p className="text-[#F0F7F7] font-orbitron font-bold text-lg">
-                              Code: {game.code}
-                            </p>
-                            <p className="text-[#869298] text-sm">
-                              Players: {game.players.length}/{game.number_of_players} •{" "}
-                              {game.status === "PENDING" ? "Waiting" : "In Progress"}
-                            </p>
-                          </div>
-                          <IoArrowForwardOutline className="w-8 h-8 text-[#00F0FF] group-hover:translate-x-2 transition-transform" />
-                        </button>
+                          {opt.label === "All pending" ? "ALL" : opt.label.replace("Last ", "")}
+                        </motion.button>
                       ))}
                     </div>
-                    )}
+                  </div>
+                </div>
+
+                {fetchingPending ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mx-auto mb-2" />
+                    <p className="text-cyan-400/70 text-sm font-orbitron">SCANNING BATTLEGROUNDS...</p>
+                  </div>
+                ) : pendingGames.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3">
+                    {pendingGames.map((game) => (
+                      <motion.div
+                        key={game.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-black/60 rounded-lg p-3 border border-cyan-500/30 hover:border-cyan-400/60 transition-all"
+                      >
+                        <div className="space-y-2 mb-3">
+                          <p className="font-mono font-bold text-cyan-300 text-sm">{game.code}</p>
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex gap-1">
+                              {[...Array(game.number_of_players)].map((_, i) => (
+                                <span key={i} className={i < game.players.length ? "text-cyan-400" : "text-cyan-500/30"}>
+                                  ●
+                                </span>
+                              ))}
+                            </div>
+                            <motion.span
+                              animate={{ opacity: [1, 0.5, 1] }}
+                              transition={{ repeat: Infinity, duration: 1.5 }}
+                              className="px-2 py-0.5 rounded-full bg-green-900/40 border border-green-500/60 text-green-300 font-orbitron font-bold"
+                            >
+                              WAITING
+                            </motion.span>
+                          </div>
+                        </div>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => handleJoinPublicGame(game)}
+                          className="w-full py-1.5 rounded-lg font-orbitron font-bold text-xs border-2 border-cyan-400 bg-cyan-500/20 text-cyan-300 hover:shadow-lg hover:shadow-cyan-500/40 transition-all"
+                        >
+                          ▶ JOIN
+                        </motion.button>
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-amber-400/70 text-sm font-orbitron">⚠ NO ACTIVE BATTLEGROUNDS DETECTED</p>
                   </div>
                 )}
-              </>
+              </div>
+            )}
+
+            {/* REJOIN BATTLE */}
+            {canAct && (fetchingRecent || activeRecentGames.length > 0) && (
+              <div>
+                <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Rejoin Battle</p>
+                {fetchingRecent ? (
+                  <div className="text-center py-6">
+                    <Loader2 className="w-5 h-5 animate-spin text-cyan-400 mx-auto" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {activeRecentGames.map((game) => (
+                      <motion.button
+                        key={game.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        onClick={() => handleContinueGame(game)}
+                        className="bg-black/60 rounded-lg p-3 border border-cyan-500/30 hover:border-cyan-400/60 transition-all text-left"
+                      >
+                        <div className="space-y-2 mb-3">
+                          <p className="font-mono font-bold text-cyan-300 text-sm">{game.code}</p>
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex gap-1">
+                              {[...Array(game.number_of_players)].map((_, i) => (
+                                <span key={i} className={i < game.players.length ? "text-cyan-400" : "text-cyan-500/30"}>
+                                  ●
+                                </span>
+                              ))}
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full font-orbitron font-bold ${
+                              game.status === "PENDING"
+                                ? "bg-green-900/40 border border-green-500/60 text-green-300"
+                                : "bg-amber-900/40 border border-amber-500/60 text-amber-300"
+                            }`}>
+                              {game.status === "PENDING" ? "WAITING" : "RUNNING"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-cyan-400/70">Ready?</span>
+                          <span className="text-cyan-300">▶ RESUME</span>
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
             {!canAct && !authLoading && (
-              <p className="mt-6 text-center text-slate-500 text-xs font-orbitron">
-                Use the sign-in bar at the top of this card, or{" "}
-                <a href="/" className="text-[#00F0FF] hover:underline">
-                  open HQ
-                </a>
-                .
-              </p>
+              <div className="text-center py-8">
+                <p className="text-cyan-400/70 text-sm font-orbitron">Sign in or connect your wallet to browse and join battles.</p>
+              </div>
             )}
           </div>
-
-          {/* Footer Links */}
-          <div className="flex justify-center mt-10 lg:mt-12">
-            <button
-              onClick={() => router.push("/")}
-              className="flex items-center text-[#0FF0FC] text-base font-orbitron hover:text-[#00D4E6] transition-colors hover:underline gap-2"
-            >
-              <IoHomeOutline className="w-5 h-5" />
-              Back to HQ
-            </button>
-          </div>
         </div>
-      </main>
-    </section>
+      </div>
+    </div>
   );
 }
