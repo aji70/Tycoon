@@ -25,7 +25,6 @@ export function NeonTitle({ text, size = "lg" }: NeonTitleProps) {
       }}
     >
       <div className="relative" style={{ backfaceVisibility: "hidden" }}>
-        {/* Main neon text - sharp and readable */}
         <motion.h1
           animate={{
             textShadow: [

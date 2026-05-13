@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
 
 export function ParticleBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -31,7 +30,6 @@ export function ParticleBackground() {
       opacity: number;
     }> = [];
 
-    // Create particles
     for (let i = 0; i < 30; i++) {
       particles.push({
         x: Math.random() * canvas.width,
