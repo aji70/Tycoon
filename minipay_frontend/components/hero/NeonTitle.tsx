@@ -8,10 +8,12 @@ interface NeonTitleProps {
 
 export function NeonTitle({ text, size = "lg" }: NeonTitleProps) {
   const sizeClasses = {
-    sm: "text-4xl md:text-5xl",
-    md: "text-6xl md:text-7xl",
-    lg: "text-7xl md:text-8xl lg:text-9xl",
+    sm: "text-3xl",
+    md: "text-5xl",
+    lg: "text-6xl",
   };
+
+  const shadowStyle = "0 0 20px #00E5FF, 0 0 40px #00E5FF";
 
   return (
     <motion.div
@@ -27,20 +29,9 @@ export function NeonTitle({ text, size = "lg" }: NeonTitleProps) {
       <div className="relative" style={{ backfaceVisibility: "hidden" }}>
         {/* Main neon text - sharp and readable */}
         <motion.h1
-          animate={{
-            textShadow: [
-              "0 0 8px rgba(0, 240, 255, 0.8), 0 0 16px rgba(0, 240, 255, 0.6)",
-              "0 0 8px rgba(15, 240, 252, 0.8), 0 0 16px rgba(15, 240, 252, 0.6)",
-            ],
-          }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
           className={`${sizeClasses[size]} font-kronaOne font-bold uppercase tracking-tighter text-[#00F0FF] relative z-10`}
           style={{
-            textShadow: "0 0 8px rgba(0, 240, 255, 0.8), 0 0 16px rgba(0, 240, 255, 0.6)",
+            textShadow: shadowStyle,
             WebkitFontSmoothing: "antialiased",
             MozOsxFontSmoothing: "grayscale",
             textRendering: "geometricPrecision",
