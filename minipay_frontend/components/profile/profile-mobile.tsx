@@ -733,9 +733,6 @@ function GuestProfileViewMobile({
                   compact
                   className="mb-4"
                 />
-                <div className="mb-4">
-                  <DailyClaim chain="CELO" accountKey={guestUser.id} />
-                </div>
                 {displayStats && !displayStats.isOnChain && (
                   <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-amber-200">
                     <Shield className="w-4 h-4 shrink-0 text-amber-400" />
@@ -1710,18 +1707,6 @@ export default function ProfilePageMobile() {
                   compact
                   className="mb-4"
                 />
-                <div className="mb-4">
-                  <DailyClaim
-                    chain={
-                      chainId === 137 || chainId === 80001
-                        ? 'POLYGON'
-                        : chainId === 42220 || chainId === 44787
-                          ? 'CELO'
-                          : 'BASE'
-                    }
-                    accountKey={guestUser?.id ?? walletAddress ?? ''}
-                  />
-                </div>
                 {statsUser && (() => {
                   const levelInfo = getLevelFromActivity({ gamesPlayed: statsUser.gamesPlayed, gamesWon: statsUser.gamesWon });
                   return (
