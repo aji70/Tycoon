@@ -3,7 +3,6 @@
 
 import dynamic from "next/dynamic";
 import { useMediaQuery } from "@/components/useMediaQuery";
-import TutorialOverlay from "@/components/guest/TutorialOverlay";
 import WhatIsTycoon from "@/components/guest/WhatIsTycoon";
 import JoinOurCommunity from "@/components/guest/JoinOurCommunity";
 import Footer from "@/components/shared/Footer";
@@ -39,7 +38,6 @@ export default function HomeClient() {
 
   return (
     <main className="w-full">
-      <TutorialOverlay />
       {isMobile ? <HeroSectionMobile /> : <HeroSection />}
       <WhatIsTycoon />
       <HowItWorks />

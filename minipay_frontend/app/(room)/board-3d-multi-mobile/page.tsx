@@ -2528,8 +2528,6 @@ function Board3DMobilePageContent() {
                   focusTilePosition={landedPositionForBuy}
                   onFocusComplete={onFocusComplete}
                   spinOrbitDegrees={spinOrbitDegrees}
-                  boardId={game?.board_id}
-                  flagUrl="/bb.jpg"
                 />
               </Canvas>
             ) : (
