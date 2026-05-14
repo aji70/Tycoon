@@ -2,9 +2,9 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
-import { 
-  BarChart2, Crown, Coins, Wallet, Ticket, ShoppingBag, 
-  Loader2, Send, ChevronDown, ChevronUp, ArrowLeft, Camera, Copy, Check, User, FileText, Pencil 
+import {
+  BarChart2, Crown, Coins, Wallet, Ticket, ShoppingBag,
+  Loader2, Send, ChevronDown, ChevronUp, ArrowLeft, Camera, Copy, Check, User, FileText, Pencil, Shield
 } from 'lucide-react';
 import Link from 'next/link';
 import avatar from '@/public/avatar.jpg';
@@ -655,10 +655,10 @@ function GuestProfileViewMobile({
                 key={id}
                 type="button"
                 onClick={() => setProfileTab(id)}
-                className={`flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 rounded-xl font-semibold text-[10px] transition-all ${
+                className={`flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 rounded-xl font-orbitron text-[10px] transition-all ${
                   profileTab === id
-                    ? 'bg-cyan-500/20 border-2 border-cyan-500/50 text-cyan-200'
-                    : 'bg-white/5 border border-white/10 text-white/70'
+                    ? 'border-2 border-cyan-400 bg-cyan-500/20 text-cyan-300 shadow-lg shadow-cyan-500/30'
+                    : 'border border-cyan-500/30 bg-slate-800/40 text-cyan-400/60'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5 shrink-0" />
@@ -682,67 +682,67 @@ function GuestProfileViewMobile({
                   compact
                   className="mb-4"
                 />
-                <div className="mb-4">
-                  <DailyClaim chain="CELO" accountKey={guestUser.id} />
-                </div>
                 {displayStats && !displayStats.isOnChain && (
-                  <div className="mb-4 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 flex flex-col gap-1 text-orange-200">
-                    <span className="text-xs font-semibold">Showing off-chain stats</span>
-                    <span className="text-[10px] text-orange-200/80">Link your wallet to secure your progress on-chain.</span>
+                  <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-amber-200">
+                    <Shield className="w-4 h-4 shrink-0 text-amber-400" />
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-amber-300 text-xs font-orbitron font-semibold">Showing off-chain stats</span>
+                      <span className="text-amber-200/70 text-[10px]">Link your wallet to secure your progress on-chain.</span>
+                    </div>
                   </div>
                 )}
                 {statsForDisplay && (() => {
                   const levelInfo = getLevelFromActivity({ gamesPlayed: statsForDisplay.gamesPlayed, gamesWon: statsForDisplay.gamesWon });
                   return (
                     <>
-                      <div className="mb-3 p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-1.5">
+                      <div className="mb-3 p-3 rounded-xl bg-[#0E282A]/80 border border-cyan-500/40 shadow-lg shadow-cyan-500/10 flex flex-col gap-1.5">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[9px] font-medium text-cyan-400/90 uppercase tracking-widest">Level</span>
-                          <span className="font-bold text-cyan-300 text-sm">Level {levelInfo.level} · {levelInfo.label}</span>
+                          <span className="font-orbitron text-[9px] text-cyan-400/90 uppercase tracking-widest">Level</span>
+                          <span className="font-orbitron font-bold text-cyan-300 text-sm">Level {levelInfo.level} · {levelInfo.label}</span>
                         </div>
                         {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
                           <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
                             <div
-                              className="h-full rounded-full bg-cyan-500/80 transition-all duration-500"
+                              className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all duration-500"
                               style={{ width: `${Math.round(levelInfo.progress * 100)}%` }}
                             />
                           </div>
                         )}
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
-                        <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                        <div className="bg-slate-800/60 border border-cyan-500/20 rounded-xl p-3 flex flex-col items-center gap-0.5 hover:border-cyan-500/40 transition-all">
                           <BarChart2 className="w-4 h-4 text-cyan-400" />
-                          <p className="text-[10px] text-white/50">Games</p>
-                          <p className="text-sm font-bold text-white">{statsForDisplay.gamesPlayed}</p>
+                          <p className="text-[10px] text-cyan-400/60">Games</p>
+                          <p className="text-sm font-bold font-orbitron text-cyan-300">{statsForDisplay.gamesPlayed}</p>
                         </div>
-                        <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                        <div className="bg-slate-800/60 border border-cyan-500/20 rounded-xl p-3 flex flex-col items-center gap-0.5 hover:border-cyan-500/40 transition-all">
                           <Crown className="w-4 h-4 text-amber-400" />
-                          <p className="text-[10px] text-white/50">Wins</p>
-                          <p className="text-sm font-bold text-amber-300">{statsForDisplay.gamesWon}</p>
+                          <p className="text-[10px] text-cyan-400/60">Wins</p>
+                          <p className="text-sm font-bold font-orbitron text-amber-300">{statsForDisplay.gamesWon}</p>
                         </div>
-                        <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                        <div className="bg-slate-800/60 border border-cyan-500/20 rounded-xl p-3 flex flex-col items-center gap-0.5 hover:border-cyan-500/40 transition-all">
                           <Coins className="w-4 h-4 text-slate-400" />
-                          <p className="text-[10px] text-white/50">Losses</p>
-                          <p className="text-sm font-bold text-slate-300">{statsForDisplay.gamesLost}</p>
+                          <p className="text-[10px] text-cyan-400/60">Losses</p>
+                          <p className="text-sm font-bold font-orbitron text-slate-300">{statsForDisplay.gamesLost}</p>
                         </div>
-                        <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                        <div className="bg-slate-800/60 border border-cyan-500/20 rounded-xl p-3 flex flex-col items-center gap-0.5 hover:border-cyan-500/40 transition-all">
                           <BarChart2 className="w-4 h-4 text-emerald-400" />
-                          <p className="text-[10px] text-white/50">Win rate</p>
-                          <p className="text-sm font-bold text-emerald-300">{statsForDisplay.winRate}</p>
+                          <p className="text-[10px] text-cyan-400/60">Win rate</p>
+                          <p className="text-sm font-bold font-orbitron text-emerald-300">{statsForDisplay.winRate}</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2 mb-2">
-                        <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
-                          <p className="text-[9px] text-white/50">Staked</p>
-                          <p className="text-xs font-bold text-white truncate">{formatStakeOrEarned(statsForDisplay.totalStaked)}</p>
+                        <div className="bg-slate-800/60 border border-cyan-500/20 rounded-xl p-2.5 text-center hover:border-cyan-500/40 transition-all">
+                          <p className="text-[9px] text-cyan-400/60">Staked</p>
+                          <p className="text-xs font-bold font-orbitron text-cyan-300 truncate">{formatStakeOrEarned(statsForDisplay.totalStaked)}</p>
                         </div>
-                        <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
-                          <p className="text-[9px] text-white/50">Earned</p>
-                          <p className="text-xs font-bold text-emerald-300 truncate">{formatStakeOrEarned(statsForDisplay.totalEarned)}</p>
+                        <div className="bg-slate-800/60 border border-cyan-500/20 rounded-xl p-2.5 text-center hover:border-cyan-500/40 transition-all">
+                          <p className="text-[9px] text-cyan-400/60">Earned</p>
+                          <p className="text-xs font-bold font-orbitron text-emerald-300 truncate">{formatStakeOrEarned(statsForDisplay.totalEarned)}</p>
                         </div>
-                        <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
-                          <p className="text-[9px] text-white/50">Withdrawn</p>
-                          <p className="text-xs font-bold text-slate-300 truncate">{formatStakeOrEarned(statsForDisplay.totalWithdrawn)}</p>
+                        <div className="bg-slate-800/60 border border-cyan-500/20 rounded-xl p-2.5 text-center hover:border-cyan-500/40 transition-all">
+                          <p className="text-[9px] text-cyan-400/60">Withdrawn</p>
+                          <p className="text-xs font-bold font-orbitron text-slate-300 truncate">{formatStakeOrEarned(statsForDisplay.totalWithdrawn)}</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
@@ -758,7 +758,6 @@ function GuestProfileViewMobile({
                     </>
                   );
                 })()}
-                <ProfileReferralCard className="mt-4" />
               </motion.div>
             )}
 
@@ -922,6 +921,13 @@ function GuestProfileViewMobile({
             )}
           </div>
         </section>
+
+        <div className="px-4 py-4 space-y-4">
+          {(guestUser?.id || walletAddress) && (
+            <DailyClaim chain="CELO" accountKey={guestUser?.id || walletAddress} />
+          )}
+          <ProfileReferralCard />
+        </div>
 
         <AccountLinkWallet />
       </main>
@@ -1553,7 +1559,7 @@ export default function ProfilePageMobile() {
                         : (ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0'),
                   },
                 ].map(({ label, value }) => (
-                  <div key={label} className="profile-card rounded-xl p-3 text-center border border-white/10">
+                  <div key={label} className="bg-slate-800/60 border border-cyan-500/20 rounded-xl p-3 text-center hover:border-cyan-500/40 transition-all">
                     <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
                     <p className="text-sm font-bold text-white truncate mt-0.5">{value}</p>
                   </div>
@@ -1568,9 +1574,9 @@ export default function ProfilePageMobile() {
               { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2) },
               { label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0' },
             ].map(({ label, value }) => (
-              <div key={label} className="profile-card rounded-xl p-3 text-center border border-white/10">
-                <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                <p className="text-sm font-bold text-white truncate mt-0.5">{value}</p>
+              <div key={label} className="bg-slate-800/60 border border-cyan-500/20 rounded-xl p-3 text-center hover:border-cyan-500/40 transition-all">
+                <p className="text-[10px] font-medium text-cyan-400/60 uppercase tracking-wider">{label}</p>
+                <p className="text-sm font-bold text-cyan-300 font-mono truncate mt-0.5">{value}</p>
               </div>
             ))}
           </div>
@@ -1589,10 +1595,10 @@ export default function ProfilePageMobile() {
                 key={id}
                 type="button"
                 onClick={() => setProfileTab(id)}
-                className={`flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 rounded-xl font-semibold text-[10px] transition-all ${
+                className={`flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 rounded-xl font-orbitron text-[10px] transition-all ${
                   profileTab === id
-                    ? 'bg-cyan-500/20 border-2 border-cyan-500/50 text-cyan-200'
-                    : 'bg-white/5 border border-white/10 text-white/70'
+                    ? 'border-2 border-cyan-400 bg-cyan-500/20 text-cyan-300 shadow-lg shadow-cyan-500/30'
+                    : 'border border-cyan-500/30 bg-slate-800/40 text-cyan-400/60'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5 shrink-0" />
@@ -1616,18 +1622,6 @@ export default function ProfilePageMobile() {
                   compact
                   className="mb-4"
                 />
-                <div className="mb-4">
-                  <DailyClaim
-                    chain={
-                      chainId === 137 || chainId === 80001
-                        ? 'POLYGON'
-                        : chainId === 42220 || chainId === 44787
-                          ? 'CELO'
-                          : 'BASE'
-                    }
-                    accountKey={guestUser?.id ?? walletAddress ?? ''}
-                  />
-                </div>
                 {statsUser && (() => {
                   const levelInfo = getLevelFromActivity({ gamesPlayed: statsUser.gamesPlayed, gamesWon: statsUser.gamesWon });
                   return (
@@ -1693,7 +1687,6 @@ export default function ProfilePageMobile() {
                     <p className="text-sm font-bold text-amber-300">{statsUser?.propertiesSold ?? '—'}</p>
                   </div>
                 </div>
-                <ProfileReferralCard className="mt-4" />
               </motion.div>
             )}
             {profileTab === 'about' && (
