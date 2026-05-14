@@ -45,7 +45,6 @@ export interface Game {
   number_of_players: number;
   next_player_id: number | null;
   duration: number | string | null;
-  board_id?: string;
   created_at: string;
   updated_at: string;
   /** Set when status becomes RUNNING (e.g. all players joined). Game timing starts from this. */
