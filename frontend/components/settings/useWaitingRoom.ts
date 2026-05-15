@@ -46,7 +46,7 @@ export interface UseWaitingRoomOptions {
 }
 
 export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
-  const { redirectToBoard = "/game-play", redirectToBoardMobile } = options;
+  const { redirectToBoard = "/board-3d-multi", redirectToBoardMobile } = options;
 
   const getRedirectBoardUrl = useCallback(() => {
     const base = redirectToBoard;
@@ -170,13 +170,13 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
   }, []);
 
   const gameUrl = useMemo(
-    () => `${origin}/game-waiting?gameCode=${encodeURIComponent(gameCode)}`,
+    () => `${origin}/game-waiting-3d?gameCode=${encodeURIComponent(gameCode)}`,
     [origin, gameCode]
   );
 
   const farcasterMiniappUrl = useMemo(
     () =>
-      `https://farcaster.xyz/miniapps/bylqDd2BdAR5/tycoon/game-waiting?gameCode=${encodeURIComponent(gameCode)}`,
+      `https://farcaster.xyz/miniapps/bylqDd2BdAR5/tycoon/game-waiting-3d?gameCode=${encodeURIComponent(gameCode)}`,
     [gameCode]
   );
 

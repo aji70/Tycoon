@@ -4,7 +4,7 @@ import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, Sparkles, HeartHandshake } from "lucide-react";
 import { Player } from "@/types/game";
-import { VictorySocialShare, DEFAULT_JOIN_2D } from "./VictorySocialShare";
+import { VictorySocialShare, DEFAULT_JOIN_3D } from "./VictorySocialShare";
 
 interface VictoryDefeatModalProps {
   winner: Player | null;
@@ -15,7 +15,7 @@ interface VictoryDefeatModalProps {
   onGoHome?: () => void | Promise<void>;
   /** Room code — enables winner share row (join link with `gameCode`). */
   gameCode?: string | null;
-  /** Join page path; classic board uses `/join-room`, 3D flow uses `/join-room-3d`. */
+  /** Join page path for post-match share links. */
   joinPagePath?: string;
 }
 
@@ -36,7 +36,7 @@ export const VictoryDefeatModal: React.FC<VictoryDefeatModalProps> = ({
   myPosition,
   onGoHome,
   gameCode,
-  joinPagePath = DEFAULT_JOIN_2D,
+  joinPagePath = DEFAULT_JOIN_3D,
 }) => {
   if (!winner) return null;
 

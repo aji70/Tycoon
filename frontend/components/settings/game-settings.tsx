@@ -64,7 +64,7 @@ interface GameSettingsProps {
   redirectToWaitingRoom?: string;
 }
 
-export default function GameSettings({ redirectToWaitingRoom = "/game-waiting" }: GameSettingsProps = {}) {
+export default function GameSettings({ redirectToWaitingRoom = "/game-waiting-3d" }: GameSettingsProps = {}) {
   const router = useRouter();
   const { address } = useAccount();
   const wagmiChainId = useChainId();

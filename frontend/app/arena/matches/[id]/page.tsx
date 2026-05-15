@@ -157,9 +157,7 @@ export default function MatchDetailsPage() {
         {match.game_id && (
           <div className={styles.metaRow}>
             <span className={styles.label}>Game:</span>
-            <a href={`/game-room-loading?gameId=${match.game_id}`} className={styles.link}>
-              View Game #{match.game_id}
-            </a>
+            <span className={styles.value}>#{match.game_id}</span>
           </div>
         )}
       </div>

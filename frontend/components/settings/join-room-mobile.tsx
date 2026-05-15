@@ -24,9 +24,9 @@ interface JoinRoomMobileProps {
 }
 
 export default function JoinRoom({
-  redirectToBoard = "/game-play",
-  redirectToWaiting = "/game-waiting",
-  redirectCreateNew = "/game-settings",
+  redirectToBoard = "/board-3d-multi-mobile",
+  redirectToWaiting = "/game-waiting-3d",
+  redirectCreateNew = "/game-settings-3d",
 }: JoinRoomMobileProps = {}): JSX.Element {
   const router = useRouter();
   const { address, isConnected } = useAccount();

@@ -1241,7 +1241,7 @@ export function TournamentDetailPage({
                                       </Link>
                                       {!isAutonomousAgentMatch ? (
                                         <Link
-                                          href={`/game-waiting?gameCode=${encodeURIComponent(gameCodeForMatch)}`}
+                                          href={`/game-waiting-3d?gameCode=${encodeURIComponent(gameCodeForMatch)}`}
                                           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/12 text-white/88 font-medium text-sm hover:bg-white/10 transition-colors"
                                         >
                                           Lobby

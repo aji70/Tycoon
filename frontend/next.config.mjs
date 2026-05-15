@@ -38,6 +38,11 @@ const nextConfig = {
         permanent: false, // This ensures a temporary 307 redirect
         statusCode: 307,  // Explicitly set to 307 (recommended by Farcaster)
       },
+      {
+        source: '/verify-email',
+        destination: '/profile',
+        permanent: false,
+      },
     ];
   },
   /** Safe defaults; CSP/HSTS/COOP are usually set at the edge (Vercel) to avoid breaking wallet popups / miniapps. */

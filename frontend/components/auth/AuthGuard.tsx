@@ -9,14 +9,13 @@ import { Wallet, User } from "lucide-react";
 /** Paths that do not require wallet or guest sign-in (user can access anonymously). */
 const PUBLIC_PATHS = [
   "/",
-  "/join-room",
   "/join-room-3d",
-  "/verify-email",
-  "/waitlist",
   "/rooms",
   "/leaderboard",
   "/terms",
   "/privacy",
+  "/cookies",
+  "/how-to-play",
 ];
 
 function isPublicPath(pathname: string): boolean {
@@ -83,7 +82,7 @@ export default function AuthGuard({ children }: AuthGuardProps): React.ReactElem
             </button>
             <button
               type="button"
-              onClick={() => router.push("/join-room")}
+              onClick={() => router.push("/join-room-3d")}
               className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-slate-500 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold transition"
             >
               <User className="w-5 h-5" />

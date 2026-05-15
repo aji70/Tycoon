@@ -13,7 +13,7 @@ export interface GameRoomLoadingProps {
   subtitle?: string
   /** Override tagline (e.g. "show no mercy!") */
   tagline?: string
-  /** Redirect path when variant is 'game' (default: /game-play) */
+  /** Redirect path when variant is 'game' (default: /board-3d-multi) */
   redirectTo?: string
   /** Delay before redirect in ms (default: 5000) */
   redirectDelay?: number
@@ -38,7 +38,7 @@ const GameRoomLoading = (props: GameRoomLoadingProps) => {
     title,
     subtitle,
     tagline,
-    redirectTo = '/game-play',
+    redirectTo = '/board-3d-multi',
     redirectDelay = 5000,
   } = props
 

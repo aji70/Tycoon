@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { adminApi } from "@/lib/adminApi";
 import { ApiError } from "@/lib/api";
-import { Loader2, ExternalLink } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 const CHAINS = ["CELO", "BASE", "POLYGON"] as const;
 
@@ -156,16 +155,6 @@ export default function AdminTokenRewardsPage() {
       <h1 className="text-2xl font-semibold text-slate-100">Token & rewards</h1>
       <p className="mt-1 text-sm text-slate-400 max-w-2xl">
         Economy aggregates, daily-claim env hints, and <strong>manual TYC voucher mint</strong> (same path as daily claim — backend must be minter on the reward contract).
-      </p>
-
-      <p className="mt-3">
-        <Link
-          href="/rewards"
-          className="inline-flex items-center gap-1.5 text-sm text-cyan-400 hover:text-cyan-300"
-        >
-          Open full Rewards / shop admin UI
-          <ExternalLink className="w-3.5 h-3.5" />
-        </Link>
       </p>
 
       {loading && (

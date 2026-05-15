@@ -77,7 +77,7 @@ interface GameSettingsOptimizedProps {
   redirectToWaitingRoom?: string;
 }
 
-export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-waiting" }: GameSettingsOptimizedProps = {}) {
+export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-waiting-3d" }: GameSettingsOptimizedProps = {}) {
   const router = useRouter();
   const { address } = useAccount();
   const wagmiChainId = useChainId();

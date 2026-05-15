@@ -65,7 +65,7 @@ interface GameSettingsMobileProps {
   redirectToWaitingRoom?: string;
 }
 
-export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waiting" }: GameSettingsMobileProps = {}) {
+export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waiting-3d" }: GameSettingsMobileProps = {}) {
   const router = useRouter();
   const { address } = useAccount();
   const wagmiChainId = useChainId();
