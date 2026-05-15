@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { GamePieces } from "@/lib/constants/games";
 import { ShieldCheck } from "lucide-react";
 import { useAIGameCreate } from "@/hooks/useAIGameCreate";
+import { BoardVariantPicker } from "@/components/game-setup/BoardVariantPicker";
 
 export interface PlayWithAIProps {
   /** When true, after creating a game redirect to 3D board (ai-play-3d). */
@@ -210,6 +211,12 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
                   <SelectItem value="0">No limit</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="mt-8">
+              <BoardVariantPicker
+                value={settings.boardVariantId}
+                onChange={(id) => setSettings((p) => ({ ...p, boardVariantId: id }))}
+              />
             </div>
           </div>
 

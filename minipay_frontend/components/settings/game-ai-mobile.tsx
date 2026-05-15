@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { GamePieces } from "@/lib/constants/games";
 import { ShieldCheck } from "lucide-react";
 import { useAIGameCreate } from "@/hooks/useAIGameCreate";
+import { BoardVariantPicker } from "@/components/game-setup/BoardVariantPicker";
 
 export default function PlayWithAIMobile() {
   const router = useRouter();
@@ -202,6 +203,13 @@ export default function PlayWithAIMobile() {
               </ul>
             </div>
           )}
+
+          <div className="rounded-xl border border-cyan-500/30 bg-black/40 p-4">
+            <BoardVariantPicker
+              value={settings.boardVariantId}
+              onChange={(id) => setSettings((p) => ({ ...p, boardVariantId: id }))}
+            />
+          </div>
 
           <div className="bg-black/60 rounded-xl p-4 border border-cyan-500/30">
             <h3 className="text-base font-bold text-cyan-400 mb-3 text-center">House Rules</h3>

@@ -10,6 +10,7 @@ import { GamePieces } from "@/lib/constants/games";
 import { ShieldCheck } from "lucide-react";
 import { useAIGameCreate } from "@/hooks/useAIGameCreate";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
+import { BoardVariantPicker } from "@/components/game-setup/BoardVariantPicker";
 
 const PIECE_EMOJI: Record<string, string> = {
   hat: "🎩",
@@ -57,7 +58,7 @@ export default function PlayWithAI3DMobile() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 relative overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 relative overflow-x-hidden flex flex-col pb-10">
       {/* Content */}
       <div className="relative z-10 flex-1 flex items-start justify-center p-4">
         <div className="w-full max-w-md mx-auto">
@@ -103,6 +104,13 @@ export default function PlayWithAI3DMobile() {
                 </p>
               </motion.div>
             </div>
+          </div>
+
+          <div className="rounded-xl border border-cyan-500/30 bg-slate-900/60 px-4 py-4 mb-6">
+            <BoardVariantPicker
+              value={settings.boardVariantId}
+              onChange={(id) => setSettings((p) => ({ ...p, boardVariantId: id }))}
+            />
           </div>
 
           {/* MAIN CONTENT - Single column stack */}

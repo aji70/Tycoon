@@ -17,6 +17,7 @@ import { DifficultySelector } from "./DifficultySelector";
 import { HouseRulesPanel } from "./HouseRulesPanel";
 import { LaunchButton } from "./LaunchButton";
 import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
+import { BoardVariantPicker } from "@/components/game-setup/BoardVariantPicker";
 
 const PIECE_EMOJI: Record<string, string> = {
   hat: "🎩",
@@ -64,7 +65,7 @@ export default function BattleSetupOptimized() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 relative overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 relative overflow-x-hidden flex flex-col pb-10">
       {/* Scanline overlay */}
       <ScanlineOverlay />
 
@@ -73,6 +74,15 @@ export default function BattleSetupOptimized() {
         <div className="w-full max-w-7xl mx-auto">
           {/* Header */}
           <BattleHeader onBack={() => router.push("/")} />
+
+          {/* Full-width so mobile users see board theme without scrolling past both columns */}
+          <div className="mb-6 md:mb-8 w-full">
+            <BoardVariantPicker
+              value={settings.boardVariantId}
+              onChange={(id) => setSettings((p) => ({ ...p, boardVariantId: id }))}
+              className="rounded-xl border border-cyan-500/30 bg-slate-800/50 px-4 py-4"
+            />
+          </div>
 
           {/* Desktop: Two-column layout | Mobile: Single column vertical */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-8">

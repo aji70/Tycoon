@@ -19,6 +19,7 @@ import { GamePieces } from "@/lib/constants/games";
 import { ShieldCheck } from "lucide-react";
 import { useAIGameCreate } from "@/hooks/useAIGameCreate";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
+import { BoardVariantPicker } from "@/components/game-setup/BoardVariantPicker";
 
 /** AI game settings: same functionality as game-ai but redirects to ai-play-3d with theme colors. */
 export default function PlayWithAI3D() {
@@ -62,6 +63,14 @@ export default function PlayWithAI3D() {
             Play vs AI
           </h1>
           <div className="w-24" />
+        </div>
+
+        <div className="mb-8">
+          <BoardVariantPicker
+            value={settings.boardVariantId}
+            onChange={(id) => setSettings((p) => ({ ...p, boardVariantId: id }))}
+            className="rounded-2xl border border-cyan-500/30 bg-slate-800/50 px-5 py-4"
+          />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8 mb-10">

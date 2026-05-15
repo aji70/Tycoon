@@ -19,6 +19,7 @@ import { OpponentSlots } from "./OpponentSlots";
 import { HouseRulesPanel } from "./HouseRulesPanel";
 import { LaunchButton } from "./LaunchButton";
 import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
+import { BoardVariantPicker } from "@/components/game-setup/BoardVariantPicker";
 
 export default function BattleSetupScreen() {
   const router = useRouter();
@@ -150,6 +151,13 @@ export default function BattleSetupScreen() {
                     </motion.button>
                   ))}
                 </div>
+              </LoadoutCard>
+
+              <LoadoutCard icon="🗺️" title="Board Theme" glow>
+                <BoardVariantPicker
+                  value={settings.boardVariantId}
+                  onChange={(id) => setSettings((p) => ({ ...p, boardVariantId: id }))}
+                />
               </LoadoutCard>
             </div>
 

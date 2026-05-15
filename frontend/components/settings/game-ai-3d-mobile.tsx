@@ -19,6 +19,7 @@ import { GamePieces } from "@/lib/constants/games";
 import { ShieldCheck } from "lucide-react";
 import { useAIGameCreate } from "@/hooks/useAIGameCreate";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
+import { BoardVariantPicker } from "@/components/game-setup/BoardVariantPicker";
 
 /** AI game settings (mobile): redirects to ai-play-3d with theme colors. */
 export default function PlayWithAI3DMobile() {
@@ -207,6 +208,13 @@ export default function PlayWithAI3DMobile() {
               </ul>
             </div>
           )}
+
+          <div className="bg-gradient-to-br from-slate-900/50 to-cyan-950/40 rounded-xl p-4 border border-cyan-500/30">
+            <BoardVariantPicker
+              value={settings.boardVariantId}
+              onChange={(id) => setSettings((p) => ({ ...p, boardVariantId: id }))}
+            />
+          </div>
 
           <div className="bg-slate-800/60 rounded-xl p-4 border border-cyan-500/30">
             <h3 className="text-base font-bold text-cyan-400 mb-3 text-center">House Rules</h3>
