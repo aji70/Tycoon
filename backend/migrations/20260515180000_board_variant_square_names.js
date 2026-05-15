@@ -52,18 +52,21 @@ export const up = async (knex) => {
     throw new Error("board_variants table missing — run migration 020_create_board_variants first");
   }
 
-  await knex.schema.createTable("board_variant_square_names", (table) => {
-    table.string("board_variant_id", 64).notNullable();
-    table.integer("property_id").unsigned().notNullable();
-    table.string("display_name", 255).notNullable();
-    table.primary(["board_variant_id", "property_id"]);
-    table
-      .foreign("board_variant_id")
-      .references("id")
-      .inTable("board_variants")
-      .onDelete("CASCADE");
-    table.foreign("property_id").references("id").inTable("properties").onDelete("CASCADE");
-  });
+  const hasSquareNames = await knex.schema.hasTable("board_variant_square_names");
+  if (!hasSquareNames) {
+    await knex.schema.createTable("board_variant_square_names", (table) => {
+      table.string("board_variant_id", 64).notNullable();
+      table.integer("property_id").unsigned().notNullable();
+      table.string("display_name", 255).notNullable();
+      table.primary(["board_variant_id", "property_id"]);
+      table
+        .foreign("board_variant_id")
+        .references("id")
+        .inTable("board_variants")
+        .onDelete("CASCADE");
+      table.foreign("property_id").references("id").inTable("properties").onDelete("CASCADE");
+    });
+  }
 
   const variantRows = [
     {
@@ -102,7 +105,14 @@ export const up = async (knex) => {
     display_name,
   }));
 
-  await knex.batchInsert("board_variant_square_names", nameRows, 50);
+  for (const row of nameRows) {
+    await knex.raw(
+      `INSERT INTO board_variant_square_names (board_variant_id, property_id, display_name)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE display_name = VALUES(display_name)`,
+      [row.board_variant_id, row.property_id, row.display_name],
+    );
+  }
 };
 
 export const down = async (knex) => {
