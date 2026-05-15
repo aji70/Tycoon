@@ -354,7 +354,7 @@ export default function GameWaiting3DLobby(): React.ReactElement {
                       </motion.button>
                     );
                   })}
-                </motion.div>
+                </div>
               </motion.div>
               {guestCannotJoinStaked && (
                 <p className="text-amber-400 text-sm text-center">

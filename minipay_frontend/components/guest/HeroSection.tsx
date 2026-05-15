@@ -856,7 +856,8 @@ const HeroSection: React.FC = () => {
 
           {/* Action buttons: require Privy for EOA; guest/Privy. Show when fully set up (hasSmartWallet preferred, but allow linked/registered users to try). */}
           {((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) ? (
-            <div className="flex flex-wrap justify-center items-center gap-4">
+            <motion.div
+              className="flex flex-wrap justify-center items-center gap-4"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
@@ -864,7 +865,8 @@ const HeroSection: React.FC = () => {
               {/* Continue Previous Game - Highlighted (wallet: from contract; guest: from my-games) */}
               {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
                 (guestUser && guestLastGame && guestLastGame.status !== "COMPLETED" && guestLastGame.status !== "CANCELLED")) && (
-                <button
+                <motion.button
+                  type="button"
                   onClick={handleContinuePrevious}
                   className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
                   whileHover={{ scale: 1.05 }}
@@ -892,7 +894,7 @@ const HeroSection: React.FC = () => {
                     <Gamepad2 className="mr-2 w-7 h-7" />
                     Continue Game
                   </span>
-                </button>
+                </motion.button>
               )}
 
               {/* Play with Friends */}
@@ -984,7 +986,7 @@ const HeroSection: React.FC = () => {
                 </span>
               </button>
 
-            </div>
+            </motion.div>
           ) : null}
 
           {!address && !guestUser && !walletSessionReady && (
