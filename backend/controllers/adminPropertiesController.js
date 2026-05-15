@@ -2,6 +2,7 @@ import db from "../config/database.js";
 import logger from "../config/logger.js";
 import Property from "../models/Property.js";
 import redis from "../config/redis.js";
+import { invalidatePropertyListCaches } from "../utils/boardVariant.js";
 import { recordEvent } from "../services/analytics.js";
 import { appendAdminAuditLog } from "../services/adminAuditLog.js";
 
@@ -28,7 +29,7 @@ const PATCHABLE = new Set([
 async function invalidatePropertyCache(propertyId) {
   try {
     await redis.del(`property:${propertyId}`);
-    await redis.del("properties");
+    await invalidatePropertyListCaches(redis);
   } catch (_) {}
 }
 
@@ -51,7 +52,7 @@ export async function listProperties(req, res) {
     const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 50));
     const q = req.query.q != null ? String(req.query.q).trim() : "";
 
-    const base = db("properties");
+    const base = db("properties").whereNull("board_id");
     if (q) {
       if (/^\d+$/.test(q)) {
         base.where(function () {

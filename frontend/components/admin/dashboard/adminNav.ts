@@ -3,6 +3,7 @@ export const ADMIN_NAV_ITEMS: { href: string; label: string; exact?: boolean }[]
   { href: "/admin/players", label: "Players" },
   { href: "/admin/game-rooms", label: "Game Rooms" },
   { href: "/admin/properties", label: "Properties" },
+  { href: "/admin/board-variants", label: "Board themes" },
   { href: "/admin/token-rewards", label: "Token Rewards" },
   { href: "/admin/referrals", label: "Referrals" },
   { href: "/admin/quests", label: "Quests" },

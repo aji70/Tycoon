@@ -8,6 +8,7 @@ import * as adminDashboardController from "../controllers/adminDashboardControll
 import * as adminPlayersController from "../controllers/adminPlayersController.js";
 import * as adminRoomsController from "../controllers/adminRoomsController.js";
 import * as adminPropertiesController from "../controllers/adminPropertiesController.js";
+import * as adminBoardVariantsController from "../controllers/adminBoardVariantsController.js";
 import * as adminEconomyController from "../controllers/adminEconomyController.js";
 import * as adminLeaderboardController from "../controllers/adminLeaderboardController.js";
 import * as adminAnalyticsController from "../controllers/adminAnalyticsController.js";
@@ -46,6 +47,10 @@ router.get("/rooms/:id", adminRoomsController.getRoomById);
 router.get("/properties", adminPropertiesController.listProperties);
 router.patch("/properties/:id", adminPropertiesController.patchProperty);
 router.get("/properties/:id", adminPropertiesController.getProperty);
+
+router.get("/board-variants", adminBoardVariantsController.listBoardVariants);
+router.get("/board-variants/:id/squares", adminBoardVariantsController.getBoardVariantSquares);
+router.put("/board-variants/:id/squares", adminBoardVariantsController.putBoardVariantSquares);
 
 router.get("/economy/overview", adminEconomyController.getEconomyOverview);
 router.get("/economy/config", adminEconomyController.getEconomyConfig);
