@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
-import { usePrivy } from "@privy-io/react-auth";
 import { Gift, Copy, Check, Loader2, Zap } from "lucide-react";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
-import { useBackendSession } from "@/context/GuestAuthContext";
+import { walletAuthParams } from "@/lib/walletSession";
 
 type ReferralMePayload = {
   referralCode?: string | null;
@@ -26,7 +25,6 @@ function buildShareUrl(shareQuery: string | null | undefined, code: string | nul
 }
 
 type Props = {
-  /** If false, skip fetch (no JWT). */
   enabled?: boolean;
   className?: string;
 };
@@ -34,31 +32,19 @@ type Props = {
 export default function ProfileReferralCard({ enabled = true, className = "" }: Props) {
   const [copied, setCopied] = useState<"code" | "link" | null>(null);
   const [generating, setGenerating] = useState(false);
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
   const queryClient = useQueryClient();
-  const { authLoading, isBackendAuthed, refetchGuest } = useBackendSession();
-  const { ready: privyReady, authenticated: privyAuthed } = usePrivy();
 
-  const privyPendingBackend =
-    privyReady && privyAuthed && !authLoading && !isBackendAuthed;
-  const authed = isBackendAuthed;
-
-  useEffect(() => {
-    if (!privyPendingBackend || !refetchGuest) return;
-    const id = window.setInterval(() => {
-      void refetchGuest();
-    }, 2000);
-    return () => window.clearInterval(id);
-  }, [privyPendingBackend, refetchGuest]);
+  const walletParams = walletAuthParams(address, "CELO");
 
   const query = useQuery({
-    queryKey: ["referral-me", authed],
+    queryKey: ["referral-me", address],
     queryFn: async () => {
-      const res = await apiClient.get("referral/me");
+      const res = await apiClient.get("referral/me", walletParams);
       const backend = res.data as { success?: boolean; data?: ReferralMePayload } | undefined;
       return backend?.data ?? null;
     },
-    enabled: enabled && authed,
+    enabled: enabled && !!walletParams,
     staleTime: 60_000,
     retry: false,
   });
@@ -79,38 +65,27 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
   }, []);
 
   const handleGenerateCode = useCallback(async () => {
-    if (!authed) {
-      toast.info("Sign in from the home page to get your referral code.");
+    if (!walletParams) {
+      toast.info("Connect your MiniPay wallet to get your referral code.");
       return;
     }
     setGenerating(true);
     try {
-      await apiClient.get("referral/me");
-      await queryClient.invalidateQueries({ queryKey: ["referral-me", authed] });
-      toast.success("Referral code generated!");
+      await apiClient.get("referral/me", walletParams);
+      await queryClient.invalidateQueries({ queryKey: ["referral-me", address] });
+      toast.success("Referral code ready!");
     } catch {
-      toast.error("Failed to generate code");
+      toast.error("Failed to load referral code");
     } finally {
       setGenerating(false);
     }
-  }, [authed, queryClient]);
+  }, [walletParams, address, queryClient]);
 
   if (!enabled) {
     return null;
   }
 
-  if (authLoading || privyPendingBackend) {
-    return (
-      <div
-        className={`rounded-2xl border border-cyan-500/25 bg-cyan-500/5 p-4 flex items-center gap-3 text-cyan-200/80 text-sm ${className}`}
-      >
-        <Loader2 className="w-5 h-5 animate-spin shrink-0" />
-        {privyPendingBackend ? "Linking your account…" : "Loading referral…"}
-      </div>
-    );
-  }
-
-  if (!authed) {
+  if (!isConnected || !address) {
     return (
       <div
         className={`rounded-2xl border border-cyan-500/30 bg-slate-800/60 p-4 sm:p-5 shadow-lg shadow-cyan-500/5 ${className}`}
@@ -122,7 +97,7 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/90 mb-1 font-orbitron">Invite Friends</p>
             <p className="text-xs text-cyan-300/70">
-              Sign in with MiniPay on Home and finish setup to get your referral code.
+              Connect your MiniPay wallet to get your referral code and invite link.
             </p>
           </div>
         </div>
@@ -144,7 +119,7 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
   if (query.isError) {
     return (
       <div className={`rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/50 ${className}`}>
-        Referral link unavailable (update the app or sign in again).
+        Referral link unavailable. Check your connection and try again.
       </div>
     );
   }
@@ -152,43 +127,6 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
   const showPlaceholder = !code && !query.isLoading && !query.isError;
 
   if (showPlaceholder) {
-    if (address) {
-      return (
-        <div
-          className={`rounded-2xl border border-cyan-500/30 bg-slate-800/60 p-4 sm:p-5 shadow-lg shadow-cyan-500/5 ${className}`}
-        >
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center shrink-0">
-              <Gift className="w-5 h-5 text-cyan-300" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/90 mb-2 font-orbitron">Invite Friends</p>
-              <p className="text-xs text-cyan-300/70 mb-3">
-                Generate your unique referral code and start earning <span className="font-semibold text-amber-400">$0.10 USDC</span> for every friend who joins!
-              </p>
-              <button
-                onClick={handleGenerateCode}
-                disabled={generating}
-                className="w-full px-3 py-2 rounded-xl border-2 border-cyan-400 bg-cyan-500/20 text-cyan-300 text-xs font-bold font-orbitron transition hover:shadow-lg hover:shadow-cyan-500/30 disabled:opacity-50"
-              >
-                {generating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 inline mr-1 animate-spin" />
-                    Generating…
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-4 h-4 inline mr-1" />
-                    Generate Code
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div
         className={`rounded-2xl border border-cyan-500/30 bg-slate-800/60 p-4 sm:p-5 shadow-lg shadow-cyan-500/5 ${className}`}
@@ -198,10 +136,29 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
             <Gift className="w-5 h-5 text-cyan-300" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/90 mb-1 font-orbitron">Invite Friends</p>
-            <p className="text-xs text-cyan-300/70">
-              Sign in to see your unique referral code and start earning <span className="font-semibold text-amber-400">$0.10 USDC</span> for every friend who joins!
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/90 mb-2 font-orbitron">Invite Friends</p>
+            <p className="text-xs text-cyan-300/70 mb-3">
+              Generate your unique referral code and start earning{" "}
+              <span className="font-semibold text-amber-400">$0.10 USDC</span> for every friend who joins!
             </p>
+            <button
+              type="button"
+              onClick={handleGenerateCode}
+              disabled={generating}
+              className="w-full px-3 py-2 rounded-xl border-2 border-cyan-400 bg-cyan-500/20 text-cyan-300 text-xs font-bold font-orbitron transition hover:shadow-lg hover:shadow-cyan-500/30 disabled:opacity-50"
+            >
+              {generating ? (
+                <>
+                  <Loader2 className="w-4 h-4 inline mr-1 animate-spin" />
+                  Generating…
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4 inline mr-1" />
+                  Get my code
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -221,9 +178,6 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
           <p className="text-xs text-cyan-300/70 mb-1">
             Earn <span className="font-semibold text-amber-400">$0.10 USDC</span> for every friend who signs up with your code
           </p>
-          <p className="text-xs text-cyan-300/70 mb-1">
-            Share your link. New players who open the site with <span className="font-mono text-white/80">?ref=</span> your code will have it applied at sign-in.
-          </p>
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <span className="font-mono text-sm text-cyan-300 bg-[#0A1A1B] px-3 py-1.5 rounded-lg border border-cyan-500/40 truncate max-w-full">
               {code}
@@ -238,26 +192,24 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
             </button>
           </div>
           {shareUrl ? (
-            <div className="flex flex-wrap gap-2 items-center">
-              <button
-                type="button"
-                onClick={() => copyText("Link", shareUrl, "link")}
-                className="w-full px-3 py-2 rounded-xl border-2 border-cyan-400 bg-cyan-500/20 text-cyan-300 text-xs font-bold font-orbitron transition hover:shadow-lg hover:shadow-cyan-500/30"
-              >
-                {copied === "link" ? <Check className="w-4 h-4 inline mr-1" /> : <Copy className="w-4 h-4 inline mr-1" />}
-                Copy Invite Link
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => copyText("Link", shareUrl, "link")}
+              className="w-full px-3 py-2 rounded-xl border-2 border-cyan-400 bg-cyan-500/20 text-cyan-300 text-xs font-bold font-orbitron transition hover:shadow-lg hover:shadow-cyan-500/30"
+            >
+              {copied === "link" ? <Check className="w-4 h-4 inline mr-1" /> : <Copy className="w-4 h-4 inline mr-1" />}
+              Copy Invite Link
+            </button>
           ) : null}
           {(() => {
             const referralCount = data?.directReferralsCount ?? 0;
-            const earnedAmount = (referralCount * 0.10).toFixed(2);
+            const earnedAmount = (referralCount * 0.1).toFixed(2);
             return (
               <div className="mt-3 pt-3 border-t border-cyan-500/20 space-y-1">
                 <p className="text-[11px] text-cyan-300/70">
                   Friends invited:{" "}
                   <span className="font-semibold text-cyan-300 tabular-nums">{referralCount}</span>
-                  {" "}·{" "}
+                  {" · "}
                   Total earned:{" "}
                   <span className="font-bold text-amber-400 tabular-nums">${earnedAmount} USDC</span>
                 </p>

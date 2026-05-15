@@ -52,7 +52,7 @@ import { requireAdminIpAllowlist, adminApiRateLimiter } from "./middleware/admin
 import gamePerkRoutes from "./routes/game-perks.js";
 import * as shopController from "./controllers/shopController.js";
 import * as dailyClaimController from "./controllers/dailyClaimController.js";
-import { requireAuth, optionalAuth } from "./middleware/auth.js";
+import { requireAuth, requireAuthOrWallet, optionalAuth } from "./middleware/auth.js";
 import { blockApiWhenMaintenance } from "./middleware/maintenanceMode.js";
 import { connectSocketRedis } from "./config/socketRedis.js";
 import logger from "./config/logger.js";
@@ -390,8 +390,8 @@ app.use("/api/perks", gamePerkRoutes);
   app.post("/api/shop/flutterwave/webhook", shopController.flutterwaveWebhook);
   app.post("/api/shop/flutterwave/initialize", requireAuth, shopController.flutterwaveInitialize);
   app.get("/api/shop/flutterwave/verify", shopController.flutterwaveVerify);
-  app.get("/api/rewards/daily-claim/status", requireAuth, dailyClaimController.dailyClaimStatus);
-  app.post("/api/rewards/daily-claim", requireAuth, dailyClaimController.dailyClaim);
+  app.get("/api/rewards/daily-claim/status", requireAuthOrWallet, dailyClaimController.dailyClaimStatus);
+  app.post("/api/rewards/daily-claim", requireAuthOrWallet, dailyClaimController.dailyClaim);
 
   // Agent discoverability: .well-known/skill → agent-api skill (markdown)
   app.get("/.well-known/skill", (_req, res) => res.redirect(302, "/api/agent-api/skill"));
