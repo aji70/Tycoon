@@ -30,6 +30,7 @@ import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAsse
 import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
+import { getGuestUserPlayAddress } from '@/lib/minipayGuestFlow';
 import GameRoomLoading from '@/components/settings/game-room-loading';
 
 const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
@@ -747,7 +748,7 @@ function GuestProfileView({
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
                 <div className="mb-6">
-                  <DailyClaim chain="CELO" accountKey={guestUser.id} />
+                  <DailyClaim chain="CELO" playAddress={getGuestUserPlayAddress(guestUser)} />
                 </div>
                 {!displayStats ? (
                   <EmptyState
@@ -1755,7 +1756,7 @@ export default function Profile() {
                           ? 'CELO'
                           : 'BASE'
                     }
-                    accountKey={guestUser?.id ?? walletAddress ?? ''}
+                    playAddress={getGuestUserPlayAddress(guestUser) ?? walletAddress ?? undefined}
                   />
                 </div>
                 {effectiveUserData && (() => {

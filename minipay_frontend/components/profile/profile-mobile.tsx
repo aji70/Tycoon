@@ -33,6 +33,7 @@ import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAsse
 import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
+import { getGuestUserPlayAddress } from '@/lib/minipayGuestFlow';
 import GameRoomLoading from '@/components/settings/game-room-loading';
 
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
@@ -974,7 +975,7 @@ function GuestProfileViewMobile({
         </section>
 
         <div className="px-4 py-4 space-y-4">
-          <DailyClaim chain="CELO" accountKey={guestUser.id} />
+          <DailyClaim chain="CELO" playAddress={getGuestUserPlayAddress(guestUser)} />
           <ProfileReferralCard />
         </div>
 
@@ -1971,7 +1972,10 @@ export default function ProfilePageMobile() {
         </section>
 
         <div className="px-4 py-4 space-y-4">
-          <DailyClaim chain="CELO" accountKey={guestUser?.id || walletAddress} />
+          <DailyClaim
+            chain="CELO"
+            playAddress={getGuestUserPlayAddress(guestUser) ?? walletAddress ?? undefined}
+          />
           <ProfileReferralCard />
         </div>
 
