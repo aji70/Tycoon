@@ -101,7 +101,7 @@ export default function Leaderboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<BountyRow[]>([]);
-  const [timeScope, setTimeScope] = useState<TimeScope>('all');
+  const [timeScope, setTimeScope] = useState<TimeScope>('bounty');
   const [monthKey, setMonthKey] = useState<string>(() => defaultLeaderboardMonthKey());
   const countdown = useCountdownTo(MAY_2026_END_UTC);
 

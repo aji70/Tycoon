@@ -260,13 +260,13 @@ export function LeaderboardView({
 
         <div className="mb-6 -mx-1 px-1 overflow-x-auto scrollbar-none">
           <div className="flex flex-nowrap items-center justify-start sm:justify-center gap-2 min-w-min pb-1">
-            <button type="button" onClick={() => setTimeScope('all')} className={tabPillClass(timeScope === 'all')}>All-time</button>
-            <button type="button" onClick={() => setTimeScope('month')} className={tabPillClass(timeScope === 'month')}>
-              <CalendarDays className="h-4 w-4 opacity-90" /> Monthly
-            </button>
             <button type="button" onClick={() => setTimeScope('bounty')} className={tabPillClass(timeScope === 'bounty', true)}>
               <span className={timeScope === 'bounty' ? 'animate-pulse' : ''}>💰</span> Bounty
             </button>
+            <button type="button" onClick={() => setTimeScope('month')} className={tabPillClass(timeScope === 'month')}>
+              <CalendarDays className="h-4 w-4 opacity-90" /> Monthly
+            </button>
+            <button type="button" onClick={() => setTimeScope('all')} className={tabPillClass(timeScope === 'all')}>All-time</button>
           </div>
         </div>
 
