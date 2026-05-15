@@ -43,7 +43,7 @@ import {
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
-import { shouldUseBackendGuestGameFlow } from "@/lib/minipayGuestFlow";
+import { shouldUseBackendGuestGameFlow, getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { Address, parseUnits } from "viem";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
@@ -160,6 +160,21 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
     }
   };
 
+  const extractGameId = (response: unknown): string | number | undefined => {
+    if (typeof response === "string" || typeof response === "number") return response;
+    const r = response as GameCreateResponse & {
+      gameId?: string | number;
+      data?: { game?: { id?: string | number } };
+    };
+    return (
+      r?.data?.data?.id ??
+      r?.data?.id ??
+      r?.id ??
+      r?.gameId ??
+      r?.data?.game?.id
+    );
+  };
+
   const handlePlay = async () => {
     setCreateError(null);
 
@@ -170,61 +185,112 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
 
     const toastId = toast.loading("Creating game...");
 
-    try {
-      if (!isGuest) {
-        const allowanceNeeded = stakeAmount > 0n;
-
-        if (allowanceNeeded) {
-          if (!usdcAllowance || usdcAllowance < stakeAmount) {
-            toast.update(toastId, {
-              render: "Approving USDC...",
-              type: "info",
-              isLoading: true,
-            });
-
-            await approveUSDC?.();
-            await refetchAllowance();
-          }
-        }
-      }
-
-      toast.update(toastId, {
-        render: "Creating your game on chain...",
-        type: "info",
-        isLoading: true,
-      });
-
-      await createGame?.();
-
-      let dbGameId: string | number | null = null;
-
+    if (isGuest) {
       try {
-        const saveRes = await apiClient.post<GameCreateResponse>("/games", {
+        toast.update(toastId, { render: "Creating game (guest)..." });
+        const res = await apiClient.post<GameCreateResponse>("/games/create-as-guest", {
           code: gameCode,
-          creator_address: address,
-          max_players: settings.maxPlayers,
-          starting_cash: settings.startingCash,
+          mode: gameType,
           symbol: settings.symbol,
-          stake: finalStake,
-          is_private: settings.privateRoom,
+          number_of_players: settings.maxPlayers,
+          stake: 0,
+          starting_cash: settings.startingCash,
+          is_ai: false,
+          is_minipay: isMiniPay,
           chain: chainName,
-          game_rules: {
+          duration: settings.duration,
+          use_usdc: false,
+          settings: {
             auction: settings.auction,
             rent_in_prison: settings.rentInPrison,
             mortgage: settings.mortgage,
             even_build: settings.evenBuild,
+            starting_cash: settings.startingCash,
           },
         });
-
-        dbGameId =
-          typeof saveRes === 'string' || typeof saveRes === 'number'
-            ? saveRes
-            : saveRes?.data?.data?.id ?? saveRes?.data?.id ?? saveRes?.id;
-
+        const dbGameId = extractGameId(res);
         if (!dbGameId) throw new Error("Backend did not return game ID");
-      } catch (err: any) {
-        throw new Error(err.response?.data?.message || "Failed to save game");
+        toast.update(toastId, {
+          render: `Game created! Share code: ${gameCode}`,
+          type: "success",
+          isLoading: false,
+          autoClose: 5000,
+          onClose: () => router.push(`${redirectToWaitingRoom}?gameCode=${gameCode}`),
+        });
+      } catch (err: unknown) {
+        const msg =
+          (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data
+            ?.message ??
+          (err as Error)?.message ??
+          "Failed to create game";
+        toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 8000 });
       }
+      return;
+    }
+
+    const playAddress =
+      address ??
+      getGuestUserPlayAddress(guestAuth?.guestUser ?? null) ??
+      undefined;
+
+    if (!playAddress || !username || !isUserRegistered) {
+      toast.error("Connect wallet and register first!", { autoClose: 5000 });
+      return;
+    }
+
+    if (!contractAddress) {
+      toast.error("Game contract not available on this network.");
+      return;
+    }
+
+    if (!isFreeGame && !usdcTokenAddress) {
+      toast.error("USDC not supported on current network.");
+      return;
+    }
+
+    try {
+      if (!isFreeGame) {
+        toast.update(toastId, { render: "Checking USDC allowance..." });
+        await refetchAllowance();
+        const allowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : 0n;
+        if (allowance < stakeAmount) {
+          toast.update(toastId, { render: "Approving USDC (one-time)..." });
+          await approveUSDC(usdcTokenAddress!, contractAddress, stakeAmount);
+          await new Promise((r) => setTimeout(r, 4000));
+          await refetchAllowance();
+        }
+      }
+
+      toast.update(toastId, { render: "Creating game on-chain..." });
+      const txHash = await createGame();
+      if (!txHash) throw new Error("Failed to create game on-chain");
+
+      toast.update(toastId, { render: "Saving game to server..." });
+
+      const saveRes = await apiClient.post<GameCreateResponse>("/games", {
+        code: gameCode,
+        mode: gameType,
+        address: playAddress,
+        symbol: settings.symbol,
+        number_of_players: settings.maxPlayers,
+        stake: finalStake,
+        starting_cash: settings.startingCash,
+        is_ai: false,
+        is_minipay: isMiniPay,
+        chain: chainName,
+        duration: settings.duration,
+        use_usdc: !isFreeGame,
+        settings: {
+          auction: settings.auction,
+          rent_in_prison: settings.rentInPrison,
+          mortgage: settings.mortgage,
+          even_build: settings.evenBuild,
+          starting_cash: settings.startingCash,
+        },
+      });
+
+      const dbGameId = extractGameId(saveRes);
+      if (!dbGameId) throw new Error("Backend did not return game ID");
 
       toast.update(toastId, {
         render: `Game created! Share code: ${gameCode}`,
@@ -233,7 +299,7 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
         autoClose: 5000,
         onClose: () => router.push(`${redirectToWaitingRoom}?gameCode=${gameCode}`),
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Create game error:", err);
       const message = getContractErrorMessage(err, "Failed to create game. Please try again.");
       setCreateError(message);
