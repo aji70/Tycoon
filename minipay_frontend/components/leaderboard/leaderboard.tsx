@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAccount, useChainId, useReadContract } from 'wagmi';
+import { celo } from 'wagmi/chains';
 import { CalendarDays, ChevronLeft, Loader2, Trophy, Users } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
+import { chainIdToLeaderboardChain } from '@/lib/profile-stats-address';
 import { TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 
@@ -17,10 +19,6 @@ interface BountyRow {
 
 const LIMIT = 20;
 type TimeScope = 'all' | 'month' | 'bounty';
-
-function chainIdToLeaderboardChain(chainId: number): string {
-  return 'CELO';
-}
 
 /** Default monthly board: current UTC month. */
 function defaultLeaderboardMonthKey(): string {
@@ -53,30 +51,33 @@ function profileHrefForUsername(username: string): string {
   return `/u/${encodeURIComponent(username)}`;
 }
 
-function normalizeLeaderboardArray(res: any): BountyRow[] {
-  const raw = res?.data;
-  let list: unknown = raw;
-  if (Array.isArray(raw)) list = raw;
-  else if (raw && typeof raw === 'object' && Array.isArray((raw as { data?: unknown }).data)) {
-    list = (raw as { data: unknown[] }).data;
-  } else if (raw && typeof raw === 'object' && Array.isArray((raw as { leaderboard?: unknown }).leaderboard)) {
-    list = (raw as { leaderboard: unknown[] }).leaderboard;
+function normalizeLeaderboardArray(res: unknown): BountyRow[] {
+  const payload = res && typeof res === 'object' && 'data' in (res as object) ? (res as { data?: unknown }).data : res;
+  let list: unknown = payload;
+  if (Array.isArray(payload)) {
+    list = payload;
+  } else if (payload && typeof payload === 'object') {
+    const obj = payload as { data?: unknown; leaderboard?: unknown };
+    if (Array.isArray(obj.data)) list = obj.data;
+    else if (Array.isArray(obj.leaderboard)) list = obj.leaderboard;
   }
   if (!Array.isArray(list)) return [];
-  return list.map((row: any) => ({
-    id: Number(row.id ?? 0),
+  return list.map((row: Record<string, unknown>, index: number) => ({
+    id: Number(row.id ?? index),
     username: String(row.username ?? '—'),
     games_played: Number(row.games_played ?? 0),
   }));
 }
 
 export default function Leaderboard() {
+  const [mounted, setMounted] = useState(false);
   const { address: walletAddress } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUsername = guestAuth?.guestUser?.username?.trim() || '';
   const chainId = useChainId();
-  const chainParam = chainIdToLeaderboardChain(chainId);
-  const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
+  const effectiveChainId = chainId ?? celo.id;
+  const chainParam = chainIdToLeaderboardChain(effectiveChainId);
+  const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[effectiveChainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,12 +85,16 @@ export default function Leaderboard() {
   const [timeScope, setTimeScope] = useState<TimeScope>('all');
   const [monthKey, setMonthKey] = useState<string>(() => defaultLeaderboardMonthKey());
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { data: username } = useReadContract({
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'addressToUsername',
-    args: walletAddress ? [walletAddress] : undefined,
-    query: { enabled: !!walletAddress && !!tycoonAddress },
+    args: walletAddress ? [walletAddress as `0x${string}`] : undefined,
+    query: { enabled: mounted && !!walletAddress && !!tycoonAddress },
   });
 
   const myLeaderboardUsernames = useMemo(() => {
@@ -103,6 +108,7 @@ export default function Leaderboard() {
   const monthOptions = useMemo(() => utcYearMonthOptions(12), []);
 
   const fetchLeaderboard = useCallback(async () => {
+    if (!mounted) return;
     if (timeScope === 'bounty') {
       setRows([]);
       setError(null);
@@ -137,11 +143,20 @@ export default function Leaderboard() {
     } finally {
       setLoading(false);
     }
-  }, [chainParam, monthKey, timeScope]);
+  }, [chainParam, monthKey, mounted, timeScope]);
 
   useEffect(() => {
+    if (!mounted) return;
     fetchLeaderboard();
-  }, [fetchLeaderboard]);
+  }, [fetchLeaderboard, mounted]);
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#020a0b]">
+        <Loader2 className="h-10 w-10 animate-spin text-cyan-300" />
+      </div>
+    );
+  }
 
   const myPosition =
     myLeaderboardUsernames.size > 0
