@@ -122,7 +122,7 @@ export default function GameWaiting3DLobby(): React.ReactElement {
 
   if (error || !game) {
     return (
-      <section className="relative w-full min-h-[calc(100dvh-87px)] flex flex-col items-center justify-center bg-[#010F10] px-4 overflow-hidden">
+      <section className="relative w-full min-h-screen flex flex-col items-center justify-center bg-[#010F10] px-4 overflow-y-auto overflow-x-hidden">
         <ScanlineOverlay />
         <p className="relative z-20 text-red-400 text-center mb-4">{error ?? "Game not found"}</p>
         <button
@@ -148,7 +148,7 @@ export default function GameWaiting3DLobby(): React.ReactElement {
   }
 
   return (
-    <section className="relative w-full min-h-[calc(100dvh-87px)] bg-[#010F10] flex flex-col items-center justify-center p-4 overflow-hidden">
+    <section className="relative w-full min-h-screen bg-[#010F10] flex flex-col items-center justify-start py-6 px-4 overflow-y-auto overflow-x-hidden">
       <ParticleBackground />
       <ScanlineOverlay />
 

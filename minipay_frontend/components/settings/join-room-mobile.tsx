@@ -221,8 +221,8 @@ export default function JoinRoom({
   }, [router, redirectCreateNew, queueAfterAuth]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 relative overflow-hidden flex flex-col">
-      <div className="relative z-10 flex-1 flex items-start justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 relative flex flex-col">
+      <div className="relative z-10 flex-1 flex items-start justify-center p-4 pb-10 overflow-y-auto w-full">
         <div className="w-full max-w-md mx-auto">
           <div className="relative mb-8">
             <div className="absolute -inset-4 bg-gradient-to-r from-cyan-500/20 via-cyan-400/10 to-cyan-500/20 rounded-lg blur-3xl opacity-60" />

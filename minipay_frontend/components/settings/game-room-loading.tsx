@@ -65,8 +65,8 @@ const GameRoomLoading = (props: GameRoomLoadingProps) => {
   }, [router, doRedirect, redirectTo, redirectDelay])
 
   return (
-    <section className="w-full min-h-[calc(100dvh-87px)] h-full bg-settings bg-cover bg-fixed bg-center">
-      <main className="w-full min-h-[calc(100dvh-87px)] flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10] to-[#010F1033] px-4 py-12">
+    <section className="w-full min-h-screen h-full bg-settings bg-cover bg-fixed bg-center">
+      <main className="w-full min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10] to-[#010F1033] px-4 py-12">
         <div className="w-full max-w-xl">
           <h2 className="text-3xl md:text-4xl font-bold font-orbitron mb-6 text-[#F0F7F7] text-center">
             {displayTitle}

@@ -54,6 +54,9 @@
 }
 
 :root {
+  /* Fixed mobile header: 82px bar + safe area (matches navbar-mobile.tsx) */
+  --mobile-nav-height: 82px;
+  --mobile-nav-offset: calc(var(--mobile-nav-height) + env(safe-area-inset-top, 0px));
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -439,4 +442,13 @@ body {
   --privy-border-radius-md: 12px;
   --privy-border-radius-lg: 16px;
   --privy-border-radius-full: 9999px;
+}
+
+/* Content below fixed mobile navbar */
+.pt-below-mobile-nav {
+  padding-top: var(--mobile-nav-offset);
+}
+
+.min-h-below-mobile-nav {
+  min-height: calc(100dvh - var(--mobile-nav-offset));
 }

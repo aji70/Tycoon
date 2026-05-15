@@ -19,6 +19,8 @@ export default function ClientLayout({ children, cookies }: ClientLayoutProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const pathname = usePathname();
   const isBoard3DMobile = pathname === "/board-3d-mobile" || pathname === "/board-3d-multi-mobile";
+  const isHome = pathname === "/";
+  const needsMobileNavPadding = isMobile && !isBoard3DMobile && !isHome;
 
   // Hydration safety: Wait for client mount before rendering dynamic content
   useEffect(() => {
@@ -38,7 +40,11 @@ export default function ClientLayout({ children, cookies }: ClientLayoutProps) {
     <ProfileProvider>
       <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
         {isMobile ? <NavBarMobile minimal={isBoard3DMobile} /> : <NavBar />}
-        <AuthGuard>{children}</AuthGuard>
+        <AuthGuard>
+          <div className={needsMobileNavPadding ? "pt-below-mobile-nav" : undefined}>
+            {children}
+          </div>
+        </AuthGuard>
       </div>
     </ProfileProvider>
   );
