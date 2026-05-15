@@ -1,26 +1,23 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useAccount, useChainId, useReadContract } from 'wagmi';
 import { celo } from 'wagmi/chains';
-import { CalendarDays, ChevronLeft, Loader2, Trophy, Users } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { chainIdToLeaderboardChain } from '@/lib/profile-stats-address';
 import { TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import TycoonABI from '@/context/abi/tycoonabi.json';
+import { LeaderboardView } from './LeaderboardView';
+import {
+  BOUNTY_MONTH_KEY,
+  LEADERBOARD_LIMIT,
+  MAY_2026_END_UTC,
+  type BountyRow,
+  type TimeScope,
+} from './leaderboard-types';
 
-interface BountyRow {
-  id: number;
-  username: string;
-  games_played: number;
-}
-
-const LIMIT = 20;
-type TimeScope = 'all' | 'month' | 'bounty';
-
-/** Default monthly board: current UTC month. */
 function defaultLeaderboardMonthKey(): string {
   const d = new Date();
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -47,10 +44,6 @@ function utcYearMonthOptions(count: number): { value: string; label: string }[] 
   return out;
 }
 
-function profileHrefForUsername(username: string): string {
-  return `/u/${encodeURIComponent(username)}`;
-}
-
 function normalizeLeaderboardArray(res: unknown): BountyRow[] {
   const payload = res && typeof res === 'object' && 'data' in (res as object) ? (res as { data?: unknown }).data : res;
   let list: unknown = payload;
@@ -69,6 +62,21 @@ function normalizeLeaderboardArray(res: unknown): BountyRow[] {
   }));
 }
 
+function useCountdownTo(targetMs: number) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const diff = Math.max(0, targetMs - now);
+  return {
+    days: Math.floor(diff / 86400000),
+    hours: Math.floor((diff % 86400000) / 3600000),
+    minutes: Math.floor((diff % 3600000) / 60000),
+    seconds: Math.floor((diff % 60000) / 1000),
+  };
+}
+
 export default function Leaderboard() {
   const [mounted, setMounted] = useState(false);
   const { address: walletAddress } = useAccount();
@@ -84,6 +92,7 @@ export default function Leaderboard() {
   const [rows, setRows] = useState<BountyRow[]>([]);
   const [timeScope, setTimeScope] = useState<TimeScope>('all');
   const [monthKey, setMonthKey] = useState<string>(() => defaultLeaderboardMonthKey());
+  const countdown = useCountdownTo(MAY_2026_END_UTC);
 
   useEffect(() => {
     setMounted(true);
@@ -109,12 +118,6 @@ export default function Leaderboard() {
 
   const fetchLeaderboard = useCallback(async () => {
     if (!mounted) return;
-    if (timeScope === 'bounty') {
-      setRows([]);
-      setError(null);
-      setLoading(false);
-      return;
-    }
 
     setRows([]);
     setLoading(true);
@@ -123,10 +126,13 @@ export default function Leaderboard() {
       const params: Record<string, string | number> = {
         chain: chainParam,
         type: 'played',
-        limit: LIMIT,
+        limit: LEADERBOARD_LIMIT,
       };
 
-      if (timeScope === 'month') {
+      if (timeScope === 'bounty') {
+        params.period = 'month';
+        params.month = BOUNTY_MONTH_KEY;
+      } else if (timeScope === 'month') {
         params.period = 'month';
         params.month = monthKey;
       } else {
@@ -135,10 +141,14 @@ export default function Leaderboard() {
 
       const res = await apiClient.get('/users/leaderboard', params);
       const normalized = normalizeLeaderboardArray(res);
-      const filtered = timeScope === 'month' ? normalized.filter((row) => !row.username.includes('AI_')) : normalized;
+      const filtered =
+        timeScope === 'month' || timeScope === 'bounty'
+          ? normalized.filter((row) => !row.username.includes('AI_'))
+          : normalized;
       setRows(filtered);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load leaderboard');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load leaderboard';
+      setError(message);
       setRows([]);
     } finally {
       setLoading(false);
@@ -163,165 +173,29 @@ export default function Leaderboard() {
       ? rows.findIndex((row) => row.username && myLeaderboardUsernames.has(row.username)) + 1
       : 0;
 
+  const infoLabel =
+    timeScope === 'bounty'
+      ? `${chainParam} · May 2026 · Finished games only`
+      : timeScope === 'month'
+        ? `${chainParam} · ${formatMonthLabelUtc(monthKey)} · Finished games only`
+        : `${chainParam} · All-time · Finished games only`;
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,#10343b_0%,#061416_45%,#020a0b_100%)] text-white">
-      <header className="sticky top-0 z-50 border-b border-cyan-400/15 bg-[#031012]/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4 md:px-8">
-          <Link href="/" className="flex items-center gap-2 text-cyan-300 hover:text-cyan-200 text-sm font-semibold">
-            <ChevronLeft className="h-5 w-5" />
-            Back
-          </Link>
-          <h1 className="flex items-center gap-2 text-lg md:text-2xl font-bold text-cyan-200">
-            <Trophy className="h-6 w-6 text-amber-300" />
-            {timeScope === 'bounty' ? 'Bounty leaderboard' : 'Leaderboard'}
-          </h1>
-          <div className="w-14" />
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-8">
-        <div className="mb-6 rounded-2xl border border-cyan-400/20 bg-gradient-to-r from-cyan-500/15 via-cyan-400/10 to-transparent p-4 md:p-5">
-          {timeScope === 'bounty' ? (
-            <>
-              <p className="text-cyan-100 font-semibold">Bounty leaderboard</p>
-              <p className="mt-1 text-sm text-cyan-100/75">Campaign rankings will appear here when the next bounty goes live.</p>
-            </>
-          ) : (
-            <>
-              <p className="text-cyan-100 font-semibold">Ranked by games played</p>
-              <p className="mt-1 text-sm text-cyan-100/75">
-                {timeScope === 'month'
-                  ? `Window: ${chainParam} · ${formatMonthLabelUtc(monthKey)} (UTC)`
-                  : `Window: ${chainParam} · all-time (finished games)`}
-              </p>
-              {timeScope === 'month' ? (
-                <p className="mt-2 text-xs text-cyan-200/60 max-w-xl">Pick a UTC calendar month from the selector.</p>
-              ) : (
-                <p className="mt-2 text-xs text-cyan-200/60 max-w-xl">All-time counts every finished game on this chain (same rules as ranked play).</p>
-              )}
-            </>
-          )}
-        </div>
-
-        <div className="mb-6 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3">
-          <div className="inline-flex rounded-xl border border-white/10 bg-white/5 p-1">
-            <button
-              type="button"
-              onClick={() => setTimeScope('all')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                timeScope === 'all' ? 'bg-cyan-500/30 text-cyan-100 shadow-sm' : 'text-white/60 hover:text-white/90'
-              }`}
-            >
-              All-time
-            </button>
-            <button
-              type="button"
-              onClick={() => setTimeScope('month')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all inline-flex items-center gap-1.5 ${
-                timeScope === 'month' ? 'bg-cyan-500/30 text-cyan-100 shadow-sm' : 'text-white/60 hover:text-white/90'
-              }`}
-            >
-              <CalendarDays className="h-4 w-4 opacity-80" />
-              Monthly
-            </button>
-            <button
-              type="button"
-              onClick={() => setTimeScope('bounty')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                timeScope === 'bounty' ? 'bg-cyan-500/30 text-cyan-100 shadow-sm' : 'text-white/60 hover:text-white/90'
-              }`}
-            >
-              Bounty
-            </button>
-          </div>
-          {timeScope === 'month' ? (
-            <label className="flex items-center gap-2 text-xs text-white/70">
-              <span className="text-white/50 uppercase tracking-wide">Month</span>
-              <select
-                value={monthKey}
-                onChange={(e) => setMonthKey(e.target.value)}
-                className="rounded-lg border border-white/15 bg-[#0a1214] text-white text-sm px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
-              >
-                {monthOptions.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-        </div>
-
-        {myLeaderboardUsernames.size > 0 && !loading && timeScope !== 'bounty' && (
-          <div className="mb-6 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4 text-center">
-            {myPosition > 0 ? (
-              <p className="font-semibold text-amber-100">
-                Your position: <span className="tabular-nums text-white">#{myPosition}</span>
-              </p>
-            ) : (
-              <p className="text-sm text-amber-100/90">You are not on the board yet. Complete more games to appear.</p>
-            )}
-          </div>
-        )}
-
-        {timeScope === 'bounty' ? (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-cyan-400/25 bg-cyan-500/5 py-20 px-6 text-center">
-            <Trophy className="h-14 w-14 text-amber-300/50" />
-            <p className="text-xl font-semibold text-cyan-100">Coming soon</p>
-            <p className="max-w-md text-sm text-white/60">Bounty leaderboard and rewards windows will be announced here.</p>
-          </div>
-        ) : loading ? (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-white/10 bg-black/20 py-20">
-            <Loader2 className="h-10 w-10 animate-spin text-cyan-300" />
-            <p className="text-white/70">Loading leaderboard...</p>
-          </div>
-        ) : error ? (
-          <div className="rounded-2xl border border-red-300/30 bg-red-500/10 p-8 text-center">
-            <p className="mb-4 text-red-200">{error}</p>
-            <button
-              type="button"
-              onClick={fetchLeaderboard}
-              className="rounded-xl bg-cyan-400/20 px-4 py-2 font-semibold text-cyan-100 hover:bg-cyan-400/30"
-            >
-              Retry
-            </button>
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-black/20 py-16 text-white/60">
-            <Users className="h-10 w-10 text-cyan-300/70" />
-            <p>No entries yet for this scope.</p>
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#081517]/80 backdrop-blur-sm">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/10 bg-white/5">
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white/60">Position</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white/60">Tycoon</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, idx) => {
-                  const rank = idx + 1;
-                  return (
-                    <tr key={`${row.id}-${rank}`} className="border-b border-white/5 transition hover:bg-cyan-500/5">
-                      <td className="px-4 py-3 font-semibold text-cyan-200">#{rank}</td>
-                      <td className="px-4 py-3">
-                        <Link
-                          href={profileHrefForUsername(row.username)}
-                          className="font-medium text-white transition hover:text-cyan-200 hover:underline underline-offset-2"
-                        >
-                          {row.username || '—'}
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </main>
-    </div>
+    <LeaderboardView
+      chainParam={chainParam}
+      timeScope={timeScope}
+      setTimeScope={setTimeScope}
+      monthKey={monthKey}
+      setMonthKey={setMonthKey}
+      monthOptions={monthOptions}
+      infoLabel={infoLabel}
+      loading={loading}
+      error={error}
+      rows={rows}
+      myPosition={myPosition}
+      myLeaderboardUsernames={myLeaderboardUsernames}
+      onRetry={fetchLeaderboard}
+      countdown={countdown}
+    />
   );
 }
