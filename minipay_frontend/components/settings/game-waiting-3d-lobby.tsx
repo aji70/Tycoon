@@ -6,12 +6,12 @@ import GameRoomLoading from "./game-room-loading";
 import { Copy, Home, Users } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
-const REDIRECT_TO_BOARD = "/board-3d-multi";
+const REDIRECT_TO_BOARD = "/board-3d-multi-mobile";
 const REDIRECT_TO_BOARD_MOBILE = "/board-3d-multi-mobile";
 const COPY_FEEDBACK_MS = 2000;
 
 /**
- * 3D game waiting room. Uses same useWaitingRoom logic; redirects to board-3d-multi (desktop) or board-3d-multi-mobile when game starts.
+ * 3D game waiting room. Uses same useWaitingRoom logic; redirects to board-3d-multi-mobile when game starts.
  */
 export default function GameWaiting3DLobby(): React.ReactElement {
   const {

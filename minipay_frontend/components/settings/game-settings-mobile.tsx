@@ -55,11 +55,11 @@ const PIECE_EMOJI: Record<string, string> = {
 };
 
 interface GameSettingsMobileProps {
-  /** After creating game, redirect to this waiting room (default: /game-waiting). e.g. /game-waiting-3d for 3D. */
+  /** After creating game, redirect to this waiting room (default: /game-waiting-3d). */
   redirectToWaitingRoom?: string;
 }
 
-export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waiting" }: GameSettingsMobileProps = {}) {
+export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waiting-3d" }: GameSettingsMobileProps = {}) {
   const router = useRouter();
   const { address } = useAccount();
   const wagmiChainId = useChainId();

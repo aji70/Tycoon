@@ -4,14 +4,11 @@ import { useCallback, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Share2, Link2, Instagram, Check } from "lucide-react";
 
-/** Default waiting-room path passed from boards (used only to infer 2D vs 3D join link). */
+/** Default waiting-room path passed from boards. */
 const DEFAULT_JOIN_3D = "/game-waiting-3d";
-/** Classic waiting room path from 2D flows. */
-const DEFAULT_JOIN_2D = "/game-waiting";
 
 /** Where social shares send people after a match — always open, unlike `?gameCode=` on a finished lobby. */
 const INVITE_3D = "/join-room-3d";
-const INVITE_2D = "/join-room";
 
 export function getShareOrigin(): string {
   if (typeof window === "undefined") return "";
@@ -25,10 +22,8 @@ export function getShareOrigin(): string {
 /**
  * Maps the in-game waiting path to the public join page (no finished `gameCode` in URL).
  */
-export function invitePathFromJoinLobby(joinPagePath: string = DEFAULT_JOIN_3D): string {
-  const j = (joinPagePath || "").replace(/\\/g, "/").toLowerCase();
-  if (j.includes("3d")) return INVITE_3D;
-  return INVITE_2D;
+export function invitePathFromJoinLobby(_joinPagePath: string = DEFAULT_JOIN_3D): string {
+  return INVITE_3D;
 }
 
 /**

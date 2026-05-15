@@ -82,7 +82,7 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
           </h1>
           <div className="w-24 flex justify-end">
             <a
-              href="/agents"
+              href="/profile"
               className={is3D ? "text-amber-400 hover:text-amber-300 text-sm font-medium" : "text-cyan-400 hover:text-cyan-300 text-sm font-medium"}
             >
               Manage agents

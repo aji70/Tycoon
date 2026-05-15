@@ -15,18 +15,18 @@ import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 
 interface JoinRoomMobileProps {
-  /** When game is RUNNING, redirect here (default: /game-play). e.g. /board-3d-multi for 3D. */
+  /** When game is RUNNING, redirect here (default: /board-3d-multi-mobile). */
   redirectToBoard?: string;
-  /** When game is PENDING, redirect to this waiting room (default: /game-waiting). e.g. /game-waiting-3d. */
+  /** When game is PENDING, redirect to this waiting room (default: /game-waiting-3d). */
   redirectToWaiting?: string;
-  /** "Create new game" link (default: /game-settings). e.g. /game-settings-3d for 3D. */
+  /** "Create new game" link (default: /game-settings-3d). */
   redirectCreateNew?: string;
 }
 
 export default function JoinRoom({
-  redirectToBoard = "/game-play",
-  redirectToWaiting = "/game-waiting",
-  redirectCreateNew = "/game-settings",
+  redirectToBoard = "/board-3d-multi-mobile",
+  redirectToWaiting = "/game-waiting-3d",
+  redirectCreateNew = "/game-settings-3d",
 }: JoinRoomMobileProps = {}): JSX.Element {
   const router = useRouter();
   const { address, isConnected } = useAccount();

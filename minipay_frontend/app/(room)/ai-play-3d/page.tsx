@@ -78,7 +78,7 @@ export default function AiPlay3DPage() {
   useEffect(() => {
     if (!game || !gameCode) return;
     if (game.is_ai === false || game.is_ai === undefined) {
-      router.replace(`/game-play?gameCode=${encodeURIComponent(gameCode)}`);
+      router.replace(`/board-3d-multi-mobile?gameCode=${encodeURIComponent(gameCode)}`);
     }
   }, [game, gameCode, router]);
 
@@ -223,7 +223,7 @@ export default function AiPlay3DPage() {
           <button onClick={() => { setGameCode(""); setCodeInput(""); }} className="px-6 py-3 rounded-lg bg-cyan-600 text-white font-semibold">
             Enter another code
           </button>
-          <Link href="/play-ai" className="px-6 py-3 rounded-lg border border-cyan-500/50 text-cyan-300 font-semibold">
+          <Link href="/play-ai-3d" className="px-6 py-3 rounded-lg border border-cyan-500/50 text-cyan-300 font-semibold">
             Create AI game
           </Link>
         </div>
@@ -271,12 +271,6 @@ export default function AiPlay3DPage() {
           onRefetchGame={async () => { await refetchGame(); }}
         />
       </div>
-      <Link
-        href={`/ai-play?gameCode=${encodeURIComponent(gameCode)}`}
-        className="absolute top-2 right-2 z-10 px-3 py-1.5 rounded-lg bg-slate-800/90 text-cyan-300 text-sm border border-cyan-500/50 hover:bg-slate-700"
-      >
-        2D board
-      </Link>
     </main>
   );
 }

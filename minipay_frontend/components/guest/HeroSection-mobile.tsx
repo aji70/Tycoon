@@ -510,12 +510,10 @@ const HeroSection: React.FC = () => {
     return;
   }
   if (isAi) {
-    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-    router.push(isMobile ? `/board-3d-mobile?gameCode=${encodeURIComponent(code)}` : `/board-3d?gameCode=${encodeURIComponent(code)}`);
+    router.push(`/board-3d-mobile?gameCode=${encodeURIComponent(code)}`);
     return;
   }
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-  router.push(isMobile ? `/board-3d-multi-mobile?gameCode=${encodeURIComponent(code)}` : `/board-3d-multi?gameCode=${encodeURIComponent(code)}`);
+  router.push(`/board-3d-multi-mobile?gameCode=${encodeURIComponent(code)}`);
 };
 
   if (isConnecting) {

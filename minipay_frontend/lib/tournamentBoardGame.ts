@@ -42,24 +42,8 @@ export type TournamentLobbyExitGameFields = {
  * Non-tournament games fall back to home.
  */
 export function getTournamentBracketExitHref(
-  gameCode: string | null | undefined,
-  game?: TournamentLobbyExitGameFields | null
+  _gameCode: string | null | undefined,
+  _game?: TournamentLobbyExitGameFields | null
 ): string {
-  const base = "/agent-tournaments";
-  const tc =
-    game?.tournament_code != null && String(game.tournament_code).trim() !== ""
-      ? String(game.tournament_code).trim().toUpperCase()
-      : null;
-  if (tc) return `${base}/${encodeURIComponent(tc)}`;
-
-  const c = String(gameCode ?? game?.code ?? "")
-    .trim()
-    .toUpperCase();
-  const fromCode = parseTournamentIdFromBracketGameCode(c);
-  if (fromCode != null) return `${base}/${fromCode}`;
-
-  const tid = game?.tournament_id;
-  if (typeof tid === "number" && Number.isInteger(tid) && tid > 0) return `${base}/${tid}`;
-
   return "/";
 }

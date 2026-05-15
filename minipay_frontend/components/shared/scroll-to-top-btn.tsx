@@ -1,23 +1,15 @@
 'use client'
 import { MoveUp } from "lucide-react";
-import { usePathname } from "next/navigation";
 import { JSX, useEffect, useState } from "react";
-import { useMediaQuery } from "@/components/useMediaQuery";
 
 /**
  * ScrollToTop renders a button that becomes visible when the user scrolls down more than 200px.
  * Upon clicking the button, the page scrolls smoothly back to the top.
- * Hidden on mobile when on the Rooms (lobby) page.
  * @returns {JSX.Element} A button component for scrolling to the top.
  */
 
 const ScrollToTopBtn: React.FC = (): JSX.Element | null => {
-    const pathname = usePathname();
-    const isMobile = useMediaQuery("(max-width: 768px)");
     const [isVisible, setIsVisible] = useState<boolean>(false);
-
-    const hideOnMobileLobby = pathname === "/rooms" && isMobile;
-    if (hideOnMobileLobby) return null;
 
     useEffect(() => {
         const toggleVisibility = (): void => {

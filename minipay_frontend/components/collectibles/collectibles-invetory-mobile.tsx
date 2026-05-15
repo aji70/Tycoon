@@ -559,7 +559,7 @@ export default function CollectibleInventoryBar({
         Math.ceil(Number(item.usdcPrice) * USDC_TO_NGN_RATE)
       );
       const base = typeof window !== "undefined" ? window.location.origin : "";
-      const callbackUrl = `${base}/game-play`;
+      const callbackUrl = `${base}/board-3d-multi-mobile`;
 
       const res = await apiClient.post<{
         success?: boolean;
