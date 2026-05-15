@@ -247,7 +247,7 @@ export default function GameWaiting3DLobby(): React.ReactElement {
               >
                 <Copy className="w-5 h-5" />
               </motion.button>
-            </motion.div>
+            </div>
             {copySuccess && (
               <p className="text-emerald-400 text-xs text-center mt-2 font-orbitron">{copySuccess}</p>
             )}
