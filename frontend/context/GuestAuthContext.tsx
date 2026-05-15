@@ -310,3 +310,17 @@ export function useGuestAuth() {
 export function useGuestAuthOptional() {
   return useContext(GuestAuthContext);
 }
+
+/** True when /auth/me succeeded or a backend JWT is stored (daily rewards, referrals, etc.). */
+export function useBackendSession() {
+  const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
+  const authLoading = guestAuth?.isLoading ?? false;
+  const isBackendAuthed = Boolean(guestUser?.id) || Boolean(safeGetToken()?.trim());
+  return {
+    guestUser,
+    authLoading,
+    isBackendAuthed,
+    refetchGuest: guestAuth?.refetchGuest,
+  };
+}

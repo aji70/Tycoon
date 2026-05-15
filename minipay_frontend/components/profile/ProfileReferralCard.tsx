@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
+import { usePrivy } from "@privy-io/react-auth";
 import { Gift, Copy, Check, Loader2, Zap } from "lucide-react";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
+import { useBackendSession } from "@/context/GuestAuthContext";
 
 type ReferralMePayload = {
   referralCode?: string | null;
@@ -15,15 +17,6 @@ type ReferralMePayload = {
   referredAt?: string | null;
   shareQuery?: string | null;
 };
-
-function hasBackendToken(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return Boolean(window.localStorage.getItem("token")?.trim());
-  } catch {
-    return false;
-  }
-}
 
 function buildShareUrl(shareQuery: string | null | undefined, code: string | null | undefined): string {
   if (typeof window === "undefined") return "";
@@ -43,8 +36,20 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
   const [generating, setGenerating] = useState(false);
   const { address } = useAccount();
   const queryClient = useQueryClient();
+  const { authLoading, isBackendAuthed, refetchGuest } = useBackendSession();
+  const { ready: privyReady, authenticated: privyAuthed } = usePrivy();
 
-  const authed = hasBackendToken();
+  const privyPendingBackend =
+    privyReady && privyAuthed && !authLoading && !isBackendAuthed;
+  const authed = isBackendAuthed;
+
+  useEffect(() => {
+    if (!privyPendingBackend || !refetchGuest) return;
+    const id = window.setInterval(() => {
+      void refetchGuest();
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [privyPendingBackend, refetchGuest]);
 
   const query = useQuery({
     queryKey: ["referral-me", authed],
@@ -94,6 +99,17 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
     return null;
   }
 
+  if (authLoading || privyPendingBackend) {
+    return (
+      <div
+        className={`rounded-2xl border border-cyan-500/25 bg-cyan-500/5 p-4 flex items-center gap-3 text-cyan-200/80 text-sm ${className}`}
+      >
+        <Loader2 className="w-5 h-5 animate-spin shrink-0" />
+        {privyPendingBackend ? "Linking your account…" : "Loading referral…"}
+      </div>
+    );
+  }
+
   if (!authed) {
     return (
       <div
@@ -106,7 +122,7 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/90 mb-1 font-orbitron">Invite Friends</p>
             <p className="text-xs text-cyan-300/70">
-              Sign in to get your referral code and earn <span className="font-semibold text-amber-400">$0.10 USDC</span> per friend who joins.
+              Sign in with MiniPay on Home and finish setup to get your referral code.
             </p>
           </div>
         </div>

@@ -2,7 +2,9 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Calendar, Gift, Loader2 } from 'lucide-react';
+import { usePrivy } from '@privy-io/react-auth';
 import { apiClient, ApiError } from '@/lib/api';
+import { useBackendSession } from '@/context/GuestAuthContext';
 import toast from 'react-hot-toast';
 
 interface DailyClaimStatus {
@@ -18,15 +20,6 @@ type DailyClaimProps = {
   /** When this changes (e.g. guest id or connected wallet), status is refetched so UI matches the current session. */
   accountKey?: string | number | null;
 };
-
-function hasBackendToken(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    return Boolean(window.localStorage.getItem('token')?.trim());
-  } catch {
-    return false;
-  }
-}
 
 function parseStatusPayload(res: { data?: unknown } | null | undefined): DailyClaimStatus | null {
   const body = res?.data as Record<string, unknown> | undefined;
@@ -44,16 +37,23 @@ function parseStatusPayload(res: { data?: unknown } | null | undefined): DailyCl
 }
 
 export function DailyClaim({ chain, accountKey }: DailyClaimProps) {
+  const { guestUser, authLoading, isBackendAuthed, refetchGuest } = useBackendSession();
+  const { ready: privyReady, authenticated: privyAuthed } = usePrivy();
+
   const [status, setStatus] = useState<DailyClaimStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  const privyPendingBackend =
+    privyReady && privyAuthed && !authLoading && !isBackendAuthed;
+
   const fetchStatus = useCallback(() => {
-    if (!hasBackendToken()) {
+    if (authLoading) return;
+    if (!isBackendAuthed) {
       setStatus(null);
-      setNeedsAuth(true);
+      setNeedsAuth(!privyPendingBackend);
       setFetchError(null);
       setLoading(false);
       return;
@@ -84,6 +84,7 @@ export function DailyClaim({ chain, accountKey }: DailyClaimProps) {
         if (statusCode === 401) {
           setNeedsAuth(true);
           setFetchError(null);
+          void refetchGuest?.();
         } else {
           setNeedsAuth(false);
           setFetchError(
@@ -92,15 +93,24 @@ export function DailyClaim({ chain, accountKey }: DailyClaimProps) {
         }
       })
       .finally(() => setLoading(false));
-  }, [chain]);
+  }, [chain, authLoading, isBackendAuthed, privyPendingBackend, refetchGuest]);
 
   useEffect(() => {
+    if (authLoading) return;
     setStatus(null);
     fetchStatus();
-  }, [chain, accountKey, fetchStatus]);
+  }, [chain, accountKey, guestUser?.id, authLoading, isBackendAuthed, fetchStatus]);
+
+  useEffect(() => {
+    if (!privyPendingBackend || !refetchGuest) return;
+    const id = window.setInterval(() => {
+      void refetchGuest();
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [privyPendingBackend, refetchGuest]);
 
   const handleClaim = () => {
-    if (!status?.can_claim || claiming || needsAuth) return;
+    if (!status?.can_claim || claiming || needsAuth || !isBackendAuthed) return;
     setClaiming(true);
     apiClient
       .post<{ success?: boolean; already_claimed?: boolean; message?: string; streak?: number; reward_tyc?: number | null }>(
@@ -133,12 +143,18 @@ export function DailyClaim({ chain, accountKey }: DailyClaimProps) {
       .finally(() => setClaiming(false));
   };
 
-  if (loading && !status && !needsAuth && !fetchError) {
+  if (authLoading || (loading && !status && !needsAuth && !fetchError && !privyPendingBackend)) {
     return (
-      <div className="rounded-xl border border-[#003B3E]/60 bg-[#0E1415]/50 p-4 flex items-center gap-3">
-        <Loader2 className="w-5 h-5 animate-spin text-[#00F0FF]" />
-        <span className="text-slate-400 text-sm">Loading daily reward…</span>
-      </div>
+      <motionlessLoading label="Loading daily reward…" />
+    );
+  }
+
+  if (privyPendingBackend) {
+    return (
+      <motionlessLoading
+        label="Linking your Tycoon account…"
+        sub="If Home asks for a username, complete that first, then return here."
+      />
     );
   }
 
@@ -149,13 +165,12 @@ export function DailyClaim({ chain, accountKey }: DailyClaimProps) {
           <div className="rounded-lg bg-amber-500/20 p-2 border border-amber-400/30">
             <Gift className="w-6 h-6 text-amber-400" />
           </div>
-          <div>
-            <h3 className="font-bold text-white text-sm">Daily login reward</h3>
-            <p className="text-slate-400 text-xs">Sign in to claim TYC vouchers every day.</p>
-          </div>
+          <motionlessHeader />
         </div>
         <p className="text-slate-500 text-xs">
-          Use email or social sign-in from the home page, then return here to claim.
+          {guestUser
+            ? 'Your session expired. Open Home and sign in again, then return to claim.'
+            : 'Sign in with MiniPay on the home page and finish setup (username if prompted). Connecting a wallet alone does not enable daily rewards.'}
         </p>
       </div>
     );
@@ -206,6 +221,33 @@ export function DailyClaim({ chain, accountKey }: DailyClaimProps) {
           'Come back tomorrow'
         )}
       </button>
+    </div>
+  );
+}
+
+function motionlessLoading({ label, sub }: { label: string; sub?: string }) {
+  return (
+    <div className="rounded-xl border border-[#003B3E]/60 bg-[#0E1415]/50 p-4 flex items-center gap-3">
+      <Loader2 className="w-5 h-5 animate-spin text-[#00F0FF] shrink-0" />
+      <motionlessText label={label} sub={sub} />
+    </div>
+  );
+}
+
+function motionlessHeader() {
+  return (
+    <div>
+      <h3 className="font-bold text-white text-sm">Daily login reward</h3>
+      <p className="text-slate-400 text-xs">Claim TYC vouchers every day.</p>
+    </div>
+  );
+}
+
+function motionlessText({ label, sub }: { label: string; sub?: string }) {
+  return (
+    <div>
+      <span className="text-slate-400 text-sm block">{label}</span>
+      {sub ? <span className="text-slate-500 text-xs block mt-1">{sub}</span> : null}
     </div>
   );
 }
