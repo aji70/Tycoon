@@ -16,6 +16,7 @@ import { GiPrisoner, GiBank } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
 import { useRouter } from "next/navigation";
 import { GamePieces } from "@/lib/constants/games";
+import { BoardVariantPicker } from "@/components/game-setup/BoardVariantPicker";
 import { ShieldCheck } from "lucide-react";
 import { useAIGameCreate } from "@/hooks/useAIGameCreate";
 import { motion } from "framer-motion";
@@ -119,6 +120,12 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
                   ))}
                 </SelectContent>
               </Select>
+              <div className="mt-4">
+                <BoardVariantPicker
+                  value={settings.boardVariantId}
+                  onChange={(id) => setSettings((p) => ({ ...p, boardVariantId: id }))}
+                />
+              </div>
             </div>
             </motion.div>
 

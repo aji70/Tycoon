@@ -6,8 +6,9 @@ const Property = {
     return this.findById(id);
   },
 
+  /** Canonical catalog rows only (same economics for every board name variant). */
   async findAll() {
-    return await db("properties").orderBy("id", "asc");
+    return await db("properties").whereNull("board_id").orderBy("id", "asc");
   },
 
   async find(id) {

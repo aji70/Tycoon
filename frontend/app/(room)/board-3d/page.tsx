@@ -97,21 +97,28 @@ const BoardScene = dynamic(
   { ssr: false }
 );
 
-// Same as 2D boards: fetch properties from backend for names and grid layout
-function useBoardProperties() {
-  const { data: apiProperties = [], isLoading, isError } = useQuery<Property[]>({
-    queryKey: ["properties"],
+// Same as 2D boards: fetch properties from backend for names and grid layout (`board_id` = name theme).
+function useBoardProperties(boardId?: string | null, catalogEnabled = true) {
+  const effectiveBoard = (boardId?.trim() || "default").toLowerCase();
+  const { data: apiProperties = [], isLoading } = useQuery<Property[]>({
+    queryKey: ["properties", effectiveBoard],
     queryFn: async () => {
-      const res = await apiClient.get<ApiResponse>("/properties");
+      const params = effectiveBoard === "default" ? {} : { board_id: effectiveBoard };
+      const res = await apiClient.get<ApiResponse>("/properties", params);
       return res.data?.success ? res.data.data : [];
     },
+    enabled: catalogEnabled,
     staleTime: Infinity,
   });
 
   if (apiProperties.length >= 40) {
     return { properties: [...apiProperties].sort((a, b) => a.id - b.id), isLoading: false, fromApi: true };
   }
-  return { properties: buildMockProperties(), isLoading, fromApi: false };
+  return {
+    properties: buildMockProperties(),
+    isLoading: blocked || isLoading,
+    fromApi: false,
+  };
 }
 
 // Fallback when API fails or returns no data (same structure as backend: id, name, type, grid_row, grid_col)
@@ -241,7 +248,6 @@ function Board3DPageContent() {
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
 
-  const { properties, isLoading, fromApi } = useBoardProperties();
   const { data: game, isLoading: gameLoading, isError: gameError, error: gameQueryError, refetch: refetchGame } = useQuery<Game>({
     queryKey: ["game", gameCode ?? ""],
     queryFn: async () => {
@@ -261,6 +267,9 @@ function Board3DPageContent() {
       return 5000;
     },
   });
+
+  const catalogReady = !gameCode || !!game;
+  const { properties, isLoading, fromApi } = useBoardProperties(game?.board_id, catalogReady);
   const { data: gameProperties = [], refetch: refetchGameProperties } = useQuery<GameProperty[]>({
     queryKey: ["game_properties", game?.id],
     queryFn: async () => {

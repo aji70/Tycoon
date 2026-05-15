@@ -22,6 +22,7 @@ import {
   DurationDial,
   PrivateLock,
   WARoomLaunchButton,
+  BoardVariantPicker,
 } from "@/components/game-setup";
 import { BattleHeader } from "@/components/battle-setup/BattleHeader";
 import {
@@ -108,6 +109,7 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
 
   const [customStake, setCustomStake] = useState<string>("");
   const [createError, setCreateError] = useState<string | null>(null);
+  const [boardVariantId, setBoardVariantId] = useState("default");
 
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[wagmiChainId as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
   const usdcTokenAddress = USDC_TOKEN_ADDRESS[wagmiChainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
@@ -200,6 +202,7 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
           chain: chainName,
           duration: settings.duration,
           use_usdc: false,
+          board_id: boardVariantId,
           settings: {
             auction: settings.auction,
             rent_in_prison: settings.rentInPrison,
@@ -280,6 +283,7 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
         chain: chainName,
         duration: settings.duration,
         use_usdc: !isFreeGame,
+        board_id: boardVariantId,
         settings: {
           auction: settings.auction,
           rent_in_prison: settings.rentInPrison,
@@ -470,6 +474,8 @@ export default function GameSettingsOptimized({ redirectToWaitingRoom = "/game-w
                   ))}
                 </div>
               </div>
+
+              <BoardVariantPicker value={boardVariantId} onChange={setBoardVariantId} className="mt-4" />
 
               {/* Private/Free Games */}
               <div className="space-y-3">

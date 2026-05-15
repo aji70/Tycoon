@@ -72,20 +72,24 @@ const PERK_CASH_TIERS = [0, 100, 250, 500, 700, 1000];
 const PERK_REFUND_TIERS = [0, 60, 150, 300, 420, 600];
 const PERK_DISCOUNT_TIERS = [0, 100, 200, 300, 400, 500];
 
-function useBoardProperties() {
+function useBoardProperties(boardId?: string | null, catalogEnabled = true) {
+  const effectiveBoard = (boardId?.trim() || "default").toLowerCase();
   const { data: apiProperties = [], isLoading } = useQuery<Property[]>({
-    queryKey: ["properties"],
+    queryKey: ["properties", effectiveBoard],
     queryFn: async () => {
-      const res = await apiClient.get<ApiResponse>("/properties");
+      const params = effectiveBoard === "default" ? {} : { board_id: effectiveBoard };
+      const res = await apiClient.get<ApiResponse>("/properties", params);
       return res.data?.success ? res.data.data : [];
     },
+    enabled: catalogEnabled,
     staleTime: Infinity,
   });
 
   if (apiProperties.length >= 40) {
     return { properties: [...apiProperties].sort((a, b) => a.id - b.id), isLoading: false };
   }
-  return { properties: buildMockProperties(), isLoading };
+  const blocked = !catalogEnabled;
+  return { properties: buildMockProperties(), isLoading: blocked || isLoading };
 }
 
 function buildMockProperties(): Property[] {
@@ -213,7 +217,6 @@ function Board3DMobileContent() {
   const guestUser = guestAuth?.guestUser ?? null;
   const isGuest = !!guestUser;
 
-  const { properties, isLoading } = useBoardProperties();
   const { data: game, isLoading: gameLoading, isError: gameError, error: gameQueryError, refetch: refetchGame } = useQuery<Game>({
     queryKey: ["game", gameCode ?? ""],
     queryFn: async () => {
@@ -233,6 +236,9 @@ function Board3DMobileContent() {
       return 5000;
     },
   });
+
+  const catalogReady = !gameCode || !!game;
+  const { properties, isLoading } = useBoardProperties(game?.board_id, catalogReady);
   const { data: gameProperties = [], refetch: refetchGameProperties } = useQuery<GameProperty[]>({
     queryKey: ["game_properties", game?.id],
     queryFn: async () => {

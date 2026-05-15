@@ -94,12 +94,18 @@ export default function AiPlay3DPage() {
     return game.players.find((pl: Player) => pl.address && lower.includes(pl.address.toLowerCase())) || null;
   }, [game, address, guestUser?.address, guestUser?.linked_wallet_address, guestUser?.smart_wallet_address]);
 
+  const catalogReady = !gameCode || !!game;
+  const effectiveBoard = (game?.board_id?.trim() || "default").toLowerCase();
+
   const { data: properties = [], isLoading: propertiesLoading } = useQuery<Property[]>({
-    queryKey: ["properties"],
+    queryKey: ["properties", effectiveBoard],
     queryFn: async () => {
-      const res = await apiClient.get<ApiResponse>("/properties");
+      const params = effectiveBoard === "default" ? {} : { board_id: effectiveBoard };
+      const res = await apiClient.get<ApiResponse>("/properties", params);
       return res.data?.success ? res.data.data : [];
     },
+    enabled: catalogReady && (!!gameCode ? !!game : true),
+    staleTime: Infinity,
   });
 
   const { data: game_properties = [] } = useQuery<GameProperty[]>({

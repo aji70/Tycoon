@@ -11,6 +11,7 @@ export interface Game {
   updated_at: string;
   /** Set when status becomes RUNNING (e.g. all players joined). Game timing starts from this. */
   started_at?: string | null;
+  board_id?: string | null;
   settings: GameSetting;
   players: Array<GamePlayer>;
 }

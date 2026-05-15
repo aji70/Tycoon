@@ -46,6 +46,8 @@ export interface AIGameSettings {
   mortgage: boolean;
   evenBuild: boolean;
   duration: number;
+  /** Backend board variant id (`default`, `metro`, …). Square names only. */
+  boardVariantId: string;
 }
 
 const DEFAULT_SETTINGS: AIGameSettings = {
@@ -59,6 +61,7 @@ const DEFAULT_SETTINGS: AIGameSettings = {
   mortgage: true,
   evenBuild: true,
   duration: 30,
+  boardVariantId: "default",
 };
 
 /** Contract expects lowercase: hat, car, dog, thimble, iron, battleship, boot, wheelbarrow. Maps top_hat -> hat. */
@@ -129,6 +132,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
           is_minipay: isMiniPay,
           chain: chainName,
           duration: settings.duration,
+          board_id: settings.boardVariantId,
           ai_difficulty: ["easy", "hard", "boss"].includes(settings.aiDifficulty) ? settings.aiDifficulty : "boss",
           ai_difficulty_mode: settings.aiDifficultyMode === "same" ? "same" : "random",
           settings: {
@@ -250,6 +254,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
           is_minipay: isMiniPay,
           chain: chainName,
           duration: settings.duration,
+          board_id: settings.boardVariantId,
           settings: {
             auction: settings.auction,
             rent_in_prison: settings.rentInPrison,

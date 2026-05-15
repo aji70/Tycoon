@@ -1,5 +1,10 @@
 import redis from "../config/redis.js";
 import Property from "../models/Property.js";
+import {
+  resolveBoardIdForGame,
+  mergeCanonicalPropertiesWithVariant,
+  invalidatePropertyListCaches,
+} from "../utils/boardVariant.js";
 
 /**
  * Property Controller
@@ -14,6 +19,7 @@ const propertyController = {
   async create(req, res) {
     try {
       const property = await Property.create(req.body);
+      await invalidatePropertyListCaches(redis);
       res
         .status(201)
         .json({ success: true, message: "successful", data: property });
@@ -44,18 +50,20 @@ const propertyController = {
 
   async findAll(req, res) {
     try {
-      const cacheKey = "properties";
+      const boardId = await resolveBoardIdForGame(req.query.board_id);
+      const cacheKey = `properties:v1:${boardId}`;
       const _cached = await redis.get(cacheKey);
       const cached = _cached ? JSON.parse(_cached) : null;
       if (cached) {
         return res.json({ success: true, message: "successful", data: cached });
       }
       const { limit, offset } = req.query;
-      const properties = await Property.findAll({
+      const canonical = await Property.findAll({
         limit: Number.parseInt(limit) || 100,
         offset: Number.parseInt(offset) || 0,
       });
-      const add_to_cache = await redis.set(cacheKey, JSON.stringify(properties));
+      const properties = await mergeCanonicalPropertiesWithVariant(canonical, boardId);
+      await redis.set(cacheKey, JSON.stringify(properties));
       res.json({ success: true, message: "successful", data: properties });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
@@ -65,6 +73,7 @@ const propertyController = {
   async update(req, res) {
     try {
       const property = await Property.update(req.params.id, req.body);
+      await invalidatePropertyListCaches(redis);
       res.json({ success: true, message: "successful", data: property });
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });
@@ -74,6 +83,7 @@ const propertyController = {
   async remove(req, res) {
     try {
       await Property.delete(req.params.id);
+      await invalidatePropertyListCaches(redis);
       res.json({ success: true, message: "successful", data: null });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });

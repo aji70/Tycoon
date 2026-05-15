@@ -53,6 +53,7 @@ import {
   getOnchainAddressForGuestFlow,
   isValidEthAddress as isValidEthAddressForOnchain,
 } from "../utils/onchainUserAddress.js";
+import { resolveBoardIdForGame } from "../utils/boardVariant.js";
 
 const isValidEthAddress = isValidEthAddressForOnchain;
 
@@ -399,6 +400,7 @@ const gameController = {
           .status(200)
           .json({ success: false, message: "User not found" });
       }
+      const board_id = await resolveBoardIdForGame(req.body.board_id);
       // create game (frontend sends on-chain game id as id for contract integration)
       const game = await Game.create({
         code,
@@ -413,6 +415,7 @@ const gameController = {
         chain,
         contract_game_id: contractGameId != null ? String(contractGameId) : null,
         game_type: game_type || (is_ai ? GAME_TYPES.AI_HUMAN_VS_AI : GAME_TYPES.PVP_HUMAN),
+        board_id,
       });
 
       const chat = await Chat.create({
@@ -884,6 +887,7 @@ const gameController = {
               duration: 30,
               chain: "STARKNET",
               contract_game_id: parsed.gameId,
+              board_id: await resolveBoardIdForGame(null),
             });
             await Chat.create({ game_id: game.id, status: "open" });
             await GameSetting.create({
@@ -1168,6 +1172,8 @@ export const createAgentVsAgent = async (req, res) => {
       return res.status(400).json({ success: false, message: "Game code already exists" });
     }
 
+    const board_id = await resolveBoardIdForGame(req.body?.board_id);
+
     // Create game as RUNNING so the runner can start immediately.
     const game = await Game.create({
       code,
@@ -1183,6 +1189,7 @@ export const createAgentVsAgent = async (req, res) => {
       contract_game_id: null,
       game_type: GAME_TYPES.AGENT_VS_AGENT,
       started_at: db.fn.now(),
+      board_id,
     });
 
     await Chat.create({ game_id: game.id, status: "open" });
@@ -1320,6 +1327,8 @@ export const createAgentVsAI = async (req, res) => {
       return res.status(400).json({ success: false, message: "Game code already exists" });
     }
 
+    const board_id = await resolveBoardIdForGame(req.body?.board_id);
+
     const game = await Game.create({
       code,
       mode: "PRIVATE",
@@ -1334,6 +1343,7 @@ export const createAgentVsAI = async (req, res) => {
       contract_game_id: null,
       game_type: GAME_TYPES.AGENT_VS_AI,
       started_at: db.fn.now(),
+      board_id,
     });
 
     await Chat.create({ game_id: game.id, status: "open" });
@@ -1535,6 +1545,8 @@ export const createOnchainAgentVsAI = async (req, res) => {
       return res.status(500).json({ success: false, message: "Contract did not return game ID" });
     }
 
+    const board_id = await resolveBoardIdForGame(req.body?.board_id);
+
     const game = await Game.create({
       code,
       mode: "PRIVATE",
@@ -1549,6 +1561,7 @@ export const createOnchainAgentVsAI = async (req, res) => {
       contract_game_id: String(onChainGameId),
       game_type: GAME_TYPES.ONCHAIN_AGENT_VS_AI,
       started_at: db.fn.now(),
+      board_id,
     });
 
     await Chat.create({ game_id: game.id, status: "open" });
@@ -1682,6 +1695,8 @@ export const createOnchainAgentVsAgentLobby = async (req, res) => {
     const existingGame = await Game.findByCode(code);
     if (existingGame) return res.status(400).json({ success: false, message: "Game code already exists" });
 
+    const board_id = await resolveBoardIdForGame(req.body?.board_id);
+
     const game = await Game.create({
       code,
       mode: "PRIVATE",
@@ -1696,6 +1711,7 @@ export const createOnchainAgentVsAgentLobby = async (req, res) => {
       contract_game_id: null,
       game_type: GAME_TYPES.ONCHAIN_AGENT_VS_AGENT,
       started_at: null,
+      board_id,
     });
 
     await Chat.create({ game_id: game.id, status: "open" });
@@ -2151,6 +2167,8 @@ export const create = async (req, res) => {
         .json({ success: false, message: "Game code already exists" });
     }
 
+    const board_id = await resolveBoardIdForGame(req.body.board_id);
+
     const game = await Game.create({
       code,
       mode,
@@ -2163,6 +2181,7 @@ export const create = async (req, res) => {
       duration,
       chain,
       game_type: game_type || (is_ai ? GAME_TYPES.AI_HUMAN_VS_AI : GAME_TYPES.PVP_HUMAN),
+      board_id,
     });
 
     const aiDiff = req.body.ai_difficulty || settings?.ai_difficulty || "boss";
@@ -2595,6 +2614,8 @@ export const createAsGuest = async (req, res) => {
       return res.status(500).json({ success: false, message: "Contract did not return game ID" });
     }
 
+    const board_id = await resolveBoardIdForGame(req.body.board_id);
+
     const game = await Game.create({
       code,
       mode,
@@ -2607,6 +2628,7 @@ export const createAsGuest = async (req, res) => {
       duration,
       chain: chain || "BASE",
       contract_game_id: String(onChainGameId),
+      board_id,
     });
 
     const chat = await Chat.create({ game_id: game.id, status: "open" });
@@ -2938,6 +2960,8 @@ export const createAIAsGuest = async (req, res) => {
       return res.status(500).json({ success: false, message: "Contract did not return game ID; redirect using game code." });
     }
 
+    const board_id = await resolveBoardIdForGame(req.body.board_id);
+
     const game = await Game.create({
       code: code || "",
       mode: "PRIVATE",
@@ -2950,6 +2974,7 @@ export const createAIAsGuest = async (req, res) => {
       duration: duration || 0,
       chain: chain || "BASE",
       contract_game_id: String(onChainGameId),
+      board_id,
     });
 
     const chat = await Chat.create({ game_id: game.id, status: "open" });

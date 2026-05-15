@@ -64,6 +64,8 @@ export interface Game {
   tournament_code?: string | null;
   /** When game ends by time: { user_id: position } where 1 = winner. */
   placements?: Record<number, number>;
+  /** Board name theme; economics come from canonical `properties`. */
+  board_id?: string | null;
   settings: GameSettings;
   players: Player[];
   history: History[];
