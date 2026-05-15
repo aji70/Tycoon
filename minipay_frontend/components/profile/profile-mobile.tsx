@@ -973,6 +973,11 @@ function GuestProfileViewMobile({
           </div>
         </section>
 
+        <div className="px-4 py-4 space-y-4">
+          <DailyClaim chain="CELO" accountKey={guestUser.id} />
+          <ProfileReferralCard />
+        </div>
+
         <AccountLinkWallet />
       </main>
 
@@ -1966,9 +1971,7 @@ export default function ProfilePageMobile() {
         </section>
 
         <div className="px-4 py-4 space-y-4">
-          {(guestUser?.id || walletAddress) && (
-            <DailyClaim chain="CELO" accountKey={guestUser?.id || walletAddress} />
-          )}
+          <DailyClaim chain="CELO" accountKey={guestUser?.id || walletAddress} />
           <ProfileReferralCard />
         </div>
 

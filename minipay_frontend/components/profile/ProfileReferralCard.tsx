@@ -44,22 +44,16 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
   const { address } = useAccount();
   const queryClient = useQueryClient();
 
+  const authed = hasBackendToken();
+
   const query = useQuery({
-    queryKey: ["referral-me", address],
+    queryKey: ["referral-me", authed],
     queryFn: async () => {
-      const hasToken = hasBackendToken();
-      const params: Record<string, string> = {};
-
-      // If wallet connected but no token, pass address to backend
-      if (address && !hasToken) {
-        params.address = address;
-      }
-
-      const res = await apiClient.get("referral/me", { params });
+      const res = await apiClient.get("referral/me");
       const backend = res.data as { success?: boolean; data?: ReferralMePayload } | undefined;
       return backend?.data ?? null;
     },
-    enabled: enabled && (hasBackendToken() || !!address),
+    enabled: enabled && authed,
     staleTime: 60_000,
     retry: false,
   });
@@ -80,21 +74,44 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
   }, []);
 
   const handleGenerateCode = useCallback(async () => {
-    if (!address) return;
+    if (!authed) {
+      toast.info("Sign in from the home page to get your referral code.");
+      return;
+    }
     setGenerating(true);
     try {
-      await apiClient.get("referral/me", { params: { address } });
-      await queryClient.invalidateQueries({ queryKey: ["referral-me", address] });
+      await apiClient.get("referral/me");
+      await queryClient.invalidateQueries({ queryKey: ["referral-me", authed] });
       toast.success("Referral code generated!");
-    } catch (err) {
+    } catch {
       toast.error("Failed to generate code");
     } finally {
       setGenerating(false);
     }
-  }, [address, queryClient]);
+  }, [authed, queryClient]);
 
   if (!enabled) {
     return null;
+  }
+
+  if (!authed) {
+    return (
+      <div
+        className={`rounded-2xl border border-cyan-500/30 bg-slate-800/60 p-4 sm:p-5 shadow-lg shadow-cyan-500/5 ${className}`}
+      >
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center shrink-0">
+            <Gift className="w-5 h-5 text-cyan-300" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/90 mb-1 font-orbitron">Invite Friends</p>
+            <p className="text-xs text-cyan-300/70">
+              Sign in to get your referral code and earn <span className="font-semibold text-amber-400">$0.10 USDC</span> per friend who joins.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (query.isLoading) {
