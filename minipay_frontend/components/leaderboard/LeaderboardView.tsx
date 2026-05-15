@@ -113,18 +113,17 @@ function RankCard({
             )}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-0.5 shrink-0">
-          <span className="text-[10px] text-white/40 uppercase tracking-wide hidden sm:block">Games</span>
-          <span className="text-base sm:text-lg font-bold tabular-nums text-cyan-200/90">{row.games_played}</span>
-          {inBountyPrize && (
-            <span className="text-[10px] font-orbitron font-bold text-amber-300 animate-pulse">💰 PRIZE</span>
-          )}
-          {outOfBountyPrize && (
-            <span className="text-[9px] text-white/40 text-right max-w-[80px] leading-tight">
-              Keep playing to enter top 10
+        {bountyMode ? (
+          <div className="flex flex-col items-end shrink-0">
+            <span
+              className={`text-base sm:text-lg font-black font-orbitron tabular-nums ${
+                inBountyPrize ? 'text-amber-300' : 'text-white/35'
+              }`}
+            >
+              {inBountyPrize ? '$5' : '$0'}
             </span>
-          )}
-        </div>
+          </div>
+        ) : null}
       </div>
     </motion.div>
   );
