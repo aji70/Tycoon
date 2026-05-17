@@ -114,6 +114,7 @@ function useBoardProperties(boardId?: string | null, catalogEnabled = true) {
   if (apiProperties.length >= 40) {
     return { properties: [...apiProperties].sort((a, b) => a.id - b.id), isLoading: false, fromApi: true };
   }
+  const blocked = !catalogEnabled;
   return {
     properties: buildMockProperties(),
     isLoading: blocked || isLoading,
