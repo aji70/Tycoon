@@ -39,12 +39,22 @@ contract TycoonGameFaucet is Ownable, ReentrancyGuard {
     event GameContractUpdated(address indexed previous, address indexed newContract);
     event GameControllerUpdated(address indexed previous, address indexed newController);
     event AgentRegistryUpdated(address indexed previous, address indexed newRegistry);
+    event AgentWriterUpdated(address indexed writer, bool authorized);
 
     error OnlyGameController();
+    error NotAuthorizedAgentWriter();
     error InvalidGame();
+
+    /// @notice EOAs allowed to call recordPropertySaleByAgent (Proof of Ship / agent-signed buys).
+    mapping(address => bool) public authorizedAgentWriters;
 
     modifier onlyGameController() {
         if (msg.sender != gameController && msg.sender != owner()) revert OnlyGameController();
+        _;
+    }
+
+    modifier onlyAuthorizedAgentWriter() {
+        if (!authorizedAgentWriters[msg.sender] && msg.sender != owner()) revert NotAuthorizedAgentWriter();
         _;
     }
 
@@ -69,6 +79,23 @@ contract TycoonGameFaucet is Ownable, ReentrancyGuard {
         address previous = agentRegistry;
         agentRegistry = _agentRegistry;
         emit AgentRegistryUpdated(previous, _agentRegistry);
+    }
+
+    /// @notice Owner authorizes an agent wallet to record property sales on-chain (buy from bank, etc.).
+    function setAuthorizedAgentWriter(address writer, bool allowed) external onlyOwner {
+        authorizedAgentWriters[writer] = allowed;
+        emit AgentWriterUpdated(writer, allowed);
+    }
+
+    /// @notice Agent-signed property purchase stats (seller -> buyer usernames). Requires setAuthorizedAgentWriter.
+    function recordPropertySaleByAgent(string calldata sellerUsername, string calldata buyerUsername)
+        external
+        onlyAuthorizedAgentWriter
+        nonReentrant
+    {
+        if (gameContract == address(0)) revert InvalidGame();
+        ITycoonGameFaucetTarget(gameContract).setPropertyStats(sellerUsername, buyerUsername);
+        emit PropertySaleRecorded(sellerUsername, buyerUsername);
     }
 
     /// @notice Record a property sale/transfer (seller -> buyer). Updates game User stats. Call from backend when a trade completes.

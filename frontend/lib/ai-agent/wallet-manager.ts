@@ -1,6 +1,9 @@
 // lib/ai-agent/wallet-manager.ts
 // SERVER-ONLY: Use only in API routes or server modules. Do not import in client components.
 // AI_PLAYER_*_PRIVATE_KEY and CELO_RPC_URL must be server env vars (never NEXT_PUBLIC_*).
+//
+// Live agent-signed property buys: backend/services/agentWalletPropertySale.js + agentGameRunner.js
+// (ENABLE_AGENT_SIGNED_PROPERTY_SALE). MonopolyAIController is not wired; do not use from client boards.
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { celo, celoAlfajores } from 'viem/chains';

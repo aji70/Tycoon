@@ -74,7 +74,7 @@ const REGISTRY_ABI = [
   "function owner() view returns (address)",
   "function gameContract() view returns (address)",
   "function rewardSystemAddress() view returns (address)",
-  "function operator() view returns (address)",
+  "function operatorAddress() view returns (address)",
   "function totalWallets() view returns (uint256)",
 ];
 
@@ -180,7 +180,7 @@ async function main() {
     registry.owner(),
     registry.gameContract(),
     registry.rewardSystemAddress(),
-    registry.operator(),
+    registry.operatorAddress(),
     registry.totalWallets().catch(() => "N/A"),
   ]);
 

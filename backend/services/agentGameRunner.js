@@ -504,11 +504,37 @@ async function stepGame(game) {
 
   if (wantsBuy && canBuy) {
     try {
+      const { isAgentSignedPropertySaleEnabled, shouldUseAgentWalletOnchain, recordPropertySaleByAgentWallet } =
+        await import("./agentWalletPropertySale.js");
+      const useAgentWallet =
+        isAgentSignedPropertySaleEnabled() && shouldUseAgentWalletOnchain(game);
+
       await post("/game-properties/buy", {
         user_id: nextUserId,
         game_id: gameId,
         property_id: prop.id,
+        ...(useAgentWallet ? { agent_wallet_onchain: true } : {}),
       });
+
+      if (useAgentWallet) {
+        const userRow = await db("users").where({ id: nextUserId }).select("username").first();
+        const buyerUsername = userRow?.username;
+        if (buyerUsername) {
+          try {
+            const { hash, from } = await recordPropertySaleByAgentWallet({
+              slot,
+              buyerUsername,
+              chain: game.chain || "CELO",
+            });
+            logger.info({ gameId, slot, hash, from, buyerUsername }, "agent-signed property buy on Celo");
+          } catch (onchainErr) {
+            logger.error(
+              { err: onchainErr?.message, gameId, slot, buyerUsername },
+              "agent-signed recordPropertySaleByAgent failed (DB buy succeeded)"
+            );
+          }
+        }
+      }
     } catch (err) {
       logger.warn({ err: err?.message, gameId, slot, property_id: prop.id }, "agent runner buy failed");
     }

@@ -149,7 +149,11 @@ const gamePropertyController = {
   async buy(req, res) {
     const trx = await db.transaction();
     try {
-      const { game_id, property_id, user_id } = req.body;
+      const { game_id, property_id, user_id, agent_wallet_onchain } = req.body;
+      const skipRelayerOnchain =
+        agent_wallet_onchain === true ||
+        agent_wallet_onchain === "true" ||
+        agent_wallet_onchain === 1;
 
       // Fetch game
       const game = await trx("games").where({ id: game_id }).first();
@@ -240,9 +244,9 @@ const gamePropertyController = {
       recordPropertyPurchase(user_id, property_id, game.id, "bank").catch(() => {});
       awardActivityXpByGameUser(game.id, user_id, ACTIVITY_XP.PROPERTY_BOUGHT, "property_bought").catch(() => {});
 
-      // On-chain: call transferPropertyOwnership (seller=Bank when buying from bank). Contract must have "Bank" registered.
+      // On-chain: backend relayer unless agent runner will sign recordPropertySaleByAgent from agent wallet.
       const chainForBuy = User.normalizeChain(game.chain || "CELO");
-      if (isContractConfigured(chainForBuy)) {
+      if (isContractConfigured(chainForBuy) && !skipRelayerOnchain) {
         const buyerUsername = (await db("users").where({ id: player.user_id }).select("username").first())?.username ?? null;
         if (buyerUsername) {
           transferPropertyOwnership("Bank", buyerUsername, chainForBuy).catch((err) => {
