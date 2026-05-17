@@ -28,6 +28,23 @@ const OK_ESCROW_SKIP = new Set([
 /** Match TycoonTournamentEscrow.TournamentStatus */
 const ESCROW_LEDGER_FINALIZED = 3;
 const ESCROW_LEDGER_CANCELLED = 4;
+const ESCROW_LEDGER_OPEN = 1;
+const ESCROW_LEDGER_LOCKED = 2;
+
+/**
+ * True when escrow may still hold USDC for this tournament (recovery poller should retry finalize).
+ */
+export async function escrowStillNeedsFinalize(tournamentId, chain) {
+  if (!isEscrowConfigured(chain)) return false;
+  const ledger = await readEscrowTournamentLedger(tournamentId, chain);
+  if (!ledger) return false;
+  if (ledger.status === ESCROW_LEDGER_FINALIZED || ledger.status === ESCROW_LEDGER_CANCELLED) {
+    return false;
+  }
+  const pool = ledger.totalEntryFees + ledger.prizePoolDeposited;
+  if (pool === 0n) return false;
+  return ledger.status === ESCROW_LEDGER_OPEN || ledger.status === ESCROW_LEDGER_LOCKED;
+}
 
 function assertOnChainPayoutOk(tournamentId, chain, escrowRes, context) {
   if (!escrowRes?.skipped) return;
@@ -221,7 +238,7 @@ async function executeDrawRefundsInternal(tournamentId) {
         );
       }
     }
-    logger.info({ tournamentId, existingCount }, "executeDrawRefunds: rows already exist; idempotent skip");
+    logger.debug({ tournamentId, existingCount }, "executeDrawRefunds: rows already exist; idempotent skip");
     return { done: existingCount, failed: 0, message: "Already recorded", skipped: true, houseWei: 0, toPlayers: 0 };
   }
 
@@ -353,10 +370,15 @@ async function executePayoutsInternal(tournamentId) {
   if (existingCount > 0) {
     const payouts = await computePayouts(tournamentId);
     const escrowPlan = await buildEscrowPlanForPayoutList(payouts);
+    let reconciled = false;
     if (escrowPlan.length > 0) {
-      await tryReconcileEscrowFinalize(tournamentId, tournament.chain, escrowPlan, "executePayouts(idempotent)");
+      const rec = await tryReconcileEscrowFinalize(tournamentId, tournament.chain, escrowPlan, "executePayouts(idempotent)");
+      reconciled = Boolean(rec?.reconciled);
     }
-    logger.info({ tournamentId, existingCount }, "executePayouts: rows already exist; idempotent skip");
+    logger.debug(
+      { tournamentId, existingCount, reconciled },
+      "executePayouts: rows already exist; idempotent skip"
+    );
     return { done: existingCount, failed: 0, message: "Already recorded", skipped: true };
   }
 

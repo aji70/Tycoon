@@ -21,19 +21,24 @@ export function startTournamentPayoutRecoveryPoller() {
    * executePayouts / executeDrawRefunds idempotent branches now call tryReconcileEscrowFinalize.
    */
   const reconcileStuckEscrowWithPayoutRows = async () => {
-    const { executePayouts, executeDrawRefunds } = await import("./tournamentPayoutService.js");
+    const { executePayouts, executeDrawRefunds, escrowStillNeedsFinalize } = await import(
+      "./tournamentPayoutService.js"
+    );
     const rows = await db("tournament_payouts")
       .join("tournaments", "tournaments.id", "tournament_payouts.tournament_id")
       .where("tournaments.status", "COMPLETED")
       .whereNot("tournaments.prize_source", "NO_POOL")
-      .groupBy("tournaments.id")
-      .select("tournaments.id as tid")
+      .groupBy("tournaments.id", "tournaments.chain")
+      .select("tournaments.id as tid", "tournaments.chain")
       .limit(12);
 
     for (const row of rows) {
       const tid = Number(row.tid);
       if (!tid) continue;
       try {
+        const chain = row.chain;
+        if (!(await escrowStillNeedsFinalize(tid, chain))) continue;
+
         const matches = await db("tournament_matches").where({ tournament_id: tid });
         const anyWinner = (matches || []).some((m) => m.winner_entry_id != null);
         if (anyWinner) {
