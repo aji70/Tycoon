@@ -49,11 +49,6 @@ import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW, calcula
 import { useAiBankruptcy } from "@/hooks/useAiBankruptcy";
 import { reportAiAction } from "@/lib/agentFeedback";
 import { gameHasRankedPlacements } from "@/lib/utils/games";
-import { MyAgentToggle } from "../MyAgentToggle";
-import { useAgentBindings } from "@/hooks/useAgentBindings";
-import { useAgentSettings } from "@/hooks/useAgentSettings";
-import { getStoredAgentApiKey, setStoredAgentApiKey } from "@/lib/agentApiKeySession";
-
 const calculateBuyScore = (
   property: Property,
   player: Player,
@@ -154,14 +149,6 @@ const AiBoard = ({
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [isSpecialMove, setIsSpecialMove] = useState(false);
   const [showPerksModal, setShowPerksModal] = useState(false);
-
-  // Agent control state
-  const [myAgentOn, setMyAgentOn] = useState(false);
-  const [myAgentApiKey, setMyAgentApiKey] = useState<{ provider: string; apiKey: string } | null>(
-    () => getStoredAgentApiKey()
-  );
-  const { agentSettings, updateAgentSettings } = useAgentSettings();
-  const { refetchAgentBindings } = useAgentBindings(game?.id);
 
   const AI_TIPS_STORAGE_KEY = "tycoon_ai_tips_on";
   const [aiTipsOn, setAiTipsOn] = useState(() => {
@@ -1594,26 +1581,6 @@ const endTurnAfterSpecialMove = useCallback(() => {
         />
       </div>
 
-      {/* My Agent Toggle - let agent play for you */}
-      <div className="fixed top-4 left-6 z-40 max-w-sm">
-        <MyAgentToggle
-          gameId={game?.id}
-          myAgentOn={myAgentOn}
-          myAgentApiKey={myAgentApiKey}
-          onUseApiKey={(opts) => {
-            setMyAgentApiKey(opts);
-            setStoredAgentApiKey(opts);
-          }}
-          onStopApiKey={() => {
-            setMyAgentApiKey(null);
-            setStoredAgentApiKey(null);
-          }}
-          onBindingsChange={refetchAgentBindings}
-          compact={true}
-          agentSettings={agentSettings}
-          onSettingsChange={updateAgentSettings}
-        />
-      </div>
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
