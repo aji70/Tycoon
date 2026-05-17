@@ -23,9 +23,38 @@ import { listAgentSmartWalletCandidates } from "./agentTournamentFreeAgents.js";
 
 const ENABLED = process.env.ENABLE_AGENT_TOURNAMENT_RUNNER === "true";
 const POLL_MS = Math.max(2000, Number(process.env.AGENT_TOURNAMENT_RUNNER_POLL_MS) || 10000);
+/** After a permanent on-chain register failure, stop retrying that user/agent/tournament for this long (default 24h). */
+const REGISTER_SKIP_MS = Math.max(
+  60_000,
+  Number(process.env.AGENT_TOURNAMENT_REGISTER_SKIP_MS) || 24 * 60 * 60 * 1000
+);
 
 // Simple in-process locks: key -> Promise chain
 const locks = new Map();
+/** reg_* keys we should not retry until timestamp (escrow InvalidStatus / AlreadyRegistered / etc.). */
+const registerSkipUntil = new Map();
+
+function isPermanentRegisterError(err) {
+  const msg = `${err?.message || ""} ${err?.shortMessage || ""}`;
+  return /Failed to register on-chain|execution reverted|InvalidStatus|InvalidAmount|AlreadyRegistered|Not open|Tournament exists/i.test(
+    msg
+  );
+}
+
+function shouldSkipRegister(key) {
+  const until = registerSkipUntil.get(key);
+  return until != null && Date.now() < until;
+}
+
+function markRegisterSkipped(key, err) {
+  if (!isPermanentRegisterError(err)) return;
+  registerSkipUntil.set(key, Date.now() + REGISTER_SKIP_MS);
+  logger.info(
+    { key, skipMs: REGISTER_SKIP_MS, err: err?.message },
+    "agent tournament runner: skipping further auto-register attempts for this entry"
+  );
+}
+
 function withLock(key, fn) {
   const prev = locks.get(key) || Promise.resolve();
   let resolve;
@@ -34,6 +63,7 @@ function withLock(key, fn) {
   return prev
     .then(fn)
     .catch((err) => {
+      markRegisterSkipped(key, err);
       logger.warn({ err: err?.message, key }, "agent tournament runner step failed");
     })
     .finally(() => {
@@ -142,7 +172,9 @@ async function autoRegisterLoop() {
       if (perm.chain && User.normalizeChain(perm.chain) !== chain) continue;
       const count = await TournamentEntry.countByTournament(t.id);
       if (count >= Number(t.max_players)) continue;
-      await withLock(`reg_${perm.user_id}_${perm.user_agent_id}_${t.id}`, () => tryAutoRegisterOne(perm, t));
+      const regKey = `reg_${perm.user_id}_${perm.user_agent_id}_${t.id}`;
+      if (shouldSkipRegister(regKey)) continue;
+      await withLock(regKey, () => tryAutoRegisterOne(perm, t));
     }
   }
 
@@ -160,7 +192,9 @@ async function autoRegisterLoop() {
     for (const t of freeTournaments) {
       const count = await TournamentEntry.countByTournament(t.id);
       if (count >= Number(t.max_players)) continue;
-      await withLock(`reg_${cand.user_id}_${cand.user_agent_id}_${t.id}`, () => tryAutoRegisterOne(fakePerm, t));
+      const regKey = `reg_${cand.user_id}_${cand.user_agent_id}_${t.id}`;
+      if (shouldSkipRegister(regKey)) continue;
+      await withLock(regKey, () => tryAutoRegisterOne(fakePerm, t));
     }
   }
 }
