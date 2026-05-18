@@ -19,3 +19,10 @@ export const PERK_SHOP_ASSETS: Record<number, { name: string; image: string }> =
 export function getPerkShopAsset(perk: number): { name: string; image: string } | undefined {
   return PERK_SHOP_ASSETS[perk];
 }
+
+/** Perks excluded from game shop listings (e.g. bad on-chain price until fixed). */
+export const SHOP_HIDDEN_PERK_IDS = new Set<number>([2]); // JAIL_FREE
+
+export function isShopPerkHidden(perk: number): boolean {
+  return SHOP_HIDDEN_PERK_IDS.has(perk);
+}

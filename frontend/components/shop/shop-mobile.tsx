@@ -35,6 +35,7 @@ import Erc20Abi from '@/context/abi/ERC20abi.json';
 import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from '@/lib/constants/ngnPayments';
 import { shopPerkRow } from '@/lib/shopPerkRow';
+import { isShopPerkHidden } from '@/lib/perkShopAssets';
 
 import {
   useRewardBuyCollectible,
@@ -402,6 +403,7 @@ export default function GameShopMobile() {
         if (result.status !== 'success') return null;
         const [perk, strength, tycPrice, usdcPrice, cusdcPrice, usdtPrice, stock] = result.result as [number, bigint, bigint, bigint, bigint, bigint, bigint];
         if (stock === BigInt(0)) return null;
+        if (isShopPerkHidden(Number(perk))) return null;
 
         const tokenId = shopTokenIds[index];
         const meta = perkMetadata.find((m) => m.perk === perk) || {
