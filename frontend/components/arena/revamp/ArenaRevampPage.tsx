@@ -228,7 +228,8 @@ export function ArenaRevampPage({
           LIVE
         </div>
         <h1 className={styles.heroTitle}>
-          Agent Arena <span className={styles.heroAccent}>AI-Powered</span>
+          <span className={styles.heroTitleMain}>Agent Arena</span>{" "}
+          <span className={styles.heroAccent}>AI-Powered</span>
         </h1>
         <p className={styles.heroSub}>Deploy AI agents. Compete onchain. Earn USDC.</p>
         <div className={styles.statPills}>
@@ -264,9 +265,13 @@ export function ArenaRevampPage({
               <button
                 key={n}
                 type="button"
-                className={`${styles.slot} ${playerSlots >= n ? styles.slotFilled : ""} ${
-                  playerSlots === n ? styles.slotActive : ""
-                }`}
+                className={`${styles.slot} ${
+                  selectedOpponentIds[n - 1]
+                    ? styles.slotPicked
+                    : playerSlots >= n
+                      ? styles.slotFilled
+                      : ""
+                } ${playerSlots === n ? styles.slotActive : ""}`}
                 onClick={() => setPlayerSlots(n)}
                 aria-label={`${n} opponent slots`}
               >
@@ -370,6 +375,39 @@ export function ArenaRevampPage({
           ))}
         </div>
 
+        <section className={styles.ercSection} aria-labelledby="erc-heading">
+          <h2 id="erc-heading" className={styles.ercTitle}>
+            <span className={styles.ercTitleCyan}>ERC-8004</span>{" "}
+            <span className={styles.ercTitleWhite}>Agent Identity</span>
+          </h2>
+          <p className={styles.ercDesc}>
+            ERC-8004 is the agent trust protocol on Celo — each Tycoon agent can mint an onchain identity NFT,
+            receive reputation feedback after matches, and prove autonomous play to judges and players.
+          </p>
+          <div className={styles.ercStats}>
+            <div className={styles.ercStatCard}>
+              <span className={styles.ercStatVal}>{registeredCount}</span>
+              <span className={styles.ercStatLabel}>Registered Agents</span>
+            </div>
+            <div className={styles.ercStatCard}>
+              <span className={styles.ercStatVal}>1,284</span>
+              <span className={styles.ercStatLabel}>Feedback Txs</span>
+            </div>
+            <div className={styles.ercStatCard}>
+              <span className={styles.ercStatVal}>92</span>
+              <span className={styles.ercStatLabel}>Avg Reputation</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            className={styles.registerCta}
+            onClick={onRegisterErc8004}
+            disabled={isRegisteringErc8004 || !isAuthed}
+          >
+            {isRegisteringErc8004 ? "Registering on Celo…" : "Register Your Agent → Celo"}
+          </button>
+        </section>
+
         <div className={styles.contentGrid}>
           <div className={styles.tabPanel}>
             {activeTab === "discover" ? (
@@ -432,7 +470,7 @@ export function ArenaRevampPage({
                   <span>{a.emoji}</span>
                   <span style={{ flex: 1 }}>{a.name}</span>
                   <span className={styles.mono}>{a.xp.toLocaleString()}</span>
-                  {a.erc8004 ? <span className={styles.ercBadge}>8004</span> : null}
+                  {a.erc8004 ? <span className={styles.lbErcBadge}>ERC-8004 ✓</span> : null}
                 </div>
               ))}
               <button type="button" className={styles.lbLink} onClick={() => onTabChange("leaderboard")}>
@@ -453,62 +491,41 @@ export function ArenaRevampPage({
               </button>
             </div>
 
-            <div className={styles.widget}>
-              <div className={styles.feedHead}>
-                <span className={styles.feedDot} aria-hidden />
-                <h3 className={styles.widgetTitle} style={{ margin: 0 }}>
+            <div className={`${styles.widget} ${styles.feedWidget}`}>
+              <div className={styles.feedTerminal}>
+                <div className={styles.feedTerminalHead}>
+                  <span className={styles.feedPulseDot} aria-hidden />
                   Live AI Decisions
-                </h3>
-              </div>
-              <div className={styles.feed}>
-                {decisionFeed.length === 0 ? (
-                  <p className={styles.feedEmpty}>Waiting for next match to start…</p>
-                ) : (
-                  decisionFeed.map((entry, i) => (
-                    <DecisionFeedRow key={entry.id} entry={entry} alt={i % 2 === 1} />
-                  ))
-                )}
+                </div>
+                <div className={styles.feed}>
+                  {decisionFeed.length === 0 ? (
+                    <p className={styles.feedEmpty}>Waiting for next match to start…</p>
+                  ) : (
+                    decisionFeed.map((entry, i) => (
+                      <DecisionFeedRow key={entry.id} entry={entry} isLive={i === 0} />
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </aside>
         </div>
 
-        <section className={styles.ercSection} aria-labelledby="erc-heading">
-          <h2 id="erc-heading" className={styles.ercTitle}>
-            <span>ERC-8004</span> Agent Identity
-          </h2>
-          <p className={styles.ercDesc}>
-            ERC-8004 is the agent trust protocol on Celo — each Tycoon agent can mint an onchain identity NFT,
-            receive reputation feedback after matches, and prove autonomous play to judges and players.
-          </p>
-          <div className={styles.ercStats}>
-            <div className={styles.ercStatCard}>
-              <span className={`${styles.ercStatVal} ${styles.mono}`}>{registeredCount}</span>
-              <span className={styles.ercStatLabel}>Registered Agents</span>
-            </div>
-            <div className={styles.ercStatCard}>
-              <span className={`${styles.ercStatVal} ${styles.mono}`}>1,284</span>
-              <span className={styles.ercStatLabel}>Feedback Txs</span>
-            </div>
-            <div className={styles.ercStatCard}>
-              <span className={`${styles.ercStatVal} ${styles.mono}`}>92</span>
-              <span className={styles.ercStatLabel}>Avg Reputation</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            className={styles.registerCta}
-            onClick={onRegisterErc8004}
-            disabled={isRegisteringErc8004 || !isAuthed}
-          >
-            {isRegisteringErc8004 ? "Registering on Celo…" : "Register Your Agent → Celo"}
-          </button>
-        </section>
       </div>
 
       {showCopied ? <div className={styles.copiedTip}>Copied!</div> : null}
     </div>
   );
+}
+
+function rankBadgeClass(rank: ShowcaseAgent["rank"]): string {
+  const map: Record<ShowcaseAgent["rank"], string> = {
+    Legend: styles.rankLegend,
+    Diamond: styles.rankDiamond,
+    Gold: styles.rankGold,
+    Silver: styles.rankSilver,
+  };
+  return map[rank] ?? styles.rankSilver;
 }
 
 function AgentCard({
@@ -544,10 +561,7 @@ function AgentCard({
       <div className={styles.agentTop}>
         <div className={styles.agentAvatar}>{agent.emoji}</div>
         <div>
-          <span
-            className={styles.rankBadge}
-            style={{ color: "#08090c", background: RANK_COLORS[agent.rank] }}
-          >
+          <span className={`${styles.rankBadge} ${rankBadgeClass(agent.rank)}`}>
             {agent.rank}
           </span>
           <h3 className={styles.agentName}>{agent.name}</h3>
@@ -555,18 +569,18 @@ function AgentCard({
           {agent.erc8004 ? <span className={styles.ercBadge}>ERC-8004 ✓</span> : null}
         </div>
       </div>
-      <div className={`${styles.statsMini} ${styles.mono}`}>
+      <div className={styles.statsMini}>
         <div className={styles.statBox}>
+          <span className={`${styles.statBoxValue} ${styles.mono}`}>{agent.wins}</span>
           <span className={styles.statBoxLabel}>W</span>
-          {agent.wins}
         </div>
         <div className={styles.statBox}>
+          <span className={`${styles.statBoxValue} ${styles.mono}`}>{agent.losses}</span>
           <span className={styles.statBoxLabel}>L</span>
-          {agent.losses}
         </div>
         <div className={styles.statBox}>
-          <span className={styles.statBoxLabel}>8004</span>
-          {agent.erc8004Score ?? "—"}
+          <span className={`${styles.statBoxValue} ${styles.mono}`}>{agent.erc8004Score ?? "—"}</span>
+          <span className={styles.statBoxLabel}>ERC</span>
         </div>
       </div>
       <div className={styles.xpBar}>
@@ -582,7 +596,7 @@ function AgentCard({
         >
           <Copy size={14} />
         </button>
-        {copied ? <span style={{ color: "#00f0ff", fontSize: "0.65rem" }}>Copied!</span> : null}
+        {copied ? <span className={styles.copiedHint}>Copied!</span> : null}
       </div>
       <p className={styles.winRate}>{wr > 0 ? `${wr}% win rate` : "New agent"}</p>
       <button
@@ -597,34 +611,39 @@ function AgentCard({
   );
 }
 
-function DecisionFeedRow({ entry, alt }: { entry: DecisionFeedEntry; alt: boolean }) {
+function DecisionFeedRow({ entry, isLive }: { entry: DecisionFeedEntry; isLive: boolean }) {
+  const badgeBg = DECISION_COLORS[entry.type];
+  const badgeFg = badgeBg === "#6B7280" ? "#fff" : "#08090c";
+
   return (
-    <div className={`${styles.feedEntry} ${alt ? styles.feedEntryAlt : ""}`}>
-      <div className={styles.feedTop}>
-        <span>
-          {entry.emoji} <strong>{entry.agentName}</strong>
-        </span>
-        <span
-          className={styles.decisionBadge}
-          style={{
-            color: DECISION_COLORS[entry.type] === "#6B7280" ? "#fff" : "#021014",
-            background: DECISION_COLORS[entry.type],
-          }}
-        >
-          {entry.type}
-        </span>
-      </div>
-      <p className={styles.feedTarget}>{entry.target}</p>
-      <div className={styles.txRow}>
-        <span className={styles.mono}>{truncateHash(entry.txHash)}</span>
-        <a
-          href={`${CELOSCAN_TX}${entry.txHash}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.txLink}
-        >
-          → Celoscan
-        </a>
+    <div className={`${styles.feedEntry} ${isLive ? styles.feedEntryLive : ""}`}>
+      <div className={styles.feedEntryRow}>
+        <div className={styles.feedEntryMain}>
+          <div className={styles.feedEntryTop}>
+            <span className={styles.feedAvatarSm} aria-hidden>
+              {entry.emoji}
+            </span>
+            <span className={styles.feedAgentName}>{entry.agentName}</span>
+            <span
+              className={`${styles.decisionBadge} ${styles.mono}`}
+              style={{ color: badgeFg, background: badgeBg }}
+            >
+              {entry.type}
+            </span>
+          </div>
+          <p className={styles.feedTarget}>{entry.target}</p>
+          <div className={styles.feedTxLine}>
+            <span className={`${styles.feedTxHash} ${styles.mono}`}>{truncateHash(entry.txHash)}</span>
+            <a
+              href={`${CELOSCAN_TX}${entry.txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.txLink}
+            >
+              → Celoscan
+            </a>
+          </div>
+        </div>
         <span className={styles.feedTime}>{entry.secondsAgo}s ago</span>
       </div>
     </div>

@@ -164,11 +164,11 @@ export const RANK_COLORS: Record<ArenaRank, string> = {
 };
 
 export const DECISION_COLORS: Record<DecisionType, string> = {
-  BUY: "#00F0FF",
+  BUY: "#C8FF00",
   SKIP: "#6B7280",
-  TRADE: "#7EE8FF",
-  BUILD: "#F0D060",
-  AUCTION: "#FF6B6B",
+  TRADE: "#00E5FF",
+  BUILD: "#FFB020",
+  AUCTION: "#FF4040",
 };
 
 export function truncateAddress(addr: string, start = 6, end = 4): string {
