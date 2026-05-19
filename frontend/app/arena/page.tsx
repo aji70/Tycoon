@@ -10,17 +10,17 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
-import ArenaMobile from "@/components/arena/arena-mobile";
 import AgentsPage from "@/components/agents/agents-page";
 import { isAgentStyleTournament, tournamentDetailPath } from "@/lib/tournamentRoutes";
-import { ArenaStage1NoAgent } from "@/components/arena/arena-stage-1-no-agent";
-import { ArenaStage3NoCaps } from "@/components/arena/arena-stage-3-no-caps";
-import { ArenaTabBar } from "@/components/arena/arena-tab-bar";
-import { ArenaDiscoverTab } from "@/components/arena/arena-discover-tab";
 import { ArenaLeaderboardTab } from "@/components/arena/arena-leaderboard-tab";
 import { ArenaMyAgentsTab } from "@/components/arena/arena-my-agents-tab";
 import { ArenaChallengesTab } from "@/components/arena/arena-challenges-tab";
-import { Swords } from "lucide-react";
+import {
+  ArenaRevampPage,
+  type ArenaTab,
+  type MatchType,
+} from "@/components/arena/revamp/ArenaRevampPage";
+import { resolveDiscoverAgents } from "@/components/arena/revamp/map-api-agents";
 
 /** Multi-opponent batch games from Discover tab. */
 const MAX_DISCOVER_OPPONENTS = 7;
@@ -136,14 +136,14 @@ export default function ArenaPage() {
   const authLoading = guestCtx?.isLoading ?? false;
   /** Backend JWT session (guest, wallet login, or after Privy → privy-signin). Not the same as usePrivy().authenticated. */
   const isAuthed = Boolean(guestUser);
-  const [activeTab, setActiveTab] = useState<"discover" | "challenges" | "leaderboard" | "tournaments" | "my-agents">("discover");
+  const [activeTab, setActiveTab] = useState<ArenaTab>("discover");
+  const [matchType, setMatchType] = useState<MatchType>("agentVsAgent");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myAgents, setMyAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [isMobile, setIsMobile] = useState(false);
   const [selectedOpponents, setSelectedOpponents] = useState<number[]>([]);
   const [challengerAgentId, setChallengerAgentId] = useState<number | null>(null);
   const [stakeAmountUsdc, setStakeAmountUsdc] = useState("");
@@ -203,13 +203,6 @@ export default function ArenaPage() {
       console.error("Refresh tournament permissions:", e);
     }
   }, [mergeTournamentPermsFromApiResponse]);
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   useEffect(() => {
     if (isAuthed) {
@@ -500,7 +493,8 @@ export default function ArenaPage() {
     });
   };
 
-  const startArenaGame = async () => {
+  const startArenaGame = async (opponentIds?: number[]) => {
+    const opponents = opponentIds ?? selectedOpponents;
     if (!isAuthed) {
       alert("Please log in (guest or Privy). If you use Privy, finish the username step if a modal is open.");
       return;
@@ -509,7 +503,7 @@ export default function ArenaPage() {
       alert("Choose your agent");
       return;
     }
-    if (selectedOpponents.length === 0) {
+    if (opponents.length === 0) {
       alert("Select at least one opponent (Pick on each card).");
       return;
     }
@@ -522,7 +516,7 @@ export default function ArenaPage() {
         "/arena/start-game",
         {
           challenger_agent_id: challengerAgentId,
-          opponent_agent_ids: selectedOpponents,
+          opponent_agent_ids: opponents,
           arena_tab: activeTab,
           ...(stakeNum > 0 && { stake_amount_usdc: stakeNum }),
         },
@@ -549,12 +543,13 @@ export default function ArenaPage() {
     }
   };
 
-  const startHumanVsAgentGame = async () => {
+  const startHumanVsAgentGame = async (opponentId?: number) => {
+    const oppId = opponentId ?? humanVsOpponentId;
     if (!isAuthed) {
       alert("Please log in first.");
       return;
     }
-    if (!humanVsOpponentId) {
+    if (!oppId) {
       alert("Pick an opponent agent below.");
       return;
     }
@@ -562,11 +557,14 @@ export default function ArenaPage() {
     setArenaTxBusy(null);
     setHumanVsStarting(true);
     try {
-      const stakeNum = humanVsStakeUsdc.trim() ? parseFloat(humanVsStakeUsdc) : 0;
+      const stakeNum =
+        (matchType === "agentVsAi" ? stakeAmountUsdc : humanVsStakeUsdc).trim()
+          ? parseFloat(matchType === "agentVsAi" ? stakeAmountUsdc : humanVsStakeUsdc)
+          : 0;
       const res = await apiClient.post<any>(
         "/arena/start-human-vs-agent",
         {
-          opponent_agent_id: humanVsOpponentId,
+          opponent_agent_id: oppId,
           ...(stakeNum > 0 && { stake_amount_usdc: stakeNum }),
         },
         { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
@@ -593,222 +591,160 @@ export default function ArenaPage() {
     }
   };
 
-  if (isMobile) {
-    return <ArenaMobile />;
-  }
+  const discoverList = agents.filter((agent) => !myAgents.some((m) => m.id === agent.id));
+  const discoverAgents = resolveDiscoverAgents(
+    discoverList,
+    myAgents.map((m) => m.id)
+  );
 
-  // STAGE DETECTION
-  const hasAgents = myAgents.length > 0;
-  const hasSpendingCaps = approvedAgentIds.length > 0;
+  const guestLabel =
+    guestUser?.username?.trim() ||
+    (guestUser as { display_name?: string })?.display_name?.trim() ||
+    "Guest:OG";
 
-  // STAGE 1: No agents
-  if (!hasAgents && isAuthed) {
-    return <ArenaStage1NoAgent />;
-  }
+  const handleRevampLaunch = () => {
+    const liveOpponentIds = selectedOpponents.filter((id) => id < 9000);
+    if (liveOpponentIds.length === 0) {
+      alert(
+        "Curated demo agents are for display. Log in, create an agent in My Agents, then select live opponents from the API roster."
+      );
+      return;
+    }
+    if (matchType === "agentVsAi") {
+      void startHumanVsAgentGame(liveOpponentIds[0]);
+    } else {
+      void startArenaGame(liveOpponentIds);
+    }
+  };
 
-  // STAGE 3: Agent exists but no spending caps
-  if (hasAgents && !hasSpendingCaps && activeTab !== "discover" && activeTab !== "leaderboard") {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 p-8">
-        <ArenaStage3NoCaps
+  const handleRegisterErc8004 = () => {
+    const agent = myAgents[0];
+    if (!agent) {
+      alert("Create an agent in My Agents first, then register on Celo.");
+      setActiveTab("my-agents");
+      return;
+    }
+    void handleRegisterOnCelo(agent);
+  };
+
+  const tabPanels: Partial<Record<ArenaTab, React.ReactNode>> = {
+    challenges: (
+      <ArenaChallengesTab
+        agents={discoverList}
+        myAgents={myAgents}
+        tournamentPerms={tournamentPerms}
+        subMode={challengesSubTab}
+        onSubModeChange={setChallengesSubTab}
+        challengerAgentId={challengerAgentId}
+        onChangeChallengerAgent={setChallengerAgentId}
+        selectedOpponent={humanVsOpponentId}
+        onSelectOpponent={(id) => setHumanVsOpponentId((curr) => (curr === id ? null : id))}
+        stakeAmount={challengesSubTab === "agentVsAgent" ? stakeAmountUsdc : humanVsStakeUsdc}
+        onStakeChange={challengesSubTab === "agentVsAgent" ? setStakeAmountUsdc : setHumanVsStakeUsdc}
+        onDeploy={challengesSubTab === "agentVsAgent" ? () => startArenaGame() : () => startHumanVsAgentGame()}
+        isDeploying={challengesSubTab === "agentVsAgent" ? arenaStarting : humanVsStarting}
+      />
+    ),
+    leaderboard: (
+      <ArenaLeaderboardTab
+        leaderboard={leaderboard}
+        loading={loading}
+        myAgentId={challengerAgentId ?? undefined}
+      />
+    ),
+    tournaments: (
+      <section className={styles.tournamentPanel} aria-label="Agent tournaments">
+        <h2>Tournaments</h2>
+        {ARENA_TOURNAMENTS_COMING_SOON ? (
+          <p className={styles.tournamentExplainer}>Agent bracket tournaments — coming soon on Celo.</p>
+        ) : (
+          <>
+            <p className={styles.tournamentExplainer}>
+              Agent tournaments on Celo — USDC entry and escrow-backed prizes.
+            </p>
+            <div className={styles.tournamentActions}>
+              <Link href="/agent-tournaments" className={styles.tournamentLinkBtn}>
+                All agent tournaments
+              </Link>
+              <Link href="/agent-tournaments/create?from=arena" className={styles.tournamentLinkBtn}>
+                Create agent tournament
+              </Link>
+            </div>
+            {tournamentsLoading ? (
+              <p className={styles.tournamentEmpty}>Loading…</p>
+            ) : tournamentsError ? (
+              <p className={styles.error}>{tournamentsError}</p>
+            ) : (
+              <ul className={styles.tournamentList}>
+                {openTournaments.map((t) => (
+                  <li key={t.id} className={styles.tournamentRow}>
+                    <div className={styles.tournamentRowMain}>
+                      <p className={styles.tournamentRowTitle}>{t.name}</p>
+                      <p className={styles.tournamentRowMeta}>
+                        {t.chain} · {formatTournamentEntryFee(t.entry_fee_wei)}
+                      </p>
+                    </div>
+                    <Link href={tournamentHref(t)} className={styles.tournamentRowCta}>
+                      Open →
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </section>
+    ),
+    "my-agents":
+      myAgentsSubTab === "manage" ? (
+        <AgentsPage
+          embeddedInArena
+          onSpendingCapsSaved={refreshArenaTournamentPerms}
+          openTournamentSpendingForAgentId={openTournamentSpendingJumpAgentId}
+          onTournamentSpendingModalOpened={clearTournamentSpendingJump}
+        />
+      ) : (
+        <ArenaMyAgentsTab
           myAgents={myAgents}
-          onTabChange={setActiveTab}
+          tournamentPerms={tournamentPerms}
+          subTab={myAgentsSubTab}
+          onSubTabChange={setMyAgentsSubTab}
+          onTogglePublic={toggleAgentPublic}
           onOpenManageCaps={(agentId) => {
-            setActiveTab("my-agents");
             setMyAgentsSubTab("manage");
             setOpenTournamentSpendingJumpAgentId(agentId);
           }}
+          onRegisterOnCelo={handleRegisterOnCelo}
+          isRegisteringId={registeringErc8004Id}
         />
-      </div>
-    );
-  }
-
-  const discoverList = agents.filter((agent) => !myAgents.some((m) => m.id === agent.id));
-  const hasNextDiscoverPage = agents.length >= 20;
+      ),
+  };
 
   return (
-    <div className={styles.pageShell}>
-      <div className={styles.container}>
-        <header className={styles.hero}>
-          <div className={styles.heroInner}>
-            <span className={styles.heroBadge}>
-              <Swords className="w-3.5 h-3.5" aria-hidden />
-              PvP agents
-            </span>
-            <h1 className={styles.heroTitle}>Agent Arena</h1>
-            <p className={styles.heroSubtitle}>
-              Challenge public agents, climb ranks, and join tournaments — create your agents in the My agents tab.
-            </p>
-            {isAuthed ? (
-              <button
-                type="button"
-                className={styles.heroLink}
-                onClick={() => {
-                  setActiveTab("my-agents");
-                  setMyAgentsSubTab("overview");
-                }}
-              >
-                My agents — quick view &amp; manager
-              </button>
-            ) : null}
-          </div>
-        </header>
-
-        <ArenaTabBar
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          hasSpendingCaps={hasSpendingCaps}
-        />
-
-        {activeTab === "discover" && (
-          <ArenaDiscoverTab
-            agents={agents}
-            myAgents={myAgents}
-            selectedOpponents={selectedOpponents}
-            onToggleSelect={toggleOpponentSelect}
-            onStartMatch={startArenaGame}
-            challengerAgentId={challengerAgentId}
-            onChangeChallengerAgent={setChallengerAgentId}
-            stakeAmount={stakeAmountUsdc}
-            onStakeChange={setStakeAmountUsdc}
-            isStarting={arenaStarting}
-            page={page}
-            onPreviousPage={() => setPage((p) => Math.max(1, p - 1))}
-            onNextPage={() => setPage((p) => p + 1)}
-            hasNextPage={agents.length >= 20}
-          />
-        )}
-
-        {activeTab === "challenges" && (
-          <ArenaChallengesTab
-            agents={discoverList}
-            myAgents={myAgents}
-            tournamentPerms={tournamentPerms}
-            subMode={challengesSubTab}
-            onSubModeChange={setChallengesSubTab}
-            challengerAgentId={challengerAgentId}
-            onChangeChallengerAgent={setChallengerAgentId}
-            selectedOpponent={humanVsOpponentId}
-            onSelectOpponent={(id) => setHumanVsOpponentId((curr) => (curr === id ? null : id))}
-            stakeAmount={challengesSubTab === "agentVsAgent" ? stakeAmountUsdc : humanVsStakeUsdc}
-            onStakeChange={challengesSubTab === "agentVsAgent" ? setStakeAmountUsdc : setHumanVsStakeUsdc}
-            onDeploy={challengesSubTab === "agentVsAgent" ? startArenaGame : startHumanVsAgentGame}
-            isDeploying={challengesSubTab === "agentVsAgent" ? arenaStarting : humanVsStarting}
-          />
-        )}
-
-        {activeTab === "leaderboard" && (
-          <ArenaLeaderboardTab
-            leaderboard={leaderboard}
-            loading={loading}
-            myAgentId={challengerAgentId ?? undefined}
-          />
-        )}
-
-        {activeTab === "tournaments" && (
-          <section className={styles.tournamentPanel} aria-label="Agent tournaments">
-            <h2>Tournaments</h2>
-            {ARENA_TOURNAMENTS_COMING_SOON ? (
-              <>
-                <p className={styles.tournamentComingSoonBadge} role="status">
-                  Coming soon
-                </p>
-                <p className={styles.tournamentExplainer}>
-                  Bracket tournaments, registration, and prize pools are not available in the Arena yet. We&apos;ll enable
-                  browsing, creating events, and joining from here in a future release.
-                </p>
-                <div className={styles.tournamentActions}>
-                  <button type="button" disabled className={`${styles.tournamentLinkBtn} ${styles.tournamentBtnDisabled}`}>
-                    <span>All tournaments</span>
-                    <span className={styles.tournamentBtnSoon}>Coming soon</span>
-                  </button>
-                  <button type="button" disabled className={`${styles.tournamentLinkBtn} ${styles.tournamentBtnDisabled}`}>
-                    <span>Create tournament</span>
-                    <span className={styles.tournamentBtnSoon}>Coming soon</span>
-                  </button>
-                </div>
-                <p className={styles.tournamentEmpty}>Open registration and full tournament flows will appear here when we launch.</p>
-              </>
-            ) : (
-              <>
-                <p className={styles.tournamentExplainer}>
-                  Agent tournaments only: your bot represents you (same smart-wallet flow as Challenges). Invited-bots events
-                  only allow the Discover agents the organizer picked; open agent-only events accept any registered agent. Open
-                  an event to pick your agent and join.
-                </p>
-                <div className={styles.tournamentActions}>
-                  <Link href="/agent-tournaments" className={styles.tournamentLinkBtn}>
-                    All agent tournaments
-                  </Link>
-                  <Link href="/agent-tournaments/create?from=arena" className={styles.tournamentLinkBtn}>
-                    Create agent tournament
-                  </Link>
-                </div>
-                {tournamentsLoading ? (
-                  <p className={styles.tournamentEmpty}>Loading open tournaments…</p>
-                ) : tournamentsError ? (
-                  <p className={styles.error} style={{ marginTop: 0 }}>
-                    {tournamentsError}
-                  </p>
-                ) : openTournaments.length === 0 ? (
-                  <p className={styles.tournamentEmpty}>No tournaments in registration right now. Create one or check back later.</p>
-                ) : (
-                  <ul className={styles.tournamentList}>
-                    {openTournaments.map((t) => (
-                      <li key={t.id} className={styles.tournamentRow}>
-                        <div className={styles.tournamentRowMain}>
-                          <p className={styles.tournamentRowTitle}>{t.name}</p>
-                          <p className={styles.tournamentRowMeta}>
-                            {t.chain} · {formatTournamentEntryFee(t.entry_fee_wei)}
-                            {t.prize_source ? ` · ${String(t.prize_source).replace(/_/g, " ").toLowerCase()}` : ""}
-                            {String(t.visibility || "").toUpperCase() === "BOT_SELECTION"
-                              ? " · invited bots"
-                              : t.is_agent_only
-                                ? " · open · agents only"
-                                : ""}
-                            {typeof t.participant_count === "number" && typeof t.max_players === "number"
-                              ? ` · ${t.participant_count}/${t.max_players} players`
-                              : ""}
-                          </p>
-                        </div>
-                        <Link href={tournamentHref(t)} className={styles.tournamentRowCta}>
-                          Open →
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            )}
-          </section>
-        )}
-
-        {activeTab === "my-agents" && (
-          myAgentsSubTab === "manage" ? (
-            <AgentsPage
-              embeddedInArena
-              onSpendingCapsSaved={refreshArenaTournamentPerms}
-              openTournamentSpendingForAgentId={openTournamentSpendingJumpAgentId}
-              onTournamentSpendingModalOpened={clearTournamentSpendingJump}
-            />
-          ) : (
-            <ArenaMyAgentsTab
-              myAgents={myAgents}
-              tournamentPerms={tournamentPerms}
-              subTab={myAgentsSubTab}
-              onSubTabChange={setMyAgentsSubTab}
-              onTogglePublic={toggleAgentPublic}
-              onOpenManageCaps={(agentId) => {
-                setMyAgentsSubTab("manage");
-                setOpenTournamentSpendingJumpAgentId(agentId);
-              }}
-              onRegisterOnCelo={handleRegisterOnCelo}
-              isRegisteringId={registeringErc8004Id}
-            />
-          )
-        )}
-      </div>
-
+    <>
+      <ArenaRevampPage
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        isAuthed={isAuthed}
+        guestLabel={guestLabel}
+        myAgents={myAgents}
+        discoverAgents={discoverAgents}
+        selectedOpponentIds={selectedOpponents}
+        onToggleOpponent={toggleOpponentSelect}
+        maxOpponentSlots={maxOpponentPicks}
+        challengerAgentId={challengerAgentId}
+        onChallengerChange={setChallengerAgentId}
+        stakeAmount={stakeAmountUsdc}
+        onStakeChange={setStakeAmountUsdc}
+        matchType={matchType}
+        onMatchTypeChange={setMatchType}
+        onLaunch={handleRevampLaunch}
+        isLaunching={arenaStarting || humanVsStarting}
+        onRegisterErc8004={handleRegisterErc8004}
+        isRegisteringErc8004={registeringErc8004Id != null || isRegisteringErc8004}
+        tabPanels={tabPanels}
+        error={error}
+      />
       <ArenaOnchainModal
         open={arenaTxModalOpen}
         busy={arenaTxBusy}
@@ -818,6 +754,6 @@ export default function ArenaPage() {
           setArenaTxBusy(null);
         }}
       />
-    </div>
+    </>
   );
 }
