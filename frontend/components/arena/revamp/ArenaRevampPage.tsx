@@ -228,7 +228,7 @@ export function ArenaRevampPage({
           LIVE
         </div>
         <h1 className={styles.heroTitle}>
-          Agent Arena <span className={styles.heroLime}>AI-Powered</span>
+          Agent Arena <span className={styles.heroAccent}>AI-Powered</span>
         </h1>
         <p className={styles.heroSub}>Deploy AI agents. Compete onchain. Earn USDC.</p>
         <div className={styles.statPills}>
@@ -582,7 +582,7 @@ function AgentCard({
         >
           <Copy size={14} />
         </button>
-        {copied ? <span style={{ color: "#C8FF00", fontSize: "0.65rem" }}>Copied!</span> : null}
+        {copied ? <span style={{ color: "#00f0ff", fontSize: "0.65rem" }}>Copied!</span> : null}
       </div>
       <p className={styles.winRate}>{wr > 0 ? `${wr}% win rate` : "New agent"}</p>
       <button
@@ -607,7 +607,7 @@ function DecisionFeedRow({ entry, alt }: { entry: DecisionFeedEntry; alt: boolea
         <span
           className={styles.decisionBadge}
           style={{
-            color: DECISION_COLORS[entry.type] === "#6B7280" ? "#fff" : "#08090c",
+            color: DECISION_COLORS[entry.type] === "#6B7280" ? "#fff" : "#021014",
             background: DECISION_COLORS[entry.type],
           }}
         >

@@ -1,14 +1,21 @@
 .shell {
-  --bg: #08090c;
-  --lime: #c8ff00;
-  --cyan: #00e5ff;
-  --amber: #ffb020;
-  --red: #ff4040;
-  --muted: #8b929e;
-  --border: rgba(255, 255, 255, 0.08);
+  /* Tycoon Arena legacy palette (cyan / teal) */
+  --bg-deep: #05080d;
+  --accent: #00f0ff;
+  --accent-soft: #00d8ea;
+  --accent-muted: #7ee8ff;
+  --cyan: #00f0ff;
+  --amber: #f0d060;
+  --red: #ff6b6b;
+  --muted: #8aa8b0;
+  --text: #e8fbff;
+  --border: rgba(0, 240, 255, 0.14);
   min-height: 100vh;
-  background: var(--bg);
-  color: #e8eaed;
+  background:
+    radial-gradient(ellipse 100% 60% at 50% -15%, rgba(0, 200, 220, 0.14), transparent 55%),
+    radial-gradient(ellipse 80% 40% at 100% 50%, rgba(120, 80, 255, 0.06), transparent 50%),
+    linear-gradient(180deg, #05080d 0%, #0a1018 35%, #0c141f 100%);
+  color: var(--text);
   font-family: var(--font-syne), system-ui, sans-serif;
 }
 
@@ -26,7 +33,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 12px 24px;
-  background: rgba(8, 9, 12, 0.92);
+  background: rgba(5, 8, 13, 0.92);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(12px);
 }
@@ -46,7 +53,7 @@
 }
 
 .logo span {
-  color: var(--lime);
+  color: var(--accent-soft);
 }
 
 .navLinks {
@@ -79,8 +86,8 @@
 }
 
 .navLinkActive {
-  color: var(--lime);
-  background: rgba(200, 255, 0, 0.08);
+  color: var(--accent-muted);
+  background: rgba(0, 240, 255, 0.1);
 }
 
 .navRight {
@@ -132,11 +139,12 @@
   border-radius: 10px;
   font-weight: 700;
   font-size: 0.85rem;
-  color: #08090c;
-  background: var(--lime);
+  color: #021014;
+  background: linear-gradient(135deg, #6effe8 0%, #00e8f8 50%, #00c8ff 100%);
   border: none;
   cursor: pointer;
   transition: filter 0.15s, transform 0.15s;
+  box-shadow: 0 4px 22px rgba(0, 240, 255, 0.28);
 }
 
 .connectBtn:hover {
@@ -168,8 +176,8 @@
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(200, 255, 0, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(200, 255, 0, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(0, 240, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 240, 255, 0.04) 1px, transparent 1px);
   background-size: 40px 40px;
   mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent);
   pointer-events: none;
@@ -182,10 +190,17 @@
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1.05;
+  background: linear-gradient(120deg, #f0fdff 0%, #9ef0ff 40%, #00d8ea 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.heroLime {
-  color: var(--lime);
+.heroAccent {
+  background: linear-gradient(120deg, #9ef0ff 0%, #00d8ea 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .liveBadge {
@@ -198,9 +213,9 @@
   font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.12em;
-  color: var(--cyan);
-  background: rgba(0, 229, 255, 0.08);
-  border: 1px solid rgba(0, 229, 255, 0.25);
+  color: #b8f7ff;
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.28);
 }
 
 .heroSub {
@@ -233,7 +248,7 @@
   display: block;
   font-size: 1.35rem;
   font-weight: 800;
-  color: var(--lime);
+  color: var(--accent);
 }
 
 .statPillLabel {
@@ -255,9 +270,9 @@
   margin-bottom: 28px;
   padding: 24px;
   border-radius: 16px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
-  border: 1px solid rgba(200, 255, 0, 0.2);
-  box-shadow: 0 0 40px rgba(200, 255, 0, 0.04);
+  background: linear-gradient(145deg, rgba(8, 18, 22, 0.95) 0%, rgba(14, 26, 32, 0.92) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.4);
 }
 
 .challengeHead {
@@ -285,9 +300,9 @@
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lime);
-  background: rgba(200, 255, 0, 0.1);
-  border: 1px solid rgba(200, 255, 0, 0.35);
+  color: #b8f7ff;
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.35);
 }
 
 .slotsRow {
@@ -315,15 +330,15 @@
 
 .slotFilled {
   border-style: solid;
-  border-color: var(--lime);
-  background: rgba(200, 255, 0, 0.12);
-  color: var(--lime);
-  box-shadow: 0 0 16px rgba(200, 255, 0, 0.2);
+  border-color: var(--accent);
+  background: rgba(0, 240, 255, 0.12);
+  color: var(--accent-muted);
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.2);
 }
 
 .slotActive {
-  border-color: var(--lime);
-  box-shadow: 0 0 0 2px rgba(200, 255, 0, 0.3);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.3);
 }
 
 .formGrid {
@@ -363,7 +378,7 @@
 
 .select:focus,
 .input:focus {
-  border-color: rgba(200, 255, 0, 0.5);
+  border-color: rgba(0, 240, 255, 0.5);
 }
 
 .stakeWrap {
@@ -412,9 +427,10 @@
 }
 
 .matchTypeActive {
-  color: #08090c;
-  background: var(--lime);
-  border-color: var(--lime);
+  color: #021014;
+  background: linear-gradient(135deg, #6effe8 0%, #00e8f8 50%, #00c8ff 100%);
+  border-color: rgba(0, 240, 255, 0.5);
+  box-shadow: 0 2px 14px rgba(0, 240, 255, 0.22);
 }
 
 .escrowBadge {
@@ -436,8 +452,8 @@
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #08090c;
-  background: var(--lime);
+  color: #021014;
+  background: linear-gradient(135deg, #5fffd8 0%, #00e8f8 50%, #00c8ff 100%);
   border: none;
   cursor: pointer;
   transition: filter 0.15s, transform 0.15s;
@@ -445,6 +461,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+  box-shadow: 0 4px 22px rgba(0, 240, 255, 0.28);
 }
 
 .launchBtn:hover:not(:disabled) {
@@ -465,7 +482,7 @@
 }
 
 .celoHint {
-  color: var(--lime);
+  color: var(--accent-muted);
 }
 
 /* Tabs */
@@ -497,9 +514,9 @@
 }
 
 .tabActive {
-  color: var(--lime);
-  border-bottom-color: var(--lime);
-  background: rgba(200, 255, 0, 0.06);
+  color: #031014;
+  border-bottom-color: var(--accent);
+  background: linear-gradient(135deg, rgba(110, 255, 232, 0.35) 0%, rgba(0, 232, 248, 0.25) 100%);
 }
 
 /* Content grid */
@@ -531,14 +548,14 @@
 }
 
 .agentCard:hover {
-  border-color: rgba(200, 255, 0, 0.35);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border-color: rgba(0, 240, 255, 0.45);
+  box-shadow: 0 12px 40px rgba(0, 240, 255, 0.12);
   transform: translateY(-2px);
 }
 
 .agentCardSelected {
-  border-color: var(--lime);
-  box-shadow: 0 0 0 1px rgba(200, 255, 0, 0.25);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(0, 240, 255, 0.25);
 }
 
 .celoscanHover {
@@ -602,9 +619,9 @@
   border-radius: 6px;
   font-size: 0.65rem;
   font-weight: 700;
-  color: var(--cyan);
-  background: rgba(0, 229, 255, 0.1);
-  border: 1px solid rgba(0, 229, 255, 0.3);
+  color: #b8f7ff;
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.3);
 }
 
 .statsMini {
@@ -639,7 +656,7 @@
 
 .xpFill {
   height: 100%;
-  background: var(--lime);
+  background: var(--accent);
   border-radius: 2px;
   transition: width 0.3s;
 }
@@ -662,13 +679,13 @@
 }
 
 .copyBtn:hover {
-  color: var(--lime);
+  color: var(--accent);
 }
 
 .winRate {
   font-size: 0.85rem;
   font-weight: 700;
-  color: var(--lime);
+  color: var(--accent);
   margin-bottom: 12px;
 }
 
@@ -679,16 +696,16 @@
   font-weight: 700;
   font-size: 0.8rem;
   cursor: pointer;
-  border: 1px solid rgba(200, 255, 0, 0.4);
-  color: var(--lime);
-  background: transparent;
+  border: 1px dashed rgba(0, 240, 255, 0.35);
+  color: #b8ecef;
+  background: rgba(0, 240, 255, 0.06);
   transition: all 0.15s;
 }
 
 .selectBtnSelected {
-  color: #08090c;
-  background: var(--lime);
-  border-color: var(--lime);
+  color: #021014;
+  background: linear-gradient(135deg, #5fffd8, #00e0f0);
+  border: 1px solid rgba(0, 240, 255, 0.5);
 }
 
 /* Sidebar */
@@ -714,7 +731,7 @@
 .prizeAmount {
   font-size: 2rem;
   font-weight: 800;
-  color: var(--lime);
+  color: var(--accent);
   margin: 0 0 4px;
 }
 
@@ -747,7 +764,7 @@
 
 .prizeBarFill {
   height: 100%;
-  background: var(--lime);
+  background: var(--accent);
   border-radius: 3px;
 }
 
@@ -780,7 +797,7 @@
 .lbRank {
   width: 20px;
   font-weight: 800;
-  color: var(--lime);
+  color: var(--accent);
 }
 
 .lbLink {
@@ -810,10 +827,10 @@
   border-radius: 8px;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--cyan);
-  background: rgba(0, 229, 255, 0.08);
-  border: 1px solid rgba(0, 229, 255, 0.35);
-  box-shadow: 0 0 20px rgba(0, 229, 255, 0.15);
+  color: #b8f7ff;
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
   margin: 12px 0;
 }
 
@@ -823,9 +840,9 @@
   border-radius: 10px;
   font-weight: 600;
   font-size: 0.8rem;
-  color: var(--cyan);
-  background: rgba(0, 229, 255, 0.08);
-  border: 1px solid rgba(0, 229, 255, 0.3);
+  color: #e8fbff;
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.35);
   cursor: pointer;
 }
 
@@ -871,7 +888,7 @@
 }
 
 .feedEntryAlt {
-  background: rgba(0, 229, 255, 0.04);
+  background: rgba(0, 240, 255, 0.05);
 }
 
 .feedTop {
@@ -931,8 +948,8 @@
   margin-top: 40px;
   padding: 32px 24px;
   border-radius: 16px;
-  background: linear-gradient(135deg, rgba(0, 229, 255, 0.06) 0%, rgba(8, 9, 12, 0.9) 60%);
-  border: 1px solid rgba(0, 229, 255, 0.2);
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.08) 0%, rgba(8, 16, 24, 0.95) 60%);
+  border: 1px solid rgba(0, 240, 255, 0.2);
 }
 
 .ercTitle {
@@ -990,11 +1007,12 @@
   border-radius: 12px;
   font-weight: 700;
   font-size: 0.9rem;
-  color: #08090c;
-  background: var(--cyan);
-  border: none;
+  color: #021014;
+  background: linear-gradient(135deg, #6effe8 0%, #00e8f8 100%);
+  border: 1px solid rgba(0, 240, 255, 0.4);
   cursor: pointer;
   transition: filter 0.15s;
+  box-shadow: 0 4px 22px rgba(0, 240, 255, 0.2);
 }
 
 .registerCta:hover {
@@ -1022,8 +1040,8 @@
   transform: translateX(-50%);
   padding: 10px 18px;
   border-radius: 10px;
-  background: var(--lime);
-  color: #08090c;
+  background: linear-gradient(135deg, #5fffd8, #00e0f0);
+  color: #021014;
   font-weight: 700;
   font-size: 0.85rem;
   z-index: 100;
