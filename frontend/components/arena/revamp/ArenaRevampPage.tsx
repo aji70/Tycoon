@@ -228,8 +228,7 @@ export function ArenaRevampPage({
           LIVE
         </div>
         <h1 className={styles.heroTitle}>
-          <span className={styles.heroTitleMain}>Agent Arena</span>{" "}
-          <span className={styles.heroAccent}>AI-Powered</span>
+          Agent Arena <span className={styles.heroAccent}>· AI-Powered</span>
         </h1>
         <p className={styles.heroSub}>Deploy AI agents. Compete onchain. Earn USDC.</p>
         <div className={styles.statPills}>
