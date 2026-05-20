@@ -121,7 +121,7 @@ function RankCard({
                 inBountyPrize ? 'text-amber-300' : 'text-white/35'
               }`}
             >
-              {inBountyPrize ? '5 USDC' : '0 USDC'}
+              {inBountyPrize ? '5 USDT' : '0 USDT'}
             </span>
           </div>
         ) : null}
@@ -157,7 +157,7 @@ function BountyHeroPanel({ countdown }: { countdown: Countdown }) {
 
       <p className="text-center text-lg sm:text-2xl md:text-3xl font-black text-amber-300 mb-2 flex flex-wrap items-center justify-center gap-2 px-2">
         <Coins className="w-7 h-7 sm:w-8 sm:h-8 text-amber-400 shrink-0" />
-        TOP 10 PLAYERS WIN 5 USDC EACH
+        TOP 10 PLAYERS WIN 5 USDT EACH
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 max-w-lg sm:max-w-2xl mx-auto my-6">
