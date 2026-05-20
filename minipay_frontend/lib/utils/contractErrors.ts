@@ -21,27 +21,91 @@ const BENIGN_TURN_SUBSTRINGS = [
   "failed to process property action",
 ];
 
-function collectErrorText(error: unknown): string {
-  const e = error as {
-    message?: string;
-    shortMessage?: string;
-    data?: { message?: string; error?: string };
-    response?: { data?: { message?: string; error?: string } };
-  };
+const USER_REJECTED_SUBSTRINGS = [
+  "userrejectedrequesterror",
+  "connectoruserrejectederror",
+  "user rejected",
+  "user denied",
+  "user cancelled",
+  "user canceled",
+  "transaction cancelled",
+  "transaction canceled",
+  "rejected the request",
+  "request rejected",
+  "signature rejected",
+  "denied transaction",
+  "denied signature",
+  "action_rejected",
+  "action rejected",
+  "declined",
+  "disapproved",
+  "refused",
+  "aborted",
+  "cancelled by user",
+  "canceled by user",
+];
+
+function walkErrorChain(error: unknown, maxDepth = 10): string[] {
   const parts: string[] = [];
-  if (e?.message) parts.push(e.message);
-  if (e?.shortMessage) parts.push(e.shortMessage);
-  const d = e?.response?.data;
-  if (d && typeof d === "object") {
-    if (typeof d.message === "string") parts.push(d.message);
-    if (typeof d.error === "string") parts.push(d.error);
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  let depth = 0;
+
+  while (current && depth < maxDepth) {
+    if (typeof current !== "object" || current === null) break;
+    if (seen.has(current)) break;
+    seen.add(current);
+
+    const e = current as {
+      name?: string;
+      message?: string;
+      shortMessage?: string;
+      code?: number | string;
+      metaMessages?: unknown;
+      details?: string;
+      data?: { message?: string; error?: string };
+      response?: { data?: { message?: string; error?: string } };
+      cause?: unknown;
+    };
+
+    if (e.name) parts.push(e.name);
+    if (e.message) parts.push(e.message);
+    if (e.shortMessage) parts.push(e.shortMessage);
+    if (e.details) parts.push(e.details);
+    if (e.code !== undefined && e.code !== null) parts.push(String(e.code));
+    if (Array.isArray(e.metaMessages)) {
+      for (const m of e.metaMessages) {
+        if (typeof m === "string") parts.push(m);
+      }
+    }
+    const d = e.response?.data;
+    if (d && typeof d === "object") {
+      if (typeof d.message === "string") parts.push(d.message);
+      if (typeof d.error === "string") parts.push(d.error);
+    }
+    const top = e.data;
+    if (top && typeof top === "object") {
+      if (typeof top.message === "string") parts.push(top.message);
+      if (typeof top.error === "string") parts.push(top.error);
+    }
+
+    current = e.cause;
+    depth++;
   }
-  const top = e?.data;
-  if (top && typeof top === "object") {
-    if (typeof top.message === "string") parts.push(top.message);
-    if (typeof top.error === "string") parts.push(top.error);
+
+  return parts;
+}
+
+function collectErrorText(error: unknown): string {
+  return walkErrorChain(error).join(" ").toLowerCase();
+}
+
+function hasRejectedCode(error: unknown): boolean {
+  for (const part of walkErrorChain(error)) {
+    const code = String(part).trim();
+    if (code === "4001" || code === "ACTION_REJECTED") return true;
   }
-  return parts.join(" ").toLowerCase();
+  return false;
 }
 
 export function isBenignTurnOrderError(error: unknown): boolean {
@@ -49,26 +113,11 @@ export function isBenignTurnOrderError(error: unknown): boolean {
   return BENIGN_TURN_SUBSTRINGS.some((s) => hay.includes(s));
 }
 
-/** Wallet popup dismissed or user rejected signing (wagmi/viem). */
+/** Wallet popup dismissed or user rejected signing (wagmi/viem / WalletConnect / MetaMask). */
 export function isUserRejectedTransaction(error: unknown): boolean {
-  const e = error as {
-    code?: number;
-    name?: string;
-    message?: string;
-    shortMessage?: string;
-    cause?: { name?: string; code?: number };
-  };
-  if (e?.code === 4001 || e?.cause?.code === 4001) return true;
-  if (e?.name === "UserRejectedRequestError" || e?.cause?.name === "UserRejectedRequestError") {
-    return true;
-  }
+  if (hasRejectedCode(error)) return true;
   const hay = collectErrorText(error);
-  return (
-    hay.includes("user rejected") ||
-    hay.includes("user denied") ||
-    hay.includes("transaction cancelled") ||
-    hay.includes("rejected the request")
-  );
+  return USER_REJECTED_SUBSTRINGS.some((s) => hay.includes(s));
 }
 
 export function getContractErrorMessage(

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useAccount, useBalance, useReadContract, useReadContracts } from 'wagmi';
 import { formatUnits, parseUnits, isAddress, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -63,6 +63,7 @@ import {
 import { shopRegistryOwnerAddress, shopSmartWalletAddress } from '@/lib/shopWalletIdentity';
 import { getContractErrorMessage } from '@/lib/utils/contractErrors';
 import { toastContractError, toastTransactionOutcome } from '@/lib/utils/contractErrorToast';
+import { isUserRejectedTransaction } from '@/lib/utils/contractErrors';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -375,7 +376,11 @@ export default function GameShopMobile() {
   const { buyFrom, isPending: buyFromPending, isConfirming: buyFromConfirming, isSuccess: buyFromSuccess, error: buyFromError, reset: resetBuyFrom } = useRewardBuyCollectibleFrom();
   const { buyBundleFrom, error: buyBundleFromError, reset: resetBuyBundleFrom } = useRewardBuyBundleFrom();
   const { approve, isPending: approvePending, isSuccess: approveSuccess, error: approveError, reset: resetApprove } = useApprove();
-  const { approveERC20: smartWalletApprove, isPending: smartWalletApprovePending } = useUserWalletApproveERC20(smartWalletAddress ?? undefined);
+  const {
+    approveERC20: smartWalletApprove,
+    isPending: smartWalletApprovePending,
+    reset: resetSmartWalletApprove,
+  } = useUserWalletApproveERC20(smartWalletAddress ?? undefined);
   const { redeem, isPending: redeemingPending, isConfirming: redeemingConfirming, isSuccess: redeemSuccess, error: redeemError, reset: resetRedeem } = useRewardRedeemVoucher();
   const {
     redeemFor,
@@ -385,6 +390,35 @@ export default function GameShopMobile() {
     error: redeemForError,
     reset: resetRedeemFor,
   } = useRewardRedeemVoucherFor();
+
+  const shopTxToastKeyRef = useRef<string | null>(null);
+
+  const resetShopWrites = useCallback(() => {
+    resetBuy();
+    resetBuyFrom();
+    resetApprove();
+    resetBuyBundleFrom();
+    resetSmartWalletApprove();
+  }, [resetBuy, resetBuyFrom, resetApprove, resetBuyBundleFrom, resetSmartWalletApprove]);
+
+  const notifyShopTxOutcome = useCallback((error: unknown, fallback: string) => {
+    if (isUserRejectedTransaction(error)) return;
+    const key =
+      typeof error === 'object' && error !== null
+        ? `${(error as { name?: string }).name ?? ''}:${(error as { message?: string }).message ?? ''}:${(error as { shortMessage?: string }).shortMessage ?? ''}`
+        : String(error);
+    if (shopTxToastKeyRef.current === key) return;
+    shopTxToastKeyRef.current = key;
+    toastTransactionOutcome(error, fallback);
+    window.setTimeout(() => {
+      if (shopTxToastKeyRef.current === key) shopTxToastKeyRef.current = null;
+    }, 4000);
+  }, []);
+
+  useEffect(() => {
+    resetShopWrites();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clear stale wagmi errors once on shop mount
+  }, []);
 
   const payFromSmartWalletUnsupported = payWith === 'smart_wallet' && !smartWalletAddress;
 
@@ -669,14 +703,8 @@ export default function GameShopMobile() {
         await buy(item.tokenId, paymentToken);
       }
     } catch (err: unknown) {
-      const usedSmartWalletApi =
-        payWith === 'smart_wallet' &&
-        !!smartWalletAddress &&
-        !!readAppSessionToken() &&
-        preferredStable.symbol === 'USDC';
-      if (usedSmartWalletApi) {
-        toastTransactionOutcome(err, 'Purchase failed');
-      }
+      notifyShopTxOutcome(err, 'Purchase failed');
+      resetShopWrites();
     }
   };
 
@@ -798,10 +826,8 @@ export default function GameShopMobile() {
       }
       toast.success('Bundle purchase complete!');
     } catch (err: unknown) {
-      const usedSmartWalletApi = payWith === 'smart_wallet' && !!readAppSessionToken();
-      if (usedSmartWalletApi) {
-        toastTransactionOutcome(err, 'Bundle purchase failed');
-      }
+      notifyShopTxOutcome(err, 'Bundle purchase failed');
+      resetShopWrites();
     } finally {
       setBundleBuyingName(null);
     }
@@ -865,7 +891,9 @@ export default function GameShopMobile() {
         await redeemFor(voucherOwner, tokenId);
       }
     } catch (err: unknown) {
-      toastTransactionOutcome(err, 'Redemption failed');
+      notifyShopTxOutcome(err, 'Redemption failed');
+      resetRedeem();
+      resetRedeemFor();
     }
   };
 
@@ -904,46 +932,11 @@ export default function GameShopMobile() {
   }, [redeemForSuccess, resetRedeemFor]);
 
   useEffect(() => {
-    if (buyError) {
-      toastTransactionOutcome(buyError, 'Purchase failed');
-      resetBuy();
-    }
-  }, [buyError, resetBuy]);
-
-  useEffect(() => {
-    if (buyFromError) {
-      toastTransactionOutcome(buyFromError, 'Purchase failed');
-      resetBuyFrom();
-    }
-  }, [buyFromError, resetBuyFrom]);
-
-  useEffect(() => {
-    if (buyBundleFromError) {
-      toastTransactionOutcome(buyBundleFromError, 'Bundle purchase failed');
-      resetBuyBundleFrom();
-    }
-  }, [buyBundleFromError, resetBuyBundleFrom]);
-
-  useEffect(() => {
-    if (approveError) {
-      toastTransactionOutcome(approveError, 'Approval failed');
-      resetApprove();
-    }
-  }, [approveError, resetApprove]);
-
-  useEffect(() => {
-    if (redeemError) {
-      toastTransactionOutcome(redeemError, 'Redemption failed');
-      resetRedeem();
-    }
-  }, [redeemError, resetRedeem]);
-
-  useEffect(() => {
-    if (redeemForError) {
-      toastTransactionOutcome(redeemForError, 'Redemption failed');
-      resetRedeemFor();
-    }
-  }, [redeemForError, resetRedeemFor]);
+    const txError = buyError ?? buyFromError ?? approveError ?? buyBundleFromError;
+    if (!txError) return;
+    notifyShopTxOutcome(txError, 'Purchase failed');
+    resetShopWrites();
+  }, [buyError, buyFromError, approveError, buyBundleFromError, notifyShopTxOutcome, resetShopWrites]);
 
   const handleBack = () => {
     const returnTo = searchParams.get('returnTo');

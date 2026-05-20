@@ -11,7 +11,12 @@ export function toastContractError(error: unknown, fallback: string, options?: T
 /** Info for wallet cancel, error for real failures; skips benign races. */
 export function toastTransactionOutcome(error: unknown, fallback: string, options?: ToastOptions): void {
   if (isUserRejectedTransaction(error)) {
-    toast.info("Transaction cancelled", options);
+    toast.info("Transaction cancelled", { autoClose: 2500, ...options });
+    return;
+  }
+  const msg = getContractErrorMessage(error, fallback).trim();
+  if (msg === "You cancelled the transaction.") {
+    toast.info("Transaction cancelled", { autoClose: 2500, ...options });
     return;
   }
   toastContractError(error, fallback, options);
