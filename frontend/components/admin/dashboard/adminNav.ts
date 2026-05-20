@@ -5,6 +5,7 @@ export const ADMIN_NAV_ITEMS: { href: string; label: string; exact?: boolean }[]
   { href: "/admin/properties", label: "Properties" },
   { href: "/admin/board-variants", label: "Board themes" },
   { href: "/admin/token-rewards", label: "Token Rewards" },
+  { href: "/admin/shop-treasury", label: "Shop Treasury" },
   { href: "/admin/referrals", label: "Referrals" },
   { href: "/admin/quests", label: "Quests" },
   { href: "/admin/leaderboard", label: "Leaderboard" },
