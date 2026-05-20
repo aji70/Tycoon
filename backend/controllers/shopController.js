@@ -36,6 +36,25 @@ function clientSafeErrorMessage(err, fallback) {
   return m.length > 600 ? `${m.slice(0, 600)}…` : m;
 }
 
+const ZERO_FLW_ADDR = "0x0000000000000000000000000000000000000000";
+
+function isValidFlutterwaveFulfillmentAddress(a) {
+  const s = String(a || "").trim();
+  return /^0x[a-fA-F0-9]{40}$/.test(s) && s.toLowerCase() !== ZERO_FLW_ADDR.toLowerCase();
+}
+
+/** Prefer smart wallet; else linked_wallet_address; else primary users.address (wallet-only / MiniPay). */
+function resolveFlutterwaveFulfillmentAddress(user) {
+  if (!user) return null;
+  const sw = String(user.smart_wallet_address || "").trim();
+  if (isValidFlutterwaveFulfillmentAddress(sw)) return sw;
+  const linked = String(user.linked_wallet_address || "").trim();
+  if (isValidFlutterwaveFulfillmentAddress(linked)) return linked;
+  const addr = String(user.address || "").trim();
+  if (isValidFlutterwaveFulfillmentAddress(addr)) return addr;
+  return null;
+}
+
 /**
  * GET /api/shop/bundles
  * List available shop bundles/packs
@@ -179,9 +198,12 @@ export async function flutterwaveInitialize(_req, res) {
 
     const user = await db("users").where({ id: userId }).first();
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
-    const smartWallet = String(user.smart_wallet_address || "").trim();
-    if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
-      return res.status(400).json({ success: false, message: "No smart wallet. Create one in Profile first." });
+    const fulfillmentAddr = resolveFlutterwaveFulfillmentAddress(user);
+    if (!fulfillmentAddr) {
+      return res.status(400).json({
+        success: false,
+        message: "No delivery wallet on file. Connect your wallet or complete Profile setup.",
+      });
     }
     const redirectUrl = resolveShopFlutterwaveRedirect(_req.body?.callback_url);
 
@@ -196,7 +218,7 @@ export async function flutterwaveInitialize(_req, res) {
       customerName: "Tycoon Shop",
       customizations: {
         title: "Tycoon — Perk Bundle",
-        description: "Pay in Naira; your bundle will be credited to your smart wallet after payment.",
+        description: "Pay in Naira; your bundle will be credited to your wallet after payment.",
       },
     });
     const ref = tx_ref || txRef;
@@ -240,9 +262,12 @@ export async function flutterwaveInitializePerk(_req, res) {
 
     const user = await db("users").where({ id: userId }).first();
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
-    const smartWallet = String(user.smart_wallet_address || "").trim();
-    if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
-      return res.status(400).json({ success: false, message: "No smart wallet. Create one in Profile first." });
+    const fulfillmentAddr = resolveFlutterwaveFulfillmentAddress(user);
+    if (!fulfillmentAddr) {
+      return res.status(400).json({
+        success: false,
+        message: "No delivery wallet on file. Connect your wallet or complete Profile setup.",
+      });
     }
     const redirectUrl = resolveShopFlutterwaveRedirect(_req.body?.callback_url);
 
@@ -257,7 +282,7 @@ export async function flutterwaveInitializePerk(_req, res) {
       customerName: "Tycoon Shop",
       customizations: {
         title: "Tycoon — Perk Shop",
-        description: "Pay in Naira; your perk will be credited to your smart wallet after payment.",
+        description: "Pay in Naira; your perk will be credited to your wallet after payment.",
       },
     });
     const ref = tx_ref || txRef;
@@ -407,17 +432,17 @@ async function fulfillFlutterwavePayment(txRef, source, trigger) {
   const row = await db(table).where({ tx_ref: txRef }).first();
 
   const user = await db("users").where({ id: row.user_id }).first();
-  const smartWallet = String(user?.smart_wallet_address || "").trim();
-  if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
+  const fulfillmentAddr = resolveFlutterwaveFulfillmentAddress(user);
+  if (!fulfillmentAddr) {
     await db(table).where({ tx_ref: txRef }).update({ status: "failed", updated_at: db.fn.now() });
-    throw new Error("User has no smart wallet for fulfillment");
+    throw new Error("User has no delivery address for fulfillment");
   }
 
   try {
     if (source === "perk") {
-      await deliverCollectibleToUser(smartWallet, row.token_id, "CELO");
+      await deliverCollectibleToUser(fulfillmentAddr, row.token_id, "CELO");
     } else {
-      await deliverBundleToUser(smartWallet, row.bundle_id, "CELO");
+      await deliverBundleToUser(fulfillmentAddr, row.bundle_id, "CELO");
     }
   } catch (err) {
     // Revert to pending so a retry can attempt delivery again.
@@ -428,6 +453,6 @@ async function fulfillFlutterwavePayment(txRef, source, trigger) {
   await db(table)
     .where({ tx_ref: txRef })
     .update({ status: "completed", fulfilled_at: db.fn.now(), updated_at: db.fn.now() });
-  logger.info({ txRef, source, userId: row.user_id, smartWallet, trigger }, "Flutterwave payment fulfilled to smart wallet");
+  logger.info({ txRef, source, userId: row.user_id, fulfillmentAddr, trigger }, "Flutterwave payment fulfilled");
   return true;
 }

@@ -50,6 +50,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import Erc20Abi from "@/context/abi/ERC20abi.json";
 import { apiClient } from "@/lib/api";
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "@/lib/constants/ngnPayments";
+import { getNairaEligibility, nairaBlockedMessage } from "@/lib/shop/nairaPayment";
 import { ApiResponse } from "@/types/api";
 import {
   buildTokenOfOwnerByIndexSlotCalls,
@@ -543,12 +544,12 @@ export default function CollectibleInventoryBar({
   const handlePayPerkWithNaira = async (item: typeof shopItems[number]) => {
     if (ngnLoadingTokenId != null) return;
 
-    try {
-      if (typeof window !== "undefined" && !window.localStorage?.getItem("token")) {
-        toast.error("Please sign in to pay with Naira.");
-        return;
-      }
-    } catch (_) {}
+    const payerForNaira = String(address ?? wagmiAddress ?? "").trim();
+    const elig = getNairaEligibility(guestAuth?.guestUser ?? null, readAppSessionToken(), payerForNaira);
+    if (!elig.ok) {
+      toast.error(nairaBlockedMessage(elig.reason));
+      return;
+    }
 
     const tokenIdStr = item.tokenId.toString();
     setNgnLoadingTokenId(tokenIdStr);
@@ -570,6 +571,7 @@ export default function CollectibleInventoryBar({
         token_id: tokenIdStr,
         amount_ngn: amountNgn,
         callback_url: callbackUrl,
+        ...(payerForNaira && /^0x[a-fA-F0-9]{40}$/.test(payerForNaira) ? { address: payerForNaira, chain: "CELO" } : {}),
       });
 
       if (res?.data?.link) {
@@ -582,7 +584,7 @@ export default function CollectibleInventoryBar({
       const status = (e as { status?: number; response?: { status?: number } })
         ?.status ?? (e as { response?: { status?: number } })?.response?.status;
       if (status === 401) {
-        toast.error("Please sign in to pay with Naira.");
+        toast.error(nairaBlockedMessage("session_expired"));
       } else {
         toast.error(getContractErrorMessage(e, "Failed to start Naira payment"));
       }
