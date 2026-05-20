@@ -1,11 +1,16 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useAccount, useBalance, useReadContract, useReadContracts } from 'wagmi';
 import { formatUnits, parseUnits, isAddress, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
-import { getContractErrorMessage } from '@/lib/utils/contractErrors';
+import { ApiError } from '@/lib/api';
+import {
+  getNairaEligibility,
+  nairaBlockedMessage,
+} from '@/lib/shop/nairaPayment';
+import { toastContractError, toastTransactionOutcome } from '@/lib/utils/contractErrorToast';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -218,6 +223,11 @@ export default function GameShop() {
     }
   };
 
+  const nairaEligibility = useMemo(
+    () => getNairaEligibility(guestUser, readAppSessionToken()),
+    [guestUser, auth?.isLoading]
+  );
+
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
   const [shopTab, setShopTab] = useState<'perks' | 'bundles'>('perks');
   const [payWith, setPayWith] = useState<'connected' | 'smart_wallet'>('connected');
@@ -293,12 +303,16 @@ export default function GameShop() {
     error: buyError,
     reset: resetBuy,
   } = useRewardBuyCollectible();
-  const { buyFrom, isPending: buyFromPending, isConfirming: buyFromConfirming, isSuccess: buyFromSuccess, reset: resetBuyFrom } = useRewardBuyCollectibleFrom();
+  const { buyFrom, isPending: buyFromPending, isConfirming: buyFromConfirming, isSuccess: buyFromSuccess, error: buyFromError, reset: resetBuyFrom } = useRewardBuyCollectibleFrom();
   const { buyBundle, isPending: buyBundlePending, isConfirming: buyBundleConfirming, isSuccess: buyBundleSuccess, error: buyBundleError, reset: resetBuyBundle } = useRewardBuyBundle();
   const { buyBundleFrom, isPending: buyBundleFromPending, isConfirming: buyBundleFromConfirming, isSuccess: buyBundleFromSuccess, error: buyBundleFromError, reset: resetBuyBundleFrom } = useRewardBuyBundleFrom();
-  const { approveERC20: smartWalletApprove, isPending: smartWalletApprovePending } = useUserWalletApproveERC20(smartWalletAddress ?? undefined);
+  const {
+    approveERC20: smartWalletApprove,
+    isPending: smartWalletApprovePending,
+    reset: resetSmartWalletApprove,
+  } = useUserWalletApproveERC20(smartWalletAddress ?? undefined);
 
-    const {
+  const {
     approve,
     isPending: approvePending,
     isConfirming: approveConfirming,
@@ -324,6 +338,35 @@ export default function GameShop() {
     error: redeemForError,
     reset: resetRedeemFor,
   } = useRewardRedeemVoucherFor();
+
+  const shopTxToastKeyRef = useRef<string | null>(null);
+
+  const resetShopWrites = useCallback(() => {
+    resetBuy();
+    resetBuyFrom();
+    resetapprove();
+    resetBuyBundle();
+    resetBuyBundleFrom();
+    resetSmartWalletApprove();
+  }, [resetBuy, resetBuyFrom, resetapprove, resetBuyBundle, resetBuyBundleFrom, resetSmartWalletApprove]);
+
+  const notifyShopTxOutcome = useCallback((error: unknown, fallback: string) => {
+    const key =
+      typeof error === 'object' && error !== null
+        ? `${(error as { name?: string }).name ?? ''}:${(error as { message?: string }).message ?? ''}:${(error as { shortMessage?: string }).shortMessage ?? ''}`
+        : String(error);
+    if (shopTxToastKeyRef.current === key) return;
+    shopTxToastKeyRef.current = key;
+    toastTransactionOutcome(error, fallback);
+    window.setTimeout(() => {
+      if (shopTxToastKeyRef.current === key) shopTxToastKeyRef.current = null;
+    }, 4000);
+  }, []);
+
+  useEffect(() => {
+    resetShopWrites();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clear stale wagmi errors on mount
+  }, []);
 
   const payFromSmartWalletUnsupported = payWith === 'smart_wallet' && !smartWalletAddress;
 
@@ -559,19 +602,17 @@ export default function GameShop() {
         await buy(item.tokenId, paymentToken);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Transaction failed';
-      toast.error(msg);
+      notifyShopTxOutcome(err, 'Purchase failed');
+      resetShopWrites();
     }
   };
 
   const handlePayPerkWithNaira = async (item: (typeof shopItems)[0]) => {
     if (ngnLoadingTokenId != null) return;
-    try {
-      if (typeof window !== 'undefined' && !window.localStorage?.getItem('token')) {
-        toast.error('Please sign in to pay with Naira.');
-        return;
-      }
-    } catch (_) {}
+    if (!nairaEligibility.ok) {
+      toast.info(nairaBlockedMessage(nairaEligibility.reason));
+      return;
+    }
     const tokenIdStr = item.tokenId.toString();
     setNgnLoadingTokenId(tokenIdStr);
     try {
@@ -588,9 +629,13 @@ export default function GameShop() {
       }
       toast.error(res?.data?.message ?? 'Could not start Naira payment');
     } catch (e: unknown) {
-      const status = (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
-      if (status === 401) toast.error('Please sign in to pay with Naira.');
-      else toast.error(getContractErrorMessage(e, 'Failed to start Naira payment'));
+      const status = e instanceof ApiError ? e.status : (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        auth?.refetchGuest?.();
+        toast.info(nairaBlockedMessage('session_expired'));
+      } else {
+        toastContractError(e, 'Failed to start Naira payment');
+      }
     } finally {
       setNgnLoadingTokenId(null);
     }
@@ -675,8 +720,8 @@ export default function GameShop() {
       }
       toast.success('Bundle purchase complete!');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Bundle purchase failed';
-      toast.error(msg);
+      notifyShopTxOutcome(err, 'Bundle purchase failed');
+      resetShopWrites();
     } finally {
       setBundleBuyingName(null);
     }
@@ -696,7 +741,9 @@ export default function GameShop() {
         await redeemFor(voucherOwner, tokenId);
       }
     } catch (err: unknown) {
-      toast.error(getContractErrorMessage(err, 'Redemption failed'));
+      notifyShopTxOutcome(err, 'Redemption failed');
+      resetRedeem();
+      resetRedeemFor();
     }
   };
 
@@ -738,7 +785,7 @@ export default function GameShop() {
       }
       toast.success('All bundles stocked');
     } catch (e: unknown) {
-      toast.error(getContractErrorMessage(e, 'Failed to stock bundles'));
+      toastContractError(e, 'Failed to stock bundles');
     } finally {
       setStockAllBundlesProgress({ active: false, current: 0, total: 0 });
     }
@@ -795,12 +842,20 @@ export default function GameShop() {
   }, [redeemForSuccess, resetRedeemFor]);
 
   useEffect(() => {
-    if (buyError) toast.error(getContractErrorMessage(buyError, 'Purchase failed'));
-    if (buyBundleError) toast.error(getContractErrorMessage(buyBundleError, 'Bundle purchase failed'));
-    if (buyBundleFromError) toast.error(getContractErrorMessage(buyBundleFromError, 'Purchase failed'));
-    if (redeemError) toast.error(getContractErrorMessage(redeemError, 'Redemption failed'));
-    if (redeemForError) toast.error(getContractErrorMessage(redeemForError, 'Redemption failed'));
-  }, [buyError, buyBundleError, buyBundleFromError, redeemError, redeemForError]);
+    const txError =
+      buyError ?? buyFromError ?? approveError ?? buyBundleError ?? buyBundleFromError;
+    if (!txError) return;
+    notifyShopTxOutcome(txError, 'Purchase failed');
+    resetShopWrites();
+  }, [
+    buyError,
+    buyFromError,
+    approveError,
+    buyBundleError,
+    buyBundleFromError,
+    notifyShopTxOutcome,
+    resetShopWrites,
+  ]);
 
   const handleBack = () => {
     const returnTo = searchParams.get('returnTo');
@@ -887,13 +942,9 @@ export default function GameShop() {
 
   const handlePayWithNgn = async (bundleId: number) => {
     if (!bundleId || ngnLoadingBundleId != null) return;
-    try {
-      if (typeof window !== 'undefined' && !window.localStorage?.getItem('token')) {
-        toast.error('Please sign in to pay with NGN.');
-        return;
-      }
-    } catch {
-      // localStorage may be unavailable
+    if (!nairaEligibility.ok) {
+      toast.info(nairaBlockedMessage(nairaEligibility.reason));
+      return;
     }
     setNgnLoadingBundleId(bundleId);
     try {
@@ -905,17 +956,13 @@ export default function GameShop() {
         return;
       }
       toast.error(res?.data?.message ?? 'Could not start payment');
-    } catch (e: any) {
-      const status = e?.status ?? e?.response?.status;
+    } catch (e: unknown) {
+      const status = e instanceof ApiError ? e.status : (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
       if (status === 401) {
-        toast.error('Please sign in to pay with NGN.');
+        auth?.refetchGuest?.();
+        toast.info(nairaBlockedMessage('session_expired'));
       } else {
-        const msg =
-          e?.message ??
-          e?.data?.message ??
-          e?.response?.data?.message ??
-          'Failed to initialize NGN payment';
-        toast.error(msg);
+        toastContractError(e, 'Failed to initialize NGN payment');
       }
     } finally {
       setNgnLoadingBundleId(null);
@@ -1122,7 +1169,7 @@ export default function GameShop() {
                           <><CreditCard className="w-4 h-4 inline mr-2" /> Pay with digital dollars</>
                         )}
                       </button>
-                      {b.price_ngn != null && b.price_ngn > 0 && (
+                      {b.price_ngn != null && b.price_ngn > 0 && nairaEligibility.ok && (
                         <button
                           onClick={() => typeof b.id === 'number' && handlePayWithNgn(b.id)}
                           disabled={!ngnAvailable || ngnLoadingBundleId != null}
@@ -1218,7 +1265,7 @@ export default function GameShop() {
                         <p className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
                           ${Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} {activeStableLabel}
                         </p>
-                        {ngnAvailable && (
+                        {ngnAvailable && nairaEligibility.ok && (
                           <p className="text-sm text-amber-200">₦{Number(item.ngnPrice).toLocaleString()} NGN</p>
                         )}
                       </div>
@@ -1250,17 +1297,19 @@ export default function GameShop() {
                             <> <CreditCard className="w-5 h-5" /> Pay with digital dollars — ${Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} </>
                           )}
                         </button>
-                        <button
-                          onClick={() => handlePayPerkWithNaira(item)}
-                          disabled={item.stock === 0 || payFromSmartWalletUnsupported || ngnLoadingTokenId === item.tokenId.toString() || !ngnAvailable}
-                          className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-amber-500/20 border border-amber-400/50 text-amber-200 hover:bg-amber-500/30 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                        >
-                          {ngnLoadingTokenId === item.tokenId.toString() ? (
-                            <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
-                          ) : (
-                            <><Banknote className="w-4 h-4" /> Buy with Naira — ₦{Number(item.ngnPrice).toLocaleString()}</>
-                          )}
-                        </button>
+                        {nairaEligibility.ok && (
+                          <button
+                            onClick={() => handlePayPerkWithNaira(item)}
+                            disabled={item.stock === 0 || ngnLoadingTokenId === item.tokenId.toString() || !ngnAvailable}
+                            className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-amber-500/20 border border-amber-400/50 text-amber-200 hover:bg-amber-500/30 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          >
+                            {ngnLoadingTokenId === item.tokenId.toString() ? (
+                              <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
+                            ) : (
+                              <><Banknote className="w-4 h-4" /> Buy with Naira — ₦{Number(item.ngnPrice).toLocaleString()}</>
+                            )}
+                          </button>
+                        )}
                     </>
                   </div>
                 </motion.div>

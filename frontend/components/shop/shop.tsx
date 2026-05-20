@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { getContractErrorMessage } from '@/lib/utils/contractErrors';
 import { toastContractError, toastTransactionOutcome } from '@/lib/utils/contractErrorToast';
-import { isUserRejectedTransaction } from '@/lib/utils/contractErrors';
 import { ApiError } from '@/lib/api';
 import {
   getNairaEligibility,
@@ -364,7 +363,6 @@ export default function GameShop() {
   }, [resetBuy, resetBuyFrom, resetapprove, resetBuyBundle, resetBuyBundleFrom, resetSmartWalletApprove]);
 
   const notifyShopTxOutcome = useCallback((error: unknown, fallback: string) => {
-    if (isUserRejectedTransaction(error)) return;
     const key =
       typeof error === 'object' && error !== null
         ? `${(error as { name?: string }).name ?? ''}:${(error as { message?: string }).message ?? ''}:${(error as { shortMessage?: string }).shortMessage ?? ''}`

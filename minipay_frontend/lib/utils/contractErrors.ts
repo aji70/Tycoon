@@ -31,6 +31,8 @@ const USER_REJECTED_SUBSTRINGS = [
   "transaction cancelled",
   "transaction canceled",
   "rejected the request",
+  "rejected transaction",
+  "user rejected transaction",
   "request rejected",
   "signature rejected",
   "denied transaction",
@@ -115,9 +117,25 @@ export function isBenignTurnOrderError(error: unknown): boolean {
 
 /** Wallet popup dismissed or user rejected signing (wagmi/viem / WalletConnect / MetaMask). */
 export function isUserRejectedTransaction(error: unknown): boolean {
+  if (error == null) return false;
+  if (typeof error === "string") {
+    const hay = error.toLowerCase();
+    return USER_REJECTED_SUBSTRINGS.some((s) => hay.includes(s));
+  }
   if (hasRejectedCode(error)) return true;
   const hay = collectErrorText(error);
   return USER_REJECTED_SUBSTRINGS.some((s) => hay.includes(s));
+}
+
+export function sanitizeContractToastMessage(message: string): string {
+  let msg = message.trim();
+  const docsIdx = msg.indexOf("Docs:");
+  if (docsIdx >= 0) msg = msg.slice(0, docsIdx).trim();
+  const versionIdx = msg.indexOf("Version: viem@");
+  if (versionIdx >= 0) msg = msg.slice(0, versionIdx).trim();
+  const contractCallIdx = msg.indexOf("Contract Call:");
+  if (contractCallIdx >= 0) msg = msg.slice(0, contractCallIdx).trim();
+  return msg;
 }
 
 export function getContractErrorMessage(
@@ -230,9 +248,12 @@ export function getContractErrorMessage(
   }
 
   // Use explicit message if available (truncate long messages)
-  const msg = e?.shortMessage ?? e?.message ?? "";
-  if (msg && typeof msg === "string") {
-    const trimmed = msg.slice(0, 140);
+  const rawMsg = e?.shortMessage ?? e?.message ?? "";
+  if (rawMsg && typeof rawMsg === "string") {
+    if (isUserRejectedTransaction({ message: rawMsg, shortMessage: rawMsg })) {
+      return "You cancelled the transaction.";
+    }
+    const trimmed = sanitizeContractToastMessage(rawMsg).slice(0, 140);
     if (isBenignTurnOrderError({ message: trimmed })) return "";
     // Don't surface generic API messages; use the caller's default (e.g. "Failed to vote")
     if (
