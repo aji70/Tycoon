@@ -8,13 +8,8 @@ import { useExitGame, useGetGameByCode } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
-import {
-  isAIPlayer,
-  calculateAiFavorability,
-  TRADE_ACCEPT_STRONG,
-  TRADE_ACCEPT_FAIR,
-  TRADE_COUNTER_THRESHOLD,
-} from "@/utils/gameUtils";
+import { isAIPlayer } from "@/utils/gameUtils";
+import { instantAiRespondWhenTargetIsAi } from "@/lib/game/instantAiTradeResponse";
 
 export interface UsePlayerSidebarProps {
   game: Game;
@@ -203,52 +198,13 @@ export function usePlayerSidebar({
             ...payload,
             id: res.data?.data?.id || Date.now(),
           };
-          const favorability = calculateAiFavorability(sentTrade, properties);
-          let decision: "accepted" | "declined" | "countered" = "declined";
-          let remark = "";
-
-          if (favorability >= TRADE_ACCEPT_STRONG) {
-            decision = "accepted";
-            remark = "This is a fantastic deal! 🤖";
-          } else if (favorability >= TRADE_ACCEPT_FAIR) {
-            decision = Math.random() < 0.7 ? "accepted" : "declined";
-            remark = decision === "accepted" ? "Fair enough, I'll take it." : "Not quite good enough.";
-          } else if (favorability >= 0) {
-            decision = Math.random() < 0.3 ? "accepted" : "declined";
-            remark = decision === "accepted" ? "Okay, deal." : "Nah, too weak.";
-          } else if (favorability >= TRADE_COUNTER_THRESHOLD && Math.random() < 0.4) {
-            decision = "countered";
-            remark = "How about this instead?";
-          } else {
-            remark = "This deal is terrible for me! 😤";
-          }
-
-          if (decision === "accepted") {
-            await apiClient.post("/game-trade-requests/accept", { id: sentTrade.id });
-            toast.success("AI accepted your trade instantly! 🎉");
-            refreshTrades();
-          } else if (decision === "countered") {
-            try {
-              await apiClient.post("/game-trade-requests/decline", { id: sentTrade.id });
-              await apiClient.post("/game-trade-requests/ai-counter", {
-                original_trade_id: sentTrade.id,
-                counter_offer_properties: sentTrade.requested_properties ?? [],
-                counter_offer_amount: sentTrade.requested_amount ?? 0,
-                counter_requested_properties: sentTrade.offer_properties ?? [],
-                counter_requested_amount: sentTrade.offer_amount ?? 0,
-              });
-              refreshTrades();
-            } catch (counterErr: any) {
-              console.error("[usePlayerSidebar] AI counter failed:", counterErr);
-              decision = "declined";
-              remark = "Counter failed; offer declined.";
-            }
-          } else {
-            await apiClient.post("/game-trade-requests/decline", { id: sentTrade.id });
-            refreshTrades();
-          }
-
-          setAiResponsePopup({ trade: sentTrade, favorability, decision, remark });
+          await instantAiRespondWhenTargetIsAi({
+            game,
+            properties,
+            game_properties,
+            trade: sentTrade as unknown as Record<string, unknown>,
+            refreshTrades,
+          });
         }
       }
     } catch (error: any) {
@@ -257,7 +213,8 @@ export function usePlayerSidebar({
   }, [
     me,
     tradeModal.target,
-    game.id,
+    game,
+    game_properties,
     offerProperties,
     offerCash,
     requestProperties,
@@ -298,7 +255,24 @@ export function usePlayerSidebar({
   );
 
   const submitCounterTrade = useCallback(async () => {
-    if (!counterModal.trade) return;
+    if (!counterModal.trade || !me) return;
+    const proposerUserId =
+      typeof counterModal.trade.player_id === "string"
+        ? Number(counterModal.trade.player_id)
+        : counterModal.trade.player_id;
+    const counterparty = game.players?.find((p) => p.user_id === proposerUserId);
+    const myBal = Number(me.balance ?? 0);
+    const theirBal = Number(counterparty?.balance ?? 0);
+    if (myBal < offerCash) {
+      toast.error(`You only have $${myBal.toLocaleString()}. Lower your offered cash.`);
+      return;
+    }
+    if (theirBal < requestCash) {
+      toast.error(
+        `${counterparty?.username ?? "They"} only has $${theirBal.toLocaleString()} — reduce the cash you're asking for.`
+      );
+      return;
+    }
     try {
       const payload = {
         offer_properties: offerProperties,
@@ -311,17 +285,33 @@ export function usePlayerSidebar({
         `/game-trade-requests/${counterModal.trade.id}`,
         payload
       );
-      if (res?.data?.success) {
+      const inner = res.data as { success?: boolean; data?: Record<string, unknown>; message?: string } | undefined;
+      const ok = inner?.success === true;
+      const updatedTrade = inner?.data;
+      if (ok && updatedTrade && typeof updatedTrade === "object") {
         toast.success("Counter offer sent");
         setCounterModal({ open: false, trade: null });
         resetTradeFields();
         refreshTrades();
+        await instantAiRespondWhenTargetIsAi({
+          game,
+          properties,
+          game_properties,
+          trade: updatedTrade,
+          refreshTrades,
+        });
+        return;
       }
-    } catch (error) {
-      toast.error("Failed to send counter trade");
+      toast.error(inner?.message ?? "Failed to send counter trade");
+    } catch (error: unknown) {
+      toast.error(getContractErrorMessage(error, "Failed to send counter trade"));
     }
   }, [
     counterModal.trade,
+    me,
+    game,
+    properties,
+    game_properties,
     offerProperties,
     offerCash,
     requestProperties,

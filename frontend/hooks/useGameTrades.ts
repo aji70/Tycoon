@@ -37,7 +37,7 @@ export function useGameTrades({ gameId, myUserId, players }: UseGameTradesProps)
 
       // Find pending AI trades that haven't been shown yet
       const pendingAiTrades = incoming.filter((t: any) => {
-        if (t.status !== "pending") return false;
+        if (t.status !== "pending" && t.status !== "counter") return false;
         if (processedAiTradeIds.current.has(t.id)) return false;
 
         const fromPlayer = players.find((p: Player) => p.user_id === t.player_id);

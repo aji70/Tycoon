@@ -295,6 +295,10 @@ export default function MobileGamePlayers({
                       properties={properties}
                       game={game}
                       handleTradeAction={handleTradeAction}
+                      canCreateTrade={!!isNext}
+                      onCreateTradeClick={() =>
+                        setSectionOpen((prev) => ({ ...prev, players: true }))
+                      }
                     />
                   </div>
                 </motion.div>

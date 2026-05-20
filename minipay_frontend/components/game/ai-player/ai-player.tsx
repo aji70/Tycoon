@@ -383,6 +383,11 @@ useEffect(() => {
         properties={properties}
         game={game}
         handleTradeAction={handleTradeAction}
+        canCreateTrade={!!isNext}
+        onCreateTradeClick={() => {
+          setShowPlayerList(true);
+          if (!showTrade) toggleTrade();
+        }}
       />
     </section>
 

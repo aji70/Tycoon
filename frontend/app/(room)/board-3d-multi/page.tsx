@@ -1198,7 +1198,6 @@ function Board3DPageContent() {
           });
           toast.success("Three doubles! Go to jail.");
           await refetchGame();
-          END_TURN();
         } catch (err) {
           hotToastContractError(err as Error, "Failed to process three doubles");
         } finally {
@@ -1670,9 +1669,10 @@ function Board3DPageContent() {
           offer_properties: number[]; offer_amount: number;
           requested_properties: number[]; requested_amount: number;
         }[]
-      ).filter((t) => t.status === "pending");
+      ).filter((t) => t.status === "pending" || t.status === "counter");
       for (const trade of pendingIncoming) {
-        const proposerName = freshGame?.players?.find((p: Player) => p.user_id === trade.player_id)?.username ?? "Opponent";
+        const proposerUid = Number(trade.player_id);
+        const proposerName = freshGame?.players?.find((p: Player) => p.user_id === proposerUid)?.username ?? "Opponent";
         let handled = false;
         try {
           const tradeContext = {
@@ -1684,30 +1684,58 @@ function Board3DPageContent() {
             tradeOffer: trade,
           };
           const agentRes = myAgentApiKey
-            ? await apiClient.post<{ success?: boolean; data?: { action?: string }; useBuiltIn?: boolean }>(
+            ? await apiClient.post<{ success?: boolean; data?: { action?: string; counterOffer?: { cashAdjustment?: number } }; useBuiltIn?: boolean }>(
                 "/agent-registry/decision-with-key",
                 { gameId: game.id, decisionType: "trade", context: tradeContext, provider: myAgentApiKey.provider, apiKey: myAgentApiKey.apiKey }
               )
-            : await apiClient.post<{ success?: boolean; data?: { action?: string }; useBuiltIn?: boolean }>(
+            : await apiClient.post<{ success?: boolean; data?: { action?: string; counterOffer?: { cashAdjustment?: number } }; useBuiltIn?: boolean }>(
                 "/agent-registry/decision",
                 { gameId: game.id, slot: 1, decisionType: "trade", context: tradeContext }
               );
-          if (agentRes?.data?.success && agentRes.data.useBuiltIn === false && agentRes.data.data?.action) {
-            const action = agentRes.data.data.action.toLowerCase();
+          const actRaw = agentRes?.data?.data?.action;
+          if (agentRes?.data?.success && typeof actRaw === "string") {
+            const action = actRaw.toLowerCase();
             if (action === "accept") {
               await apiClient.post("/game-trade-requests/accept", { id: trade.id });
               reportAiAction(game.id, 1, "acceptTrade");
               toast.success(`Your agent accepted the trade from ${proposerName}.`);
-            } else {
+              handled = true;
+            } else if (action === "decline") {
               await apiClient.post("/game-trade-requests/decline", { id: trade.id });
               toast(`Your agent declined the trade from ${proposerName}.`);
+              handled = true;
+            } else if (action === "counter") {
+              const adj = Number(agentRes.data?.data?.counterOffer?.cashAdjustment ?? 0);
+              const counterOfferAmount = Math.max(0, Number(trade.requested_amount ?? 0) - adj);
+              const counterRequestedAmount = Number(trade.offer_amount ?? 0) + adj;
+              const proposerPlayer = freshGame?.players?.find((p: Player) => p.user_id === proposerUid);
+              const myBal = Number(freshMe?.balance ?? 0);
+              const theirBal = Number(proposerPlayer?.balance ?? 0);
+              if (myBal < counterOfferAmount || theirBal < counterRequestedAmount) {
+                await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+                toast(`Your agent couldn't counter — not enough cash on one side. Declined ${proposerName}'s trade.`);
+              } else {
+                try {
+                  await apiClient.put(`/game-trade-requests/${trade.id}`, {
+                    offer_properties: trade.requested_properties ?? [],
+                    offer_amount: counterOfferAmount,
+                    requested_properties: trade.offer_properties ?? [],
+                    requested_amount: counterRequestedAmount,
+                    status: "counter",
+                  });
+                  toast.success(`Your agent sent a counter offer to ${proposerName}.`);
+                } catch {
+                  await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+                  toast(`Your agent's counter failed — trade declined.`);
+                }
+              }
+              handled = true;
             }
-            handled = true;
           }
         } catch (_) { /* fallback */ }
         if (!handled) {
           const requestingProps = Array.isArray(trade.requested_properties) && trade.requested_properties.length > 0;
-          const proposerAddress = freshGame?.players?.find((p: Player) => p.user_id === trade.player_id)?.address ?? "";
+          const proposerAddress = freshGame?.players?.find((p: Player) => p.user_id === proposerUid)?.address ?? "";
           const wouldCompleteOpponentMonopoly = requestingProps && (Array.isArray(trade.requested_properties) ? trade.requested_properties : []).some((propId: number) => {
             const prop = properties.find((p) => p.id === propId);
             if (!prop || ["railroad", "utility"].includes(prop.color ?? "")) return false;

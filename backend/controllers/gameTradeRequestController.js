@@ -361,11 +361,11 @@ export const GameTradeRequestController = {
       }
 
       const game = await trx("games").where({ id: original.game_id, status: "RUNNING" }).first();
-      if (!game || !game.is_ai) {
+      if (!game) {
         await trx.rollback();
         return res.status(400).json({
           success: false,
-          message: "Game not running or not an AI game",
+          message: "Game not running or not found",
         });
       }
 

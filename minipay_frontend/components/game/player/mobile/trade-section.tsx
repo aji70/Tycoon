@@ -13,6 +13,10 @@ interface TradeSectionProps {
   properties: Property[];
   game: any;
   handleTradeAction: (id: number, action: "accepted" | "declined" | "counter") => void;
+  /** When false, Create trade is visible but disabled (not your turn). */
+  canCreateTrade: boolean;
+  /** Opens player list / flow to pick a trade partner. No-op if canCreateTrade is false. */
+  onCreateTradeClick?: () => void;
 }
 
 export const TradeSection: React.FC<TradeSectionProps> = ({
@@ -23,6 +27,8 @@ export const TradeSection: React.FC<TradeSectionProps> = ({
   properties,
   game,
   handleTradeAction,
+  canCreateTrade,
+  onCreateTradeClick,
 }) => {
   const renderTradeItem = (trade: any, isIncoming: boolean) => {
     const offeredProps = properties.filter((p) =>
@@ -154,6 +160,35 @@ export const TradeSection: React.FC<TradeSectionProps> = ({
             className="overflow-hidden mt-4"
           >
             <div className="max-h-96 overflow-y-auto pr-1 pb-8 space-y-6 scrollbar-thin scrollbar-thumb-cyan-700 scrollbar-track-transparent">
+              <div className="mb-1">
+                <button
+                  type="button"
+                  disabled={!canCreateTrade}
+                  onClick={() => {
+                    if (!canCreateTrade) return;
+                    onCreateTradeClick?.();
+                  }}
+                  title={
+                    canCreateTrade
+                      ? "Open the player list to choose who to trade with"
+                      : "You can only propose trades on your turn"
+                  }
+                  className={`w-full py-2.5 px-3 rounded-lg font-bold text-sm border flex items-center justify-center gap-2 transition ${
+                    canCreateTrade
+                      ? "bg-pink-600/85 hover:bg-pink-500 text-white border-pink-400/50 shadow-md shadow-pink-900/20 cursor-pointer"
+                      : "bg-slate-900/60 text-slate-500 border-slate-600/50 cursor-not-allowed opacity-80"
+                  }`}
+                >
+                  <Handshake className="w-4 h-4 shrink-0" />
+                  Create trade
+                </button>
+                {!canCreateTrade && (
+                  <p className="text-[11px] text-slate-500 text-center mt-2 leading-snug">
+                    Wait for your turn to propose a new trade.
+                  </p>
+                )}
+              </div>
+
               {/* Incoming Trade Requests */}
               {tradeRequests.length > 0 && (
                 <div>

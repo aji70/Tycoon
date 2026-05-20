@@ -174,6 +174,11 @@ export default function GamePlayers({
               properties={properties}
               game={game}
               handleTradeAction={handleTradeAction}
+              canCreateTrade={!!isNext}
+              onCreateTradeClick={() => {
+                setShowPlayerList(true);
+                if (!showTrade) toggleTrade();
+              }}
             />
           </section>
         </div>

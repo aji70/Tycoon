@@ -17,6 +17,9 @@ interface TradeSection3DProps {
   properties: Property[];
   game: { players?: any[] };
   onTradeAction: (id: number, action: "accepted" | "declined" | "counter" | "delete") => void;
+  /** When false, Create trade is visible but disabled (not your turn). */
+  canCreateTrade: boolean;
+  onCreateTradeClick?: () => void;
 }
 
 export default function TradeSection3D({
@@ -27,6 +30,8 @@ export default function TradeSection3D({
   properties,
   game,
   onTradeAction,
+  canCreateTrade,
+  onCreateTradeClick,
 }: TradeSection3DProps) {
   const totalActive = openTrades.length + tradeRequests.length;
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmMode>(null);
@@ -148,6 +153,34 @@ export default function TradeSection3D({
             transition={{ duration: 0.25 }}
             className="overflow-hidden space-y-3"
           >
+            <div>
+              <button
+                type="button"
+                disabled={!canCreateTrade}
+                onClick={() => {
+                  if (!canCreateTrade) return;
+                  onCreateTradeClick?.();
+                }}
+                title={
+                  canCreateTrade
+                    ? "Open Players to choose who to trade with"
+                    : "You can only propose trades on your turn"
+                }
+                className={`w-full py-2 rounded-lg font-bold text-[11px] border flex items-center justify-center gap-1.5 transition ${
+                  canCreateTrade
+                    ? "bg-pink-600/90 hover:bg-pink-500 text-white border-pink-400/40 cursor-pointer"
+                    : "bg-slate-900/70 text-slate-500 border-slate-600/50 cursor-not-allowed opacity-75"
+                }`}
+              >
+                <Handshake className="w-3.5 h-3.5 shrink-0" />
+                Create trade
+              </button>
+              {!canCreateTrade && (
+                <p className="text-[10px] text-slate-500 text-center mt-1.5 leading-snug">
+                  Wait for your turn to propose a new trade.
+                </p>
+              )}
+            </div>
             {totalActive > 0 && (
               <div className="flex justify-end mb-1.5">
                 <button

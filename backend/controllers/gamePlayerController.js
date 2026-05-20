@@ -2157,9 +2157,10 @@ const gamePlayerController = {
         created_at: now,
       });
 
-      // Decline incoming trades for this player
+      // Decline open incoming trades for this player (pending or counter awaiting their response)
       await trx("game_trade_requests")
-        .where({ game_id, target_player_id: user_id, status: "pending" })
+        .where({ game_id, target_player_id: user_id })
+        .whereIn("status", ["pending", "counter"])
         .update({ status: "declined", updated_at: now });
 
       // Advance to next player (same as endTurn)

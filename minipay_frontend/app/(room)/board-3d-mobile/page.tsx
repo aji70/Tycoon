@@ -1352,7 +1352,6 @@ function Board3DMobileContent() {
           });
           toast.success("Three doubles! Go to jail.");
           await refetchGame();
-          END_TURN();
         } catch (err) {
           hotToastContractError(err as Error, "Failed to process three doubles");
         } finally {
