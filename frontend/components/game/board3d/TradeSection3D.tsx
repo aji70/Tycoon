@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Property } from "@/types/game";
+import { Property, Player } from "@/types/game";
 import { X, Handshake } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
 import { isAIPlayer } from "@/utils/gameUtils";
@@ -19,7 +19,11 @@ interface TradeSection3DProps {
   onTradeAction: (id: number, action: "accepted" | "declined" | "counter" | "delete") => void;
   /** When false, Create trade is visible but disabled (not your turn). */
   canCreateTrade: boolean;
+  /** Legacy: opens Players panel (non-3D). Prefer tradeOpponents + onStartTradeWith. */
   onCreateTradeClick?: () => void;
+  /** Other seats you can open a trade with; when set with onStartTradeWith, shows picker under Active Trades. */
+  tradeOpponents?: Player[];
+  onStartTradeWith?: (player: Player) => void;
 }
 
 export default function TradeSection3D({
@@ -32,6 +36,8 @@ export default function TradeSection3D({
   onTradeAction,
   canCreateTrade,
   onCreateTradeClick,
+  tradeOpponents = [],
+  onStartTradeWith,
 }: TradeSection3DProps) {
   const totalActive = openTrades.length + tradeRequests.length;
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmMode>(null);
@@ -154,31 +160,72 @@ export default function TradeSection3D({
             className="overflow-hidden space-y-3"
           >
             <div>
-              <button
-                type="button"
-                disabled={!canCreateTrade}
-                onClick={() => {
-                  if (!canCreateTrade) return;
-                  onCreateTradeClick?.();
-                }}
-                title={
-                  canCreateTrade
-                    ? "Open Players to choose who to trade with"
-                    : "You can only propose trades on your turn"
-                }
-                className={`w-full py-2 rounded-lg font-bold text-[11px] border flex items-center justify-center gap-1.5 transition ${
-                  canCreateTrade
-                    ? "bg-pink-600/90 hover:bg-pink-500 text-white border-pink-400/40 cursor-pointer"
-                    : "bg-slate-900/70 text-slate-500 border-slate-600/50 cursor-not-allowed opacity-75"
-                }`}
-              >
-                <Handshake className="w-3.5 h-3.5 shrink-0" />
-                Create trade
-              </button>
-              {!canCreateTrade && (
-                <p className="text-[10px] text-slate-500 text-center mt-1.5 leading-snug">
-                  Wait for your turn to propose a new trade.
-                </p>
+              {tradeOpponents.length > 0 && onStartTradeWith ? (
+                <>
+                  <p className="text-[10px] font-bold text-amber-200/90 uppercase tracking-wider mb-1.5">
+                    {canCreateTrade ? "Start a trade" : "New trade (your turn only)"}
+                  </p>
+                  <div className="max-h-36 overflow-y-auto space-y-1 pr-0.5">
+                    {tradeOpponents.map((p) => (
+                      <button
+                        key={String(p.user_id ?? p.id ?? p.address)}
+                        type="button"
+                        disabled={!canCreateTrade}
+                        title={
+                          canCreateTrade
+                            ? `Offer trade to ${p.username ?? "player"}`
+                            : "Wait for your turn to propose a trade"
+                        }
+                        onClick={() => {
+                          if (!canCreateTrade) return;
+                          onStartTradeWith(p);
+                        }}
+                        className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg border text-left text-[11px] transition ${
+                          canCreateTrade
+                            ? "border-cyan-500/40 bg-slate-800/80 text-cyan-100 hover:bg-slate-700/90"
+                            : "border-slate-600/40 bg-slate-900/60 text-slate-500 cursor-not-allowed opacity-70"
+                        }`}
+                      >
+                        <span className="font-semibold truncate">{p.username ?? "Player"}</span>
+                        <span className="text-pink-400 text-[10px] font-bold shrink-0">Offer →</span>
+                      </button>
+                    ))}
+                  </div>
+                  {!canCreateTrade && (
+                    <p className="text-[10px] text-slate-500 text-center mt-1.5 leading-snug">
+                      Wait for your turn to propose a new trade.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    disabled={!canCreateTrade}
+                    onClick={() => {
+                      if (!canCreateTrade) return;
+                      onCreateTradeClick?.();
+                    }}
+                    title={
+                      canCreateTrade
+                        ? "Open Players to choose who to trade with"
+                        : "You can only propose trades on your turn"
+                    }
+                    className={`w-full py-2 rounded-lg font-bold text-[11px] border flex items-center justify-center gap-1.5 transition ${
+                      canCreateTrade
+                        ? "bg-pink-600/90 hover:bg-pink-500 text-white border-pink-400/40 cursor-pointer"
+                        : "bg-slate-900/70 text-slate-500 border-slate-600/50 cursor-not-allowed opacity-75"
+                    }`}
+                  >
+                    <Handshake className="w-3.5 h-3.5 shrink-0" />
+                    Create trade
+                  </button>
+                  {!canCreateTrade && (
+                    <p className="text-[10px] text-slate-500 text-center mt-1.5 leading-snug">
+                      Wait for your turn to propose a new trade.
+                    </p>
+                  )}
+                </>
               )}
             </div>
             {totalActive > 0 && (
@@ -221,7 +268,7 @@ export default function TradeSection3D({
               <EmptyState
                 icon={<Handshake className="w-12 h-12 text-slate-500" />}
                 title="No active trades"
-                description="Click a player on the board and choose Trade to make an offer, or wait for others to send you requests."
+                description="Use the list above or respond to incoming offers. You can also tap tokens on the board."
                 compact
                 className="py-6 border-slate-700/50 bg-slate-900/30"
               />

@@ -581,11 +581,25 @@ export const GameTradeRequestController = {
     }
   },
 
-  // ✅ Delete a trade
+  // ✅ Delete a trade (cancel / remove row; clients use this for 3D "Delete outgoing")
   async remove(req, res) {
     try {
-      const { id } = req.params;
-      await GameTradeRequest.delete(id);
+      const rawId = req.params.id;
+      const id = Number(rawId);
+      if (!Number.isInteger(id) || id < 1) {
+        return res.status(400).json({ success: false, message: "Invalid trade id" });
+      }
+      const row = await GameTradeRequest.getById(id);
+      if (!row) {
+        return res.status(404).json({ success: false, message: "Trade not found" });
+      }
+      const removed = await db("game_trade_requests").where({ id }).del();
+      if (!removed) {
+        return res.status(404).json({ success: false, message: "Trade not found" });
+      }
+      const io = req.app.get("io");
+      if (io && row.game_id) await emitGameUpdateByGameId(io, row.game_id);
+      if (row.game_id) await invalidateGameById(row.game_id);
       res.json({ success: true, message: "Trade deleted" });
     } catch (error) {
       console.error("Delete Trade Error:", error);

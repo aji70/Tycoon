@@ -206,12 +206,18 @@ export function useAiPlayerLogic({
 
       if (action === "delete") {
         try {
-          await apiClient.post<ApiResponse>("/game-trade-requests/decline", { id });
-          await apiClient.delete(`/game-trade-requests/${id}`);
+          const tradeId = Number(id);
+          if (!Number.isFinite(tradeId)) {
+            toast.error("Invalid trade");
+            return;
+          }
+          await apiClient.delete(`/game-trade-requests/${tradeId}`);
           closeAiTradePopup();
           refreshTrades();
+          if (game?.code) queryClient.invalidateQueries({ queryKey: ["game", game.code] });
+          if (game?.id) queryClient.invalidateQueries({ queryKey: ["game_properties", game.id] });
         } catch (error) {
-          toast.error("Failed to delete trade");
+          toast.error(getContractErrorMessage(error, "Failed to delete trade"));
         }
         return;
       }

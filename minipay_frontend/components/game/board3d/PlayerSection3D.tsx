@@ -11,7 +11,6 @@ import AiResponseModal3D from "./AiResponseModal3D";
 import { TradeModal } from "../modals/trade";
 import { useAiPlayerLogic } from "../ai-player/useAiPlayerLogic";
 import { Loader2, Crown } from "lucide-react";
-import toast from "react-hot-toast";
 
 interface PlayerSection3DProps {
   game: Game;
@@ -139,13 +138,10 @@ export default function PlayerSection3D({
     return bestUserId;
   }, [game?.players, game_properties, properties]);
 
-  const onCreateTradeFromPanel = useCallback(() => {
-    if (onlyShowTrades) {
-      toast("Open the Players panel from the menu, then pick someone and tap Trade.");
-      return;
-    }
-    setShowPlayers(true);
-  }, [onlyShowTrades]);
+  const tradeOpponents = useMemo(
+    () => sortedPlayers.filter((p) => me != null && p.user_id !== me.user_id),
+    [sortedPlayers, me?.user_id]
+  );
 
   if (isLoading) {
     return (
@@ -177,7 +173,8 @@ export default function PlayerSection3D({
               game={game}
               onTradeAction={handleTradeAction}
               canCreateTrade={!!isNext}
-              onCreateTradeClick={onCreateTradeFromPanel}
+              tradeOpponents={tradeOpponents}
+              onStartTradeWith={startTrade}
             />
           </div>
         </div>
@@ -461,7 +458,8 @@ export default function PlayerSection3D({
             game={game}
             onTradeAction={handleTradeAction}
             canCreateTrade={!!isNext}
-            onCreateTradeClick={onCreateTradeFromPanel}
+            tradeOpponents={tradeOpponents}
+            onStartTradeWith={startTrade}
           />
         </div>
       </div>
