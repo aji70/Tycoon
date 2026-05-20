@@ -49,6 +49,28 @@ export function isBenignTurnOrderError(error: unknown): boolean {
   return BENIGN_TURN_SUBSTRINGS.some((s) => hay.includes(s));
 }
 
+/** Wallet popup dismissed or user rejected signing (wagmi/viem). */
+export function isUserRejectedTransaction(error: unknown): boolean {
+  const e = error as {
+    code?: number;
+    name?: string;
+    message?: string;
+    shortMessage?: string;
+    cause?: { name?: string; code?: number };
+  };
+  if (e?.code === 4001 || e?.cause?.code === 4001) return true;
+  if (e?.name === "UserRejectedRequestError" || e?.cause?.name === "UserRejectedRequestError") {
+    return true;
+  }
+  const hay = collectErrorText(error);
+  return (
+    hay.includes("user rejected") ||
+    hay.includes("user denied") ||
+    hay.includes("transaction cancelled") ||
+    hay.includes("rejected the request")
+  );
+}
+
 export function getContractErrorMessage(
   error: unknown,
   defaultMessage = "Transaction failed. Check your connection and try again, or refresh the page."
@@ -63,14 +85,7 @@ export function getContractErrorMessage(
     data?: { message?: string; error?: string };
   };
 
-  // User rejected / cancelled (wagmi/viem 4001)
-  if (
-    e?.code === 4001 ||
-    e?.shortMessage?.includes("User rejected") ||
-    e?.message?.toLowerCase().includes("user rejected") ||
-    e?.message?.toLowerCase().includes("user denied") ||
-    e?.message?.toLowerCase().includes("transaction cancelled")
-  ) {
+  if (isUserRejectedTransaction(error)) {
     return "You cancelled the transaction.";
   }
 

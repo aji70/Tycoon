@@ -6,6 +6,7 @@ import { formatUnits, parseUnits, isAddress, type Address, type Abi } from 'viem
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { getContractErrorMessage } from '@/lib/utils/contractErrors';
+import { toastContractError, toastTransactionOutcome } from '@/lib/utils/contractErrorToast';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -293,7 +294,7 @@ export default function GameShop() {
     error: buyError,
     reset: resetBuy,
   } = useRewardBuyCollectible();
-  const { buyFrom, isPending: buyFromPending, isConfirming: buyFromConfirming, isSuccess: buyFromSuccess, reset: resetBuyFrom } = useRewardBuyCollectibleFrom();
+  const { buyFrom, isPending: buyFromPending, isConfirming: buyFromConfirming, isSuccess: buyFromSuccess, error: buyFromError, reset: resetBuyFrom } = useRewardBuyCollectibleFrom();
   const { buyBundle, isPending: buyBundlePending, isConfirming: buyBundleConfirming, isSuccess: buyBundleSuccess, error: buyBundleError, reset: resetBuyBundle } = useRewardBuyBundle();
   const { buyBundleFrom, isPending: buyBundleFromPending, isConfirming: buyBundleFromConfirming, isSuccess: buyBundleFromSuccess, error: buyBundleFromError, reset: resetBuyBundleFrom } = useRewardBuyBundleFrom();
   const { approveERC20: smartWalletApprove, isPending: smartWalletApprovePending } = useUserWalletApproveERC20(smartWalletAddress ?? undefined);
@@ -529,7 +530,7 @@ export default function GameShop() {
         if (session && preferredStable.symbol === 'USDC') {
           const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to pay from your smart wallet')?.trim() : '';
           if (!pin) {
-            toast.error('PIN is required');
+            toast.info('Purchase cancelled');
             return;
           }
           const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-collectible', {
@@ -559,8 +560,14 @@ export default function GameShop() {
         await buy(item.tokenId, paymentToken);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Transaction failed';
-      toast.error(msg);
+      const usedSmartWalletApi =
+        payWith === 'smart_wallet' &&
+        !!smartWalletAddress &&
+        !!readAppSessionToken() &&
+        preferredStable.symbol === 'USDC';
+      if (usedSmartWalletApi) {
+        toastTransactionOutcome(err, 'Purchase failed');
+      }
     }
   };
 
@@ -590,7 +597,7 @@ export default function GameShop() {
     } catch (e: unknown) {
       const status = (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
       if (status === 401) toast.error('Please sign in to pay with Naira.');
-      else toast.error(getContractErrorMessage(e, 'Failed to start Naira payment'));
+      else toastContractError(e, 'Failed to start Naira payment');
     } finally {
       setNgnLoadingTokenId(null);
     }
@@ -654,7 +661,7 @@ export default function GameShop() {
         if (session) {
           const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to buy bundle with smart wallet')?.trim() : '';
           if (!pin) {
-            toast.error('PIN is required');
+            toast.info('Purchase cancelled');
             return;
           }
           const usdcPrice = BigInt(Math.round(Number(bundleEntry.price_usdc) * 1e6));
@@ -673,10 +680,12 @@ export default function GameShop() {
       } else {
         await buyBundle(BigInt(bundleEntry.id), true); // true = useUsdc
       }
-      toast.success('Bundle purchase complete!');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Bundle purchase failed';
-      toast.error(msg);
+      const usedSmartWalletApi =
+        payWith === 'smart_wallet' && !!readAppSessionToken();
+      if (usedSmartWalletApi) {
+        toastTransactionOutcome(err, 'Bundle purchase failed');
+      }
     } finally {
       setBundleBuyingName(null);
     }
@@ -696,7 +705,7 @@ export default function GameShop() {
         await redeemFor(voucherOwner, tokenId);
       }
     } catch (err: unknown) {
-      toast.error(getContractErrorMessage(err, 'Redemption failed'));
+      toastTransactionOutcome(err, 'Redemption failed');
     }
   };
 
@@ -738,7 +747,7 @@ export default function GameShop() {
       }
       toast.success('All bundles stocked');
     } catch (e: unknown) {
-      toast.error(getContractErrorMessage(e, 'Failed to stock bundles'));
+      toastContractError(e, 'Failed to stock bundles');
     } finally {
       setStockAllBundlesProgress({ active: false, current: 0, total: 0 });
     }
@@ -795,12 +804,53 @@ export default function GameShop() {
   }, [redeemForSuccess, resetRedeemFor]);
 
   useEffect(() => {
-    if (buyError) toast.error(getContractErrorMessage(buyError, 'Purchase failed'));
-    if (buyBundleError) toast.error(getContractErrorMessage(buyBundleError, 'Bundle purchase failed'));
-    if (buyBundleFromError) toast.error(getContractErrorMessage(buyBundleFromError, 'Purchase failed'));
-    if (redeemError) toast.error(getContractErrorMessage(redeemError, 'Redemption failed'));
-    if (redeemForError) toast.error(getContractErrorMessage(redeemForError, 'Redemption failed'));
-  }, [buyError, buyBundleError, buyBundleFromError, redeemError, redeemForError]);
+    if (buyError) {
+      toastTransactionOutcome(buyError, 'Purchase failed');
+      resetBuy();
+    }
+  }, [buyError, resetBuy]);
+
+  useEffect(() => {
+    if (buyFromError) {
+      toastTransactionOutcome(buyFromError, 'Purchase failed');
+      resetBuyFrom();
+    }
+  }, [buyFromError, resetBuyFrom]);
+
+  useEffect(() => {
+    if (buyBundleError) {
+      toastTransactionOutcome(buyBundleError, 'Bundle purchase failed');
+      resetBuyBundle();
+    }
+  }, [buyBundleError, resetBuyBundle]);
+
+  useEffect(() => {
+    if (buyBundleFromError) {
+      toastTransactionOutcome(buyBundleFromError, 'Bundle purchase failed');
+      resetBuyBundleFrom();
+    }
+  }, [buyBundleFromError, resetBuyBundleFrom]);
+
+  useEffect(() => {
+    if (approveError) {
+      toastTransactionOutcome(approveError, 'Approval failed');
+      resetapprove();
+    }
+  }, [approveError, resetapprove]);
+
+  useEffect(() => {
+    if (redeemError) {
+      toastTransactionOutcome(redeemError, 'Redemption failed');
+      resetRedeem();
+    }
+  }, [redeemError, resetRedeem]);
+
+  useEffect(() => {
+    if (redeemForError) {
+      toastTransactionOutcome(redeemForError, 'Redemption failed');
+      resetRedeemFor();
+    }
+  }, [redeemForError, resetRedeemFor]);
 
   const handleBack = () => {
     const returnTo = searchParams.get('returnTo');
@@ -875,14 +925,39 @@ export default function GameShop() {
   useEffect(() => {
     const ref = searchParams.get('reference') ?? searchParams.get('tx_ref');
     if (!ref) return;
-    apiClient.get<{ success?: boolean; found?: boolean; fulfilled?: boolean; status?: string }>(`shop/flutterwave/verify?reference=${encodeURIComponent(ref)}`).then((r) => {
-      if (r?.data?.found && r?.data?.fulfilled) {
-        toast.success('Perk bought successfully! Your bundle will be available in-game.');
-      } else if (r?.data?.found && r?.data?.status === 'failed') {
-        toast.error('Payment failed or was not completed.');
+    const dedupeKey = `tycoon_shop_flw_toast:${ref}`;
+    try {
+      if (sessionStorage.getItem(dedupeKey)) {
+        router.replace('/game-shop', { scroll: false });
+        return;
       }
-      router.replace('/game-shop', { scroll: false });
-    }).catch(() => {});
+    } catch {
+      /* sessionStorage unavailable */
+    }
+    apiClient
+      .get<{ success?: boolean; found?: boolean; fulfilled?: boolean; status?: string }>(
+        `shop/flutterwave/verify?reference=${encodeURIComponent(ref)}`
+      )
+      .then((r) => {
+        try {
+          sessionStorage.setItem(dedupeKey, '1');
+        } catch {
+          /* ignore */
+        }
+        const data = r?.data;
+        if (data?.found && data?.fulfilled) {
+          toast.success('Perk bought successfully! Your bundle will be available in-game.');
+        } else if (data?.found && data?.status === 'failed') {
+          toast.error('Payment failed or was not completed.');
+        } else if (data?.found && data?.status === 'pending') {
+          toast.info('Payment was cancelled or not completed.');
+        }
+        router.replace('/game-shop', { scroll: false });
+      })
+      .catch(() => {
+        toast.error('Could not verify payment status. Check your inventory or try again.');
+        router.replace('/game-shop', { scroll: false });
+      });
   }, [searchParams, router]);
 
   const handlePayWithNgn = async (bundleId: number) => {
