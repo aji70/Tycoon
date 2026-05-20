@@ -8,6 +8,12 @@ import { toast } from 'react-toastify';
 import { getContractErrorMessage } from '@/lib/utils/contractErrors';
 import { toastContractError, toastTransactionOutcome } from '@/lib/utils/contractErrorToast';
 import { isUserRejectedTransaction } from '@/lib/utils/contractErrors';
+import { ApiError } from '@/lib/api';
+import {
+  getNairaEligibility,
+  nairaBlockedMessage,
+  nairaButtonLabel,
+} from '@/lib/shop/nairaPayment';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -197,6 +203,7 @@ export default function GameShop() {
 
   const { usdcAddress: usdcTokenAddress, cusdcAddress, usdtAddress } = useRewardTokenAddresses();
   const guestUser = auth?.guestUser ?? null;
+
   const registryOwnerAddress = useMemo(
     () => shopRegistryOwnerAddress({ guestUser, connectedAddress: address }),
     [guestUser, address]
@@ -219,6 +226,20 @@ export default function GameShop() {
       return null;
     }
   };
+
+  const nairaEligibility = useMemo(
+    () => getNairaEligibility(guestUser, readAppSessionToken()),
+    [guestUser, auth?.isLoading]
+  );
+  const nairaBlockReason = nairaEligibility.ok ? null : nairaEligibility.reason;
+
+  const ensureNairaPayment = useCallback((): boolean => {
+    const eligibility = getNairaEligibility(guestUser, readAppSessionToken());
+    if (eligibility.ok) return true;
+    toast.info(nairaBlockedMessage(eligibility.reason));
+    router.push('/profile');
+    return false;
+  }, [guestUser, router]);
 
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
   const [shopTab, setShopTab] = useState<'perks' | 'bundles'>('perks');
@@ -602,12 +623,7 @@ export default function GameShop() {
 
   const handlePayPerkWithNaira = async (item: (typeof shopItems)[0]) => {
     if (ngnLoadingTokenId != null) return;
-    try {
-      if (typeof window !== 'undefined' && !window.localStorage?.getItem('token')) {
-        toast.error('Please sign in to pay with Naira.');
-        return;
-      }
-    } catch (_) {}
+    if (!ensureNairaPayment()) return;
     const tokenIdStr = item.tokenId.toString();
     setNgnLoadingTokenId(tokenIdStr);
     try {
@@ -624,9 +640,14 @@ export default function GameShop() {
       }
       toast.error(res?.data?.message ?? 'Could not start Naira payment');
     } catch (e: unknown) {
-      const status = (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
-      if (status === 401) toast.error('Please sign in to pay with Naira.');
-      else toastContractError(e, 'Failed to start Naira payment');
+      const status = e instanceof ApiError ? e.status : (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        auth?.refetchGuest?.();
+        toast.info(nairaBlockedMessage('session_expired'));
+        router.push('/profile');
+      } else {
+        toastContractError(e, 'Failed to start Naira payment');
+      }
     } finally {
       setNgnLoadingTokenId(null);
     }
@@ -958,14 +979,7 @@ export default function GameShop() {
 
   const handlePayWithNgn = async (bundleId: number) => {
     if (!bundleId || ngnLoadingBundleId != null) return;
-    try {
-      if (typeof window !== 'undefined' && !window.localStorage?.getItem('token')) {
-        toast.error('Please sign in to pay with NGN.');
-        return;
-      }
-    } catch {
-      // localStorage may be unavailable
-    }
+    if (!ensureNairaPayment()) return;
     setNgnLoadingBundleId(bundleId);
     try {
       const base = typeof window !== 'undefined' ? window.location.origin : '';
@@ -976,17 +990,14 @@ export default function GameShop() {
         return;
       }
       toast.error(res?.data?.message ?? 'Could not start payment');
-    } catch (e: any) {
-      const status = e?.status ?? e?.response?.status;
+    } catch (e: unknown) {
+      const status = e instanceof ApiError ? e.status : (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
       if (status === 401) {
-        toast.error('Please sign in to pay with NGN.');
+        auth?.refetchGuest?.();
+        toast.info(nairaBlockedMessage('session_expired'));
+        router.push('/profile');
       } else {
-        const msg =
-          e?.message ??
-          e?.data?.message ??
-          e?.response?.data?.message ??
-          'Failed to initialize NGN payment';
-        toast.error(msg);
+        toastContractError(e, 'Failed to initialize NGN payment');
       }
     } finally {
       setNgnLoadingBundleId(null);
@@ -1202,7 +1213,13 @@ export default function GameShop() {
                           {ngnLoadingBundleId === b.id ? (
                             <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting to payment...</>
                           ) : (
-                            <><Banknote className="w-4 h-4" /> Buy with Naira — ₦{Number(b.price_ngn).toLocaleString()}</>
+                            <>
+                              <Banknote className="w-4 h-4" />
+                              {nairaButtonLabel(
+                                nairaBlockReason,
+                                `Buy with Naira — ₦${Number(b.price_ngn).toLocaleString()}`
+                              )}
+                            </>
                           )}
                         </button>
                       )}
@@ -1323,13 +1340,19 @@ export default function GameShop() {
                         </button>
                         <button
                           onClick={() => handlePayPerkWithNaira(item)}
-                          disabled={item.stock === 0 || payFromSmartWalletUnsupported || ngnLoadingTokenId === item.tokenId.toString() || !ngnAvailable}
+                          disabled={item.stock === 0 || ngnLoadingTokenId === item.tokenId.toString() || !ngnAvailable}
                           className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-amber-500/20 border border-amber-400/50 text-amber-200 hover:bg-amber-500/30 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                           {ngnLoadingTokenId === item.tokenId.toString() ? (
                             <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
                           ) : (
-                            <><Banknote className="w-4 h-4" /> Buy with Naira — ₦{Number(item.ngnPrice).toLocaleString()}</>
+                            <>
+                              <Banknote className="w-4 h-4" />
+                              {nairaButtonLabel(
+                                nairaBlockReason,
+                                `Buy with Naira — ₦${Number(item.ngnPrice).toLocaleString()}`
+                              )}
+                            </>
                           )}
                         </button>
                     </>
