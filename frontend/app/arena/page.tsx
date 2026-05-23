@@ -170,12 +170,22 @@ export default function ArenaPage() {
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
   const { isCelo } = useVerifyErc8004AgentId();
 
-  const maxOpponentPicks = activeTab === "discover" ? MAX_DISCOVER_OPPONENTS : MAX_CHALLENGES_OPPONENTS;
+  const maxOpponentPicks =
+    activeTab === "discover"
+      ? matchType === "agentVsAi"
+        ? 1
+        : MAX_DISCOVER_OPPONENTS
+      : MAX_CHALLENGES_OPPONENTS;
 
   useEffect(() => {
-    const max = activeTab === "discover" ? MAX_DISCOVER_OPPONENTS : MAX_CHALLENGES_OPPONENTS;
+    const max =
+      activeTab === "discover"
+        ? matchType === "agentVsAi"
+          ? 1
+          : MAX_DISCOVER_OPPONENTS
+        : MAX_CHALLENGES_OPPONENTS;
     setSelectedOpponents((prev) => (prev.length > max ? prev.slice(0, max) : prev));
-  }, [activeTab]);
+  }, [activeTab, matchType]);
 
   const mergeTournamentPermsFromApiResponse = useCallback((permsRes: unknown) => {
     const list =
@@ -597,34 +607,16 @@ export default function ArenaPage() {
     myAgents.map((m) => m.id)
   );
 
-  const guestLabel =
-    guestUser?.username?.trim() ||
-    (guestUser as { display_name?: string })?.display_name?.trim() ||
-    "Guest:OG";
-
   const handleRevampLaunch = () => {
-    const liveOpponentIds = selectedOpponents.filter((id) => id < 9000);
-    if (liveOpponentIds.length === 0) {
-      alert(
-        "Curated demo agents are for display. Log in, create an agent in My Agents, then select live opponents from the API roster."
-      );
-      return;
-    }
     if (matchType === "agentVsAi") {
-      void startHumanVsAgentGame(liveOpponentIds[0]);
+      if (selectedOpponents.length !== 1) {
+        alert("You vs Agent mode requires exactly one opponent.");
+        return;
+      }
+      void startHumanVsAgentGame(selectedOpponents[0]);
     } else {
-      void startArenaGame(liveOpponentIds);
+      void startArenaGame();
     }
-  };
-
-  const handleRegisterErc8004 = () => {
-    const agent = myAgents[0];
-    if (!agent) {
-      alert("Create an agent in My Agents first, then register on Celo.");
-      setActiveTab("my-agents");
-      return;
-    }
-    void handleRegisterOnCelo(agent);
   };
 
   const tabPanels: Partial<Record<ArenaTab, React.ReactNode>> = {
@@ -726,7 +718,6 @@ export default function ArenaPage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         isAuthed={isAuthed}
-        guestLabel={guestLabel}
         myAgents={myAgents}
         discoverAgents={discoverAgents}
         selectedOpponentIds={selectedOpponents}
@@ -740,8 +731,7 @@ export default function ArenaPage() {
         onMatchTypeChange={setMatchType}
         onLaunch={handleRevampLaunch}
         isLaunching={arenaStarting || humanVsStarting}
-        onRegisterErc8004={handleRegisterErc8004}
-        isRegisteringErc8004={registeringErc8004Id != null || isRegisteringErc8004}
+        loading={loading && (activeTab === "discover" || activeTab === "challenges")}
         tabPanels={tabPanels}
         error={error}
       />

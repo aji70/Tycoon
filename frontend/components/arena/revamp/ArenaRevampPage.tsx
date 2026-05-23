@@ -1,46 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { usePrivy } from "@privy-io/react-auth";
-import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
-import { Copy } from "lucide-react";
+import { useEffect, useMemo } from "react";
 import styles from "./arena-revamp.module.css";
-import {
-  CELOSCAN_ADDR,
-  CELOSCAN_TX,
-  DECISION_COLORS,
-  INITIAL_DECISION_FEED,
-  RANK_COLORS,
-  SHOWCASE_AGENTS,
-  type DecisionFeedEntry,
-  type ShowcaseAgent,
-  truncateAddress,
-  truncateHash,
-  winRate,
-} from "./arena-revamp-data";
+import type { DiscoverAgent } from "./map-api-agents";
 
 export type ArenaTab = "discover" | "challenges" | "leaderboard" | "tournaments" | "my-agents";
-export type MatchType = "agentVsAi" | "agentVsAgent" | "arena";
+export type MatchType = "agentVsAi" | "agentVsAgent";
 
 export interface ArenaRevampAgent {
   id: number;
   name: string;
   username?: string;
-  arena_wins?: number;
-  arena_losses?: number;
-  xp?: number;
-  elo_rating?: number;
-  erc8004_agent_id?: string | null;
 }
 
 export interface ArenaRevampPageProps {
   activeTab: ArenaTab;
   onTabChange: (tab: ArenaTab) => void;
   isAuthed: boolean;
-  guestLabel: string;
   myAgents: ArenaRevampAgent[];
-  discoverAgents: ShowcaseAgent[];
+  discoverAgents: DiscoverAgent[];
   selectedOpponentIds: number[];
   onToggleOpponent: (id: number) => void;
   maxOpponentSlots: number;
@@ -52,8 +30,7 @@ export interface ArenaRevampPageProps {
   onMatchTypeChange: (t: MatchType) => void;
   onLaunch: () => void;
   isLaunching: boolean;
-  onRegisterErc8004?: () => void;
-  isRegisteringErc8004?: boolean;
+  loading?: boolean;
   tabPanels?: Partial<Record<ArenaTab, React.ReactNode>>;
   error?: string | null;
 }
@@ -66,24 +43,16 @@ const TABS: { id: ArenaTab; label: string }[] = [
   { id: "my-agents", label: "My Agents" },
 ];
 
-const TOP_LEADERBOARD = SHOWCASE_AGENTS.slice()
-  .sort((a, b) => b.xp - a.xp)
-  .slice(0, 5);
-
-const OG_BOT = SHOWCASE_AGENTS.find((a) => a.name === "OG_Bot")!;
-
-function formatCountdown(totalSec: number): string {
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  return `${h}h ${m}m ${s}s`;
+function winRate(wins: number, losses: number): number | null {
+  const total = wins + losses;
+  if (total === 0) return null;
+  return Math.round((wins / total) * 100);
 }
 
 export function ArenaRevampPage({
   activeTab,
   onTabChange,
   isAuthed,
-  guestLabel,
   myAgents,
   discoverAgents,
   selectedOpponentIds,
@@ -97,81 +66,12 @@ export function ArenaRevampPage({
   onMatchTypeChange,
   onLaunch,
   isLaunching,
-  onRegisterErc8004,
-  isRegisteringErc8004,
+  loading,
   tabPanels,
   error,
 }: ArenaRevampPageProps) {
-  const { login, authenticated } = usePrivy();
-  const { open } = useAppKit();
-  const { isConnected } = useAppKitAccount();
-
-  const [playerSlots, setPlayerSlots] = useState(3);
-  const [copiedAddr, setCopiedAddr] = useState<string | null>(null);
-  const [showCopied, setShowCopied] = useState(false);
-  const [decisionFeed, setDecisionFeed] = useState<DecisionFeedEntry[]>(INITIAL_DECISION_FEED);
-  const [countdownSec, setCountdownSec] = useState(4 * 3600 + 22 * 60 + 15);
-  const [stakeWarn, setStakeWarn] = useState<string | null>(null);
-
-  const displayAgents = discoverAgents.length > 0 ? discoverAgents : SHOWCASE_AGENTS;
-  const registeredCount = displayAgents.filter((a) => a.erc8004).length;
-  const activeAgents = displayAgents.length + 42;
-  const gamesToday = 127;
-
-  useEffect(() => {
-    const t = setInterval(() => setCountdownSec((s) => (s > 0 ? s - 1 : 4 * 3600 + 22 * 60 + 15)), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  useEffect(() => {
-    const t = setInterval(() => {
-      setDecisionFeed((prev) =>
-        prev.map((e) => ({ ...e, secondsAgo: e.secondsAgo + 1 }))
-      );
-    }, 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  useEffect(() => {
-    const stake = parseFloat(stakeAmount);
-    if (stakeAmount && (Number.isNaN(stake) || stake < 0)) {
-      setStakeWarn("Enter a valid USDC amount (min 0).");
-    } else if (stake > 1000) {
-      setStakeWarn("Stake exceeds demo balance — lower amount or fund wallet on Celo.");
-    } else {
-      setStakeWarn(null);
-    }
-  }, [stakeAmount]);
-
-  const handleCopy = useCallback((addr: string) => {
-    void navigator.clipboard.writeText(addr);
-    setCopiedAddr(addr);
-    setShowCopied(true);
-    setTimeout(() => setShowCopied(false), 2000);
-  }, []);
-
-  const handleConnect = () => {
-    if (authenticated || isConnected) {
-      open({ view: "Account" });
-    } else {
-      login();
-    }
-  };
-
-  const canLaunch =
-    isAuthed &&
-    challengerAgentId != null &&
-    selectedOpponentIds.length > 0 &&
-    !isLaunching &&
-    !stakeWarn;
-
-  const gasEst = matchType === "arena" ? "~0.18 CELO" : "~0.12 CELO";
-
   const playingAsOptions = useMemo(() => {
-    if (myAgents.length > 0) {
-      return myAgents.map((a) => ({ id: a.id, label: a.name || a.username || `Agent #${a.id}` }));
-    }
-    return [{ id: OG_BOT.id, label: `${OG_BOT.name} (demo)` }];
+    return myAgents.map((a) => ({ id: a.id, label: a.name }));
   }, [myAgents]);
 
   useEffect(() => {
@@ -180,186 +80,23 @@ export function ArenaRevampPage({
     }
   }, [challengerAgentId, playingAsOptions, onChallengerChange]);
 
-  const navTab = (tab: ArenaTab) => {
-    onTabChange(tab);
-  };
+  const canLaunch =
+    isAuthed &&
+    challengerAgentId != null &&
+    selectedOpponentIds.length > 0 &&
+    !isLaunching;
+
+  const showMatchBar = activeTab === "discover";
 
   return (
     <div className={styles.shell}>
-      <nav className={styles.nav}>
-        <div className={styles.navLeft}>
-          <Link href="/" className={styles.logo}>
-            Tycoon<span>.</span>
-          </Link>
-          <div className={styles.navLinks}>
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                className={activeTab === t.id ? styles.navLinkActive : styles.navLink}
-                onClick={() => navTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className={styles.navRight}>
-          <div className={styles.networkPill}>
-            <span className={styles.liveDot} aria-hidden />
-            Celo Mainnet
-          </div>
-          {isAuthed ? (
-            <div className={styles.userChip}>
-              <span aria-hidden>👤</span>
-              {guestLabel}
-            </div>
-          ) : null}
-          <button type="button" className={styles.connectBtn} onClick={handleConnect}>
-            {authenticated || isConnected ? "Wallet" : "Connect Wallet"}
-          </button>
-        </div>
-      </nav>
+      <div className={styles.page}>
+        <header className={styles.header}>
+          <h1 className={styles.title}>Arena</h1>
+          <p className={styles.subtitle}>Pick opponents, set a stake, and launch a match on Celo.</p>
+        </header>
 
-      <section className={styles.hero}>
-        <div className={styles.heroGrid} aria-hidden />
-        <div className={styles.liveBadge}>
-          <span className={styles.liveDot} />
-          LIVE
-        </div>
-        <h1 className={styles.heroTitle}>
-          Agent Arena <span className={styles.heroAccent}>· AI-Powered</span>
-        </h1>
-        <p className={styles.heroSub}>Deploy AI agents. Compete onchain. Earn USDC.</p>
-        <div className={styles.statPills}>
-          <div className={styles.statPill}>
-            <span className={`${styles.statPillValue} ${styles.mono}`}>{activeAgents}</span>
-            <span className={styles.statPillLabel}>Active Agents</span>
-          </div>
-          <div className={styles.statPill}>
-            <span className={`${styles.statPillValue} ${styles.mono}`}>$5,000</span>
-            <span className={styles.statPillLabel}>Prize Pool</span>
-          </div>
-          <div className={styles.statPill}>
-            <span className={`${styles.statPillValue} ${styles.mono}`}>{gamesToday}</span>
-            <span className={styles.statPillLabel}>Games Today</span>
-          </div>
-        </div>
-      </section>
-
-      <div className={styles.mainWrap}>
-        {error ? <div className={styles.errorBanner}>{error}</div> : null}
-
-        <section className={styles.challengeCard} aria-label="Configure match">
-          <div className={styles.challengeHead}>
-            <h2 className={styles.challengeTitle}>Configure Match</h2>
-            <span className={styles.onchainBadge}>
-              ONCHAIN <span className={styles.celoHint}>→ Celo</span>
-            </span>
-          </div>
-
-          <p className={styles.fieldLabel}>Opponent slots (1–7)</p>
-          <div className={styles.slotsRow}>
-            {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-              <button
-                key={n}
-                type="button"
-                className={`${styles.slot} ${
-                  selectedOpponentIds[n - 1]
-                    ? styles.slotPicked
-                    : playerSlots >= n
-                      ? styles.slotFilled
-                      : ""
-                } ${playerSlots === n ? styles.slotActive : ""}`}
-                onClick={() => setPlayerSlots(n)}
-                aria-label={`${n} opponent slots`}
-              >
-                {selectedOpponentIds[n - 1] ? "✓" : n}
-              </button>
-            ))}
-          </div>
-
-          <div className={styles.formGrid}>
-            <div>
-              <label className={styles.fieldLabel} htmlFor="playing-as">
-                Playing As
-              </label>
-              <select
-                id="playing-as"
-                className={styles.select}
-                value={challengerAgentId ?? ""}
-                onChange={(e) => onChallengerChange(Number(e.target.value))}
-                disabled={!isAuthed}
-              >
-                {playingAsOptions.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={styles.fieldLabel} htmlFor="usdc-stake">
-                USDC Stake
-              </label>
-              <div className={styles.stakeWrap}>
-                <span className={styles.stakePrefix}>USDC · Celo</span>
-                <input
-                  id="usdc-stake"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  className={`${styles.input} ${styles.inputWithPrefix} ${styles.mono}`}
-                  placeholder="0.00"
-                  value={stakeAmount}
-                  onChange={(e) => onStakeChange(e.target.value)}
-                />
-              </div>
-              {stakeWarn ? <p className={styles.stakeWarn}>{stakeWarn}</p> : null}
-            </div>
-            <div>
-              <span className={styles.fieldLabel}>Match type</span>
-              <div className={styles.matchTypes}>
-                <button
-                  type="button"
-                  className={`${styles.matchTypeBtn} ${matchType === "agentVsAi" ? styles.matchTypeActive : ""}`}
-                  onClick={() => onMatchTypeChange("agentVsAi")}
-                >
-                  Agent vs AI
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.matchTypeBtn} ${matchType === "agentVsAgent" ? styles.matchTypeActive : ""}`}
-                  onClick={() => onMatchTypeChange("agentVsAgent")}
-                >
-                  Agent vs Agent
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.matchTypeBtn} ${matchType === "arena" ? styles.matchTypeActive : ""}`}
-                  onClick={() => onMatchTypeChange("arena")}
-                >
-                  Arena
-                  <span className={styles.escrowBadge}>USDC Escrow</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className={styles.launchBtn}
-            disabled={!canLaunch}
-            onClick={onLaunch}
-          >
-            {isLaunching ? "Launching on Celo…" : "Launch → Celo"}
-          </button>
-          <p className={`${styles.gasEst} ${styles.mono}`}>
-            Est. gas: <span className={styles.celoHint}>{gasEst}</span> · Tournament escrow on Celo mainnet
-          </p>
-        </section>
-
-        <div className={styles.tabs} role="tablist">
+        <div className={styles.tabs} role="tablist" aria-label="Arena sections">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -367,164 +104,142 @@ export function ArenaRevampPage({
               role="tab"
               aria-selected={activeTab === t.id}
               className={activeTab === t.id ? styles.tabActive : styles.tab}
-              onClick={() => navTab(t.id)}
+              onClick={() => onTabChange(t.id)}
             >
               {t.label}
             </button>
           ))}
         </div>
 
-        <section className={styles.ercSection} aria-labelledby="erc-heading">
-          <h2 id="erc-heading" className={styles.ercTitle}>
-            <span className={styles.ercTitleCyan}>ERC-8004</span>{" "}
-            <span className={styles.ercTitleWhite}>Agent Identity</span>
-          </h2>
-          <p className={styles.ercDesc}>
-            ERC-8004 is the agent trust protocol on Celo — each Tycoon agent can mint an onchain identity NFT,
-            receive reputation feedback after matches, and prove autonomous play to judges and players.
-          </p>
-          <div className={styles.ercStats}>
-            <div className={styles.ercStatCard}>
-              <span className={styles.ercStatVal}>{registeredCount}</span>
-              <span className={styles.ercStatLabel}>Registered Agents</span>
-            </div>
-            <div className={styles.ercStatCard}>
-              <span className={styles.ercStatVal}>1,284</span>
-              <span className={styles.ercStatLabel}>Feedback Txs</span>
-            </div>
-            <div className={styles.ercStatCard}>
-              <span className={styles.ercStatVal}>92</span>
-              <span className={styles.ercStatLabel}>Avg Reputation</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            className={styles.registerCta}
-            onClick={onRegisterErc8004}
-            disabled={isRegisteringErc8004 || !isAuthed}
-          >
-            {isRegisteringErc8004 ? "Registering on Celo…" : "Register Your Agent → Celo"}
-          </button>
-        </section>
+        <div className={styles.body}>
+          {error ? <div className={styles.errorBanner}>{error}</div> : null}
 
-        <div className={styles.contentGrid}>
-          <div className={styles.tabPanel}>
-            {activeTab === "discover" ? (
-              <div className={styles.agentsGrid}>
-                {displayAgents.map((agent) => (
-                  <AgentCard
-                    key={agent.id}
-                    agent={agent}
-                    selected={selectedOpponentIds.includes(agent.id)}
-                    maxReached={
-                      selectedOpponentIds.length >= Math.min(playerSlots, maxOpponentSlots) &&
-                      !selectedOpponentIds.includes(agent.id)
-                    }
-                    onSelect={() => onToggleOpponent(agent.id)}
-                    onCopy={handleCopy}
-                    copied={copiedAddr === agent.address}
-                  />
-                ))}
-              </div>
-            ) : (
-              tabPanels?.[activeTab] ?? (
-                <p className={styles.feedEmpty}>
-                  Switch to Discover to pick agents, or use the tabs above for challenges and rankings.
+          {showMatchBar ? (
+            <section className={styles.matchBar} aria-label="Match setup">
+              {!isAuthed ? (
+                <p className={styles.matchHint}>
+                  Sign in from the nav to launch matches. Browse agents below in the meantime.
                 </p>
-              )
-            )}
-          </div>
-
-          <aside className={styles.sidebar}>
-            <div className={styles.widget}>
-              <h3 className={styles.widgetTitle}>Prize Pool</h3>
-              <p className={styles.prizeAmount}>$5,000</p>
-              <p className={styles.prizeSub}>cUSD · Distributed by AI Agents on Celo</p>
-              <div className={styles.prizeBars}>
-                {[
-                  { label: "1st", pct: 50 },
-                  { label: "2nd", pct: 30 },
-                  { label: "3rd", pct: 20 },
-                ].map((row) => (
-                  <div key={row.label} className={styles.prizeBarRow}>
-                    <span>{row.label}</span>
-                    <div className={styles.prizeBarTrack}>
-                      <div className={styles.prizeBarFill} style={{ width: `${row.pct}%` }} />
-                    </div>
-                    <span className={styles.mono}>{row.pct}%</span>
+              ) : myAgents.length === 0 ? (
+                <p className={styles.matchHint}>
+                  Create an agent in{" "}
+                  <button type="button" className={styles.inlineBtn} onClick={() => onTabChange("my-agents")}>
+                    My Agents
+                  </button>{" "}
+                  before starting a match.
+                </p>
+              ) : (
+                <div className={styles.matchRow}>
+                  <div className={styles.matchField}>
+                    <label className={styles.fieldLabel} htmlFor="playing-as">
+                      Your agent
+                    </label>
+                    <select
+                      id="playing-as"
+                      className={styles.select}
+                      value={challengerAgentId ?? ""}
+                      onChange={(e) => onChallengerChange(Number(e.target.value))}
+                    >
+                      {playingAsOptions.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                ))}
-              </div>
-              <p className={styles.countdown}>
-                Next distribution:{" "}
-                <span className={`${styles.countdownVal} ${styles.mono}`}>{formatCountdown(countdownSec)}</span>
-              </p>
-            </div>
 
-            <div className={styles.widget}>
-              <h3 className={styles.widgetTitle}>Top Agents</h3>
-              {TOP_LEADERBOARD.map((a, i) => (
-                <div key={a.id} className={styles.lbRow}>
-                  <span className={`${styles.lbRank} ${styles.mono}`}>{i + 1}</span>
-                  <span>{a.emoji}</span>
-                  <span style={{ flex: 1 }}>{a.name}</span>
-                  <span className={styles.mono}>{a.xp.toLocaleString()}</span>
-                  {a.erc8004 ? <span className={styles.lbErcBadge}>ERC-8004 ✓</span> : null}
-                </div>
-              ))}
-              <button type="button" className={styles.lbLink} onClick={() => onTabChange("leaderboard")}>
-                View Full Leaderboard →
-              </button>
-            </div>
+                  <div className={styles.matchField}>
+                    <label className={styles.fieldLabel} htmlFor="usdc-stake">
+                      Stake (USDC)
+                    </label>
+                    <input
+                      id="usdc-stake"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className={`${styles.input} ${styles.mono}`}
+                      placeholder="0 — optional"
+                      value={stakeAmount}
+                      onChange={(e) => onStakeChange(e.target.value)}
+                    />
+                  </div>
 
-            <div className={`${styles.widget} ${styles.myAgentWidget}`}>
-              <h3 className={styles.widgetTitle}>My Agent</h3>
-              <div className={styles.myAgentEmoji}>{OG_BOT.emoji}</div>
-              <p className={styles.agentName}>{OG_BOT.name}</p>
-              <p className={`${styles.creator} ${styles.mono}`}>
-                {OG_BOT.wins}W / {OG_BOT.losses}L · {OG_BOT.xp.toLocaleString()} XP
-              </p>
-              <div className={styles.ercGlow}>ERC-8004 Registered on Celo</div>
-              <button type="button" className={styles.manageBtn} onClick={() => onTabChange("my-agents")}>
-                Manage Agent →
-              </button>
-            </div>
+                  <div className={styles.matchField}>
+                    <span className={styles.fieldLabel}>Mode</span>
+                    <div className={styles.modeToggle}>
+                      <button
+                        type="button"
+                        className={`${styles.modeBtn} ${matchType === "agentVsAgent" ? styles.modeBtnActive : ""}`}
+                        onClick={() => onMatchTypeChange("agentVsAgent")}
+                      >
+                        Agent vs Agent
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.modeBtn} ${matchType === "agentVsAi" ? styles.modeBtnActive : ""}`}
+                        onClick={() => onMatchTypeChange("agentVsAi")}
+                      >
+                        You vs Agent
+                      </button>
+                    </div>
+                  </div>
 
-            <div className={`${styles.widget} ${styles.feedWidget}`}>
-              <div className={styles.feedTerminal}>
-                <div className={styles.feedTerminalHead}>
-                  <span className={styles.feedPulseDot} aria-hidden />
-                  Live AI Decisions
+                  <div className={styles.matchActions}>
+                    <span className={styles.pickCount}>
+                      {selectedOpponentIds.length} / {maxOpponentSlots} selected
+                    </span>
+                    <button
+                      type="button"
+                      className={styles.launchBtn}
+                      disabled={!canLaunch}
+                      onClick={onLaunch}
+                    >
+                      {isLaunching ? "Starting…" : "Start match"}
+                    </button>
+                  </div>
                 </div>
-                <div className={styles.feed}>
-                  {decisionFeed.length === 0 ? (
-                    <p className={styles.feedEmpty}>Waiting for next match to start…</p>
-                  ) : (
-                    decisionFeed.map((entry, i) => (
-                      <DecisionFeedRow key={entry.id} entry={entry} isLive={i === 0} />
-                    ))
-                  )}
+              )}
+            </section>
+          ) : null}
+
+          <section className={styles.panel} aria-label={TABS.find((t) => t.id === activeTab)?.label}>
+            {activeTab === "discover" ? (
+              loading ? (
+                <p className={styles.emptyState}>Loading agents…</p>
+              ) : discoverAgents.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <p className={styles.emptyTitle}>No public agents yet</p>
+                  <p className={styles.emptyDesc}>
+                    Be the first — create an agent and set it to public in My Agents.
+                  </p>
+                  <button type="button" className={styles.emptyCta} onClick={() => onTabChange("my-agents")}>
+                    Go to My Agents
+                  </button>
                 </div>
-              </div>
-            </div>
-          </aside>
+              ) : (
+                <div className={styles.agentsGrid}>
+                  {discoverAgents.map((agent) => (
+                    <AgentCard
+                      key={agent.id}
+                      agent={agent}
+                      selected={selectedOpponentIds.includes(agent.id)}
+                      maxReached={
+                        selectedOpponentIds.length >= maxOpponentSlots &&
+                        !selectedOpponentIds.includes(agent.id)
+                      }
+                      onSelect={() => onToggleOpponent(agent.id)}
+                    />
+                  ))}
+                </div>
+              )
+            ) : (
+              tabPanels?.[activeTab] ?? <p className={styles.emptyState}>Nothing here yet.</p>
+            )}
+          </section>
         </div>
-
       </div>
-
-      {showCopied ? <div className={styles.copiedTip}>Copied!</div> : null}
     </div>
   );
-}
-
-function rankBadgeClass(rank: ShowcaseAgent["rank"]): string {
-  const map: Record<ShowcaseAgent["rank"], string> = {
-    Legend: styles.rankLegend,
-    Diamond: styles.rankDiamond,
-    Gold: styles.rankGold,
-    Silver: styles.rankSilver,
-  };
-  return map[rank] ?? styles.rankSilver;
 }
 
 function AgentCard({
@@ -532,119 +247,51 @@ function AgentCard({
   selected,
   maxReached,
   onSelect,
-  onCopy,
-  copied,
 }: {
-  agent: ShowcaseAgent;
+  agent: DiscoverAgent;
   selected: boolean;
   maxReached: boolean;
   onSelect: () => void;
-  onCopy: (addr: string) => void;
-  copied: boolean;
 }) {
   const wr = winRate(agent.wins, agent.losses);
-  const xpPct = Math.min(100, (agent.xp / 45000) * 100);
 
   return (
-    <article
-      className={`${styles.agentCard} ${selected ? styles.agentCardSelected : ""}`}
-    >
-      <a
-        href={`${CELOSCAN_ADDR}${agent.address}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={styles.celoscanHover}
-      >
-        View on Celoscan ↗
-      </a>
-      <div className={styles.agentTop}>
-        <div className={styles.agentAvatar}>{agent.emoji}</div>
-        <div>
-          <span className={`${styles.rankBadge} ${rankBadgeClass(agent.rank)}`}>
-            {agent.rank}
-          </span>
+    <article className={`${styles.agentCard} ${selected ? styles.agentCardSelected : ""}`}>
+      <div className={styles.agentHead}>
+        <div className={styles.agentMeta}>
           <h3 className={styles.agentName}>{agent.name}</h3>
-          <p className={styles.creator}>by {agent.creator}</p>
-          {agent.erc8004 ? <span className={styles.ercBadge}>ERC-8004 ✓</span> : null}
+          <p className={styles.agentCreator}>@{agent.username}</p>
         </div>
+        <span className={styles.tierChip}>{agent.tierLabel}</span>
       </div>
-      <div className={styles.statsMini}>
-        <div className={styles.statBox}>
-          <span className={`${styles.statBoxValue} ${styles.mono}`}>{agent.wins}</span>
-          <span className={styles.statBoxLabel}>W</span>
+
+      <dl className={styles.agentStats}>
+        <div>
+          <dt>W–L</dt>
+          <dd className={styles.mono}>
+            {agent.wins}–{agent.losses}
+          </dd>
         </div>
-        <div className={styles.statBox}>
-          <span className={`${styles.statBoxValue} ${styles.mono}`}>{agent.losses}</span>
-          <span className={styles.statBoxLabel}>L</span>
+        <div>
+          <dt>XP</dt>
+          <dd className={styles.mono}>{agent.xp.toLocaleString()}</dd>
         </div>
-        <div className={styles.statBox}>
-          <span className={`${styles.statBoxValue} ${styles.mono}`}>{agent.erc8004Score ?? "—"}</span>
-          <span className={styles.statBoxLabel}>ERC</span>
+        <div>
+          <dt>Win rate</dt>
+          <dd className={styles.mono}>{wr != null ? `${wr}%` : "—"}</dd>
         </div>
-      </div>
-      <div className={styles.xpBar}>
-        <div className={styles.xpFill} style={{ width: `${xpPct}%` }} />
-      </div>
-      <div className={styles.addrRow}>
-        <span className={styles.mono}>{truncateAddress(agent.address)}</span>
-        <button
-          type="button"
-          className={styles.copyBtn}
-          onClick={() => onCopy(agent.address)}
-          aria-label="Copy address"
-        >
-          <Copy size={14} />
-        </button>
-        {copied ? <span className={styles.copiedHint}>Copied!</span> : null}
-      </div>
-      <p className={styles.winRate}>{wr > 0 ? `${wr}% win rate` : "New agent"}</p>
+      </dl>
+
+      {agent.erc8004 ? <span className={styles.ercTag}>ERC-8004</span> : null}
+
       <button
         type="button"
-        className={selected ? styles.selectBtnSelected : styles.selectBtn}
+        className={selected ? styles.pickBtnOn : styles.pickBtnOff}
         onClick={onSelect}
         disabled={maxReached}
       >
-        {selected ? "SELECTED ✓" : "SELECT"}
+        {selected ? "Selected" : "Select"}
       </button>
     </article>
-  );
-}
-
-function DecisionFeedRow({ entry, isLive }: { entry: DecisionFeedEntry; isLive: boolean }) {
-  const badgeBg = DECISION_COLORS[entry.type];
-  const badgeFg = badgeBg === "#6B7280" ? "#fff" : "#08090c";
-
-  return (
-    <div className={`${styles.feedEntry} ${isLive ? styles.feedEntryLive : ""}`}>
-      <div className={styles.feedEntryRow}>
-        <div className={styles.feedEntryMain}>
-          <div className={styles.feedEntryTop}>
-            <span className={styles.feedAvatarSm} aria-hidden>
-              {entry.emoji}
-            </span>
-            <span className={styles.feedAgentName}>{entry.agentName}</span>
-            <span
-              className={`${styles.decisionBadge} ${styles.mono}`}
-              style={{ color: badgeFg, background: badgeBg }}
-            >
-              {entry.type}
-            </span>
-          </div>
-          <p className={styles.feedTarget}>{entry.target}</p>
-          <div className={styles.feedTxLine}>
-            <span className={`${styles.feedTxHash} ${styles.mono}`}>{truncateHash(entry.txHash)}</span>
-            <a
-              href={`${CELOSCAN_TX}${entry.txHash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={styles.txLink}
-            >
-              → Celoscan
-            </a>
-          </div>
-        </div>
-        <span className={styles.feedTime}>{entry.secondsAgo}s ago</span>
-      </div>
-    </div>
   );
 }
