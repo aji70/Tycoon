@@ -63,7 +63,7 @@ const TABS: {
   {
     id: "my-agents",
     label: "My Agents",
-    description: "Create and manage your AI agents, visibility, and wallet caps.",
+    description: "Create an agent with just a name — then head to Play to start a match.",
   },
 ];
 

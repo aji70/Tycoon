@@ -7,13 +7,11 @@ import { useRouter } from "next/navigation";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS, ApiError } from "@/lib/api";
 import { ArenaOnchainModal, type ArenaOnchainBusyPayload } from "@/components/arena/arena-onchain-modal";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
-import AgentsPage from "@/components/agents/agents-page";
 import { isAgentStyleTournament, tournamentDetailPath } from "@/lib/tournamentRoutes";
 import { ArenaLeaderboardTab } from "@/components/arena/arena-leaderboard-tab";
-import { ArenaMyAgentsTab } from "@/components/arena/arena-my-agents-tab";
+import { ArenaMyAgentsSimple } from "@/components/arena/arena-my-agents-simple";
 import { ArenaChallengesTab } from "@/components/arena/arena-challenges-tab";
 import {
   ArenaRevampPage,
@@ -159,16 +157,8 @@ export default function ArenaPage() {
   const [openTournaments, setOpenTournaments] = useState<ArenaTournamentRow[]>([]);
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
   const [tournamentsError, setTournamentsError] = useState<string | null>(null);
-  const [myAgentsSubTab, setMyAgentsSubTab] = useState<"overview" | "manage">("overview");
-  const [openTournamentSpendingJumpAgentId, setOpenTournamentSpendingJumpAgentId] = useState<number | null>(null);
-  const clearTournamentSpendingJump = useCallback(() => {
-    setOpenTournamentSpendingJumpAgentId(null);
-  }, []);
   const [tournamentPerms, setTournamentPerms] = useState<Record<number, { enabled: boolean; max_entry_fee_usdc: string; daily_cap_usdc: string | null; chain: string | null }>>({});
   const [challengesLoading, setChallengesLoading] = useState(false);
-  const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
-  const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
-  const { isCelo } = useVerifyErc8004AgentId();
 
   const maxOpponentPicks =
     activeTab === "discover"
@@ -226,7 +216,6 @@ export default function ArenaPage() {
     const tab = q.get("tab");
     if (tab === "my-agents") {
       setActiveTab("my-agents");
-      setMyAgentsSubTab(q.get("sub") === "manage" ? "manage" : "overview");
       router.replace("/arena", { scroll: false });
     } else if (tab === "challenges") {
       setActiveTab("challenges");
@@ -370,7 +359,7 @@ export default function ArenaPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, myAgentsSubTab, isAuthed, mergeTournamentPermsFromApiResponse]);
+  }, [activeTab, isAuthed, mergeTournamentPermsFromApiResponse]);
 
   const fetchPublicAgents = async (pageNum: number, opts?: { approvedToSpend?: boolean }) => {
     try {
@@ -445,46 +434,11 @@ export default function ArenaPage() {
         setMyAgents((prev) =>
           prev.map((a) => (a.id === agentId ? { ...a, is_public: updatedAgent.is_public } : a))
         );
-        alert(`Agent is now ${updatedAgent.is_public ? "public in Discover" : "private"}!`);
       } else {
         throw new Error("Failed to update agent");
       }
     } catch (err) {
       alert(`Error: ${(err as Error).message}`);
-    }
-  };
-
-  const handleRegisterOnCelo = async (agent: Agent) => {
-    if (!isCelo) {
-      alert("Switch to Celo to register this agent on ERC-8004.");
-      return;
-    }
-    const existingId = agent.erc8004_agent_id ? String(agent.erc8004_agent_id).trim() : "";
-    if (existingId) {
-      const ok =
-        typeof window !== "undefined" &&
-        window.confirm(
-          `Replace ERC-8004 ID ${existingId} with a new on-chain identity? Use this if you minted a new agent or fixed a wrong ID. The old ID will no longer be linked to this Tycoon agent.`
-        );
-      if (!ok) return;
-    }
-    setRegisteringErc8004Id(agent.id);
-    try {
-      const newAgentId = await registerOnCelo(agent.id);
-      if (newAgentId == null) throw new Error("Registration succeeded but could not read on-chain agent ID");
-      await apiClient.patch(`/agents/${agent.id}`, { erc8004_agent_id: String(newAgentId) });
-      await fetchMyAgents({ silent: true });
-      if (activeTab === "discover") await fetchPublicAgents(page);
-      if (activeTab === "leaderboard") await fetchLeaderboard();
-      alert(
-        existingId
-          ? `Re-linked on Celo. New agent ID: ${newAgentId}`
-          : `Registered on Celo. Agent ID: ${newAgentId}`
-      );
-    } catch (err) {
-      alert(`Registration failed: ${(err as Error)?.message || "Unknown error"}`);
-    } finally {
-      setRegisteringErc8004Id(null);
     }
   };
 
@@ -687,29 +641,15 @@ export default function ArenaPage() {
         )}
       </section>
     ),
-    "my-agents":
-      myAgentsSubTab === "manage" ? (
-        <AgentsPage
-          embeddedInArena
-          onSpendingCapsSaved={refreshArenaTournamentPerms}
-          openTournamentSpendingForAgentId={openTournamentSpendingJumpAgentId}
-          onTournamentSpendingModalOpened={clearTournamentSpendingJump}
-        />
-      ) : (
-        <ArenaMyAgentsTab
-          myAgents={myAgents}
-          tournamentPerms={tournamentPerms}
-          subTab={myAgentsSubTab}
-          onSubTabChange={setMyAgentsSubTab}
-          onTogglePublic={toggleAgentPublic}
-          onOpenManageCaps={(agentId) => {
-            setMyAgentsSubTab("manage");
-            setOpenTournamentSpendingJumpAgentId(agentId);
-          }}
-          onRegisterOnCelo={handleRegisterOnCelo}
-          isRegisteringId={registeringErc8004Id}
-        />
-      ),
+    "my-agents": (
+      <ArenaMyAgentsSimple
+        isAuthed={isAuthed}
+        myAgents={myAgents}
+        onRefresh={() => fetchMyAgents({ silent: true })}
+        onGoPlay={() => setActiveTab("discover")}
+        onTogglePublic={toggleAgentPublic}
+      />
+    ),
   };
 
   return (
