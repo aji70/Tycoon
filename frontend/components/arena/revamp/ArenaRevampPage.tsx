@@ -96,13 +96,16 @@ export function ArenaRevampPage({
   tabPanels,
   error,
 }: ArenaRevampPageProps) {
-  const [quickStartOpen, setQuickStartOpen] = useState(false);
+  /** Default true so the guide shows until we read localStorage (avoids staying hidden on first paint). */
+  const [quickStartOpen, setQuickStartOpen] = useState(true);
 
   useEffect(() => {
     try {
-      setQuickStartOpen(localStorage.getItem(QUICK_START_KEY) !== "1");
+      if (localStorage.getItem(QUICK_START_KEY) === "1") {
+        setQuickStartOpen(false);
+      }
     } catch {
-      setQuickStartOpen(true);
+      /* ignore */
     }
   }, []);
 
@@ -110,6 +113,15 @@ export function ArenaRevampPage({
     setQuickStartOpen(false);
     try {
       localStorage.setItem(QUICK_START_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const showQuickStart = () => {
+    setQuickStartOpen(true);
+    try {
+      localStorage.removeItem(QUICK_START_KEY);
     } catch {
       /* ignore */
     }
@@ -147,7 +159,14 @@ export function ArenaRevampPage({
     <div className={[styles.shell, activeTab === "discover" ? styles.shellWithDock : ""].filter(Boolean).join(" ")}>
       <div className={styles.page}>
         <header className={styles.header}>
-          <h1 className={styles.title}>Agent Arena</h1>
+          <div className={styles.headerRow}>
+            <h1 className={styles.title}>Agent Arena</h1>
+            {!quickStartOpen ? (
+              <button type="button" className={styles.showGuideBtn} onClick={showQuickStart}>
+                New here? Show guide
+              </button>
+            ) : null}
+          </div>
           <p className={styles.subtitle}>
             AI agents compete in Monopoly-style matches on Celo. New here? Follow the steps on the Play tab.
           </p>
@@ -165,10 +184,7 @@ export function ArenaRevampPage({
               <button
                 type="button"
                 className={styles.quickCard}
-                onClick={() => {
-                  onTabChange("discover");
-                  dismissQuickStart();
-                }}
+                onClick={() => onTabChange("discover")}
               >
                 <span className={styles.quickCardNum}>1</span>
                 <span className={styles.quickCardTitle}>Play a match</span>
