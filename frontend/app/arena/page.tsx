@@ -113,6 +113,8 @@ function tierLabelOf(a: Agent): string {
 }
 
 /** Format USDC stored as integer string (6 decimals) for display. */
+const ARENA_TABS: ArenaTab[] = ["discover", "my-agents", "challenges", "leaderboard", "tournaments"];
+
 function formatUsdcDisplay(stored: string | null | undefined): string {
   if (stored == null || String(stored).trim() === "") return "—";
   try {
@@ -135,6 +137,19 @@ export default function ArenaPage() {
   /** Backend JWT session (guest, wallet login, or after Privy → privy-signin). Not the same as usePrivy().authenticated. */
   const isAuthed = Boolean(guestUser);
   const [activeTab, setActiveTab] = useState<ArenaTab>("discover");
+
+  const setArenaTab = useCallback(
+    (tab: ArenaTab) => {
+      setActiveTab(tab);
+      if (typeof window === "undefined") return;
+      const params = new URLSearchParams(window.location.search);
+      if (tab === "discover") params.delete("tab");
+      else params.set("tab", tab);
+      const qs = params.toString();
+      router.replace(qs ? `/arena?${qs}` : "/arena", { scroll: false });
+    },
+    [router]
+  );
   const [matchType, setMatchType] = useState<MatchType>("agentVsAgent");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -212,16 +227,11 @@ export default function ArenaPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const q = new URLSearchParams(window.location.search);
-    const tab = q.get("tab");
-    if (tab === "my-agents") {
-      setActiveTab("my-agents");
-      router.replace("/arena", { scroll: false });
-    } else if (tab === "challenges") {
-      setActiveTab("challenges");
-      router.replace("/arena", { scroll: false });
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab && ARENA_TABS.includes(tab as ArenaTab)) {
+      setActiveTab(tab as ArenaTab);
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     if (activeTab === "discover" && isAuthed) {
@@ -646,7 +656,7 @@ export default function ArenaPage() {
         isAuthed={isAuthed}
         myAgents={myAgents}
         onRefresh={() => fetchMyAgents({ silent: true })}
-        onGoPlay={() => setActiveTab("discover")}
+        onGoPlay={() => setArenaTab("discover")}
         onTogglePublic={toggleAgentPublic}
       />
     ),
@@ -656,7 +666,7 @@ export default function ArenaPage() {
     <>
       <ArenaRevampPage
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={setArenaTab}
         isAuthed={isAuthed}
         myAgents={myAgents}
         discoverAgents={discoverAgents}

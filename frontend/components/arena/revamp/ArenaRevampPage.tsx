@@ -1,6 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Gamepad2,
+  Zap,
+  Trophy,
+  Target,
+  Bot,
+  ChevronRight,
+  type LucideIcon,
+} from "lucide-react";
 import styles from "./arena-revamp.module.css";
 import type { DiscoverAgent } from "./map-api-agents";
 
@@ -38,34 +47,52 @@ export interface ArenaRevampPageProps {
 const TABS: {
   id: ArenaTab;
   label: string;
+  shortLabel: string;
   description: string;
+  icon: LucideIcon;
 }[] = [
   {
     id: "discover",
     label: "Play",
-    description: "Find opponents and start a match — this is where most games begin.",
-  },
-  {
-    id: "challenges",
-    label: "Challenges",
-    description: "Challenge agents that approved your wallet to spend USDC on their behalf.",
-  },
-  {
-    id: "leaderboard",
-    label: "Rankings",
-    description: "See which agents have the best arena record.",
-  },
-  {
-    id: "tournaments",
-    label: "Tournaments",
-    description: "Join or create bracket events with USDC prizes.",
+    shortLabel: "Play",
+    description: "Set up your agent, pick opponents, and start a match.",
+    icon: Gamepad2,
   },
   {
     id: "my-agents",
     label: "My Agents",
-    description: "Create an agent with just a name — then head to Play to start a match.",
+    shortLabel: "Agents",
+    description: "Create and manage the agents you compete with.",
+    icon: Bot,
+  },
+  {
+    id: "challenges",
+    label: "Challenges",
+    shortLabel: "Spend",
+    description: "Play with agents that approved your wallet to spend USDC for them.",
+    icon: Zap,
+  },
+  {
+    id: "leaderboard",
+    label: "Rankings",
+    shortLabel: "Ranks",
+    description: "See which agents have the best arena record.",
+    icon: Trophy,
+  },
+  {
+    id: "tournaments",
+    label: "Tournaments",
+    shortLabel: "Events",
+    description: "Join or create bracket events with USDC prizes.",
+    icon: Target,
   },
 ];
+
+const PLAY_STEPS = [
+  { id: "arena-step-1", label: "Setup" },
+  { id: "arena-step-2", label: "Opponents" },
+  { id: "arena-launch", label: "Start" },
+] as const;
 
 const QUICK_START_KEY = "tycoon-arena-quickstart-dismissed";
 
@@ -146,6 +173,22 @@ export function ArenaRevampPage({
   const currentStep = !step1Done ? 1 : !step2Done ? 2 : 3;
 
   const activeTabMeta = TABS.find((t) => t.id === activeTab)!;
+  const pageRef = useRef<HTMLDivElement>(null);
+
+  const handleTabChange = useCallback(
+    (tab: ArenaTab) => {
+      onTabChange(tab);
+      pageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [onTabChange]
+  );
+
+  const scrollToPlayStep = useCallback((elementId: string) => {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   const launchHint = !isAuthed
     ? "Sign in (top nav) to start a match"
@@ -157,7 +200,7 @@ export function ArenaRevampPage({
 
   return (
     <div className={[styles.shell, activeTab === "discover" ? styles.shellWithDock : ""].filter(Boolean).join(" ")}>
-      <div className={styles.page}>
+      <div className={styles.page} ref={pageRef}>
         <header className={styles.header}>
           <div className={styles.headerRow}>
             <h1 className={styles.title}>Agent Arena</h1>
@@ -168,7 +211,8 @@ export function ArenaRevampPage({
             ) : null}
           </div>
           <p className={styles.subtitle}>
-            AI agents compete in Monopoly-style matches on Celo. New here? Follow the steps on the Play tab.
+            AI agents compete in Monopoly-style matches on Celo. Use <strong>Play</strong> to start — create an agent
+            first under <strong>My Agents</strong> if you are new.
           </p>
         </header>
 
@@ -184,50 +228,91 @@ export function ArenaRevampPage({
               <button
                 type="button"
                 className={styles.quickCard}
-                onClick={() => onTabChange("discover")}
+                onClick={() => handleTabChange("my-agents")}
               >
                 <span className={styles.quickCardNum}>1</span>
-                <span className={styles.quickCardTitle}>Play a match</span>
-                <span className={styles.quickCardDesc}>Pick opponents and hit Start</span>
+                <span className={styles.quickCardTitle}>Create an agent</span>
+                <span className={styles.quickCardDesc}>Takes about a minute</span>
               </button>
               <button
                 type="button"
                 className={styles.quickCard}
-                onClick={() => onTabChange("my-agents")}
+                onClick={() => handleTabChange("discover")}
               >
                 <span className={styles.quickCardNum}>2</span>
-                <span className={styles.quickCardTitle}>Create an agent</span>
-                <span className={styles.quickCardDesc}>Required before you can play</span>
+                <span className={styles.quickCardTitle}>Play a match</span>
+                <span className={styles.quickCardDesc}>Setup → opponents → Start</span>
               </button>
               <button
                 type="button"
                 className={styles.quickCard}
-                onClick={() => onTabChange("leaderboard")}
+                onClick={() => handleTabChange("leaderboard")}
               >
                 <span className={styles.quickCardNum}>3</span>
                 <span className={styles.quickCardTitle}>View rankings</span>
-                <span className={styles.quickCardDesc}>See top arena performers</span>
+                <span className={styles.quickCardDesc}>See top performers</span>
               </button>
             </div>
           </aside>
         ) : null}
 
-        <div className={styles.tabs} role="tablist" aria-label="Arena sections">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === t.id}
-              className={activeTab === t.id ? styles.tabActive : styles.tab}
-              onClick={() => onTabChange(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <nav className={styles.navSticky} aria-label="Arena navigation">
+          <div className={styles.tabs} role="tablist" aria-label="Arena sections">
+            {TABS.map((t) => {
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === t.id}
+                  aria-controls={`arena-panel-${t.id}`}
+                  id={`arena-tab-${t.id}`}
+                  className={activeTab === t.id ? styles.tabActive : styles.tab}
+                  onClick={() => handleTabChange(t.id)}
+                >
+                  <Icon className={styles.tabIcon} aria-hidden />
+                  <span className={styles.tabLabelFull}>{t.label}</span>
+                  <span className={styles.tabLabelShort}>{t.shortLabel}</span>
+                </button>
+              );
+            })}
+          </div>
 
-        <p className={styles.tabDescription}>{activeTabMeta.description}</p>
+          <div className={styles.navMeta}>
+            <p className={styles.tabDescription}>
+              <span className={styles.youAreHere}>You are here:</span> {activeTabMeta.description}
+            </p>
+            {activeTab !== "discover" ? (
+              <button type="button" className={styles.goPlayBtn} onClick={() => handleTabChange("discover")}>
+                Go to Play
+                <ChevronRight className={styles.goPlayIcon} aria-hidden />
+              </button>
+            ) : null}
+          </div>
+
+          {activeTab === "discover" ? (
+            <div className={styles.playSubNav} role="navigation" aria-label="Play steps">
+              <span className={styles.playSubNavLabel}>Jump to</span>
+              {PLAY_STEPS.map((s, i) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={
+                    currentStep === i + 1
+                      ? styles.playSubNavBtnActive
+                      : currentStep > i + 1
+                        ? styles.playSubNavBtnDone
+                        : styles.playSubNavBtn
+                  }
+                  onClick={() => scrollToPlayStep(s.id)}
+                >
+                  {i + 1}. {s.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </nav>
 
         <div className={styles.body}>
           {error ? <div className={styles.errorBanner}>{error}</div> : null}
@@ -249,7 +334,7 @@ export function ArenaRevampPage({
               onStakeChange={onStakeChange}
               matchType={matchType}
               onMatchTypeChange={onMatchTypeChange}
-              onTabChange={onTabChange}
+              onTabChange={handleTabChange}
               step1Done={step1Done}
               step2Done={step2Done}
               currentStep={currentStep}
@@ -259,7 +344,12 @@ export function ArenaRevampPage({
               onLaunch={onLaunch}
             />
           ) : (
-            <section className={styles.panel} aria-label={activeTabMeta.label}>
+            <section
+              id={`arena-panel-${activeTab}`}
+              role="tabpanel"
+              aria-labelledby={`arena-tab-${activeTab}`}
+              className={styles.panel}
+            >
               {tabPanels?.[activeTab] ?? <p className={styles.emptyState}>Nothing here yet.</p>}
             </section>
           )}
@@ -336,6 +426,7 @@ function DiscoverPanel({
       </ol>
 
       <section
+        id="arena-step-1"
         className={`${styles.stepSection} ${currentStep === 1 ? styles.stepSectionHighlight : ""}`}
         aria-labelledby="step-1-heading"
       >
@@ -355,7 +446,7 @@ function DiscoverPanel({
               You need an agent before you can play. Create one in <strong>My Agents</strong> — it only takes a minute.
             </p>
             <button type="button" className={styles.calloutBtn} onClick={() => onTabChange("my-agents")}>
-              Create my first agent →
+              Go to My Agents →
             </button>
           </div>
         ) : (
@@ -422,6 +513,7 @@ function DiscoverPanel({
       </section>
 
       <section
+        id="arena-step-2"
         className={`${styles.stepSection} ${currentStep === 2 ? styles.stepSectionHighlight : ""}`}
         aria-labelledby="step-2-heading"
       >
@@ -470,7 +562,7 @@ function DiscoverPanel({
         {step2Done ? <p className={styles.stepComplete}>✓ Opponents selected — ready to start</p> : null}
       </section>
 
-      <div className={styles.launchDock} role="region" aria-label="Start match">
+      <div id="arena-launch" className={styles.launchDock} role="region" aria-label="Start match">
         <div className={styles.launchDockInner}>
           <div className={styles.launchDockText}>
             <span className={styles.launchDockTitle}>Step 3 — Start match</span>
