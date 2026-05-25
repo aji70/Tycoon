@@ -92,7 +92,7 @@ export default function TermsPage() {
       <Section>
         <S icon={<Ban size={15} />}>4. Not a Gambling Platform</S>
         <p>
-          Tycoon is a <strong className="text-white">skill-based competitive strategy game</strong>. Entry stakes (where applicable) are participation fees that fund the prize pool — similar to a tournament entry fee. Outcomes are determined by player decisions, strategy, and game mechanics. Tycoon does not operate as a casino, bookmaker, or gambling operator. TYC tokens and USDC are game utility instruments, not financial instruments or securities.
+          Tycoon is a <strong className="text-white">skill-based competitive strategy game</strong>. Entry stakes (where applicable) are participation fees that fund the prize pool — similar to a tournament entry fee. Outcomes are determined by player decisions, strategy, and game mechanics. Tycoon does not operate as a casino, bookmaker, or gambling operator. TYC tokens and USDT are game utility instruments, not financial instruments or securities.
         </p>
         <p className="text-[#8AABAE] text-xs">You are solely responsible for understanding and complying with the laws of your jurisdiction regarding online games, token transactions, and prize competitions.</p>
       </Section>

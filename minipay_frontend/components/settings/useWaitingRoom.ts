@@ -502,7 +502,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     }
 
     if (!usdcTokenAddress && stakePerPlayer > 0) {
-      setError("USDC not available on this network.");
+      setError("USDT not available on this network.");
       actionGuardRef.current = false;
       setActionLoading(false);
       toast.dismiss(toastId);
@@ -511,14 +511,14 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
 
     try {
       if (stakePerPlayer > 0) {
-        toast.update(toastId, { render: "Checking USDC approval..." });
+        toast.update(toastId, { render: "Checking USDT approval..." });
         await refetchAllowance();
         const currentAllowance = usdcAllowance
           ? BigInt(usdcAllowance.toString())
           : BigInt(0);
 
         if (currentAllowance < stakePerPlayer) {
-          toast.update(toastId, { render: "Approving USDC spend..." });
+          toast.update(toastId, { render: "Approving USDT spend..." });
           await approveUSDC(usdcTokenAddress!, contractAddress, stakePerPlayer);
           await new Promise((r) => setTimeout(r, 3000));
         }

@@ -390,7 +390,7 @@ export default function GameWaiting3DLobby(): React.ReactElement {
 
           {stakePerPlayer > BigInt(0) && (
             <p className="text-amber-400/90 text-sm text-center mb-4 font-orbitron">
-              Stake: {Number(stakePerPlayer) / 1e6} USDC
+              Stake: {Number(stakePerPlayer) / 1e6} USDT
             </p>
           )}
 

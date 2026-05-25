@@ -1,4 +1,4 @@
-export type MinipayStableSymbol = 'USDC' | 'CUSDC' | 'USDT';
+export type MinipayStableSymbol = 'CUSDC' | 'USDT';
 
 export type MinipayStableOption = {
   symbol: MinipayStableSymbol;

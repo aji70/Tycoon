@@ -37,8 +37,8 @@ function formatEntryFee(wei: string | number): string {
   const n = Number(wei);
   if (n === 0) return "Free";
   const usd = n / 1e6;
-  if (usd >= 0.01) return `$${usd.toFixed(2)} USDC`;
-  if (usd > 0) return `$${usd.toFixed(4)} USDC`;
+  if (usd >= 0.01) return `$${usd.toFixed(2)} USDT`;
+  if (usd > 0) return `$${usd.toFixed(4)} USDT`;
   return `${n} wei`;
 }
 
@@ -842,7 +842,7 @@ export function TournamentDetailPage({
                 Fund prize pool
               </h2>
               <p className="text-sm text-white/70 mb-4">
-                Deposit USDC on <span className="text-cyan-300 font-medium">{tournament.chain}</span>. Planned pool:{" "}
+                Deposit USDT on <span className="text-cyan-300 font-medium">{tournament.chain}</span>. Planned pool:{" "}
                 <strong className="text-white">
                   {tournament.prize_pool_wei && Number(tournament.prize_pool_wei) > 0
                     ? formatEntryFee(tournament.prize_pool_wei)
@@ -898,7 +898,7 @@ export function TournamentDetailPage({
                         </button>
                       </div>
                       <span className="text-xs text-white/60">
-                        {fundFromSmartWallet ? "USDC in your Tycoon smart wallet" : "USDC in your connected EOA"}
+                        {fundFromSmartWallet ? "USDT in your Tycoon smart wallet" : "USDT in your connected EOA"}
                       </span>
                     </div>
                   ) : (
@@ -911,7 +911,7 @@ export function TournamentDetailPage({
               <div className="flex flex-col sm:flex-row sm:items-end gap-4">
                 <div className="flex-1 max-w-xs">
                   <label htmlFor="fund_pool_usd" className="block text-sm font-medium text-white/90 mb-1.5">
-                    Amount (USDC)
+                    Amount (USDT)
                   </label>
                   <input
                     id="fund_pool_usd"
@@ -933,7 +933,7 @@ export function TournamentDetailPage({
                   onClick={async () => {
                     const usd = parseFloat(fundPoolUsd);
                     if (Number.isNaN(usd) || usd <= 0) {
-                      setActionError("Enter a USDC amount greater than 0");
+                      setActionError("Enter a USDT amount greater than 0");
                       return;
                     }
                     setActionError(null);
@@ -965,7 +965,7 @@ export function TournamentDetailPage({
                 </button>
               </div>
               <p className="text-xs text-white/50 mt-3">
-                Two steps: approve USDC, then deposit. Winners get 50% / 30% / 15% / 5% for 1st–4th.
+                Two steps: approve USDT, then deposit. Winners get 50% / 30% / 15% / 5% for 1st–4th.
               </p>
             </section>
           )}

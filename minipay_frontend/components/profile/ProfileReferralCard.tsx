@@ -139,7 +139,7 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
             <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/90 mb-2 font-orbitron">Invite Friends</p>
             <p className="text-xs text-cyan-300/70 mb-3">
               Generate your unique referral code and start earning{" "}
-              <span className="font-semibold text-amber-400">$0.10 USDC</span> for every friend who joins!
+              <span className="font-semibold text-amber-400">$0.10 USDT</span> for every friend who joins!
             </p>
             <button
               type="button"
@@ -176,7 +176,7 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/90 mb-1 font-orbitron">Invite Friends</p>
           <p className="text-xs text-cyan-300/70 mb-1">
-            Earn <span className="font-semibold text-amber-400">$0.10 USDC</span> for every friend who signs up with your code
+            Earn <span className="font-semibold text-amber-400">$0.10 USDT</span> for every friend who signs up with your code
           </p>
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <span className="font-mono text-sm text-cyan-300 bg-[#0A1A1B] px-3 py-1.5 rounded-lg border border-cyan-500/40 truncate max-w-full">
@@ -211,7 +211,7 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
                   <span className="font-semibold text-cyan-300 tabular-nums">{referralCount}</span>
                   {" · "}
                   Total earned:{" "}
-                  <span className="font-bold text-amber-400 tabular-nums">${earnedAmount} USDC</span>
+                  <span className="font-bold text-amber-400 tabular-nums">${earnedAmount} USDT</span>
                 </p>
               </div>
             );

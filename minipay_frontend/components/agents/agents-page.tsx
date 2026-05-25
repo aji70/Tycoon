@@ -1619,7 +1619,7 @@ export default function AgentsPage({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Max per match (USDC)</p>
+                    <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Max per match (USDT)</p>
                     <input
                       value={permMaxFee}
                       onChange={(e) => setPermMaxFee(e.target.value)}
@@ -1641,7 +1641,7 @@ export default function AgentsPage({
                 </div>
 
                 <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Daily total cap (USDC, optional)</p>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Daily total cap (USDT, optional)</p>
                   <input
                     value={permDailyCap}
                     onChange={(e) => setPermDailyCap(e.target.value)}
@@ -1694,13 +1694,13 @@ export default function AgentsPage({
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setBuyCreditsOpen(false)}>
             <div className="bg-[#0d1117] rounded-2xl border border-cyan-500/40 p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-xl font-bold text-white mb-4">Buy hosted agent credits</h3>
-              <p className="text-gray-400 text-sm mb-4">100 credits = 100 AI decisions. $1 USDC or ₦1000 NGN.</p>
+              <p className="text-gray-400 text-sm mb-4">100 credits = 100 AI decisions. $1 USDT or ₦1000 NGN.</p>
 
               {hostedCredits.purchase_usdc_available && (
                 <div className="mb-4">
-                  <p className="text-sm text-cyan-400 font-medium mb-2">Pay with USDC (Celo)</p>
+                  <p className="text-sm text-cyan-400 font-medium mb-2">Pay with USDT (Celo)</p>
                   <p className="text-xs text-gray-500 mb-2">
-                    Send $1 USDC to <code className="bg-black/50 px-1 rounded text-cyan-300 truncate block">{hostedCredits.usdc_recipient || "…"}</code> on Celo, then paste the transaction hash:
+                    Send $1 USDT to <code className="bg-black/50 px-1 rounded text-cyan-300 truncate block">{hostedCredits.usdc_recipient || "…"}</code> on Celo, then paste the transaction hash:
                   </p>
                   <div className="flex gap-2">
                     <input

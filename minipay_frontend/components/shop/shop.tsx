@@ -265,7 +265,6 @@ export default function GameShop() {
   });
   const stableOptions = useMemo<StableOption[]>(
     () => [
-      { symbol: 'USDC', tokenAddress: usdcTokenAddress, paymentToken: 1, balance: Number(usdcBalanceData?.formatted ?? 0) },
       { symbol: 'CUSDC', tokenAddress: cusdcAddress, paymentToken: 2, balance: Number(cusdcBalanceData?.formatted ?? 0) },
       { symbol: 'USDT', tokenAddress: usdtAddress, paymentToken: 3, balance: Number(usdtBalanceData?.formatted ?? 0) },
     ],
@@ -560,7 +559,7 @@ export default function GameShop() {
     try {
       if (payWith === 'smart_wallet' && smartWalletAddress) {
         const session = readAppSessionToken();
-        if (session && preferredStable.symbol === 'USDC') {
+        if (session && preferredStable.symbol === 'USDT') {
           const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to pay from your smart wallet')?.trim() : '';
           if (!pin) {
             toast.error('PIN is required');
@@ -668,8 +667,8 @@ export default function GameShop() {
       toast.error('Please connect your wallet or register to use your smart wallet');
       return;
     }
-    if (!contractAddress || !usdcTokenAddress) {
-      toast.error('USDC not supported on this network');
+    if (!contractAddress || !preferredStable.tokenAddress) {
+      toast.error(`${activeStableLabel} not supported on this network`);
       return;
     }
     const bundleEntry = bundles.find((b) => b.name === bundleName);
@@ -1126,7 +1125,7 @@ export default function GameShop() {
                       <h3 className="font-bold text-lg text-white mb-2">{b.name}</h3>
                       <p className="text-slate-400 text-sm leading-relaxed mb-4 flex-1">{b.description || ''}</p>
                       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)] mb-4">
-                        <span className="text-lg font-bold">{(typeof b.price_usdc === 'string' ? Number(b.price_usdc) : b.price_usdc).toFixed(2)} USDC</span>
+                        <span className="text-lg font-bold">{(typeof b.price_usdc === 'string' ? Number(b.price_usdc) : b.price_usdc).toFixed(2)} {activeStableLabel}</span>
                       </div>
                       <button
                         onClick={() => handleBuyBundleWithUsdc(b.name)}
@@ -1142,7 +1141,7 @@ export default function GameShop() {
                         {bundleBuyingName === b.name ? (
                           <><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Buying bundle...</>
                         ) : (
-                          <><CreditCard className="w-4 h-4 inline mr-2" /> Pay with USDC</>
+                          <><CreditCard className="w-4 h-4 inline mr-2" /> Pay with {activeStableLabel}</>
                         )}
                       </button>
                     </div>

@@ -651,7 +651,7 @@ function GuestProfileViewMobile({
                   <div className="flex gap-1.5">
                     {[
                       { label: 'TYC', value: tycBalanceLinked.isLoading ? '…' : Number(tycBalanceLinked.data?.formatted || 0).toFixed(2) },
-                      { label: 'USDC', value: usdcBalanceLinked.isLoading ? '…' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2) },
+                      { label: 'USDT', value: usdcBalanceLinked.isLoading ? '…' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2) },
                       { label: 'Celo', value: nativeBalanceLinked.isLoading ? '…' : (nativeBalanceLinked.data ? Number(nativeBalanceLinked.data.formatted).toFixed(4) : '0') },
                     ].map(({ label, value }) => (
                       <div key={`gc-${label}`} className="flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center">
@@ -665,7 +665,7 @@ function GuestProfileViewMobile({
                   <div className="flex gap-1.5">
                     {[
                       { label: 'TYC', value: tycBalanceSmart.isLoading ? '…' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2) },
-                      { label: 'USDC', value: usdcBalanceSmart.isLoading ? '…' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2) },
+                      { label: 'USDT', value: usdcBalanceSmart.isLoading ? '…' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2) },
                       { label: 'Celo', value: nativeBalanceSmart.isLoading ? '…' : (nativeBalanceSmart.data ? Number(nativeBalanceSmart.data.formatted).toFixed(4) : '0') },
                     ].map(({ label, value }) => (
                       <div key={`gs-${label}`} className="flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center">
@@ -1620,7 +1620,7 @@ export default function ProfilePageMobile() {
                         : (tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2)),
                   },
                   {
-                    label: 'USDC',
+                    label: 'USDT',
                     value:
                       activeWalletView === 'smart'
                         ? (usdcBalanceSmart.isLoading ? '...' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2))
@@ -1660,7 +1660,7 @@ export default function ProfilePageMobile() {
           <div className="grid grid-cols-3 gap-2">
             {[
               { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2) },
-              { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2) },
+              { label: 'USDT', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2) },
               { label: 'cUSD', value: cusdcBalance.isLoading ? '...' : Number(cusdcBalance.data?.formatted || 0).toFixed(2) },
               { label: 'USDT', value: usdtBalance.isLoading ? '...' : Number(usdtBalance.data?.formatted || 0).toFixed(2) },
               { label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0' },

@@ -341,7 +341,6 @@ export default function GameShopMobile() {
 
   const stableOptions = useMemo<StableOption[]>(
     () => [
-      { symbol: 'USDC', tokenAddress: usdcTokenAddress, paymentToken: 1, balance: Number(usdcBalanceData?.formatted ?? 0) },
       { symbol: 'CUSDC', tokenAddress: cusdcAddress, paymentToken: 2, balance: Number(cusdcBalanceData?.formatted ?? 0) },
       { symbol: 'USDT', tokenAddress: usdtAddress, paymentToken: 3, balance: Number(usdtBalanceData?.formatted ?? 0) },
     ],
@@ -634,8 +633,8 @@ export default function GameShopMobile() {
       toast.error('Please connect your wallet or register to use your smart wallet');
       return;
     }
-    if (!usdcTokenAddress || !contractAddress) {
-      toast.error('USDC not supported on this network');
+    if (!preferredStable.tokenAddress || !contractAddress) {
+      toast.error(`${activeStableLabel} not supported on this network`);
       return;
     }
     const selectedPriceRaw =
@@ -659,7 +658,7 @@ export default function GameShopMobile() {
     try {
       if (payWith === 'smart_wallet' && smartWalletAddress) {
         const session = readAppSessionToken();
-        if (session && preferredStable.symbol === 'USDC') {
+        if (session && preferredStable.symbol === 'USDT') {
           const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to pay from your smart wallet')?.trim() : '';
           if (!pin) {
             toast.error('PIN is required');
@@ -768,8 +767,8 @@ export default function GameShopMobile() {
       toast.error('Smart wallet not available');
       return;
     }
-    if (!contractAddress || !usdcTokenAddress) {
-      toast.error('USDC not supported on this network');
+    if (!contractAddress || !preferredStable.tokenAddress) {
+      toast.error(`${activeStableLabel} not supported on this network`);
       return;
     }
     const def = BUNDLE_DEFS.find((b) => b.name === bundleName);
@@ -1078,7 +1077,7 @@ export default function GameShopMobile() {
                     <h3 className="font-bold text-base text-white mt-2">{b.name}</h3>
                     <p className="text-slate-500 text-xs mt-1 line-clamp-2">{b.description || ''}</p>
                     <p className="text-[#00F0FF] font-semibold text-sm mt-2">
-                      {Number(b.price_usdc).toFixed(2)} USDC
+                      {Number(b.price_usdc).toFixed(2)} {activeStableLabel}
                     </p>
                     <button
                       onClick={() =>
@@ -1105,7 +1104,7 @@ export default function GameShopMobile() {
                       ) : !hasPaymentMethod ? (
                         <><Wallet size={14} className="inline mr-2" /> Connect MiniPay wallet</>
                       ) : (
-                        <><CreditCard size={14} className="inline mr-2" /> Pay with USDC</>
+                        <><CreditCard size={14} className="inline mr-2" /> Pay with {activeStableLabel}</>
                       )}
                     </button>
                   </div>

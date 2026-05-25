@@ -165,7 +165,7 @@ export default function ManageSmartWalletPage() {
         functionName: "withdrawNative",
         args: [swapExecutorAddress as Address, amount],
       });
-      toast.success("Swap submitted. USDC will be credited to this smart wallet after the tx confirms.");
+      toast.success("Swap submitted. USDT will be credited to this smart wallet after the tx confirms.");
       setSwapCeloAmount("");
     } catch (e) {
       toast.error(getContractErrorMessage(e, "Swap failed"));
@@ -226,7 +226,7 @@ export default function ManageSmartWalletPage() {
       if (res?.data?.data?.migration?.status === "failed") {
         toast.warn("Wallet recreated, but migration is incomplete. Contact support with your old wallet address.");
       } else {
-        toast.success("Smart wallet recreated. CELO, USDC, TYC, perks, and vouchers migrated when possible.");
+        toast.success("Smart wallet recreated. CELO, USDT, TYC, perks, and vouchers migrated when possible.");
       }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
@@ -477,14 +477,14 @@ export default function ManageSmartWalletPage() {
             </button>
           </div>
           {!isConnected && (
-            <p className="text-xs text-white/50 mt-2">You can withdraw CELO/USDC below without connecting (if you’ve enabled managed withdrawals).</p>
+            <p className="text-xs text-white/50 mt-2">You can withdraw CELO/USDT below without connecting (if you’ve enabled managed withdrawals).</p>
           )}
         </section>
 
         <section className="rounded-2xl border border-white/10 bg-[#011112]/80 p-5">
           <h2 className="text-base font-semibold text-white/90 mb-2">Replace smart wallet</h2>
           <p className="text-xs text-white/55 mb-3 text-left">
-            Creates a new smart wallet contract and migrates CELO, USDC, TYC, perks, and vouchers when possible. Use if support asked you to, or your wallet was compromised. Requires an active session (email or linked wallet).
+            Creates a new smart wallet contract and migrates CELO, USDT, TYC, perks, and vouchers when possible. Use if support asked you to, or your wallet was compromised. Requires an active session (email or linked wallet).
           </p>
           <button
             type="button"
@@ -514,7 +514,7 @@ export default function ManageSmartWalletPage() {
               </p>
             </div>
             <div className="rounded-xl bg-white/5 border border-white/10 p-4">
-              <p className="text-[10px] uppercase tracking-wider text-white/50">USDC</p>
+              <p className="text-[10px] uppercase tracking-wider text-white/50">USDT</p>
               <p className="text-lg font-bold text-white mt-0.5">
                 {usdcBalance.isLoading ? "…" : (usdcBalance.data ? Number(usdcBalance.data.formatted).toFixed(2) : "0")}
               </p>
@@ -552,7 +552,7 @@ export default function ManageSmartWalletPage() {
               <p className="text-sm text-amber-400/90">Set a withdrawal PIN above first. Withdrawals require your PIN as 2FA.</p>
             ) : (
               <>
-                <p className="text-xs text-white/60 mb-4">Withdraw CELO or USDC from your smart wallet. Enter your PIN each time. Enable managed withdrawals once (when connected) if you haven’t.</p>
+                <p className="text-xs text-white/60 mb-4">Withdraw CELO or USDT from your smart wallet. Enter your PIN each time. Enable managed withdrawals once (when connected) if you haven’t.</p>
                 {apiWithdrawError && <p className="text-sm text-red-400 mb-2">{apiWithdrawError}</p>}
                 <form onSubmit={handleWithdrawCeloViaApi} className="flex flex-wrap gap-2 mb-3">
                   <input type="text" placeholder="Amount (CELO)" value={withdrawCeloApiAmount} onChange={(e) => setWithdrawCeloApiAmount(e.target.value)} className="flex-1 min-w-[100px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm" />
@@ -563,11 +563,11 @@ export default function ManageSmartWalletPage() {
                   </button>
                 </form>
                 <form onSubmit={handleWithdrawUsdcViaApi} className="flex flex-wrap gap-2">
-                  <input type="text" placeholder="Amount (USDC)" value={withdrawUsdcApiAmount} onChange={(e) => setWithdrawUsdcApiAmount(e.target.value)} className="flex-1 min-w-[100px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm" />
+                  <input type="text" placeholder="Amount (USDT)" value={withdrawUsdcApiAmount} onChange={(e) => setWithdrawUsdcApiAmount(e.target.value)} className="flex-1 min-w-[100px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm" />
                   <input type="text" placeholder="To address (0x...)" value={withdrawUsdcApiTo} onChange={(e) => setWithdrawUsdcApiTo(e.target.value)} className="flex-1 min-w-[180px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm font-mono" />
                   <input type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="off" placeholder="PIN" value={withdrawUsdcApiPin} onChange={(e) => setWithdrawUsdcApiPin(e.target.value)} maxLength={8} className="w-20 px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm" />
                   <button type="submit" disabled={apiWithdrawLoading} className="px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium disabled:opacity-50">
-                    {apiWithdrawLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : null} Withdraw USDC
+                    {apiWithdrawLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : null} Withdraw USDT
                   </button>
                 </form>
               </>
@@ -610,12 +610,12 @@ export default function ManageSmartWalletPage() {
 
             <section className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
               <h2 className="text-base font-semibold text-cyan-400 mb-3 flex items-center gap-2">
-                <Send className="w-4 h-4" /> Withdraw USDC
+                <Send className="w-4 h-4" /> Withdraw USDT
               </h2>
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
-                  placeholder="Amount (USDC)"
+                  placeholder="Amount (USDT)"
                   value={withdrawUsdcAmount}
                   onChange={(e) => setWithdrawUsdcAmount(e.target.value)}
                   className="flex-1 px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm"
@@ -642,9 +642,9 @@ export default function ManageSmartWalletPage() {
             {swapExecutorAddress && (
               <section className="rounded-2xl border border-green-500/20 bg-[#011112]/80 p-5">
                 <h2 className="text-base font-semibold text-green-400 mb-3 flex items-center gap-2">
-                  <ArrowRightLeft className="w-4 h-4" /> Swap CELO → USDC
+                  <ArrowRightLeft className="w-4 h-4" /> Swap CELO → USDT
                 </h2>
-                <p className="text-xs text-white/60 mb-2">Convert CELO in this smart wallet to USDC. USDC is credited back to this same wallet (via Ubeswap). Connect as owner to sign.</p>
+                <p className="text-xs text-white/60 mb-2">Convert CELO in this smart wallet to USDT. USDT is credited back to this same wallet (via Ubeswap). Connect as owner to sign.</p>
                 <div className="flex flex-wrap gap-2 items-end">
                   <input
                     type="text"
@@ -660,7 +660,7 @@ export default function ManageSmartWalletPage() {
                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500/25 border border-green-500/50 text-green-300 text-sm font-medium disabled:opacity-50"
                   >
                     {pendingAny ? <Loader2 className="w-4 h-4 animate-spin" /> : <Coins className="w-4 h-4" />}
-                    Swap to USDC
+                    Swap to USDT
                   </button>
                 </div>
               </section>
@@ -723,7 +723,7 @@ export default function ManageSmartWalletPage() {
             {needsEnableOperator && (
               <section className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
                 <h2 className="text-base font-semibold text-cyan-400 mb-2">Enable managed withdrawals</h2>
-                <p className="text-xs text-white/60 mb-3">Allow withdrawals when you’re not connected. One quick step so you can withdraw CELO/USDC from this page without connecting your wallet.</p>
+                <p className="text-xs text-white/60 mb-3">Allow withdrawals when you’re not connected. One quick step so you can withdraw CELO/USDT from this page without connecting your wallet.</p>
                 <button
                   type="button"
                   onClick={async () => {

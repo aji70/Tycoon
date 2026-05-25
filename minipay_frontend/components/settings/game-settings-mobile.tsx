@@ -223,18 +223,18 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
     }
 
     if (!isFreeGame && !usdcTokenAddress) {
-      toast.update(toastId, { render: "USDC not supported on current network.", type: "error", isLoading: false });
+      toast.update(toastId, { render: "USDT not supported on current network.", type: "error", isLoading: false });
       setIsStarting(false);
       return;
     }
 
     try {
       if (!isFreeGame) {
-        toast.update(toastId, { render: "Checking USDC allowance..." });
+        toast.update(toastId, { render: "Checking USDT allowance..." });
         await refetchAllowance();
         const allowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : 0n;
         if (allowance < stakeAmount) {
-          toast.update(toastId, { render: "Approving USDC (one-time)..." });
+          toast.update(toastId, { render: "Approving USDT (one-time)..." });
           await approveUSDC(usdcTokenAddress!, contractAddress, stakeAmount);
           await new Promise((r) => setTimeout(r, 4000));
           await refetchAllowance();
@@ -595,14 +595,14 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
                         type="number"
                         min="0.01"
                         step="0.01"
-                        placeholder="Custom USDC"
+                        placeholder="Custom USDT"
                         value={customStake}
                         onChange={(e) => handleCustomStake(e.target.value)}
                         className="w-full px-2 py-1.5 bg-black/60 border border-green-500/50 rounded-lg text-white text-xs text-center focus:outline-none focus:border-green-400 disabled:opacity-50"
                         disabled={isFreeGame}
                       />
                       <p className="text-xs text-cyan-400 text-center mt-1">
-                        {settings.stake} USDC
+                        {settings.stake} USDT
                       </p>
                     </>
                   )}

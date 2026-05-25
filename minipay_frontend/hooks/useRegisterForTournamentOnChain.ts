@@ -53,7 +53,7 @@ export function useRegisterForTournamentOnChain() {
 
       if (fee > 0) {
         if (!usdcAddress) {
-          throw new Error("USDC not configured for this network");
+          throw new Error("USDT not configured for this network");
         }
         // Approve USDC for escrow if entry fee > 0
         const approveHash = await approve(usdcAddress, escrowAddress, fee);

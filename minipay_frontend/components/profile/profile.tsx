@@ -651,7 +651,7 @@ function GuestProfileView({
                               color: 'cyan',
                             },
                             {
-                              label: 'USDC',
+                              label: 'USDT',
                               value: usdcBalanceLinked.isLoading ? '…' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2),
                               color: 'emerald',
                             },
@@ -684,7 +684,7 @@ function GuestProfileView({
                               color: 'cyan',
                             },
                             {
-                              label: 'USDC',
+                              label: 'USDT',
                               value: usdcBalanceSmart.isLoading ? '…' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2),
                               color: 'emerald',
                             },
@@ -1674,7 +1674,7 @@ export default function Profile() {
                       color: 'cyan',
                     },
                     {
-                      label: 'USDC',
+                      label: 'USDT',
                       value:
                         activeWalletView === 'smart'
                           ? (usdcBalanceSmart.isLoading ? '...' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2))
