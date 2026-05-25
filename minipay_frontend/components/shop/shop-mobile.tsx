@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { useAccount, useBalance, useReadContract, useReadContracts } from 'wagmi';
+import { useAccount, useBalance, usePublicClient, useReadContract, useReadContracts } from 'wagmi';
 import { formatUnits, parseUnits, isAddress, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
@@ -41,6 +41,7 @@ import { pickMinipayPreferredStable, type MinipayStableOption } from '@/lib/shop
 import {
   useRewardBuyCollectible,
   useRewardBuyCollectibleFrom,
+  useRewardBuyBundle,
   useRewardBuyBundleFrom,
   useRewardRedeemVoucher,
   useRewardRedeemVoucherFor,
@@ -363,7 +364,10 @@ export default function GameShopMobile() {
   // Buy / Approve / Redeem hooks
   const { buy, isPending: buyingPending, isConfirming: buyingConfirming, isSuccess: buySuccess, error: buyError, reset: resetBuy } = useRewardBuyCollectible();
   const { buyFrom, isPending: buyFromPending, isConfirming: buyFromConfirming, isSuccess: buyFromSuccess, error: buyFromError, reset: resetBuyFrom } = useRewardBuyCollectibleFrom();
-  const { buyBundleFrom, error: buyBundleFromError, reset: resetBuyBundleFrom } = useRewardBuyBundleFrom();
+  const publicClient = usePublicClient();
+  const { buyBundle, isPending: buyBundlePending, isConfirming: buyBundleConfirming, reset: resetBuyBundle } = useRewardBuyBundle();
+  const { buyBundleFrom, isPending: buyBundleFromPending, isConfirming: buyBundleFromConfirming, reset: resetBuyBundleFrom } = useRewardBuyBundleFrom();
+  const bundleTxBusy = buyBundlePending || buyBundleConfirming || buyBundleFromPending || buyBundleFromConfirming;
   const { approve, isPending: approvePending, isSuccess: approveSuccess, error: approveError, reset: resetApprove } = useApprove();
   const {
     approveERC20: smartWalletApprove,
@@ -386,9 +390,10 @@ export default function GameShopMobile() {
     resetBuy();
     resetBuyFrom();
     resetApprove();
+    resetBuyBundle();
     resetBuyBundleFrom();
     resetSmartWalletApprove();
-  }, [resetBuy, resetBuyFrom, resetApprove, resetBuyBundleFrom, resetSmartWalletApprove]);
+  }, [resetBuy, resetBuyFrom, resetApprove, resetBuyBundle, resetBuyBundleFrom, resetSmartWalletApprove]);
 
   const notifyShopTxOutcome = useCallback((error: unknown, fallback: string) => {
     const key =
@@ -756,8 +761,30 @@ export default function GameShopMobile() {
     return true;
   };
 
+  const waitForBundleTx = async (hash: `0x${string}`) => {
+    if (!publicClient) throw new Error('Network client not ready. Try again.');
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    if (receipt.status === 'reverted') throw new Error('Bundle purchase transaction reverted');
+  };
+
+  const ensureBundleStableAllowance = async (amount: bigint) => {
+    const token = preferredStable.tokenAddress;
+    if (!token || !contractAddress || !payerAddress) {
+      throw new Error(`${activeStableLabel} not supported on this network`);
+    }
+    const allowance =
+      stableAllowance === undefined || stableAllowance === null
+        ? undefined
+        : typeof stableAllowance === 'bigint'
+          ? stableAllowance
+          : BigInt(stableAllowance.toString());
+    if (allowance === undefined || allowance < amount) {
+      const approveHash = await approve(token, contractAddress, amount);
+      if (approveHash) await waitForBundleTx(approveHash);
+    }
+  };
+
   const handleBuyBundleWithUsdc = async (bundleName: string) => {
-    // Allow if wallet is connected OR smart wallet is available
     const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
     if (!hasPaymentMethod) {
       toast.error('Please connect your wallet or register to use your smart wallet');
@@ -771,58 +798,62 @@ export default function GameShopMobile() {
       toast.error(`${activeStableLabel} not supported on this network`);
       return;
     }
-    const def = BUNDLE_DEFS.find((b) => b.name === bundleName);
-    if (!def) {
+    const bundleEntry = bundles.find((b) => b.name === bundleName);
+    if (!bundleEntry || typeof bundleEntry.id !== 'number') {
       toast.error('Bundle not found');
       return;
     }
-    if (!canBuyBundle(def)) {
+    const def = BUNDLE_DEFS.find((b) => b.name === bundleName);
+    if (!def || !canBuyBundle(def)) {
       toast.error('Bundle items are not currently in stock');
       return;
     }
-    if (bundleBuyingName) return;
+    if (bundleBuyingName || bundleTxBusy) return;
 
+    const priceWei = BigInt(Math.round(Number(bundleEntry.price_usdc) * 1e6));
     setBundleBuyingName(def.name);
+    resetBuyBundle();
+    resetBuyBundleFrom();
+
     try {
       if (payWith === 'smart_wallet') {
-        if (!smartWalletAddress) {
-          toast.error('Smart wallet not available');
-          return;
-        }
-        const bundleEntry = bundles.find((b) => b.name === bundleName);
-        if (!bundleEntry || typeof bundleEntry.id !== 'number') throw new Error('Bundle not found');
         const session = readAppSessionToken();
         if (session) {
           const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to buy bundle with smart wallet')?.trim() : '';
           if (!pin) {
-            toast.error('PIN is required');
+            toast.info('Purchase cancelled');
             return;
           }
-          const usdcPrice = BigInt(Math.round(Number(bundleEntry.price_usdc) * 1e6));
           const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-bundle', {
             bundleId: String(bundleEntry.id),
             useUsdc: true,
-            maxPrice: usdcPrice.toString(),
+            maxPrice: priceWei.toString(),
             pin,
           });
           if (!res?.success && !res?.data?.success) throw new Error(res?.data?.message || 'Bundle purchase failed');
-        } else {
-          await buyBundleFrom(smartWalletAddress, BigInt(bundleEntry.id), true);
+          toast.success('Bundle purchase successful!');
+          refetchUsdc();
+          refetchCusdc();
+          refetchUsdt();
+          return;
         }
+        const swApproveHash = await smartWalletApprove(preferredStable.tokenAddress!, contractAddress, priceWei);
+        if (swApproveHash) await waitForBundleTx(swApproveHash);
+        const fromHash = await buyBundleFrom(smartWalletAddress!, BigInt(bundleEntry.id), true);
+        await waitForBundleTx(fromHash);
       } else {
-        for (const li of def.items) {
-          const key = `${li.perk}:${li.strength}`;
-          const match = resolveBundlePurchases.byPerkStrength.get(key)?.[0];
-          if (!match) throw new Error(`Missing perk #${li.perk} (tier ${li.strength})`);
-          for (let i = 0; i < li.quantity; i++) {
-            await handleBuy(match);
-          }
-        }
+        await ensureBundleStableAllowance(priceWei);
+        const hash = await buyBundle(BigInt(bundleEntry.id), true);
+        await waitForBundleTx(hash);
       }
-      toast.success('Bundle purchase complete!');
+      toast.success('Bundle purchase successful!');
+      refetchUsdc();
+      refetchCusdc();
+      refetchUsdt();
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Bundle purchase failed');
-      resetShopWrites();
+      resetBuyBundle();
+      resetBuyBundleFrom();
     } finally {
       setBundleBuyingName(null);
     }
@@ -927,11 +958,11 @@ export default function GameShopMobile() {
   }, [redeemForSuccess, resetRedeemFor]);
 
   useEffect(() => {
-    const txError = buyError ?? buyFromError ?? approveError ?? buyBundleFromError;
+    const txError = buyError ?? buyFromError ?? approveError;
     if (!txError) return;
     notifyShopTxOutcome(txError, 'Purchase failed');
     resetShopWrites();
-  }, [buyError, buyFromError, approveError, buyBundleFromError, notifyShopTxOutcome, resetShopWrites]);
+  }, [buyError, buyFromError, approveError, notifyShopTxOutcome, resetShopWrites]);
 
   const handleBack = () => {
     const returnTo = searchParams.get('returnTo');
@@ -1085,6 +1116,7 @@ export default function GameShopMobile() {
                       }
                       disabled={
                         bundleBuyingName != null ||
+                        bundleTxBusy ||
                         !BUNDLE_DEFS.some((d) => d.name === b.name) ||
                         (hasPaymentMethod &&
                           !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef))
