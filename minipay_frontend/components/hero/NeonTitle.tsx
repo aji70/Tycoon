@@ -11,14 +11,13 @@ export function NeonTitle({ text, size = "lg" }: NeonTitleProps) {
   };
 
   return (
-    <div className="relative neon-title-perspective">
-      <div className="relative neon-title-inner">
-        <h1
-          className={`neon-title-hero ${sizeClasses[size]} font-kronaOne font-bold uppercase tracking-tighter text-[#00F0FF] relative z-10`}
-        >
-          {text}
-        </h1>
-      </div>
-    </div>
+    <h1
+      className={`neon-title-hero ${sizeClasses[size]} font-kronaOne font-bold uppercase tracking-tighter text-[#00F0FF] relative z-10`}
+    >
+      <span className="neon-title-text">{text}</span>
+      <span className="neon-title-glow-pulse" aria-hidden="true">
+        {text}
+      </span>
+    </h1>
   );
 }
