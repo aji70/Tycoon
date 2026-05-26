@@ -686,7 +686,7 @@ const HeroSection: React.FC = () => {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.5, duration: 0.8 }}
         >
-          <NeonTitle text="TYCOON" size="lg" priority />
+          <NeonTitle text="TYCOON" size="lg" />
         </motion.div>
 
         <motion.div

@@ -1,5 +1,5 @@
 @import "tailwindcss";
-/* tw-animate-css → styles/deferred-ui.css (loaded after first paint) */
+@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -311,7 +311,64 @@ button {
   cursor: pointer;
 }
 
-/* Toastify / wallet modal / tw-animate → styles/deferred-ui.css */
+.w3m-modal {
+  z-index: 10000 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
+/* Force Coinbase/AppKit modal above everything */
+#walletconnect-wrapper,
+.coinbase-wallet-sdk,
+.coinbase-wallet-modal,
+.walletconnect-modal,
+.appkit-modal,
+[class*="appkit-modal"] {
+  z-index: 999999 !important;
+  position: relative !important;
+}
+
+/* React-toastify: game theme (dark bg, cyan text) */
+.Toastify__toast {
+  background: #0A1A1B !important;
+  color: #E0F7F8 !important;
+  border: 1px solid #003B3E !important;
+  font-family: var(--font-orbitron), Orbitron, sans-serif !important;
+}
+.Toastify__toast--success {
+  background: #0A1A1B !important;
+  color: #00F0FF !important;
+  border-color: rgba(0, 240, 255, 0.4) !important;
+}
+.Toastify__toast--error {
+  background: #0A1A1B !important;
+  color: #FF6B6B !important;
+  border-color: rgba(255, 107, 107, 0.4) !important;
+}
+.Toastify__toast--warning {
+  background: #0A1A1B !important;
+  color: #F1C40F !important;
+  border-color: rgba(241, 196, 15, 0.4) !important;
+}
+.Toastify__toast--info,
+.Toastify__toast--default {
+  background: #0A1A1B !important;
+  color: #00F0FF !important;
+  border-color: #003B3E !important;
+}
+.Toastify__progress-bar {
+  background: #00F0FF !important;
+}
+.Toastify__close-button {
+  color: #869298 !important;
+  opacity: 1;
+}
+.Toastify__close-button:hover {
+  color: #00F0FF !important;
+}
 
 /* ========== Gamified home page UI ========== */
 .game-panel {
@@ -361,6 +418,30 @@ button {
 
 .game-cta-glow {
   animation: game-glow-pulse 2.5s ease-in-out infinite;
+}
+
+/* Privy login modal – match Tycoon dark + cyan theme */
+body {
+  --privy-color-background: #010F10;
+  --privy-color-background-2: #0E1415;
+  --privy-color-background-3: #0E282A;
+  --privy-color-foreground: #F0F7F7;
+  --privy-color-foreground-2: #AFBAC0;
+  --privy-color-foreground-3: #869298;
+  --privy-color-foreground-4: #6B7A80;
+  --privy-color-foreground-accent: #00F0FF;
+  --privy-color-accent: #00F0FF;
+  --privy-color-accent-light: #00D4E6;
+  --privy-color-accent-lightest: rgba(0, 240, 255, 0.15);
+  --privy-color-accent-dark: #003B3E;
+  --privy-color-accent-darkest: #0E282A;
+  --privy-color-success: #22c55e;
+  --privy-color-error: #ef4444;
+  --privy-color-error-light: rgba(239, 68, 68, 0.15);
+  --privy-border-radius-sm: 8px;
+  --privy-border-radius-md: 12px;
+  --privy-border-radius-lg: 16px;
+  --privy-border-radius-full: 9999px;
 }
 
 /* Content below fixed mobile navbar */

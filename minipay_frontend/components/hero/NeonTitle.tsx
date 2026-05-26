@@ -4,38 +4,14 @@ import { motion } from "framer-motion";
 interface NeonTitleProps {
   text: string;
   size?: "sm" | "md" | "lg";
-  /** Visible immediately for LCP (no Framer opacity:0 entrance). */
-  priority?: boolean;
 }
 
-const titleShadow =
-  "0 0 8px rgba(0, 240, 255, 0.8), 0 0 16px rgba(0, 240, 255, 0.6)";
-
-export function NeonTitle({ text, size = "lg", priority = false }: NeonTitleProps) {
+export function NeonTitle({ text, size = "lg" }: NeonTitleProps) {
   const sizeClasses = {
     sm: "text-4xl md:text-5xl",
     md: "text-6xl md:text-7xl",
     lg: "text-7xl md:text-8xl lg:text-9xl",
   };
-
-  const className = `${sizeClasses[size]} font-kronaOne font-bold uppercase tracking-tighter text-[#00F0FF] relative z-10`;
-
-  if (priority) {
-    return (
-      <div className="relative">
-        <h1
-          className={className}
-          style={{
-            textShadow: titleShadow,
-            WebkitFontSmoothing: "antialiased",
-            MozOsxFontSmoothing: "grayscale",
-          }}
-        >
-          {text}
-        </h1>
-      </div>
-    );
-  }
 
   return (
     <motion.div
