@@ -37,7 +37,6 @@ export default function HeroLcpShell() {
           Conquer • Build • Trade On
         </p>
 
-        {/* Desktop LCP title */}
         <h1
           className="font-kronaOne hidden text-7xl font-bold uppercase tracking-tighter text-[#00F0FF] md:block md:text-8xl lg:text-9xl"
           style={{
@@ -47,7 +46,6 @@ export default function HeroLcpShell() {
         >
           TYCOON
         </h1>
-        {/* Mobile LCP title */}
         <h1
           className="font-kronaOne text-6xl font-bold uppercase tracking-tighter text-[#00F0FF] md:hidden sm:text-7xl"
           style={{

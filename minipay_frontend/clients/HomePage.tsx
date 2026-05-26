@@ -37,7 +37,6 @@ function InteractiveHero() {
 }
 
 type Props = {
-  /** Server-rendered LCP shell (SSR hero). */
   lcpShell: ReactNode;
 };
 

@@ -24,17 +24,12 @@ import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
-import dynamic from "next/dynamic";
+import { ParticleBackground } from "@/components/hero/ParticleBackground";
 import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
 import { HUDLevelBadge } from "@/components/hero/HUDLevelBadge";
 import { NeonTitle } from "@/components/hero/NeonTitle";
 import { GlowButton } from "@/components/hero/GlowButton";
 import { WorldStatsBar } from "@/components/hero/WorldStatsBar";
-
-const ParticleBackground = dynamic(
-  () => import("@/components/hero/ParticleBackground").then((m) => m.ParticleBackground),
-  { ssr: false }
-);
 
 function chainIdToBackendChain(chainId: number): string {
   if (chainId === 137 || chainId === 80001) return "POLYGON";
@@ -488,7 +483,7 @@ const HeroSectionMobile: React.FC = () => {
       <div className="relative z-20 flex flex-col items-center px-4 sm:px-5 pt-[calc(env(safe-area-inset-top)+8rem)] pb-[max(env(safe-area-inset-bottom),8rem)] min-h-screen min-h-[100dvh]">
         {/* Title - Neon effect for mobile */}
         <div className="relative w-full flex justify-center mt-0 sm:mt-2">
-          <NeonTitle text="TYCOON" size="md" priority />
+          <NeonTitle text="TYCOON" size="md" />
         </div>
 
         {/* Welcome / Loading message + Enhanced Level */}

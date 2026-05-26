@@ -16,13 +16,6 @@ import ScrollToTopBtn from "@/components/shared/scroll-to-top-btn";
 import { Toaster } from "react-hot-toast";
 import BfcacheReloadGuard from "@/components/BfcacheReloadGuard";
 
-const PrivyBackendSync = dynamic(() => import("@/components/PrivyBackendSync"), {
-  ssr: false,
-});
-const AddWalletPromptModal = dynamic(
-  () => import("@/components/guest/AddWalletPromptModal"),
-  { ssr: false }
-);
 const ToastContainer = dynamic(
   () => import("react-toastify").then((m) => m.ToastContainer),
   { ssr: false }
@@ -41,8 +34,6 @@ export default function Web3ProviderTree({ children, cookies }: Props) {
         <TycoonProvider>
           <GuestAuthProvider>
             <ReferralCapture />
-            <PrivyBackendSync />
-            <AddWalletPromptModal />
             <TournamentProvider>
               <AppKitProviderWrapper>
                 <QueryProvider>

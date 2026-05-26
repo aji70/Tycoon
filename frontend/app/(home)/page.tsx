@@ -1,6 +1,6 @@
-import HomePage from "@/clients/HomePage";
-import HeroLcpShell from "@/components/hero/HeroLcpShell";
+// app/page.tsx
+import HomeClient from "@/clients/HomeClient";
 
 export default function Home() {
-  return <HomePage lcpShell={<HeroLcpShell />} />;
+  return <HomeClient />;
 }
