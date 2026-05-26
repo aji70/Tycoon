@@ -1,17 +1,38 @@
 "use client";
+
 import { motion } from "framer-motion";
 
 interface NeonTitleProps {
   text: string;
   size?: "sm" | "md" | "lg";
+  /** SSR-visible h1 for LCP — no opacity:0 / client-only animation gate. */
+  priority?: boolean;
 }
 
-export function NeonTitle({ text, size = "lg" }: NeonTitleProps) {
-  const sizeClasses = {
-    sm: "text-4xl md:text-5xl",
-    md: "text-6xl md:text-7xl",
-    lg: "text-7xl md:text-8xl lg:text-9xl",
-  };
+const sizeClasses = {
+  sm: "text-4xl md:text-5xl",
+  md: "text-6xl md:text-7xl",
+  lg: "text-7xl md:text-8xl lg:text-9xl",
+} as const;
+
+const titleShadow =
+  "0 0 8px rgba(0, 240, 255, 0.8), 0 0 16px rgba(0, 240, 255, 0.6)";
+
+export function NeonTitle({ text, size = "lg", priority = false }: NeonTitleProps) {
+  if (priority) {
+    return (
+      <h1
+        className={`tycoon-lcp-title ${sizeClasses[size]} font-kronaOne font-bold uppercase tracking-tighter text-[#00F0FF]`}
+        style={{
+          textShadow: titleShadow,
+          WebkitFontSmoothing: "antialiased",
+          MozOsxFontSmoothing: "grayscale",
+        }}
+      >
+        {text}
+      </h1>
+    );
+  }
 
   return (
     <motion.div
@@ -25,7 +46,6 @@ export function NeonTitle({ text, size = "lg" }: NeonTitleProps) {
       }}
     >
       <div className="relative" style={{ backfaceVisibility: "hidden" }}>
-        {/* Main neon text - sharp and readable */}
         <motion.h1
           animate={{
             textShadow: [
@@ -40,7 +60,7 @@ export function NeonTitle({ text, size = "lg" }: NeonTitleProps) {
           }}
           className={`${sizeClasses[size]} font-kronaOne font-bold uppercase tracking-tighter text-[#00F0FF] relative z-10`}
           style={{
-            textShadow: "0 0 8px rgba(0, 240, 255, 0.8), 0 0 16px rgba(0, 240, 255, 0.6)",
+            textShadow: titleShadow,
             WebkitFontSmoothing: "antialiased",
             MozOsxFontSmoothing: "grayscale",
             textRendering: "geometricPrecision",

@@ -651,7 +651,7 @@ const HeroSection: React.FC = () => {
           />
         </div>
 
-        <NeonTitle text="TYCOON" size="lg" />
+        <NeonTitle text="TYCOON" size="lg" priority />
 
         <div className="w-full px-4 md:w-[70%] lg:w-[55%] text-center text-[#F0F7F7] -tracking-[2%]">
           <TypeAnimation
