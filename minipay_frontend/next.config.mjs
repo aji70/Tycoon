@@ -28,10 +28,6 @@ const nextConfig = {
       "@tanstack/react-query",
       "wagmi",
       "viem",
-      "framer-motion",
-      "@privy-io/react-auth",
-      "@reown/appkit",
-      "@reown/appkit/react",
     ],
   },
   async redirects() {

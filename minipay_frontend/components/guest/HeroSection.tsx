@@ -25,15 +25,10 @@ import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
-import dynamic from "next/dynamic";
+import { ParticleBackground } from "@/components/hero/ParticleBackground";
 import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
 import { NeonTitle } from "@/components/hero/NeonTitle";
 import { WorldStatsBar } from "@/components/hero/WorldStatsBar";
-
-const ParticleBackground = dynamic(
-  () => import("@/components/hero/ParticleBackground").then((m) => m.ParticleBackground),
-  { ssr: false }
-);
 
 function chainIdToBackendChain(chainId: number): string {
   return "CELO";
@@ -668,7 +663,7 @@ const HeroSection: React.FC = () => {
           />
         </div>
 
-        <NeonTitle text="TYCOON" size="lg" priority />
+        <NeonTitle text="TYCOON" size="lg" />
 
         <div className="w-full px-4 md:w-[70%] lg:w-[55%] text-center text-[#F0F7F7] -tracking-[2%]">
           <TypeAnimation

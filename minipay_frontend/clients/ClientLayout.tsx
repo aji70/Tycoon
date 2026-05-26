@@ -5,17 +5,16 @@ import NavBar from "@/components/shared/navbar";
 import NavBarMobile from "@/components/shared/navbar-mobile";
 import { ReactNode, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { dmSans, kronaOne, orbitron } from "@/components/shared/fonts"; // Adjust path if needed
 import { ProfileProvider } from "@/context/ProfileContext";
 import AuthGuard from "@/components/auth/AuthGuard";
 
 interface ClientLayoutProps {
   children: ReactNode;
   cookies?: string | null;
-  /** Homepage before wallet providers mount — skip nav that requires wagmi/Privy. */
-  minimal?: boolean;
 }
 
-export default function ClientLayout({ children, minimal = false }: ClientLayoutProps) {
+export default function ClientLayout({ children, cookies }: ClientLayoutProps) {
   const [isClient, setIsClient] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const pathname = usePathname();
@@ -23,21 +22,23 @@ export default function ClientLayout({ children, minimal = false }: ClientLayout
   const isHome = pathname === "/";
   const needsMobileNavPadding = isMobile && !isBoard3DMobile && !isHome;
 
+  // Hydration safety: Wait for client mount before rendering dynamic content
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  if (minimal) {
-    return <>{children}</>;
-  }
-
+  // Suppress hydration warning by rendering nothing until client is ready
   if (!isClient) {
-    return <>{children}</>;
+    return (
+      <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
+        {children}
+      </div>
+    );
   }
 
   return (
     <ProfileProvider>
-      <div suppressHydrationWarning>
+      <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
         {isMobile ? <NavBarMobile minimal={isBoard3DMobile} /> : <NavBar />}
         <AuthGuard>
           <div className={needsMobileNavPadding ? "pt-below-mobile-nav" : undefined}>
