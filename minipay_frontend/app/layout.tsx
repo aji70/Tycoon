@@ -8,8 +8,8 @@ import ReferralCapture from "@/components/ReferralCapture";
 import MinipayAutoConnect from "@/components/MinipayAutoConnect";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import DeferredToasts from "@/components/DeferredToasts";
+import DeferredUiStyles from "@/components/DeferredUiStyles";
 import { SocketProvider } from "@/context/SocketContext";
 import { TournamentProvider } from "@/context/TournamentContext";
 import { Toaster } from "react-hot-toast";
@@ -113,24 +113,8 @@ export default async function RootLayout({
                 </ClientLayout>
                 
                 <ScrollToTopBtn />
-                <ToastContainer
-                  position="top-right"
-                  autoClose={5000}
-                  hideProgressBar={false}
-                  newestOnTop
-                  closeOnClick
-                  rtl={false}
-                  pauseOnFocusLoss
-                  draggable
-                  pauseOnHover
-                  theme="dark"
-                  toastStyle={{
-                    fontFamily: "Orbitron, sans-serif",
-                    background: "#0E1415",
-                    color: "#00F0FF",
-                    border: "1px solid #003B3E",
-                  }}
-                />
+                <DeferredUiStyles />
+                <DeferredToasts />
                 <Toaster position="top-center" />
                 </QueryProvider>
               </TournamentProvider>

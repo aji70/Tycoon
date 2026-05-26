@@ -1,11 +1,9 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Pagination, Autoplay } from 'swiper/modules';
-import 'swiper/css';
-import 'swiper/css/pagination';
 import { slidesData } from '@/utils/slidesData';
 
 const HOW_IT_WORKS_BACKGROUNDS = [
@@ -18,6 +16,11 @@ const HOW_IT_WORKS_BACKGROUNDS = [
 const SLIDE_COUNT = HOW_IT_WORKS_BACKGROUNDS.length;
 
 const HowItWorks = () => {
+  useEffect(() => {
+    void import('swiper/css');
+    void import('swiper/css/pagination');
+  }, []);
+
   const [currentSlide, setCurrentSlide] = useState(0);
   const [swiperInstance, setSwiperInstance] = useState<
     { slideTo: (i: number) => void } | null
