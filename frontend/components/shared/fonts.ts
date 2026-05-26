@@ -18,6 +18,7 @@ function systemFontFallback(variable: string, className = "font-sans") {
 const dmSansLoaded = DM_Sans({
   variable: "--font-dm-sans",
   subsets: ["latin"],
+  display: "swap",
 });
 const kronaOneLoaded = Krona_One({
   variable: "--font-krona-one",

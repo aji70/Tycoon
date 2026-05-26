@@ -12,31 +12,32 @@ import AuthGuard from "@/components/auth/AuthGuard";
 interface ClientLayoutProps {
   children: ReactNode;
   cookies?: string | null;
+  /** Homepage before wallet providers mount — skip nav that requires wagmi/Privy. */
+  minimal?: boolean;
 }
 
-export default function ClientLayout({ children, cookies }: ClientLayoutProps) {
+export default function ClientLayout({ children, minimal = false }: ClientLayoutProps) {
   const [isClient, setIsClient] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const pathname = usePathname();
   const isBoard3DMobile = pathname === "/board-3d-mobile" || pathname === "/board-3d-multi-mobile";
   const isAdmin = pathname === "/admin" || pathname?.startsWith("/admin/");
-  // Hydration safety: Wait for client mount before rendering dynamic content
+
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Suppress hydration warning by rendering nothing until client is ready
+  if (minimal) {
+    return <>{children}</>;
+  }
+
   if (!isClient) {
-    return (
-      <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
-        {children}
-      </div>
-    );
+    return <>{children}</>;
   }
 
   return (
     <ProfileProvider>
-      <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
+      <div suppressHydrationWarning>
         {!isAdmin && (isMobile ? <NavBarMobile minimal={isBoard3DMobile} /> : <NavBar />)}
         <AuthGuard>{children}</AuthGuard>
       </div>

@@ -1,28 +1,11 @@
 import { dmSans, kronaOne, orbitron } from "@/components/shared/fonts";
-import NavBar from "@/components/shared/navbar"; // Remove if not used elsewhere
-import ScrollToTopBtn from "@/components/shared/scroll-to-top-btn";
 import "@/styles/globals.css";
 import { headers } from "next/headers";
-import ContextProvider from "@/context";
-import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
-import PrivyProviderWrapper from "@/components/PrivyProviderWrapper";
-import PrivyBackendSync from "@/components/PrivyBackendSync";
-import ReferralCapture from "@/components/ReferralCapture";
-import AddWalletPromptModal from "@/components/guest/AddWalletPromptModal";
-import { TycoonProvider } from "@/context/ContractProvider";
-import { GuestAuthProvider } from "@/context/GuestAuthContext";
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { SocketProvider } from "@/context/SocketContext";
-import { TournamentProvider } from "@/context/TournamentContext";
-import { Toaster } from "react-hot-toast";
-import FarcasterReady from "@/components/FarcasterReady"; 
+import FarcasterReady from "@/components/FarcasterReady";
 import { minikitConfig } from "../minikit.config";
 import type { Metadata } from "next";
 import Script from "next/script";
-import ClientLayout from "../clients/ClientLayout"; // ← Import the new wrapper
-import QueryProvider from "./QueryProvider";
-import BfcacheReloadGuard from "@/components/BfcacheReloadGuard";
+import Web3MountGate from "@/components/Web3MountGate";
 
 // Run before React: (1) Reload board when restored from bfcache so WebGL is fresh. (2) Disable bfcache on board so back button does full load instead of restore (avoids Context Lost + .style crash).
 const BFCACHE_RELOAD_SCRIPT = `
@@ -100,63 +83,17 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="dns-prefetch" href="https://auth.privy.io" />
-        <link rel="dns-prefetch" href="https://api.web3modal.org" />
-        <link rel="dns-prefetch" href="https://pulse.walletconnect.org" />
-        <link rel="dns-prefetch" href="https://fonts.reown.com" />
+        <link rel="preconnect" href="https://auth.privy.io" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://api.web3modal.org" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://pulse.walletconnect.org" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://fonts.reown.com" crossOrigin="anonymous" />
       </head>
-      <body className="antialiased bg-[#010F10] w-full">
+      <body
+        className={`antialiased bg-[#010F10] w-full ${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}
+      >
         <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
         <FarcasterReady />
-        <PrivyProviderWrapper>
-          <ContextProvider cookies={cookies}>
-            <TycoonProvider>
-              <GuestAuthProvider>
-              <ReferralCapture />
-              <PrivyBackendSync />
-              <AddWalletPromptModal />
-              <TournamentProvider>
-              <AppKitProviderWrapper>
-                {/* SocketProvider commented out as in your code */}
-                {/* <SocketProvider serverUrl="https://base-monopoly-production.up.railway.app/api"> */}
-                
-                {/* ← Use the client wrapper here—no more useMediaQuery! */}
-                <QueryProvider>
-                <BfcacheReloadGuard />
-                <ClientLayout cookies={cookies}>
-                  {children}
-                </ClientLayout>
-                
-                <ScrollToTopBtn />
-                <ToastContainer
-                  position="top-right"
-                  autoClose={5000}
-                  hideProgressBar={false}
-                  newestOnTop
-                  closeOnClick
-                  rtl={false}
-                  pauseOnFocusLoss
-                  draggable
-                  pauseOnHover
-                  theme="dark"
-                  toastStyle={{
-                    fontFamily: "Orbitron, sans-serif",
-                    background: "#0E1415",
-                    color: "#00F0FF",
-                    border: "1px solid #003B3E",
-                  }}
-                />
-                <Toaster position="top-center" />
-                </QueryProvider>
-                
-                {/* </SocketProvider> */}
-              </AppKitProviderWrapper>
-              </TournamentProvider>
-              </GuestAuthProvider>
-            </TycoonProvider>
-          </ContextProvider>
-        </PrivyProviderWrapper>
+        <Web3MountGate cookies={cookies}>{children}</Web3MountGate>
       </body>
     </html>
   );
