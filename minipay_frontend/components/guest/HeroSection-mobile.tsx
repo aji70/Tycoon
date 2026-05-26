@@ -648,10 +648,10 @@ const HeroSection: React.FC = () => {
         )}
 
         <motion.div
-          className="flex justify-center items-center gap-3 mt-4"
+          className="flex justify-center items-center gap-3 mt-4 min-h-[28px]"
           style={{ overflow: "visible", whiteSpace: "nowrap" }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+          initial={{ y: 6 }}
+          animate={{ y: 0 }}
           transition={{ delay: 0.3, duration: 0.8 }}
         >
           <TypeAnimation
@@ -668,13 +668,13 @@ const HeroSection: React.FC = () => {
               1000,
               "Conquer",
               1000,
-              "",
+              "\u00a0",
               500,
             ]}
             wrapper="span"
             speed={40}
             repeat={Infinity}
-            className="font-orbitron text-[20px] font-[700] text-[#F0F7F7] text-center block"
+            className="font-orbitron text-[20px] font-[700] text-[#F0F7F7] text-center block min-h-[28px]"
             style={{
               textShadow: "0 0 8px rgba(0, 240, 255, 0.6), 0 0 16px rgba(0, 240, 255, 0.3)",
             }}
