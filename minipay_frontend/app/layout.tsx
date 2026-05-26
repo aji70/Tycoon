@@ -4,7 +4,6 @@ import ScrollToTopBtn from "@/components/shared/scroll-to-top-btn";
 import "@/styles/globals.css";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
-import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
 import ReferralCapture from "@/components/ReferralCapture";
 import MinipayAutoConnect from "@/components/MinipayAutoConnect";
 import { TycoonProvider } from "@/context/ContractProvider";
@@ -97,10 +96,7 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="dns-prefetch" href="https://api.web3modal.org" />
-        <link rel="dns-prefetch" href="https://pulse.walletconnect.org" />
-      </head>
+      <head />
       <body className="antialiased bg-[#010F10] w-full">
         <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
         <FarcasterReady />
@@ -110,11 +106,6 @@ export default async function RootLayout({
               <ReferralCapture />
               <MinipayAutoConnect />
               <TournamentProvider>
-              <AppKitProviderWrapper>
-                {/* SocketProvider commented out as in your code */}
-                {/* <SocketProvider serverUrl="https://base-monopoly-production.up.railway.app/api"> */}
-                
-                {/* ← Use the client wrapper here—no more useMediaQuery! */}
                 <QueryProvider>
                 <BfcacheReloadGuard />
                 <ClientLayout cookies={cookies}>
@@ -142,9 +133,6 @@ export default async function RootLayout({
                 />
                 <Toaster position="top-center" />
                 </QueryProvider>
-                
-                {/* </SocketProvider> */}
-              </AppKitProviderWrapper>
               </TournamentProvider>
               </GuestAuthProvider>
             </TycoonProvider>

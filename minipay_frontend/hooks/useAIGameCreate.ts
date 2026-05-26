@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useChainId } from "wagmi";
-import { useAppKitNetwork } from "@reown/appkit/react";
 import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { resolveChainForBackend } from "@/lib/utils/chain";
@@ -87,7 +86,6 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
   const wagmiChainId = useChainId();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const redirectTo3D = options?.redirectTo3D ?? false;
-  const { caipNetwork } = useAppKitNetwork();
   const board3DUrl = redirectTo3D ? `/board-3d-mobile?gameCode=` : null;
   const guestAuth = useGuestAuthOptional();
   const isGuest = shouldUseBackendGuestGameFlow(guestAuth?.guestUser ?? null, address, wagmiChainId);
@@ -97,15 +95,15 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
   const { agents: registeredAgents, isLoading: agentsLoading, isSupported: registrySupported } =
     useRegisteredAIAgents();
 
-  const isMiniPay = !!caipNetwork?.id && MINIPAY_CHAIN_IDS.includes(Number(caipNetwork.id));
-  const chainName = resolveChainForBackend(wagmiChainId, caipNetwork?.name);
+  const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);
+  const chainName = resolveChainForBackend(wagmiChainId);
 
   const [settings, setSettings] = useState<AIGameSettings>(DEFAULT_SETTINGS);
 
   const gameCode = generateGameCode();
   const totalPlayers = settings.aiCount + 1;
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[
-    caipNetwork?.id as keyof typeof TYCOON_CONTRACT_ADDRESSES
+    wagmiChainId as keyof typeof TYCOON_CONTRACT_ADDRESSES
   ] as Address | undefined;
 
   const { write: createAiGame, isPending: isCreatePending } = useCreateAIGame(

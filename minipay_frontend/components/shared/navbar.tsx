@@ -8,7 +8,8 @@ import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Wallet, BookOpen, MoreVertical, FileText, Shield, LifeBuoy } from 'lucide-react';
-import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
+import { useAccount, useChainId } from 'wagmi';
+import { useConnectWallet } from '@/hooks/useConnectWallet';
 import { PiUserCircle } from 'react-icons/pi';
 import Image from 'next/image';
 import avatar from '@/public/avatar.jpg';
@@ -42,9 +43,9 @@ const NavBar = () => {
     restDelta: 0.001,
   });
 
-  const { open } = useAppKit();
-  const { address, isConnected } = useAppKitAccount();
-  const { caipNetwork, chainId } = useAppKitNetwork();
+  const connectWallet = useConnectWallet();
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
   const { onlineCount, onlineUsers } = useOnlineUsers(isConnected ? address : undefined);
   const [onlineDropdownOpen, setOnlineDropdownOpen] = useState(false);
   const onlineDropdownRef = useRef<HTMLDivElement>(null);
@@ -65,7 +66,7 @@ const NavBar = () => {
   }, []);
 
   // Prioritize shortName if available (e.g., "Ethereum"), fall back to name, then chain ID
-  const networkDisplay =  caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : 'Network');
+  const networkDisplay = chainId === 42220 ? 'Celo' : chainId ? `Chain ${chainId}` : 'Network';
 
   const [isSoundPlaying, setIsSoundPlaying] = useState(false);
   const [themeSoundMounted, setThemeSoundMounted] = useState(false);
@@ -323,7 +324,7 @@ const NavBar = () => {
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => open()}
+                onClick={connectWallet}
                 className="hidden md:flex px-4 py-2 rounded-[12px] border border-[#003B3E] bg-[#0E1415] text-[#00F0FF] font-orbitron text-sm font-medium hover:border-[#00F0FF]/50 transition-all items-center gap-2"
               >
                 <Wallet className="w-4 h-4" />
@@ -351,7 +352,7 @@ const NavBar = () => {
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => open()}
+                onClick={connectWallet}
                 className="hidden md:flex px-4 py-2 rounded-[12px] border border-[#003B3E] bg-[#0E1415] text-[#00F0FF] font-orbitron text-sm font-medium hover:border-[#00F0FF]/50 transition-all items-center gap-2"
               >
                 <Wallet className="w-4 h-4" />
@@ -376,7 +377,7 @@ const NavBar = () => {
               </button>
               <button
                 type="button"
-                onClick={() => open()}
+                onClick={connectWallet}
                 className="hidden md:flex px-4 py-2 rounded-[12px] border border-[#003B3E] bg-[#0E1415] text-[#00F0FF] font-orbitron text-sm font-medium hover:border-[#00F0FF]/50 transition-all items-center gap-2"
               >
                 <Wallet className="w-4 h-4" />

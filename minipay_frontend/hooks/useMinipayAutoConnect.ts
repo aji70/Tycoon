@@ -3,10 +3,9 @@
 import { useEffect, useRef } from "react";
 import { useAccount, useConnect } from "wagmi";
 import { injected } from "wagmi/connectors";
-import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 
 /**
- * Connect the injected MiniPay wallet as soon as the app loads (no Reown/AppKit modal).
+ * Auto-connect MiniPay's injected `window.ethereum` on load (no connect button / modal).
  */
 export function useMinipayAutoConnect(): void {
   const { address, isConnecting } = useAccount();
@@ -14,7 +13,7 @@ export function useMinipayAutoConnect(): void {
   const didConnectRef = useRef(false);
 
   useEffect(() => {
-    if (!isMiniPayEmbeddedWallet()) return;
+    if (typeof window === "undefined" || !window.ethereum) return;
     if (address || isConnecting || didConnectRef.current) return;
     didConnectRef.current = true;
     connect({ connector: injected() });

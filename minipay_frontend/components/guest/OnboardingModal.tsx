@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
-import { useAppKit } from "@reown/appkit/react";
+import { useConnectWallet } from "@/hooks/useConnectWallet";
 import { usePrivy } from "@/hooks/usePrivy";
 import { X, Wallet, Gamepad2, Dices, Sparkles } from "lucide-react";
 
@@ -26,7 +26,7 @@ interface OnboardingModalProps {
 export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
   const router = useRouter();
   const { address, isConnected } = useAccount();
-  const { open: openAppKit } = useAppKit();
+  const connectWallet = useConnectWallet();
   const { ready, authenticated, login } = usePrivy();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
@@ -50,10 +50,7 @@ export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
   };
 
   const handleConnect = () => {
-    if (openAppKit) {
-      openAppKit?.();
-      return;
-    }
+    connectWallet();
     if (!isMiniPay && ready && !authenticated) {
       login();
     }
