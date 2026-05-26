@@ -18,7 +18,8 @@ import {
   useProfileOwner,
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { useAppKit } from "@reown/appkit/react";
+import { useConnect } from "wagmi";
+import { injected } from "wagmi/connectors";
 import toast from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { apiClient } from "@/lib/api";
@@ -50,12 +51,12 @@ const HeroSection: React.FC = () => {
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
   const publicClient = usePublicClient();
-  const { open: openWallet } = useAppKit();
+  const { connect } = useConnect();
+  const connectWallet = () => connect({ connector: injected() });
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const [isMiniPay, setIsMiniPay] = useState(false);
   const walletSessionReady = !!address;
-  const didAutoConnectRef = useRef(false);
   const signOutGuestAndPrivy = () => {
     guestAuth?.logoutGuest();
   };
@@ -73,12 +74,6 @@ const HeroSection: React.FC = () => {
     const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
     setIsMiniPay(Boolean(eth?.isMiniPay));
   }, []);
-
-  useEffect(() => {
-    if (!isMiniPay || !!address || isConnecting || didAutoConnectRef.current) return;
-    didAutoConnectRef.current = true;
-    openWallet?.();
-  }, [isMiniPay, address, isConnecting, openWallet]);
 
   const {
     write: registerPlayerWithWallet,
@@ -456,17 +451,10 @@ const HeroSection: React.FC = () => {
   const handleLinkWallet = async () => {
     if (!address) {
       try {
-        if (connectWallet) {
-          connectWallet();
-          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
-        } else if (typeof openWallet === "function") {
-          openWallet();
-          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
-        } else {
-          toast.info("Use the connect button in the menu (top right) to connect your wallet, then click here again");
-        }
+        connectWallet();
+        toast.info("Connect your MiniPay wallet, then tap Connect wallet again to link");
       } catch {
-        toast.info("Use the connect button in the menu (top right) to connect your wallet, then click here again");
+        toast.info("Use the menu to connect your wallet, then tap here again");
       }
       return;
     }
@@ -704,7 +692,7 @@ const HeroSection: React.FC = () => {
               </p>
               <button
                 type="button"
-                onClick={() => openWallet?.()}
+                onClick={connectWallet}
                 className="relative group w-full sm:w-auto min-w-[220px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
               >
                 <svg
@@ -745,7 +733,7 @@ const HeroSection: React.FC = () => {
             <div className="w-[80%] md:w-[400px] flex flex-col gap-4 items-center">
               <button
                 type="button"
-                onClick={() => openWallet?.()}
+                onClick={connectWallet}
                 className="relative group w-full sm:w-auto min-w-[220px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
               >
                 <svg

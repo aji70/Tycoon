@@ -1,42 +1,8 @@
-// components/AppKitProviderWrapper.tsx
-'use client';
+"use client";
 
-import { wagmiAdapter, projectId, defaultNetwork } from '@/config';
-import { ReactNode, useEffect } from 'react';
-import { createAppKit } from '@reown/appkit/react';
-
-/** Canonical app origin for wallet metadata (Reown). Set `NEXT_PUBLIC_URL` on Vercel to your canonical origin (www vs apex). */
-const siteUrl = (() => {
-  const fromEnv = process.env.NEXT_PUBLIC_URL || process.env.NEXT_PUBLIC_SITE_URL;
-  if (fromEnv?.trim()) return fromEnv.replace(/\/$/, '');
-  if (process.env.NODE_ENV === 'development') return 'http://localhost:3000';
-  return 'https://www.playtycoon.xyz';
-})();
-
-let isInitialized = false;
-
-function ensureAppKit() {
-  if (typeof window === 'undefined' || isInitialized) return;
-  createAppKit({
-    adapters: [wagmiAdapter],
-    networks: [defaultNetwork],
-    projectId,
-    defaultNetwork,
-    themeVariables: {
-      '--w3m-z-index': 10000, // Set high z-index for Reown modal
-    },
-    metadata: {
-      name: 'Tycoon',
-      description: 'Play Monopoly onchain',
-      url: siteUrl,
-      icons: [`${siteUrl}/logo.png`],
-    },
-    features: {
-      analytics: true,
-    },
-  });
-  isInitialized = true;
-}
+import { ReactNode, useEffect } from "react";
+import { ensureAppKit } from "@/lib/ensureAppKit";
+import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 
 /** Reown injects #wcm-modal without aria-label; set one for screen readers / Lighthouse. */
 function useWcmModalAccessibleName() {
@@ -56,15 +22,23 @@ function useWcmModalAccessibleName() {
   }, []);
 }
 
-export default function AppKitProviderWrapper({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  // Must run before any child calls useAppKit — useEffect runs too late (after first paint).
-  ensureAppKit();
-
+/**
+ * Do not init AppKit on first paint inside MiniPay (injected wallet only).
+ * Init after idle so shop / fallback modals still work without blocking LCP.
+ */
+export default function AppKitProviderWrapper({ children }: { children: ReactNode }) {
   useWcmModalAccessibleName();
+
+  useEffect(() => {
+    if (!isMiniPayEmbeddedWallet()) {
+      ensureAppKit();
+      return;
+    }
+    const ric = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1));
+    const cancel = window.cancelIdleCallback ?? ((id: number) => window.clearTimeout(id));
+    const id = ric(() => ensureAppKit(), { timeout: 8000 });
+    return () => cancel(id as number);
+  }, []);
 
   return <>{children}</>;
 }

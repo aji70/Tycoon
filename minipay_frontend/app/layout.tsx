@@ -5,8 +5,8 @@ import "@/styles/globals.css";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
 import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
-import PrivyProviderWrapper from "@/components/PrivyProviderWrapper";
 import ReferralCapture from "@/components/ReferralCapture";
+import MinipayAutoConnect from "@/components/MinipayAutoConnect";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
 import { ToastContainer } from "react-toastify";
@@ -100,17 +100,15 @@ export default async function RootLayout({
       <head>
         <link rel="dns-prefetch" href="https://api.web3modal.org" />
         <link rel="dns-prefetch" href="https://pulse.walletconnect.org" />
-        <link rel="dns-prefetch" href="https://fonts.reown.com" />
-        <link rel="preconnect" href="https://fonts.reown.com" crossOrigin="anonymous" />
       </head>
       <body className="antialiased bg-[#010F10] w-full">
         <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
         <FarcasterReady />
-        <PrivyProviderWrapper>
-          <ContextProvider cookies={cookies}>
+        <ContextProvider cookies={cookies}>
             <TycoonProvider>
               <GuestAuthProvider>
               <ReferralCapture />
+              <MinipayAutoConnect />
               <TournamentProvider>
               <AppKitProviderWrapper>
                 {/* SocketProvider commented out as in your code */}
@@ -150,8 +148,7 @@ export default async function RootLayout({
               </TournamentProvider>
               </GuestAuthProvider>
             </TycoonProvider>
-          </ContextProvider>
-        </PrivyProviderWrapper>
+        </ContextProvider>
       </body>
     </html>
   );
