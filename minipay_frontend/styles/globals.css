@@ -416,3 +416,41 @@ body {
 .min-h-below-mobile-nav {
   min-height: calc(100dvh - var(--mobile-nav-offset));
 }
+
+/* NeonTitle (LCP): visible on first paint; transform/glow animate after */
+.neon-title-perspective {
+  perspective: 1000px;
+}
+
+.neon-title-inner {
+  backface-visibility: hidden;
+}
+
+.neon-title-hero {
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.8), 0 0 16px rgba(0, 240, 255, 0.6);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  animation:
+    neon-title-enter 0.8s ease-out both,
+    neon-title-glow 3s ease-in-out 0.8s infinite;
+}
+
+@keyframes neon-title-enter {
+  from {
+    transform: translate3d(0, -20px, 0) rotateY(-10deg);
+  }
+  to {
+    transform: translate3d(0, 0, 0) rotateY(0);
+  }
+}
+
+@keyframes neon-title-glow {
+  0%,
+  100% {
+    text-shadow: 0 0 8px rgba(0, 240, 255, 0.8), 0 0 16px rgba(0, 240, 255, 0.6);
+  }
+  50% {
+    text-shadow: 0 0 8px rgba(15, 240, 252, 0.8), 0 0 16px rgba(15, 240, 252, 0.6);
+  }
+}

@@ -97,7 +97,9 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head />
-      <body className="antialiased bg-[#010F10] w-full">
+      <body
+        className={`${dmSans.variable} ${kronaOne.variable} ${orbitron.variable} antialiased bg-[#010F10] w-full`}
+      >
         <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
         <FarcasterReady />
         <ContextProvider cookies={cookies}>
