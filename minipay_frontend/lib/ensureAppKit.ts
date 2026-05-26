@@ -13,6 +13,7 @@ let isInitialized = false;
 /** Load Reown AppKit only when needed (shop modal, non-MiniPay browser testing). */
 export function ensureAppKit(): void {
   if (typeof window === "undefined" || isInitialized) return;
+  void import("@/styles/deferred-ui.css");
   createAppKit({
     adapters: [wagmiAdapter],
     networks: [defaultNetwork],

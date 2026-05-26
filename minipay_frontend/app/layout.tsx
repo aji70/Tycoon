@@ -9,8 +9,8 @@ import ReferralCapture from "@/components/ReferralCapture";
 import MinipayAutoConnect from "@/components/MinipayAutoConnect";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import DeferredToasts from "@/components/DeferredToasts";
+import DeferredUiStyles from "@/components/DeferredUiStyles";
 import { SocketProvider } from "@/context/SocketContext";
 import { TournamentProvider } from "@/context/TournamentContext";
 import { Toaster } from "react-hot-toast";
@@ -100,8 +100,16 @@ export default async function RootLayout({
       <head>
         <link rel="dns-prefetch" href="https://api.web3modal.org" />
         <link rel="dns-prefetch" href="https://pulse.walletconnect.org" />
+        {/* LCP: paint hero background + title before full Tailwind hydrates */}
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `body{background:#010F10;color:#F0F7F7}.font-kronaOne{font-family:var(--font-krona-one),ui-sans-serif,system-ui,sans-serif}`,
+          }}
+        />
       </head>
-      <body className="antialiased bg-[#010F10] w-full">
+      <body
+        className={`antialiased bg-[#010F10] w-full ${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}
+      >
         <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
         <FarcasterReady />
         <ContextProvider cookies={cookies}>
@@ -116,30 +124,14 @@ export default async function RootLayout({
                 
                 {/* ← Use the client wrapper here—no more useMediaQuery! */}
                 <QueryProvider>
+                <DeferredUiStyles />
                 <BfcacheReloadGuard />
                 <ClientLayout cookies={cookies}>
                   {children}
                 </ClientLayout>
                 
                 <ScrollToTopBtn />
-                <ToastContainer
-                  position="top-right"
-                  autoClose={5000}
-                  hideProgressBar={false}
-                  newestOnTop
-                  closeOnClick
-                  rtl={false}
-                  pauseOnFocusLoss
-                  draggable
-                  pauseOnHover
-                  theme="dark"
-                  toastStyle={{
-                    fontFamily: "Orbitron, sans-serif",
-                    background: "#0E1415",
-                    color: "#00F0FF",
-                    border: "1px solid #003B3E",
-                  }}
-                />
+                <DeferredToasts />
                 <Toaster position="top-center" />
                 </QueryProvider>
                 
