@@ -1,4 +1,14 @@
+import path from "node:path";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { withSentryConfig } from "@sentry/nextjs";
+
+const require = createRequire(import.meta.url);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const emptyPolyfill = path.join(__dirname, "lib/empty-polyfill.js");
+const nextPolyfillModule = require.resolve(
+  "next/dist/build/polyfills/polyfill-module.js"
+);
 
 /**
  * Build memory (Vercel / small CI runners):
@@ -17,6 +27,21 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   productionBrowserSourceMaps: false,
+  webpack(config, { isServer, webpack }) {
+    if (!isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        [nextPolyfillModule]: emptyPolyfill,
+      };
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(
+          /polyfills[\\/]polyfill-module(\.js)?$/,
+          emptyPolyfill
+        )
+      );
+    }
+    return config;
+  },
   experimental: {
     // Fewer parallel compile workers → lower peak RSS (slower build).
     cpus: buildCpus,
