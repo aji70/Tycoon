@@ -1,8 +1,7 @@
 import { dmSans, kronaOne, orbitron } from "@/components/shared/fonts";
 import NavBar from "@/components/shared/navbar"; // Remove if not used elsewhere
 import ScrollToTopBtn from "@/components/shared/scroll-to-top-btn";
-import "@/styles/critical.css";
-import DeferredGlobalStyles from "@/components/DeferredGlobalStyles";
+import "@/styles/globals.css";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
 import ReferralCapture from "@/components/ReferralCapture";
@@ -101,7 +100,6 @@ export default async function RootLayout({
       <body className="antialiased bg-[#010F10] w-full">
         <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
         <FarcasterReady />
-        <DeferredGlobalStyles />
         <ContextProvider cookies={cookies}>
             <TycoonProvider>
               <GuestAuthProvider>

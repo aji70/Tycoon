@@ -47,8 +47,6 @@ const nextConfig = {
     return config;
   },
   experimental: {
-    /** Per-route CSS chunks; strict preserves import order. Won't shrink root Tailwind on /. */
-    cssChunking: "strict",
     // Fewer parallel compile workers → lower peak RSS (slower build).
     cpus: buildCpus,
     optimizePackageImports: [

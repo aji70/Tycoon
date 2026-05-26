@@ -19,7 +19,6 @@ const HowItWorks = () => {
   useEffect(() => {
     void import('swiper/css');
     void import('swiper/css/pagination');
-    void import('@/styles/how-it-works-swiper.css');
   }, []);
 
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -69,7 +68,7 @@ const HowItWorks = () => {
           onSlideChange={(swiper) => setCurrentSlide(swiper.realIndex)}
           autoplay={{ delay: 4000, disableOnInteraction: false }}
           onSwiper={setSwiperInstance}
-          className="tycoon-how-swiper w-full max-w-[644px] h-[350px] mt-10 px-6"
+          className="w-full max-w-[644px] h-[350px] mt-10 px-6"
           modules={[Pagination, Autoplay]}
           pagination={{ clickable: true, el: '.swiper-pagination' }}
         >
@@ -96,15 +95,7 @@ const HowItWorks = () => {
 
         <div className="w-full max-w-[620px] flex justify-between items-center gap-6 mt-6 md:px-6">
           <div className="swiper-pagination hidden" />
-          <div
-            className="tycoon-swiper-dots"
-            style={{ width: `${4 * 12 + 3 * 8}px` }}
-          >
-            <span
-              className="tycoon-swiper-dot-indicator"
-              style={{ transform: `translateX(${currentSlide * 20}px)` }}
-              aria-hidden
-            />
+          <div className="flex gap-2">
             {[0, 1, 2, 3].map((i) => (
               <button
                 key={i}
@@ -114,9 +105,16 @@ const HowItWorks = () => {
                   swiperInstance?.slideTo(i);
                 }}
                 aria-label={`Go to slide ${i + 1}`}
-                aria-current={currentSlide === i ? 'true' : undefined}
-                className="tycoon-swiper-dot relative z-[1]"
-              />
+                className="flex h-3 w-9 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0"
+              >
+                <span
+                  className={`block h-3 w-3 origin-center rounded-full transition-[transform,background-color] duration-300 ease-out will-change-transform ${
+                    currentSlide === i
+                      ? 'scale-x-[3] bg-[#00F0FF] shadow-[0_0_12px_rgba(0,240,255,0.45)]'
+                      : 'scale-x-100 bg-[#455A64]'
+                  }`}
+                />
+              </button>
             ))}
           </div>
         </div>
