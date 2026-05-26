@@ -14,10 +14,7 @@ export function NeonTitle({ text, size = "lg" }: NeonTitleProps) {
     <h1
       className={`neon-title-hero ${sizeClasses[size]} font-kronaOne font-bold uppercase tracking-tighter text-[#00F0FF] relative z-10`}
     >
-      <span className="neon-title-text">{text}</span>
-      <span className="neon-title-glow-pulse" aria-hidden="true">
-        {text}
-      </span>
+      {text}
     </h1>
   );
 }
