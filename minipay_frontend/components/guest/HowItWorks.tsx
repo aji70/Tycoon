@@ -43,7 +43,7 @@ const HowItWorks = () => {
             className={`object-cover object-center transition-opacity duration-700 ease-in-out ${
               idx === currentSlide ? 'opacity-100' : 'opacity-0'
             }`}
-            sizes="(max-width: 768px) 100vw, 1200px"
+            sizes="(max-width: 768px) 480px, 100vw"
             quality={75}
             loading={idx === currentSlide ? 'eager' : 'lazy'}
             aria-hidden
