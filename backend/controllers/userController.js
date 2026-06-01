@@ -3,7 +3,7 @@ import { getUserPropertyStats } from "../utils/userPropertyStats.js";
 import { callContractRead, getSmartWalletAddress, isContractConfigured, registerPlayerFor } from "../services/tycoonContract.js";
 import crypto from "crypto";
 import { ethers } from "ethers";
-import { buildContractUsername } from "../utils/ensureContractAuth.js";
+import { registerPlayerForPreferredUsername } from "../utils/ensureContractAuth.js";
 import logger from "../config/logger.js";
 import db from "../config/database.js";
 
@@ -299,11 +299,14 @@ const userController = {
       const secret = crypto.randomBytes(32).toString("hex");
       const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
 
-      // Build contract username
-      const onChainU = buildContractUsername(user.id, user.username || address.slice(0, 10));
-
-      // Register on-chain (backend-sponsored)
-      await registerPlayerFor(address, onChainU, passwordHash, chainNorm);
+      // Prefer the DB username on-chain (no _id suffix) when available
+      const onChainU = await registerPlayerForPreferredUsername(
+        address,
+        passwordHash,
+        user.id,
+        user.username || address.slice(0, 10),
+        chainNorm
+      );
 
       // Get smart wallet address and update database
       const smartWalletAddress = await getSmartWalletAddress(address, chainNorm);

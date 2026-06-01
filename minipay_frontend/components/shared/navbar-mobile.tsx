@@ -23,6 +23,7 @@ import { isAddress } from 'viem';
 import { usePrivy } from '@/hooks/usePrivy';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
+import { preferDisplayUsername } from '@/lib/displayUsername';
 
 const SCROLL_TOP_THRESHOLD = 40;
 const SCROLL_SENSITIVITY = 8;
@@ -134,12 +135,12 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
     return () => { active = false; };
   }, [address]);
 
-  // Exact same priority as hero section: guestUser.username > backend user.username > fetchedUsername (on-chain) > "Player"
   const displayName = useMemo(() => {
     if (guestUser?.username) return guestUser.username;
-    if (backendUsername) return backendUsername;
-    if (fetchedUsername) return fetchedUsername;
-    return 'Player';
+    return preferDisplayUsername(
+      backendUsername,
+      typeof fetchedUsername === "string" ? fetchedUsername : null
+    );
   }, [guestUser, backendUsername, fetchedUsername]);
 
   useEffect(() => {

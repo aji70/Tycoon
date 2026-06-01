@@ -27,6 +27,21 @@ function isValidEthAddress(maybe) {
   return typeof maybe === "string" && /^0x[a-fA-F0-9]{40}$/.test(maybe.trim());
 }
 
+const USERNAME_MAX_BYTES = 32;
+
+/** Human-chosen name for on-chain register when free (max 32 bytes, non-empty). */
+export function sanitizeContractUsername(displayUsername) {
+  const raw = displayUsername != null ? String(displayUsername).trim() : "";
+  if (!raw) return null;
+  const ascii = raw.replace(/[^\w-]/g, "");
+  let candidate = ascii || raw;
+  while (Buffer.byteLength(candidate, "utf8") > USERNAME_MAX_BYTES) {
+    candidate = candidate.slice(0, -1);
+    if (!candidate) return null;
+  }
+  return candidate || null;
+}
+
 /**
  * On-chain username (max 32 bytes per TycoonLib). Must be globally unique on the contract;
  * DB usernames can clash with another player's on-chain name (e.g. wallet "MimahYero" vs guest "MimahYero").
@@ -55,11 +70,59 @@ export function buildContractUsername(userId, displayUsername) {
 }
 
 /**
+ * Register with the player's chosen username when available; suffix only if taken.
+ * Used by MiniPay backend-sponsored registration so UI matches DB username.
+ */
+export async function registerPlayerForPreferredUsername(
+  effectiveAddress,
+  passwordHash,
+  userId,
+  displayUsername,
+  normalizedChain
+) {
+  const plain = sanitizeContractUsername(displayUsername);
+  if (plain) {
+    try {
+      await registerPlayerFor(effectiveAddress, plain, passwordHash, normalizedChain);
+      return plain;
+    } catch (e) {
+      const msg = `${e?.reason || ""} ${e?.message || ""} ${e?.shortMessage || ""}`;
+      if (!/Username taken/i.test(msg)) {
+        throw e;
+      }
+      logger.warn(
+        { userId, plain, addrPrefix: String(effectiveAddress).slice(0, 12) },
+        "registerPlayerForPreferredUsername: display name taken, using suffixed name"
+      );
+    }
+  }
+  return registerPlayerForUniqueUsername(
+    effectiveAddress,
+    passwordHash,
+    userId,
+    displayUsername,
+    normalizedChain
+  );
+}
+
+/**
  * registerPlayerFor reverts "Username taken" when that string is already mapped to another address
  * (common after linking a new wallet or changing Privy placeholder while keeping the same DB user id).
  */
 async function registerPlayerForUniqueUsername(effectiveAddress, passwordHash, uid, displayUsername, normalizedChain) {
   const baseDisplay = (displayUsername && String(displayUsername).trim()) || "p";
+  const plain = sanitizeContractUsername(baseDisplay);
+  if (plain) {
+    try {
+      await registerPlayerFor(effectiveAddress, plain, passwordHash, normalizedChain);
+      return plain;
+    } catch (e) {
+      const msg = `${e?.reason || ""} ${e?.message || ""} ${e?.shortMessage || ""}`;
+      if (!/Username taken/i.test(msg)) {
+        throw e;
+      }
+    }
+  }
   let lastErr;
   for (let attempt = 0; attempt < 12; attempt++) {
     const label = attempt === 0 ? baseDisplay : `${baseDisplay}_r${crypto.randomBytes(3).toString("hex")}`;

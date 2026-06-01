@@ -34,6 +34,7 @@ import {
   shouldPromoteSmartWalletUi,
 } from "@/lib/minipayGuestFlow";
 import { apiClient } from "@/lib/api";
+import { preferDisplayUsername } from "@/lib/displayUsername";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { TYCOON_CONTRACT_ADDRESSES } from "@/constants/contracts";
@@ -251,12 +252,10 @@ const HeroSection: React.FC = () => {
 
   const displayUsername = useMemo(() => {
     if (guestUser) return guestUser.username;
-    return (
-      user?.username ||
-      localUsername ||
-      fetchedUsername ||
-      inputUsername ||
-      "Player"
+    return preferDisplayUsername(
+      user?.username || localUsername || inputUsername,
+      typeof fetchedUsername === "string" ? fetchedUsername : null,
+      inputUsername || "Player"
     );
   }, [guestUser, user, localUsername, fetchedUsername, inputUsername]);
 
