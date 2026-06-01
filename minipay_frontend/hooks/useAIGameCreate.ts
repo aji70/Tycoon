@@ -9,6 +9,8 @@ import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { resolveChainForBackend } from "@/lib/utils/chain";
 import { generateGameCode } from "@/lib/utils/games";
 import { apiClient } from "@/lib/api";
+import { postRegisterOnChain } from "@/lib/registerOnChainApi";
+import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { useMediaQuery } from "@/components/useMediaQuery";
 import {
   useIsRegistered,
@@ -189,20 +191,20 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
       try {
         toast.update(toastId, { render: "Registering you on-chain (one moment)…", isLoading: true });
         const chainParam = chainName;
-        const res = await apiClient.post<{ success?: boolean; alreadyRegistered?: boolean; message?: string }>(
-          "/auth/register-on-chain",
-          { chain: chainParam }
-        );
-        const data = res?.data as { success?: boolean; alreadyRegistered?: boolean; message?: string } | undefined;
+        const data = await postRegisterOnChain({
+          chain: chainParam,
+          address: address as Address,
+          username: usernameNow.trim(),
+        });
         if (data?.success) {
           const { data: after } = await refetchRegistered();
           registeredNow = after;
         }
       } catch (apiErr: unknown) {
         const status = (apiErr as { response?: { status?: number } })?.response?.status;
-        if (status === 401) {
+        if (status === 401 && !address) {
           toast.update(toastId, {
-            render: "Log in to your account (or create one on the home page), then try again.",
+            render: "Connect your wallet and register on the home page, then try again.",
             type: "warning",
             isLoading: false,
             autoClose: 8000,

@@ -1,3 +1,4 @@
+import { isMinipayEoaFirstFlow } from '@/lib/minipayGuestFlow';
 import { isAddress, type Address } from 'viem';
 
 const ZERO = '0x0000000000000000000000000000000000000000' as Address;
@@ -40,6 +41,7 @@ export function shopSmartWalletAddress(params: {
   guestUser: GuestLike;
   registrySmartWallet: string | undefined;
 }): Address | null {
+  if (isMinipayEoaFirstFlow()) return null;
   const { guestUser, registrySmartWallet } = params;
   const jwt = guestUser?.smart_wallet_address?.trim();
   const reg = registrySmartWallet?.trim();

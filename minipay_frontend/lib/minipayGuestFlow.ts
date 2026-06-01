@@ -9,25 +9,14 @@ function isValidUserWalletAddress(a: string | null | undefined): a is string {
   return /^0x[a-fA-F0-9]{40}$/i.test(s);
 }
 
-/**
- * Same resolution order as backend `getOnchainAddressForUser`: linked → smart → account primary.
- */
-export function getGuestUserPlayAddress(guestUser: {
-  linked_wallet_address?: string | null;
-  smart_wallet_address?: string | null;
-  address?: string;
-} | null | undefined): string | null {
-  if (!guestUser) return null;
-  if (isValidUserWalletAddress(guestUser.linked_wallet_address)) {
-    return guestUser.linked_wallet_address.trim();
+function uniqueAddresses(...candidates: (string | null | undefined)[]): string[] {
+  const out: string[] = [];
+  for (const c of candidates) {
+    if (!isValidUserWalletAddress(c)) continue;
+    const s = c.trim();
+    if (!out.some((x) => x.toLowerCase() === s.toLowerCase())) out.push(s);
   }
-  if (isValidUserWalletAddress(guestUser.smart_wallet_address)) {
-    return guestUser.smart_wallet_address.trim();
-  }
-  if (isValidUserWalletAddress(guestUser.address)) {
-    return guestUser.address.trim();
-  }
-  return null;
+  return out;
 }
 
 /** True when running inside Celo MiniPay (injected provider). */
@@ -38,17 +27,76 @@ export function isMiniPayEmbeddedWallet(): boolean {
 }
 
 /**
+ * MiniPay uses the injected EOA for play, shop, and rewards — not TycoonUserWallet smart wallets.
+ * Web/Privy may still use smart wallets for gasless flows.
+ */
+export function isMinipayEoaFirstFlow(): boolean {
+  return isMiniPayEmbeddedWallet();
+}
+
+/** Hide create/manage smart wallet UI in the MiniPay app. */
+export function shouldPromoteSmartWalletUi(): boolean {
+  return !isMinipayEoaFirstFlow();
+}
+
+type GuestWalletFields = {
+  linked_wallet_address?: string | null;
+  smart_wallet_address?: string | null;
+  address?: string;
+};
+
+/**
+ * On-chain identity for games, registration, and daily claim.
+ * MiniPay: linked EOA → account address → smart (legacy only).
+ * Web: linked → smart → account (matches backend `getOnchainAddressForUser`).
+ */
+export function getGuestUserPlayAddress(guestUser: GuestWalletFields | null | undefined): string | null {
+  if (!guestUser) return null;
+
+  const linked = isValidUserWalletAddress(guestUser.linked_wallet_address)
+    ? guestUser.linked_wallet_address.trim()
+    : null;
+  const smart = isValidUserWalletAddress(guestUser.smart_wallet_address)
+    ? guestUser.smart_wallet_address.trim()
+    : null;
+  const primary = isValidUserWalletAddress(guestUser.address) ? guestUser.address.trim() : null;
+
+  if (isMinipayEoaFirstFlow()) {
+    return linked ?? primary;
+  }
+  return linked ?? smart ?? primary;
+}
+
+/** EOA-only addresses for MiniPay perks/voucher UI (no smart wallet). */
+export function getGuestUserEoaHolderAddresses(
+  guestUser: GuestWalletFields | null | undefined
+): string[] {
+  if (!guestUser) return [];
+  return uniqueAddresses(guestUser.linked_wallet_address, guestUser.address);
+}
+
+/** Addresses to scan for vouchers/collectibles. MiniPay: EOAs only. */
+export function getGuestUserRewardHolderAddresses(
+  guestUser: GuestWalletFields | null | undefined
+): string[] {
+  if (!guestUser) return [];
+  if (isMinipayEoaFirstFlow()) {
+    return getGuestUserEoaHolderAddresses(guestUser);
+  }
+  return uniqueAddresses(
+    guestUser.linked_wallet_address,
+    guestUser.smart_wallet_address,
+    guestUser.address
+  );
+}
+
+/**
  * Use backend-signed guest create/join when:
  * - JWT guest with no wagmi address, or
- * - MiniPay (embedded wallet or Celo mainnet id 42220) while the injected address is not the account play address
- *   (linked / smart / primary), so the user should not pay gas from the local MiniPay wallet for Tycoon contract txs.
+ * - MiniPay while the injected address is not the account play address
  */
 export function shouldUseBackendGuestGameFlow(
-  guestUser: {
-    linked_wallet_address?: string | null;
-    smart_wallet_address?: string | null;
-    address?: string;
-  } | null | undefined,
+  guestUser: GuestWalletFields | null | undefined,
   wagmiAddress: string | undefined,
   wagmiChainId: number
 ): boolean {

@@ -1,27 +1,25 @@
-import { cookieStorage, createStorage, http } from '@wagmi/core'
-import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
-import { celo } from '@reown/appkit/networks'
+import { cookieStorage, createStorage } from "@wagmi/core";
+import { createConfig } from "wagmi";
+import { celo } from "wagmi/chains";
+import { injected } from "wagmi/connectors";
+import { celoTransportForWagmi } from "@/lib/celoTransportForWagmi";
 
-export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID
+export const appChain = "CELO";
+export const defaultNetwork = celo;
+export const chains = [celo] as const;
 
-if (!projectId) {
-  throw new Error('Project ID is not defined')
-}
-
-// Celo only (or Celo/Base in a dedicated frontend)
-export const networks = [celo]
-
-export const defaultNetwork = networks[0]
-export const appChain = 'CELO'
-
-//Set up the Wagmi Adapter (Config)
-export const wagmiAdapter = new WagmiAdapter({
+/** MiniPay-only wagmi config — injected provider only, no WalletConnect / AppKit. */
+export const wagmiConfig = createConfig({
+  chains,
+  connectors: [injected()],
   storage: createStorage({
-    storage: cookieStorage
+    storage: cookieStorage,
   }),
   ssr: true,
-  projectId,
-  networks
-})
+  transports: {
+    [celo.id]: celoTransportForWagmi(),
+  },
+});
 
-export const config = wagmiAdapter.wagmiConfig
+/** @deprecated Use `wagmiConfig` — kept for any stale imports. */
+export const config = wagmiConfig;

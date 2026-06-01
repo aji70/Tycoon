@@ -18,7 +18,12 @@ import { apiClient } from '@/lib/api';
 import { ApiResponse } from '@/types/api';
 import { useQuery } from '@tanstack/react-query';
 import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
-import { useProfileOwner, useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
+import {
+  useIsRegistered,
+  useProfileOwner,
+  useRewardTokenAddresses,
+  useUserRegistryWallet,
+} from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
@@ -30,7 +35,17 @@ import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAsse
 import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
-import { getGuestUserPlayAddress } from '@/lib/minipayGuestFlow';
+import {
+  executeRedeemVoucher,
+  getRedeemVoucherErrorMessage,
+} from '@/lib/redeemVoucherApi';
+import { minipayContractWriteOverrides } from '@/lib/minipayWagmiTransport';
+import {
+  getGuestUserPlayAddress,
+  getGuestUserRewardHolderAddresses,
+  isMinipayEoaFirstFlow,
+  shouldPromoteSmartWalletUi,
+} from '@/lib/minipayGuestFlow';
 import GameRoomLoading from '@/components/settings/game-room-loading';
 
 const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
@@ -197,9 +212,8 @@ function GuestProfileView({
     guestUser.smart_wallet_address && isValidWallet(guestUser.smart_wallet_address)
       ? (guestUser.smart_wallet_address as Address)
       : null;
-  const guestOnChainAddress = linkedWalletAddress ?? smartWalletAddress ?? null;
-  // For game lookups: wallet-first users are registered under smart wallet, so use it when present
-  const guestGameLookupAddress = smartWalletAddress ?? linkedWalletAddress ?? null;
+  const guestOnChainAddress = getGuestUserPlayAddress(guestUser) as Address | null;
+  const guestGameLookupAddress = guestOnChainAddress;
   // Key local profile storage by whichever address represents this profile.
   // For Privy-only users, fall back to their guest `address` so avatar updates persist.
   const profileKeyAddress = linkedWalletAddress ?? smartWalletAddress ?? guestUser.address;
@@ -218,6 +232,8 @@ function GuestProfileView({
   const [editingBio, setEditingBio] = useState(false);
   const [redeemingVoucherId, setRedeemingVoucherId] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const { address: connectedWallet } = useAccount();
+  const { writeContract: guestWriteRedeem } = useWriteContract();
 
   React.useEffect(() => {
     setLocalDisplayName(profile?.displayName ?? '');
@@ -233,6 +249,7 @@ function GuestProfileView({
     ? `${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`
     : null;
   const showSmartBalances =
+    shouldPromoteSmartWalletUi() &&
     !!smartWalletAddress &&
     (!linkedWalletAddress || smartWalletAddress.toLowerCase() !== linkedWalletAddress.toLowerCase());
   const showDualGuestBalances = !!linkedWalletAddress && showSmartBalances;
@@ -406,7 +423,11 @@ function GuestProfileView({
     isLoadingPerks,
     isLoadingVouchers,
     refetchVouchers,
-  } = useMergedProfileRewardAssets(rewardAddress, CELO_CHAIN_ID, [linkedWalletAddress, smartWalletAddress]);
+  } = useMergedProfileRewardAssets(
+    rewardAddress,
+    CELO_CHAIN_ID,
+    getGuestUserRewardHolderAddresses(guestUser) as Address[]
+  );
 
   const ownedCollectibles = useMemo(
     () =>
@@ -490,24 +511,27 @@ function GuestProfileView({
   };
 
   const handleRedeemVoucher = async (voucherId: bigint, voucherOwner?: Address) => {
+    const holder = (voucherOwner ?? linkedWalletAddress ?? guestOnChainAddress) as Address | undefined;
+    if (!holder) {
+      toast.error('Could not determine voucher owner');
+      return;
+    }
     try {
       setRedeemingVoucherId(voucherId.toString());
-      const res = await apiClient.post<ApiResponse>('/auth/redeem-voucher', {
-        tokenId: voucherId.toString(),
-        chain: 'CELO',
-        ...(voucherOwner ? { voucher_owner: voucherOwner } : {}),
-      });
-      if (res?.data?.success) {
-        toast.success('Voucher redeemed! Check your balance.');
-        await refetchVouchers();
-      } else {
-        toast.error(res?.data?.message || 'Failed to redeem voucher');
+      if (!rewardAddress) {
+        toast.error('Reward contract not available');
+        return;
       }
+      await executeRedeemVoucher({
+        tokenId: voucherId,
+        voucherHolder: holder,
+        connectedWallet: connectedWallet ?? linkedWalletAddress ?? undefined,
+        rewardAddress,
+      });
+      toast.success('Voucher redeemed! Check your balance.');
+      await refetchVouchers();
     } catch (err) {
-      const e = err as { response?: { data?: { message?: string; voucher_owner?: string | null } }; message?: string };
-      const owner = e?.response?.data?.voucher_owner;
-      const msg = e?.response?.data?.message ?? e?.message ?? 'Failed to redeem voucher';
-      toast.error(owner ? `${msg} (Owner: ${owner})` : msg);
+      toast.error(getRedeemVoucherErrorMessage(err));
     } finally {
       setRedeemingVoucherId(null);
     }
@@ -595,7 +619,7 @@ function GuestProfileView({
                             <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortLinkedWalletAddress}</span>
                           </>
                         ) : null}
-                        {shortSmartWalletAddress ? (
+                        {shouldPromoteSmartWalletUi() && shortSmartWalletAddress ? (
                           <>
                             <span className="text-slate-400 text-xs">Smart wallet:</span>
                             <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortSmartWalletAddress}</span>
@@ -985,20 +1009,18 @@ function GuestProfileView({
                       >
                         <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
                         <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
-                        {smartWalletAddress && voucher.heldBy.toLowerCase() === smartWalletAddress.toLowerCase() ? (
+                        {shouldPromoteSmartWalletUi() &&
+                        smartWalletAddress &&
+                        voucher.heldBy.toLowerCase() === smartWalletAddress.toLowerCase() ? (
                           <p className="text-[10px] text-amber-200/70 mb-2">Smart wallet</p>
                         ) : linkedWalletAddress && voucher.heldBy.toLowerCase() === linkedWalletAddress.toLowerCase() ? (
                           <p className="text-[10px] text-white/45 mb-2">Linked wallet</p>
                         ) : null}
                         <button
                           type="button"
-                          disabled={!smartWalletAddress || redeemingVoucherId === voucher.tokenId.toString()}
+                          disabled={redeemingVoucherId === voucher.tokenId.toString()}
                           onClick={() => handleRedeemVoucher(voucher.tokenId, voucher.heldBy)}
-                          className={`w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition ${
-                            !smartWalletAddress
-                              ? 'bg-white/10 text-white/50 cursor-not-allowed'
-                              : 'bg-amber-500 text-white hover:bg-amber-600 disabled:bg-amber-500/50 disabled:cursor-wait'
-                          }`}
+                          className="w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition bg-amber-500 text-white hover:bg-amber-600 disabled:bg-amber-500/50 disabled:cursor-wait"
                         >
                           {redeemingVoucherId === voucher.tokenId.toString() ? (
                             <>
@@ -1009,9 +1031,6 @@ function GuestProfileView({
                             'Redeem'
                           )}
                         </button>
-                        {!smartWalletAddress && (
-                          <p className="text-xs text-white/50 mt-2">Create a smart wallet to redeem.</p>
-                        )}
                       </motion.div>
                     ))}
                   </div>
@@ -1083,7 +1102,11 @@ export default function Profile() {
   const smartWallet = smartWalletAddress;
   const { data: smartWalletOwner } = useProfileOwner(smartWallet);
 
-  const showDualWallets = !!smartWallet && !!walletAddress && smartWallet.toLowerCase() !== walletAddress.toLowerCase();
+  const showDualWallets =
+    shouldPromoteSmartWalletUi() &&
+    !!smartWallet &&
+    !!walletAddress &&
+    smartWallet.toLowerCase() !== walletAddress.toLowerCase();
   const [activeWalletView, setActiveWalletView] = useState<'connected' | 'smart'>(() => (smartWallet ? 'smart' : 'connected'));
   React.useEffect(() => {
     if (!smartWallet) setActiveWalletView('connected');
@@ -1099,7 +1122,9 @@ export default function Profile() {
   const tycoonProfileOwnerAddress =
     (isValidWallet(smartWalletOwner) ? smartWalletOwner : null) ??
     walletAddress;
-  const gameLookupAddress = smartWallet ?? tycoonProfileOwnerAddress;
+  const gameLookupAddress = isMinipayEoaFirstFlow()
+    ? (getGuestUserPlayAddress(guestUser) ?? walletAddress ?? tycoonProfileOwnerAddress)
+    : (smartWallet ?? tycoonProfileOwnerAddress);
 
   // Local avatar/displayName/bio should be keyed by the profile owner (linked EOA),
   // not by whichever wallet is currently connected (smart wallet).
@@ -1111,6 +1136,8 @@ export default function Profile() {
   }, [profile?.displayName, profile?.bio]);
 
   const displayName = profile?.displayName?.trim() || null;
+
+  const { data: isRegisteredOnChain } = useIsRegistered(walletAddress);
 
   const {
     data: username,
@@ -1206,6 +1233,36 @@ export default function Profile() {
       return;
     }
 
+    if (isMinipayEoaFirstFlow() && isRegisteredOnChain === true && walletAddress) {
+      const chainName = typeof username === 'string' && username.trim() ? username.trim() : '';
+      if (chainName && playerData) {
+        const parsed = parseUserFromContract(playerData, chainName, tycoonProfileOwnerAddress);
+        if (parsed) {
+          setUserData(parsed);
+          setLoading(false);
+          return;
+        }
+      }
+      if (chainName && !usernameLoading) {
+        setUserData({
+          username: chainName,
+          shortAddress: `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`,
+          gamesPlayed: 0,
+          gamesWon: 0,
+          gamesLost: 0,
+          winRate: '0%',
+          totalStaked: 0,
+          totalEarned: 0,
+          totalWithdrawn: 0,
+          propertiesBought: 0,
+          propertiesSold: 0,
+          registeredAt: 0,
+        });
+        setLoading(false);
+        return;
+      }
+    }
+
     if (usernameReadError) {
       setError(usernameReadError instanceof Error ? usernameReadError.message : 'Failed to load username');
       setLoading(false);
@@ -1247,6 +1304,31 @@ export default function Profile() {
     playerDataReadError,
     tycoonProfileOwnerAddress,
     backendUser,
+    guestUser?.username,
+    isRegisteredOnChain,
+  ]);
+
+  React.useEffect(() => {
+    if (!isMinipayEoaFirstFlow() || !isConnected || !loading) return;
+    const timer = window.setTimeout(() => {
+      const fallback = parseUserFromBackend(
+        backendUser,
+        walletAddress ?? tycoonProfileOwnerAddress,
+        guestUser?.username
+      );
+      if (fallback) {
+        setError(null);
+        setUserData(fallback);
+        setLoading(false);
+      }
+    }, 12_000);
+    return () => window.clearTimeout(timer);
+  }, [
+    isConnected,
+    loading,
+    backendUser,
+    walletAddress,
+    tycoonProfileOwnerAddress,
     guestUser?.username,
   ]);
 
@@ -1308,45 +1390,24 @@ export default function Profile() {
 
   const handleRedeemVoucher = async (tokenId: bigint, voucherHolder: Address) => {
     try {
+      setRedeemingId(tokenId);
       if (!rewardAddress) {
         toast.error('Reward contract not available');
+        setRedeemingId(null);
         return;
       }
-      setRedeemingId(tokenId);
-      const redeemFromSmart =
-        !!walletAddress &&
-        voucherHolder.toLowerCase() !== walletAddress.toLowerCase();
-      if (redeemFromSmart) {
-        writeContract({
-          address: rewardAddress,
-          abi: RewardABI,
-          functionName: 'redeemVoucherFor',
-          args: [voucherHolder, tokenId],
-        });
-        return;
-      }
-      const res = await apiClient.post<ApiResponse>('/auth/redeem-voucher', {
-        tokenId: tokenId.toString(),
-        chain: 'CELO',
-        voucher_owner: voucherHolder,
+      await executeRedeemVoucher({
+        tokenId,
+        voucherHolder,
+        connectedWallet: walletAddress,
+        rewardAddress,
       });
-      if (res?.data?.success) {
-        toast.success('Voucher redeemed! Check your balance.');
-        tycBalance.refetch();
-        await refetchVouchers();
-      } else {
-        toast.error(res?.data?.message || 'Failed to redeem voucher');
-      }
+      toast.success('Voucher redeemed! Check your balance.');
+      tycBalance.refetch();
+      await refetchVouchers();
     } catch (err) {
-      const e = err as { response?: { data?: { message?: string; voucher_owner?: string | null } }; message?: string };
-      const owner = e?.response?.data?.voucher_owner;
-      const msg = e?.response?.data?.message ?? e?.message ?? 'Failed to redeem voucher';
-      toast.error(owner ? `${msg} (Owner: ${owner})` : msg);
-    } finally {
-      const redeemFromSmart =
-        !!walletAddress &&
-        voucherHolder.toLowerCase() !== walletAddress.toLowerCase();
-      if (!redeemFromSmart) setRedeemingId(null);
+      toast.error(getRedeemVoucherErrorMessage(err));
+      setRedeemingId(null);
     }
   };
 
@@ -1597,7 +1658,7 @@ export default function Profile() {
                   </button>
                   </div>
                 </div>
-                {/* Smart wallet: show the best-known value (registry or account), without contradictions */}
+                {shouldPromoteSmartWalletUi() && (
                 <div className="flex flex-col gap-2 mt-2">
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                     <span className="text-slate-500 text-xs">Smart wallet:</span>
@@ -1624,7 +1685,10 @@ export default function Profile() {
                       </span>
                     )}
                   </div>
-                  {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+                  {shouldPromoteSmartWalletUi() &&
+                    isConnected &&
+                    smartWalletAddress &&
+                    smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
                     <Link
                       href="/profile/smart-wallet"
                       className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition"
@@ -1633,6 +1697,7 @@ export default function Profile() {
                     </Link>
                   )}
                 </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-3 shrink-0 w-full sm:w-[240px] justify-center sm:justify-start">
@@ -1696,7 +1761,10 @@ export default function Profile() {
                     </div>
                   ))}
                 </div>
-                {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+                {shouldPromoteSmartWalletUi() &&
+                  isConnected &&
+                  smartWalletAddress &&
+                  smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
                   <Link
                     href="/profile/smart-wallet"
                     className="w-full mt-3 inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition"

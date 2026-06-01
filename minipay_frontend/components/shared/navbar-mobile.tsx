@@ -8,8 +8,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { House, Volume2, VolumeOff, Globe, Menu, X, ShoppingBag, Trophy, BookOpen, FileText, Shield, LifeBuoy, ChevronRight } from 'lucide-react';
-import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
-import { useConnect } from 'wagmi';
+import { useAccount, useChainId, useConnect } from 'wagmi';
 import { injected } from 'wagmi/connectors';
 import Image from 'next/image';
 import avatar from '@/public/avatar.jpg';
@@ -21,9 +20,10 @@ import NetworkSwitcherModal from './network-switcher-modal';
 import { useGetUsername } from '@/context/ContractProvider';
 import { useProfileAvatar } from '@/context/ProfileContext';
 import { isAddress } from 'viem';
-import { usePrivy } from '@privy-io/react-auth';
+import { usePrivy } from '@/hooks/usePrivy';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
+import { preferDisplayUsername } from '@/lib/displayUsername';
 
 const SCROLL_TOP_THRESHOLD = 40;
 const SCROLL_SENSITIVITY = 8;
@@ -77,8 +77,8 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
     return () => unsubscribe();
   }, [scrollY, minimal]);
 
-  const { address, isConnected } = useAppKitAccount();
-  const { caipNetwork, chainId } = useAppKitNetwork();
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
   const { connect } = useConnect();
   const { ready, authenticated, login, logout } = usePrivy();
   const guestAuth = useGuestAuthOptional();
@@ -90,7 +90,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
     if (isPrivyAuthed) void logout();
   };
 
-  const networkDisplay = caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : '—');
+  const networkDisplay = chainId === 42220 ? 'Celo' : chainId ? `Chain ${chainId}` : '—';
 
   const [isSoundPlaying, setIsSoundPlaying] = useState(false);
   const [themeSoundMounted, setThemeSoundMounted] = useState(false);
@@ -135,20 +135,19 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
     return () => { active = false; };
   }, [address]);
 
-  // Exact same priority as hero section: guestUser.username > backend user.username > fetchedUsername (on-chain) > "Player"
   const displayName = useMemo(() => {
     if (guestUser?.username) return guestUser.username;
-    if (backendUsername) return backendUsername;
-    if (fetchedUsername) return fetchedUsername;
-    return 'Player';
+    return preferDisplayUsername(
+      backendUsername,
+      typeof fetchedUsername === "string" ? fetchedUsername : null
+    );
   }, [guestUser, backendUsername, fetchedUsername]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.ethereum?.isMiniPay) {
       setIsMiniPay(true);
-      if (!isConnected) connect({ connector: injected() });
     }
-  }, [connect, isConnected]);
+  }, []);
 
   const toggleSound = () => {
     if (isSoundPlaying) {

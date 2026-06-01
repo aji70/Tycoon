@@ -18,6 +18,7 @@ const nextConfig = {
   },
   productionBrowserSourceMaps: false,
   experimental: {
+    cssChunking: "loose",
     // Fewer parallel compile workers → lower peak RSS (slower build).
     cpus: buildCpus,
     optimizePackageImports: [
