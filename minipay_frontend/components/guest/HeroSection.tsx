@@ -11,7 +11,6 @@ import { injected } from "wagmi/connectors";
 import {
   useIsRegistered,
   useGetUsername,
-  useRegisterPlayer,
   usePreviousGameCode,
   useGetGameByCode,
   useHasSmartWallet,
@@ -81,8 +80,6 @@ const HeroSection: React.FC = () => {
     didAutoConnectRef.current = true;
     connect({ connector: injected() });
   }, [isMiniPay, address, isConnecting, connect]);
-
-  const { write: registerPlayer, isPending: registerPending } = useRegisterPlayer();
 
   const {
     data: isUserRegistered,
@@ -307,11 +304,7 @@ const HeroSection: React.FC = () => {
 
     try {
       if (isUserRegistered !== true) {
-        await registerViaWalletSign({
-          registerPlayer,
-          publicClient: publicClient ?? undefined,
-          finalUsername,
-        });
+        await registerViaWalletSign({ finalUsername });
       }
 
       if (!user) {
@@ -399,11 +392,7 @@ const HeroSection: React.FC = () => {
     setRegisterOnChainLoading(true);
     const toastId = toast.loading("Register on-chain…");
     try {
-      await registerViaWalletSign({
-        registerPlayer,
-        publicClient: publicClient ?? undefined,
-        finalUsername: playUsername,
-      });
+      await registerViaWalletSign({ finalUsername: playUsername });
       void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
       if (guestAuth?.refetchGuest) await guestAuth.refetchGuest();
       toast.dismiss(toastId);
