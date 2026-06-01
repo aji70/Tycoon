@@ -58,7 +58,7 @@ import {
 } from '@/context/ContractProvider';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { apiClient } from '@/lib/api';
-import { useAppKit, useAppKitAccount } from '@reown/appkit/react';
+import { useConnectWallet } from '@/hooks/useConnectWallet';
 import { SkeletonPerkGrid } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
 import {
@@ -185,14 +185,11 @@ const isValidWallet = (a: string | undefined): a is Address =>
 export default function GameShop() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { open: openWallet } = useAppKit();
-  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
-  const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount();
+  const connectWallet = useConnectWallet();
+  const { address: wagmiAddress, isConnected } = useAccount();
   const address = useMemo((): Address | undefined => {
-    const a = appKitAddress ?? wagmiAddress;
-    return a && isAddress(a) ? (a as Address) : undefined;
-  }, [appKitAddress, wagmiAddress]);
-  const isConnected = Boolean(appKitConnected || wagmiConnected);
+    return wagmiAddress && isAddress(wagmiAddress) ? (wagmiAddress as Address) : undefined;
+  }, [wagmiAddress]);
   const chainId = useReadChainIdOrCelo();
   const auth = useGuestAuthOptional();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
@@ -764,7 +761,7 @@ export default function GameShop() {
 
   const handleRedeemVoucher = async (tokenId: bigint, voucherOwner: Address) => {
     if (!isConnected || !address) {
-      openWallet();
+      connectWallet();
       toast.info('Connect your wallet to redeem');
       return;
     }

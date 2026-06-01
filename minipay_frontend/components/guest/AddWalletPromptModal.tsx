@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@/hooks/usePrivy";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { Wallet, X } from "lucide-react";
 

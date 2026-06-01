@@ -54,7 +54,7 @@ import {
 } from '@/context/ContractProvider';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { apiClient } from '@/lib/api';
-import { useAppKit, useAppKitAccount } from '@reown/appkit/react';
+import { useConnectWallet } from '@/hooks/useConnectWallet';
 import {
   buildMergedHolderSlotCalls,
   buildTokenOfOwnerByIndexSlotCalls,
@@ -162,14 +162,11 @@ const perkMetadata = [
 export default function GameShopMobile() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { open: openWallet } = useAppKit();
-  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
-  const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount();
+  const connectWallet = useConnectWallet();
+  const { address: wagmiAddress, isConnected } = useAccount();
   const address = useMemo((): Address | undefined => {
-    const a = appKitAddress ?? wagmiAddress;
-    return a && isAddress(a) ? (a as Address) : undefined;
-  }, [appKitAddress, wagmiAddress]);
-  const isConnected = Boolean(appKitConnected || wagmiConnected);
+    return wagmiAddress && isAddress(wagmiAddress) ? (wagmiAddress as Address) : undefined;
+  }, [wagmiAddress]);
   const chainId = useReadChainIdOrCelo();
   const auth = useGuestAuthOptional();
   const stockBundleHook = useRewardStockBundle();
@@ -905,7 +902,7 @@ export default function GameShopMobile() {
 
   const handleRedeemVoucher = async (tokenId: bigint, voucherOwner: Address) => {
     if (!isConnected || !address) {
-      openWallet();
+      connectWallet();
       toast.info('Connect your wallet to redeem');
       return;
     }
@@ -1042,7 +1039,7 @@ export default function GameShopMobile() {
             </p>
             <button
               type="button"
-              onClick={() => openWallet()}
+              onClick={() => connectWallet()}
               className="shrink-0 min-h-[44px] px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#00F0FF]/25 to-[#0FF0FC]/20 border border-[#00F0FF]/50 text-[#00F0FF] font-semibold text-sm"
             >
               Connect wallet
@@ -1112,7 +1109,7 @@ export default function GameShopMobile() {
                     </p>
                     <button
                       onClick={() =>
-                        hasPaymentMethod ? handleBuyBundleWithUsdc(b.name) : openWallet()
+                        hasPaymentMethod ? handleBuyBundleWithUsdc(b.name) : connectWallet()
                       }
                       disabled={
                         bundleBuyingName != null ||
@@ -1218,7 +1215,7 @@ export default function GameShopMobile() {
 
                     <>
                       <button
-                        onClick={() => (hasPaymentMethod ? handleBuy(item) : openWallet())}
+                        onClick={() => (hasPaymentMethod ? handleBuy(item) : connectWallet())}
                         disabled={
                           item.stock === 0 ||
                           buyingPending ||

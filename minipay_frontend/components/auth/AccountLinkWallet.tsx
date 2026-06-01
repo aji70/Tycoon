@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@/hooks/usePrivy";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useProfileOwner, useTransferProfileTo } from "@/context/ContractProvider";
 import { Link2, Unlink, Loader2, Mail, Wallet, ArrowRightLeft, Copy, ExternalLink } from "lucide-react";
