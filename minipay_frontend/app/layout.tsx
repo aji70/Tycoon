@@ -96,7 +96,10 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <head />
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
       <body
         className={`${dmSans.variable} ${kronaOne.variable} ${orbitron.variable} antialiased bg-[#010F10] w-full`}
       >

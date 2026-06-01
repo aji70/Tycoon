@@ -18,18 +18,21 @@ const dmSansLoaded = DM_Sans({
   variable: "--font-dm-sans",
   subsets: ["latin"],
   display: "swap",
+  preload: true,
 });
 const kronaOneLoaded = Krona_One({
   variable: "--font-krona-one",
   subsets: ["latin"],
   weight: ["400"],
   display: "swap",
+  preload: true,
 });
 const orbitronLoaded = Orbitron({
   variable: "--font-orbitron-sans",
   weight: ["400", "500", "700"],
   subsets: ["latin"],
   display: "swap",
+  preload: true,
 });
 
 export const dmSans = useSystemFonts ? systemFontFallback("--font-dm-sans") : dmSansLoaded;

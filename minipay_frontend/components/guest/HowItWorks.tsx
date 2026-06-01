@@ -15,16 +15,28 @@ const HOW_IT_WORKS_BACKGROUNDS = [
 
 const SLIDE_COUNT = HOW_IT_WORKS_BACKGROUNDS.length;
 
-const HowItWorks = () => {
-  useEffect(() => {
-    void import('swiper/css');
-    void import('swiper/css/pagination');
-  }, []);
+/** Responsive srcset — avoids shipping 900px+ backgrounds to narrow viewports. */
+const HOW_IT_WORKS_IMAGE_SIZES =
+  '(max-width: 640px) 480px, (max-width: 1024px) 768px, 100vw';
 
+let swiperStylesLoaded = false;
+
+function loadSwiperStyles() {
+  if (swiperStylesLoaded || typeof window === 'undefined') return;
+  swiperStylesLoaded = true;
+  void import('swiper/css');
+  void import('swiper/css/pagination');
+}
+
+const HowItWorks = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [swiperInstance, setSwiperInstance] = useState<
     { slideTo: (i: number) => void } | null
   >(null);
+
+  useEffect(() => {
+    loadSwiperStyles();
+  }, []);
 
   const backgroundIndices = useMemo(() => {
     const next = (currentSlide + 1) % SLIDE_COUNT;
@@ -43,15 +55,14 @@ const HowItWorks = () => {
             className={`object-cover object-center transition-opacity duration-700 ease-in-out ${
               idx === currentSlide ? 'opacity-100' : 'opacity-0'
             }`}
-            sizes="(max-width: 768px) 480px, 50vw"
-            quality={75}
-            loading="lazy"
+            sizes={HOW_IT_WORKS_IMAGE_SIZES}
+            quality={60}
+            loading={idx === currentSlide ? 'eager' : 'lazy'}
             aria-hidden
           />
         ))}
       </div>
 
-      {/* Foreground content */}
       <div className="absolute inset-0 bg-gradient-to-b from-[#010F1000] via-[#010F10] z-[1] w-full px-4 flex flex-col items-center justify-center">
         <div className="w-full flex flex-col justify-center items-center gap-2 mb-6">
           <span className="game-badge mb-2">TUTORIAL</span>
@@ -68,14 +79,14 @@ const HowItWorks = () => {
           onSlideChange={(swiper) => setCurrentSlide(swiper.realIndex)}
           autoplay={{ delay: 4000, disableOnInteraction: false }}
           onSwiper={setSwiperInstance}
-          className="w-full max-w-[644px] h-[350px] mt-10 px-6"
+          className="w-full max-w-[644px] h-[350px] mt-10 px-6 [&_.swiper-slide]:will-change-transform"
           modules={[Pagination, Autoplay]}
           pagination={{ clickable: true, el: '.swiper-pagination' }}
         >
           {slidesData.map((item, index) => (
             <SwiperSlide
               key={index}
-              className={`keen-slider__slide w-[90%] sm:w-full h-[350px] relative md:p-6 p-3 rounded-[12px] overflow-hidden flex items-center justify-center transition-all duration-500 ${
+              className={`keen-slider__slide w-[90%] sm:w-full h-[350px] relative md:p-6 p-3 rounded-[12px] overflow-hidden flex items-center justify-center transition-[opacity,filter,transform] duration-500 will-change-transform ${
                 currentSlide !== index ? 'blur-[1.5px] opacity-40 scale-[0.95]' : 'opacity-100 blur-0 scale-100'
               }`}
             >

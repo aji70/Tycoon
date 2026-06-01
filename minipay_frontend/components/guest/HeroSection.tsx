@@ -494,8 +494,8 @@ const HeroSection: React.FC = () => {
           height={1024}
           priority
           fetchPriority="high"
-          sizes="100vw"
-          quality={80}
+          sizes="(max-width: 768px) 100vw, 1440px"
+          quality={75}
         />
       </motion.div>
 

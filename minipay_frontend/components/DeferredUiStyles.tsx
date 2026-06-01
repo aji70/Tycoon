@@ -12,6 +12,7 @@ export default function DeferredUiStyles() {
       window.cancelIdleCallback ?? ((id: number) => window.clearTimeout(id));
     const id = ric(() => {
       void import("@/styles/deferred-ui.css");
+      void import("@/styles/animations.css");
     }, { timeout: 3000 });
     return () => cancel(id as number);
   }, []);
