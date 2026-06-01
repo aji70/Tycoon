@@ -1,6 +1,7 @@
 import { apiClient, ApiError } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
+import { ensureMiniPayWagmiConnected } from "@/lib/connectMiniPayWallet";
 import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { registerPlayerWalletSignedMinipay } from "@/lib/minipayRegister";
 import { isUserRejectedTransaction } from "@/lib/utils/contractErrors";
@@ -32,6 +33,57 @@ export function isRecoverableOnChainRegistrationError(error: unknown): boolean {
     hay.includes("estimate") ||
     hay.includes("gas required")
   );
+}
+
+/**
+ * MiniPay: try free backend registration first (no USDm/USDC gas), then wallet.
+ * Returns `{ via: "backend" }` or `{ via: "wallet", hash }`.
+ */
+export async function registerOnChainMinipay(params: {
+  address: Address;
+  username: string;
+  contractAddress?: Address;
+  user: UserType | null;
+  setUser: (user: UserType) => void;
+  setLocalRegistered: (v: boolean) => void;
+  setLocalUsername: (v: string) => void;
+  registerPlayer: (username: string) => Promise<Hash | undefined>;
+  refetchIsRegistered?: () => Promise<unknown>;
+  refetchUsername?: () => Promise<unknown>;
+}): Promise<{ via: "backend" } | { via: "wallet"; hash: Hash }> {
+  try {
+    await registerViaBackendSponsor({
+      address: params.address,
+      username: params.username,
+      user: params.user,
+      setUser: params.setUser,
+      setLocalRegistered: params.setLocalRegistered,
+      setLocalUsername: params.setLocalUsername,
+      refetchIsRegistered: params.refetchIsRegistered,
+      refetchUsername: params.refetchUsername,
+    });
+    return { via: "backend" };
+  } catch {
+    // Wallet path below (user may need ~0.2–0.5 USDC/USDm for gas at 1.2M limit)
+  }
+
+  if (!params.contractAddress) {
+    throw new Error("Contract not deployed on this chain");
+  }
+
+  await ensureMiniPayWagmiConnected();
+  let hash: Hash | undefined;
+  try {
+    hash = await registerPlayerWalletSignedMinipay({
+      contractAddress: params.contractAddress,
+      username: params.username,
+    });
+  } catch {
+    hash = await params.registerPlayer(params.username);
+  }
+  if (!hash) throw new Error("Registration transaction did not return a hash");
+  await params.refetchIsRegistered?.();
+  return { via: "wallet", hash };
 }
 
 export async function registerOnChainWithWallet(params: {

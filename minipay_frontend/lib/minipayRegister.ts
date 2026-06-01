@@ -1,4 +1,4 @@
-import { getAccount, simulateContract, writeContract } from "@wagmi/core";
+import { getAccount, waitForTransactionReceipt, writeContract } from "@wagmi/core";
 import type { Address, Hash } from "viem";
 import { celo } from "wagmi/chains";
 import TycoonABI from "@/context/abi/tycoonabi.json";
@@ -17,8 +17,8 @@ type RegisterArgs = {
 };
 
 /**
- * MiniPay wallet-signed registration — `registerPlayerWithoutWallet` (no smart wallet),
- * with simulate + retries (gas only, then gas+cUSD, then provider defaults).
+ * MiniPay wallet-signed registration — same stack as createGame (writeContract, no simulate).
+ * simulateContract often fails or picks the wrong fee currency in the MiniPay WebView.
  */
 export async function registerPlayerWalletSignedMinipay(
   params: RegisterArgs
@@ -52,11 +52,12 @@ export async function registerPlayerWalletSignedMinipay(
   let lastRevertError: unknown;
   for (const overrides of attempts) {
     try {
-      const { request } = await simulateContract(wagmiConfig, {
+      const hash = await writeContract(wagmiConfig, {
         ...base,
         ...overrides,
       });
-      return await writeContract(wagmiConfig, request);
+      await waitForTransactionReceipt(wagmiConfig, { hash, chainId: celo.id });
+      return hash;
     } catch (err) {
       lastError = err;
       const hay = getContractErrorMessage(err, "");

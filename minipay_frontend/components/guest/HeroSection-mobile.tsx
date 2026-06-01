@@ -23,11 +23,13 @@ import toast from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import {
   isRecoverableOnChainRegistrationError,
+  registerOnChainMinipay,
   registerOnChainWithWallet,
   registerViaBackendSponsor,
 } from "@/lib/registerOnChainFallback";
 import {
   getGuestUserPlayAddress,
+  isMiniPayEmbeddedWallet,
   isMinipayEoaFirstFlow,
   shouldPromoteSmartWalletUi,
 } from "@/lib/minipayGuestFlow";
@@ -302,40 +304,63 @@ const HeroSection: React.FC = () => {
     try {
       // Register on-chain if contract doesn't have this address (required for create game / create AI game)
       if (isUserRegistered !== true) {
-        try {
-          const txHash = await registerOnChainWithWallet({
+        if (isMiniPayEmbeddedWallet()) {
+          toast.update(toastId, {
+            render: "Setting up your account (no gas needed)…",
+            isLoading: true,
+          });
+          const result = await registerOnChainMinipay({
+            address,
             username: finalUsername,
             contractAddress: TYCOON_CONTRACT_ADDRESSES[chainId],
+            user,
+            setUser,
+            setLocalRegistered,
+            setLocalUsername,
             registerPlayer,
             refetchIsRegistered,
+            refetchUsername,
           });
-          if (!txHash) throw new Error("Registration transaction did not return a hash");
-        } catch (onChainErr: unknown) {
-          if (isRecoverableOnChainRegistrationError(onChainErr)) {
-            const fallbackToastId = toast.loading(
-              "No gas for fees — completing registration for you..."
-            );
-            try {
-              await registerViaBackendSponsor({
-                address,
-                username: finalUsername,
-                user,
-                setUser,
-                setLocalRegistered,
-                setLocalUsername,
-                refetchIsRegistered,
-                refetchUsername,
-              });
-              toast.dismiss(fallbackToastId);
-              toast.dismiss(toastId);
-              toast.success("Welcome to Tycoon!");
-              return;
-            } catch (backendErr) {
-              toast.dismiss(fallbackToastId);
-              throw backendErr;
-            }
+          if (result.via === "wallet") {
+            setLocalRegistered(true);
+            setLocalUsername(finalUsername);
           }
-          throw onChainErr;
+        } else {
+          try {
+            const txHash = await registerOnChainWithWallet({
+              username: finalUsername,
+              contractAddress: TYCOON_CONTRACT_ADDRESSES[chainId],
+              registerPlayer,
+              refetchIsRegistered,
+            });
+            if (!txHash) throw new Error("Registration transaction did not return a hash");
+          } catch (onChainErr: unknown) {
+            if (isRecoverableOnChainRegistrationError(onChainErr)) {
+              const fallbackToastId = toast.loading(
+                "No gas for fees — completing registration for you..."
+              );
+              try {
+                await registerViaBackendSponsor({
+                  address,
+                  username: finalUsername,
+                  user,
+                  setUser,
+                  setLocalRegistered,
+                  setLocalUsername,
+                  refetchIsRegistered,
+                  refetchUsername,
+                });
+                toast.dismiss(fallbackToastId);
+                toast.dismiss(toastId);
+                toast.success("Welcome to Tycoon!");
+                return;
+              } catch (backendErr) {
+                toast.dismiss(fallbackToastId);
+                throw backendErr;
+              }
+            }
+            throw onChainErr;
+          }
         }
       }
 
