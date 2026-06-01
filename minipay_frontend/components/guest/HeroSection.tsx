@@ -15,8 +15,8 @@ import {
   useGetGameByCode,
   useHasSmartWallet,
   useProfileOwner,
-  useRegisterPlayer,
 } from "@/context/ContractProvider";
+import { useRegistration } from "@/context/RegistrationProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import toast from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
@@ -82,7 +82,7 @@ const HeroSection: React.FC = () => {
     refetch: refetchIsRegistered,
   } = useIsRegistered(address);
 
-  const { write: registerPlayer } = useRegisterPlayer();
+  const { registerPlayer } = useRegistration();
 
   const { data: fetchedUsername, refetch: refetchUsername } = useGetUsername(address);
 

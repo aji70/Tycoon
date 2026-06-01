@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import ContextProvider from "@/context";
 import ReferralCapture from "@/components/ReferralCapture";
 import MinipayAutoConnect from "@/components/MinipayAutoConnect";
-import { TycoonProvider } from "@/context/ContractProvider";
+import { RegistrationProvider } from "@/context/RegistrationProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
 import DeferredToasts from "@/components/DeferredToasts";
 import DeferredUiStyles from "@/components/DeferredUiStyles";
@@ -101,7 +101,7 @@ export default async function RootLayout({
         <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
         <FarcasterReady />
         <ContextProvider cookies={cookies}>
-            <TycoonProvider>
+            <RegistrationProvider>
               <GuestAuthProvider>
               <ReferralCapture />
               <MinipayAutoConnect />
@@ -115,7 +115,7 @@ export default async function RootLayout({
               <DeferredToasts />
               <Toaster position="top-center" />
               </GuestAuthProvider>
-            </TycoonProvider>
+            </RegistrationProvider>
         </ContextProvider>
       </body>
     </html>
