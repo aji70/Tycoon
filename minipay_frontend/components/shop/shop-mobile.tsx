@@ -55,6 +55,7 @@ import {
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { apiClient } from '@/lib/api';
 import { redeemVoucherViaBackend, shouldRedeemVoucherViaBackend } from '@/lib/redeemVoucherApi';
+import { isMinipayEoaFirstFlow } from '@/lib/minipayGuestFlow';
 import { useConnectWallet } from '@/hooks/useConnectWallet';
 import {
   buildMergedHolderSlotCalls,
@@ -633,7 +634,11 @@ export default function GameShopMobile() {
     // Allow if wallet is connected OR smart wallet is available
     const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
     if (!hasPaymentMethod) {
-      toast.error('Please connect your wallet or register to use your smart wallet');
+      toast.error(
+        isMinipayEoaFirstFlow()
+          ? 'Connect your MiniPay wallet to continue.'
+          : 'Please connect your wallet or register to use your smart wallet'
+      );
       return;
     }
     if (!preferredStable.tokenAddress || !contractAddress) {
@@ -785,7 +790,11 @@ export default function GameShopMobile() {
   const handleBuyBundleWithUsdc = async (bundleName: string) => {
     const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
     if (!hasPaymentMethod) {
-      toast.error('Please connect your wallet or register to use your smart wallet');
+      toast.error(
+        isMinipayEoaFirstFlow()
+          ? 'Connect your MiniPay wallet to continue.'
+          : 'Please connect your wallet or register to use your smart wallet'
+      );
       return;
     }
     if (payWith === 'smart_wallet' && !smartWalletAddress) {

@@ -28,6 +28,11 @@ import {
   registerOnChainWithWallet,
   registerViaBackendSponsor,
 } from "@/lib/registerOnChainFallback";
+import {
+  getGuestUserPlayAddress,
+  isMinipayEoaFirstFlow,
+  shouldPromoteSmartWalletUi,
+} from "@/lib/minipayGuestFlow";
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
@@ -110,22 +115,18 @@ const HeroSection: React.FC = () => {
   const effectiveAddress = address ?? guestUser?.address ?? guestUser?.linked_wallet_address ?? undefined;
   const { data: hasSmartWalletFromChain } = useHasSmartWallet(effectiveAddress as `0x${string}` | undefined);
   const hasSmartWallet =
-    (!!effectiveAddress && hasSmartWalletFromChain === true) ||
-    (!!guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() !== "");
+    !isMinipayEoaFirstFlow() &&
+    ((!!effectiveAddress && hasSmartWalletFromChain === true) ||
+      (!!guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() !== ""));
   const smartWalletAddress = guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() && guestUser.smart_wallet_address !== "0x0000000000000000000000000000000000000000"
     ? (guestUser.smart_wallet_address as `0x${string}`)
     : undefined;
   const { data: profileOwner } = useProfileOwner(smartWalletAddress);
   const needsTransferToLink = !!smartWalletAddress && !!profileOwner && profileOwner !== zeroAddr && !!address && address.toLowerCase() !== (profileOwner as string).toLowerCase();
 
-  /** On-chain stats (incl. level) are keyed like profile: smart wallet when linked EOA is connected. */
-  const connectedWalletIsLinked =
-    !!guestUser &&
-    !!address &&
-    isValidNonZeroAddress(guestUser.linked_wallet_address ?? undefined) &&
-    address.toLowerCase() === (guestUser.linked_wallet_address as string).trim().toLowerCase();
+  /** On-chain stats: MiniPay uses injected EOA; web may use smart wallet when linked. */
   const levelContractLookupAddress =
-    connectedWalletIsLinked && smartWalletAddress ? smartWalletAddress : (address ?? undefined);
+    getGuestUserPlayAddress(guestUser) ?? address ?? undefined;
 
   const [backendGame, setBackendGame] = useState<{ status: string; is_ai?: boolean } | null>(null);
   const [guestLastGame, setGuestLastGame] = useState<{ code: string; status: string; is_ai?: boolean } | null>(null);
@@ -796,12 +797,20 @@ const HeroSection: React.FC = () => {
           )}
           {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
             <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
-              Creates your game account &amp; smart wallet
+              {isMinipayEoaFirstFlow()
+                ? "Creates your game account on Celo"
+                : "Creates your game account & smart wallet"}
             </p>
           )}
 
-          {/* Register + Link wallet: when Privy/guest without smart wallet — hide when action buttons are shown */}
-          {(registrationStatus === "privy" || (address && walletSessionReady && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || walletSessionReady) && !loading && !((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) && (
+          {/* Register + Link wallet (web/Privy smart-wallet path — not shown in MiniPay) */}
+          {shouldPromoteSmartWalletUi() &&
+          (registrationStatus === "privy" || (address && walletSessionReady && registrationStatus === "fully-registered" && !hasSmartWallet)) &&
+          !hasSmartWallet &&
+          (guestUser || walletSessionReady) &&
+          !loading &&
+          !((address && registrationStatus === "fully-registered" && walletSessionReady) ||
+            (registrationStatus === "privy" && (guestUser || walletSessionReady))) && (
             <div className="flex flex-col items-center gap-4 mt-4">
               <p className="text-[#869298] text-sm text-center max-w-sm">
                 Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.

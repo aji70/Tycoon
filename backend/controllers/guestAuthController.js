@@ -626,6 +626,12 @@ export async function registerOnChain(req, res) {
  */
 export async function createSmartWallet(req, res) {
   try {
+    if (String(req.headers["x-tycoon-client"] || "").toLowerCase() === "minipay") {
+      return res.status(400).json({
+        success: false,
+        message: "Smart wallets are not available in MiniPay. Use your connected Celo wallet.",
+      });
+    }
     if (!req.user) {
       return res.status(401).json({ success: false, message: "Not authenticated" });
     }
@@ -732,6 +738,12 @@ export async function createSmartWallet(req, res) {
  */
 export async function recreateSmartWallet(req, res) {
   try {
+    if (String(req.headers["x-tycoon-client"] || "").toLowerCase() === "minipay") {
+      return res.status(400).json({
+        success: false,
+        message: "Smart wallets are not available in MiniPay. Use your connected Celo wallet.",
+      });
+    }
     if (!req.user) {
       return res.status(401).json({ success: false, message: "Not authenticated" });
     }

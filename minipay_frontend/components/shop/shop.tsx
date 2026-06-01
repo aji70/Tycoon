@@ -59,6 +59,7 @@ import {
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { apiClient } from '@/lib/api';
 import { redeemVoucherViaBackend, shouldRedeemVoucherViaBackend } from '@/lib/redeemVoucherApi';
+import { isMinipayEoaFirstFlow } from '@/lib/minipayGuestFlow';
 import { useConnectWallet } from '@/hooks/useConnectWallet';
 import { SkeletonPerkGrid } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
@@ -535,7 +536,11 @@ export default function GameShop() {
     // Allow if wallet is connected OR smart wallet is available
     const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
     if (!hasPaymentMethod) {
-      toast.error('Please connect your wallet or register to use your smart wallet');
+      toast.error(
+        isMinipayEoaFirstFlow()
+          ? 'Connect your MiniPay wallet to continue.'
+          : 'Please connect your wallet or register to use your smart wallet'
+      );
       return;
     }
     const selectedPriceRaw =
@@ -686,7 +691,11 @@ export default function GameShop() {
   const handleBuyBundleWithUsdc = async (bundleName: string) => {
     const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
     if (!hasPaymentMethod) {
-      toast.error('Please connect your wallet or register to use your smart wallet');
+      toast.error(
+        isMinipayEoaFirstFlow()
+          ? 'Connect your MiniPay wallet to continue.'
+          : 'Please connect your wallet or register to use your smart wallet'
+      );
       return;
     }
     if (!contractAddress || !preferredStable.tokenAddress) {

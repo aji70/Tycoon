@@ -1,3 +1,4 @@
+import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { ApiResponse } from "@/types/api";
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
 
@@ -39,6 +40,9 @@ class ApiClient {
           }
         } catch {
           // localStorage can throw on mobile (private mode, quota, iframe)
+        }
+        if (isMiniPayEmbeddedWallet()) {
+          config.headers["X-Tycoon-Client"] = "minipay";
         }
         return config;
       },

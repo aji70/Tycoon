@@ -2,6 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { apiClient } from "@/lib/api";
+import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { ApiResponse } from "@/types/api";
 
 export type GuestUser = {
@@ -199,6 +200,12 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
 
   const createSmartWallet = useCallback(
     async (params?: { chain?: string }) => {
+      if (isMiniPayEmbeddedWallet()) {
+        return {
+          success: false,
+          message: "MiniPay uses your connected Celo wallet. Smart wallets are not used in this app.",
+        };
+      }
       try {
         const res = await apiClient.post<ApiResponse & { data?: GuestUser }>("auth/create-smart-wallet", params ?? {});
         const data = res?.data as { data?: GuestUser; message?: string };

@@ -30,12 +30,17 @@ import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAsse
 import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
-import { getGuestUserPlayAddress } from '@/lib/minipayGuestFlow';
 import {
   getRedeemVoucherErrorMessage,
   redeemVoucherViaBackend,
   shouldRedeemVoucherViaBackend,
 } from '@/lib/redeemVoucherApi';
+import {
+  getGuestUserPlayAddress,
+  getGuestUserRewardHolderAddresses,
+  isMinipayEoaFirstFlow,
+  shouldPromoteSmartWalletUi,
+} from '@/lib/minipayGuestFlow';
 import GameRoomLoading from '@/components/settings/game-room-loading';
 
 const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
@@ -202,9 +207,8 @@ function GuestProfileView({
     guestUser.smart_wallet_address && isValidWallet(guestUser.smart_wallet_address)
       ? (guestUser.smart_wallet_address as Address)
       : null;
-  const guestOnChainAddress = linkedWalletAddress ?? smartWalletAddress ?? null;
-  // For game lookups: wallet-first users are registered under smart wallet, so use it when present
-  const guestGameLookupAddress = smartWalletAddress ?? linkedWalletAddress ?? null;
+  const guestOnChainAddress = getGuestUserPlayAddress(guestUser) as Address | null;
+  const guestGameLookupAddress = guestOnChainAddress;
   // Key local profile storage by whichever address represents this profile.
   // For Privy-only users, fall back to their guest `address` so avatar updates persist.
   const profileKeyAddress = linkedWalletAddress ?? smartWalletAddress ?? guestUser.address;
@@ -238,6 +242,7 @@ function GuestProfileView({
     ? `${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`
     : null;
   const showSmartBalances =
+    shouldPromoteSmartWalletUi() &&
     !!smartWalletAddress &&
     (!linkedWalletAddress || smartWalletAddress.toLowerCase() !== linkedWalletAddress.toLowerCase());
   const showDualGuestBalances = !!linkedWalletAddress && showSmartBalances;
@@ -411,7 +416,11 @@ function GuestProfileView({
     isLoadingPerks,
     isLoadingVouchers,
     refetchVouchers,
-  } = useMergedProfileRewardAssets(rewardAddress, CELO_CHAIN_ID, [linkedWalletAddress, smartWalletAddress]);
+  } = useMergedProfileRewardAssets(
+    rewardAddress,
+    CELO_CHAIN_ID,
+    getGuestUserRewardHolderAddresses(guestUser) as Address[]
+  );
 
   const ownedCollectibles = useMemo(
     () =>
@@ -589,7 +598,7 @@ function GuestProfileView({
                             <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortLinkedWalletAddress}</span>
                           </>
                         ) : null}
-                        {shortSmartWalletAddress ? (
+                        {shouldPromoteSmartWalletUi() && shortSmartWalletAddress ? (
                           <>
                             <span className="text-slate-400 text-xs">Smart wallet:</span>
                             <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortSmartWalletAddress}</span>
@@ -979,7 +988,9 @@ function GuestProfileView({
                       >
                         <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
                         <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
-                        {smartWalletAddress && voucher.heldBy.toLowerCase() === smartWalletAddress.toLowerCase() ? (
+                        {shouldPromoteSmartWalletUi() &&
+                        smartWalletAddress &&
+                        voucher.heldBy.toLowerCase() === smartWalletAddress.toLowerCase() ? (
                           <p className="text-[10px] text-amber-200/70 mb-2">Smart wallet</p>
                         ) : linkedWalletAddress && voucher.heldBy.toLowerCase() === linkedWalletAddress.toLowerCase() ? (
                           <p className="text-[10px] text-white/45 mb-2">Linked wallet</p>
@@ -1070,7 +1081,11 @@ export default function Profile() {
   const smartWallet = smartWalletAddress;
   const { data: smartWalletOwner } = useProfileOwner(smartWallet);
 
-  const showDualWallets = !!smartWallet && !!walletAddress && smartWallet.toLowerCase() !== walletAddress.toLowerCase();
+  const showDualWallets =
+    shouldPromoteSmartWalletUi() &&
+    !!smartWallet &&
+    !!walletAddress &&
+    smartWallet.toLowerCase() !== walletAddress.toLowerCase();
   const [activeWalletView, setActiveWalletView] = useState<'connected' | 'smart'>(() => (smartWallet ? 'smart' : 'connected'));
   React.useEffect(() => {
     if (!smartWallet) setActiveWalletView('connected');
@@ -1086,7 +1101,9 @@ export default function Profile() {
   const tycoonProfileOwnerAddress =
     (isValidWallet(smartWalletOwner) ? smartWalletOwner : null) ??
     walletAddress;
-  const gameLookupAddress = smartWallet ?? tycoonProfileOwnerAddress;
+  const gameLookupAddress = isMinipayEoaFirstFlow()
+    ? (getGuestUserPlayAddress(guestUser) ?? walletAddress ?? tycoonProfileOwnerAddress)
+    : (smartWallet ?? tycoonProfileOwnerAddress);
 
   // Local avatar/displayName/bio should be keyed by the profile owner (linked EOA),
   // not by whichever wallet is currently connected (smart wallet).
@@ -1566,7 +1583,7 @@ export default function Profile() {
                   </button>
                   </div>
                 </div>
-                {/* Smart wallet: show the best-known value (registry or account), without contradictions */}
+                {shouldPromoteSmartWalletUi() && (
                 <div className="flex flex-col gap-2 mt-2">
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                     <span className="text-slate-500 text-xs">Smart wallet:</span>
@@ -1593,7 +1610,10 @@ export default function Profile() {
                       </span>
                     )}
                   </div>
-                  {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+                  {shouldPromoteSmartWalletUi() &&
+                    isConnected &&
+                    smartWalletAddress &&
+                    smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
                     <Link
                       href="/profile/smart-wallet"
                       className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition"
@@ -1602,6 +1622,7 @@ export default function Profile() {
                     </Link>
                   )}
                 </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-3 shrink-0 w-full sm:w-[240px] justify-center sm:justify-start">
@@ -1665,7 +1686,10 @@ export default function Profile() {
                     </div>
                   ))}
                 </div>
-                {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+                {shouldPromoteSmartWalletUi() &&
+                  isConnected &&
+                  smartWalletAddress &&
+                  smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
                   <Link
                     href="/profile/smart-wallet"
                     className="w-full mt-3 inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition"

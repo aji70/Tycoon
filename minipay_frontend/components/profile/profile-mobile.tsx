@@ -38,7 +38,12 @@ import {
   redeemVoucherViaBackend,
   shouldRedeemVoucherViaBackend,
 } from '@/lib/redeemVoucherApi';
-import { getGuestUserPlayAddress } from '@/lib/minipayGuestFlow';
+import {
+  getGuestUserPlayAddress,
+  getGuestUserRewardHolderAddresses,
+  isMinipayEoaFirstFlow,
+  shouldPromoteSmartWalletUi,
+} from '@/lib/minipayGuestFlow';
 import GameRoomLoading from '@/components/settings/game-room-loading';
 
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
@@ -210,8 +215,8 @@ function GuestProfileViewMobile({
       ? (guestUser.smart_wallet_address as Address)
       : null;
 
-  const guestOnChainAddress = linkedWalletAddress ?? smartWalletAddress ?? null;
-  const guestGameLookupAddress = smartWalletAddress ?? linkedWalletAddress ?? null;
+  const guestOnChainAddress = getGuestUserPlayAddress(guestUser) as Address | null;
+  const guestGameLookupAddress = guestOnChainAddress;
   const profileKeyAddress = linkedWalletAddress ?? smartWalletAddress ?? guestUser.address;
   const profileReadFallbacks = [
     guestUser.linked_wallet_address,
@@ -277,6 +282,7 @@ function GuestProfileViewMobile({
     ? `${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`
     : null;
   const showSmartBalances =
+    shouldPromoteSmartWalletUi() &&
     !!smartWalletAddress &&
     (!linkedWalletAddress || smartWalletAddress.toLowerCase() !== linkedWalletAddress.toLowerCase());
   const showDualGuestBalances = !!linkedWalletAddress && showSmartBalances;
@@ -474,7 +480,11 @@ function GuestProfileViewMobile({
     isLoadingPerks,
     isLoadingVouchers,
     refetchVouchers,
-  } = useMergedProfileRewardAssets(rewardAddress, CELO_CHAIN_ID, [linkedWalletAddress, smartWalletAddress]);
+  } = useMergedProfileRewardAssets(
+    rewardAddress,
+    CELO_CHAIN_ID,
+    getGuestUserRewardHolderAddresses(guestUser) as Address[]
+  );
 
   const ownedCollectibles = useMemo(
     () =>
@@ -1042,7 +1052,9 @@ export default function ProfilePageMobile() {
   const tycoonProfileOwnerAddress =
     (isValidWallet(smartWalletOwner) ? smartWalletOwner : null) ??
     walletAddress;
-  const gameLookupAddress = smartWallet ?? tycoonProfileOwnerAddress;
+  const gameLookupAddress = isMinipayEoaFirstFlow()
+    ? (getGuestUserPlayAddress(guestUser) ?? walletAddress ?? tycoonProfileOwnerAddress)
+    : (smartWallet ?? tycoonProfileOwnerAddress);
 
   // Local avatar/displayName/bio should be keyed by the profile owner (linked EOA),
   // not by whichever wallet is currently connected (smart wallet).
@@ -1052,7 +1064,11 @@ export default function ProfilePageMobile() {
   const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
   const cusdcBalance = useBalance({ address: walletAddress, token: cusdcAddress, query: { enabled: !!walletAddress && !!cusdcAddress } });
   const usdtBalance = useBalance({ address: walletAddress, token: usdtAddress, query: { enabled: !!walletAddress && !!usdtAddress } });
-  const showDualBalances = !!smartWallet && !!walletAddress && smartWallet.toLowerCase() !== walletAddress.toLowerCase();
+  const showDualBalances =
+    shouldPromoteSmartWalletUi() &&
+    !!smartWallet &&
+    !!walletAddress &&
+    smartWallet.toLowerCase() !== walletAddress.toLowerCase();
   const { data: ethBalanceSmart } = useBalance({ address: smartWallet, query: { enabled: !!smartWallet } });
   const tycBalanceSmart = useBalance({ address: smartWallet, token: tycTokenAddress, query: { enabled: !!smartWallet && !!tycTokenAddress } });
   const usdcBalanceSmart = useBalance({ address: smartWallet, token: usdcTokenAddress, query: { enabled: !!smartWallet && !!usdcTokenAddress } });
@@ -1526,6 +1542,7 @@ export default function ProfilePageMobile() {
               <span className="font-mono truncate">{userData.shortAddress || walletAddress}</span>
               {copied ? <Check className="w-4 h-4 text-emerald-400 shrink-0" /> : <Copy className="w-4 h-4 shrink-0" />}
             </button>
+            {shouldPromoteSmartWalletUi() && (
             <div className="mt-2 space-y-2">
               <p className="text-slate-500 text-[10px] flex items-center justify-center gap-1.5 flex-wrap">
                 <span>Smart wallet:</span>
@@ -1543,7 +1560,10 @@ export default function ProfilePageMobile() {
                   <span className="italic">— (register in-game to get one)</span>
                 )}
               </p>
-              {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+              {shouldPromoteSmartWalletUi() &&
+                isConnected &&
+                smartWalletAddress &&
+                smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
                 <Link
                   href="/profile/smart-wallet"
                   className="w-full max-w-[260px] mx-auto flex justify-center px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition"
@@ -1552,7 +1572,9 @@ export default function ProfilePageMobile() {
                 </Link>
               )}
             </div>
-            {(guestUser?.smart_wallet_migration_status || guestUser?.legacy_smart_wallet_address) && (
+            )}
+            {shouldPromoteSmartWalletUi() &&
+            (guestUser?.smart_wallet_migration_status || guestUser?.legacy_smart_wallet_address) && (
               <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-left">
                 <p className="text-[10px] uppercase tracking-wider text-amber-300 font-semibold">Wallet migration</p>
                 <p className="text-xs text-white/70 mt-1">

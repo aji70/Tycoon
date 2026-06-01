@@ -32,6 +32,7 @@ import { apiClient } from "@/lib/api";
 import { useUserRegistryWallet } from "@/context/ContractProvider";
 import type { ApiResponse } from "@/types/api";
 import { isAgentStyleTournament } from "@/lib/tournamentRoutes";
+import { isMinipayEoaFirstFlow } from "@/lib/minipayGuestFlow";
 
 function formatEntryFee(wei: string | number): string {
   const n = Number(wei);
@@ -213,7 +214,7 @@ export function TournamentDetailPage({
     registrySmartWallet && String(registrySmartWallet).trim() !== "0x0000000000000000000000000000000000000000"
       ? (registrySmartWallet as `0x${string}`)
       : undefined;
-  const smartWalletAddress = guestSmartWallet ?? registrySw;
+  const smartWalletAddress = isMinipayEoaFirstFlow() ? undefined : guestSmartWallet ?? registrySw;
   const { fund: fundPrizePoolOnChain, isPending: fundPoolPending, isReady: fundPoolReady, canUseSmartWallet } =
     useFundPrizePool(smartWalletAddress);
   const [registering, setRegistering] = useState(false);
