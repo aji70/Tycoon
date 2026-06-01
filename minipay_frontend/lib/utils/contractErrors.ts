@@ -209,17 +209,8 @@ export function getContractErrorMessage(
     return "Too many requests — please wait a moment before trying again.";
   }
 
-  // Connection / network / RPC errors (viem: "An unknown RPC error occurred")
+  // Connection / network errors
   const msgLower = (e?.message ?? e?.shortMessage ?? "").toLowerCase();
-  if (
-    msgLower.includes("unknown rpc") ||
-    msgLower.includes("rpc error") ||
-    msgLower.includes("invalid json rpc") ||
-    msgLower.includes("eth_call") ||
-    msgLower.includes("rate limit")
-  ) {
-    return "Could not reach the Celo network. Check your connection and try again, or refresh the page.";
-  }
   if (
     msgLower.includes("network") ||
     msgLower.includes("fetch failed") ||

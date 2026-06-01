@@ -10,22 +10,19 @@ import { useAccount, useChainId, useSignMessage, usePublicClient, useSwitchChain
 import {
   useIsRegistered,
   useGetUsername,
+  useRegisterPlayer,
+  useRegisterPlayerWithoutWallet,
   usePreviousGameCode,
   useGetGameByCode,
   useHasSmartWallet,
   useProfileOwner,
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { useAppKit } from "@reown/appkit/react";
+import { useConnect } from "wagmi";
+import { injected } from "wagmi/connectors";
 import toast from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { apiClient } from "@/lib/api";
-import {
-  registerViaBackendSponsor,
-  syncReturningUserRegistration,
-} from "@/lib/registerOnChainFallback";
-import { postRegisterOnChain } from "@/lib/registerOnChainApi";
-import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
@@ -54,12 +51,12 @@ const HeroSection: React.FC = () => {
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
   const publicClient = usePublicClient();
-  const { open: openWallet } = useAppKit();
+  const { connect } = useConnect();
+  const connectWallet = () => connect({ connector: injected() });
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const [isMiniPay, setIsMiniPay] = useState(false);
   const walletSessionReady = !!address;
-  const didAutoConnectRef = useRef(false);
   const signOutGuestAndPrivy = () => {
     guestAuth?.logoutGuest();
   };
@@ -78,11 +75,17 @@ const HeroSection: React.FC = () => {
     setIsMiniPay(Boolean(eth?.isMiniPay));
   }, []);
 
-  useEffect(() => {
-    if (!isMiniPay || !!address || isConnecting || didAutoConnectRef.current) return;
-    didAutoConnectRef.current = true;
-    openWallet?.();
-  }, [isMiniPay, address, isConnecting, openWallet]);
+  const {
+    write: registerPlayerWithWallet,
+    isPending: registerPending,
+  } = useRegisterPlayerWithoutWallet();
+
+  const {
+    write: registerPlayerLegacy,
+  } = useRegisterPlayer();
+
+  // Use optimized registration when wallet is connected, otherwise use legacy
+  const registerPlayer = address ? registerPlayerWithWallet : registerPlayerLegacy;
 
   const {
     data: isUserRegistered,
@@ -234,25 +237,17 @@ const HeroSection: React.FC = () => {
     };
   }, [address]);
 
-  const onChainUsername = useMemo(() => {
-    const u = fetchedUsername != null ? String(fetchedUsername).trim() : "";
-    return u.length > 0 ? u : "";
-  }, [fetchedUsername]);
-
   const registrationStatus = useMemo(() => {
     if (address) {
       const hasBackend = !!user;
-      const hasOnChain =
-        isUserRegistered === true ||
-        localRegistered ||
-        onChainUsername.length > 0;
+      const hasOnChain = isUserRegistered === true || localRegistered;
       if ((hasBackend || localRegistered) && hasOnChain) return "fully-registered";
       if (hasBackend && !hasOnChain) return "backend-only";
       return "none";
     }
     if (guestUser) return "privy";
     return "disconnected";
-  }, [address, user, isUserRegistered, guestUser, localRegistered, onChainUsername]);
+  }, [address, user, isUserRegistered, guestUser, localRegistered]);
 
   const displayUsername = useMemo(() => {
     if (guestUser) return guestUser.username;
@@ -281,7 +276,7 @@ const HeroSection: React.FC = () => {
     isGuest: !!(guestUser && !address),
   });
 
-  // Handle registration via backend (DB user + backend-sponsored on-chain tx)
+  // Handle registration (on-chain + backend if needed)
   const handleRegister = async () => {
     if (!address) {
       toast.error("Please connect your wallet");
@@ -289,10 +284,10 @@ const HeroSection: React.FC = () => {
     }
 
     let finalUsername = inputUsername.trim();
-    if (user?.username) {
-      finalUsername = user.username.trim() || finalUsername;
-    } else if (onChainUsername) {
-      finalUsername = onChainUsername;
+
+    // If backend user exists but not on-chain → use backend username
+    if (registrationStatus === "backend-only" && user?.username) {
+      finalUsername = user.username.trim();
     }
 
     if (!finalUsername) {
@@ -301,88 +296,99 @@ const HeroSection: React.FC = () => {
     }
 
     setLoading(true);
-    const setupToastId = toast.loading(
-      user ? "Syncing your account…" : "Setting up your account…"
-    );
 
     try {
-      const alreadyOnChain =
-        isUserRegistered === true || onChainUsername.length > 0 || localRegistered;
-
-      // Returning player: DB + chain — no re-registration
-      if (user && alreadyOnChain) {
-        setLocalRegistered(true);
-        setLocalUsername(finalUsername);
-        toast.dismiss(setupToastId);
-        toast.success(`Welcome back, ${finalUsername}!`);
-        router.refresh();
-        void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
-        return;
-      }
-
-      // Returning player: DB only — idempotent on-chain sync
-      if (user) {
-        const { alreadyRegistered } = await syncReturningUserRegistration({
-          address,
-          username: finalUsername,
-          user,
-          setUser,
-          setLocalRegistered,
-          setLocalUsername,
-          refetchIsRegistered,
-          refetchUsername,
-        });
-        toast.dismiss(setupToastId);
-        toast.success(
-          alreadyRegistered
-            ? `Welcome back, ${finalUsername}!`
-            : "You're all set — welcome back!"
-        );
-        router.refresh();
-        return;
-      }
-
+      // Register on-chain if contract doesn't have this address (required for create game / create AI game)
       if (isUserRegistered !== true) {
-        await registerViaBackendSponsor({
-          address,
-          username: finalUsername,
-          user,
-          setUser,
-          setLocalRegistered,
-          setLocalUsername,
-          refetchIsRegistered,
-          refetchUsername,
-        });
-        toast.dismiss(setupToastId);
-        toast.success("Welcome to Tycoon!");
-        router.refresh();
-        return;
+        try {
+          const txHash = await registerPlayer(finalUsername);
+          await refetchIsRegistered();
+        } catch (onChainErr: any) {
+          const isInsufficientGas =
+            onChainErr?.message?.toLowerCase().includes("insufficient") ||
+            onChainErr?.shortMessage?.toLowerCase().includes("insufficient");
+
+          if (isInsufficientGas) {
+            const gasToastId = toast.loading("No gas available. Using backend registration...");
+            try {
+              // Ensure backend user exists first
+              if (!user) {
+                const createRes = await apiClient.post<ApiResponse>("/users", {
+                  username: finalUsername,
+                  address,
+                  chain: "Celo",
+                });
+                if (createRes?.success && createRes?.data) {
+                  setUser(createRes.data as UserType);
+                } else if (createRes?.status !== 409) {
+                  throw new Error("Failed to create user before backend registration");
+                }
+              }
+
+              const backendRes = await apiClient.post<ApiResponse>("/users/register-on-chain", {
+                address,
+                chain: "Celo",
+              });
+
+              if (!backendRes?.success) throw new Error("Backend registration failed");
+
+              const userRes = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Celo`);
+              if (userRes?.success && userRes?.data) setUser(userRes.data as UserType);
+
+              setLocalRegistered(true);
+              setLocalUsername(finalUsername);
+              await Promise.all([refetchIsRegistered?.(), refetchUsername?.()]);
+              toast.dismiss(gasToastId);
+              toast.success("Welcome to Tycoon!");
+              return;
+            } catch (backendErr: any) {
+              toast.dismiss(gasToastId);
+              throw backendErr;
+            }
+          } else {
+            throw onChainErr;
+          }
+        }
       }
 
-      const res = await apiClient.post<ApiResponse>("/users", {
-        username: finalUsername,
-        address,
-        chain: "Celo",
-      });
-      if (!res?.success) throw new Error("Failed to save user on backend");
-      setUser((res.data as UserType) ?? ({ username: finalUsername } as UserType));
+      // Create backend user if doesn't exist
+      if (!user) {
+        const res = await apiClient.post<ApiResponse>("/users", {
+          username: finalUsername,
+          address,
+          chain: "Celo",
+        });
+
+        if (!res?.success) throw new Error("Failed to save user on backend");
+        setUser({ username: finalUsername } as UserType); // optimistic
+      }
+
+      // Optimistic updates
       setLocalRegistered(true);
       setLocalUsername(finalUsername);
-      toast.dismiss(setupToastId);
+
+      // Refetch to update UI (wait for both to complete)
+      await Promise.all([
+        refetchIsRegistered?.(),
+        refetchUsername?.(),
+      ]);
+
       toast.success("Welcome to Tycoon!");
-      router.refresh();
-      void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
-    } catch (err: unknown) {
-      toast.dismiss(setupToastId);
-      const e = err as {
-        status?: number;
-        response?: { status?: number; data?: { message?: string; error?: string } };
-        message?: string;
-      };
+    } catch (err: any) {
+      if (
+        err?.code === 4001 ||
+        err?.message?.includes("User rejected") ||
+        err?.message?.includes("User denied")
+      ) {
+        toast("Transaction cancelled");
+        return;
+      }
+
+      // Backend 409 (username taken etc.): only treat as success if contract already has this address registered
       const isAlreadyExists =
-        e?.status === 409 ||
-        e?.response?.status === 409 ||
-        /already exists|already registered|username.*taken|user.*exists/i.test(e?.message ?? "");
+        err?.status === 409 ||
+        err?.response?.status === 409 ||
+        /already exists|already registered|username.*taken|user.*exists/i.test(err?.message ?? "");
 
       if (isAlreadyExists && isUserRegistered === true) {
         try {
@@ -390,40 +396,33 @@ const HeroSection: React.FC = () => {
           if (res?.success && res?.data) {
             setUser(res.data as UserType);
             setLocalUsername(finalUsername);
-            toast.success("Welcome to Tycoon!");
+            // Refetch to update UI
+            if (refetchIsRegistered) refetchIsRegistered();
+            if (refetchUsername) refetchUsername();
+            toast.update(toastId, {
+              render: "Welcome to Tycoon!",
+              type: "success",
+              isLoading: false,
+              autoClose: 4000,
+            });
             router.refresh();
-            void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
             return;
           }
-        } catch {
-          // fall through
-        }
-      }
-
-      if (isAlreadyExists && isUserRegistered !== true) {
-        try {
-          await registerViaBackendSponsor({
-            address,
-            username: finalUsername,
-            user,
-            setUser,
-            setLocalRegistered,
-            setLocalUsername,
-            refetchIsRegistered,
-            refetchUsername,
-          });
-          toast.success("Welcome to Tycoon!");
-          router.refresh();
-          return;
-        } catch {
+        } catch (_) {
           // fall through to generic error
         }
       }
+      // If 409 but contract says not registered: backend has user but chain doesn't — tell them to complete on-chain
+      if (isAlreadyExists && isUserRegistered !== true) {
+        toast("Complete registration: sign the transaction in your wallet to register on-chain.");
+        return;
+      }
 
       const message =
-        e?.response?.data?.message ||
-        e?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
         getContractErrorMessage(err, "Registration failed. Try again.");
+
       toast.error(message);
     } finally {
       setLoading(false);
@@ -434,19 +433,16 @@ const HeroSection: React.FC = () => {
     if (!guestAuth?.refetchGuest) return;
     setRegisterOnChainLoading(true);
     try {
-      const data = await postRegisterOnChain({
-        chain: "Celo",
-        address: (address ?? getGuestUserPlayAddress(guestUser)) as `0x${string}` | undefined,
-        username: (guestUser?.username ?? user?.username ?? inputUsername.trim()) || undefined,
-      });
-      if (data?.success) {
+      const res = await apiClient.post<ApiResponse>("auth/register-on-chain", { chain: "Celo" });
+      if (res?.data?.success) {
         await guestAuth.refetchGuest();
+        const data = res?.data as { success?: boolean; alreadyRegistered?: boolean };
         toast.success(data?.alreadyRegistered ? "Already registered" : "Registered on-chain. You can play now.");
       } else {
-        toast.error(data?.message ?? "Registration failed");
+        toast.error((res?.data as { message?: string })?.message ?? "Registration failed");
       }
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? err?.message ?? getContractErrorMessage(err, "Registration failed"));
+      toast.error(err?.response?.data?.message ?? getContractErrorMessage(err, "Registration failed"));
     } finally {
       setRegisterOnChainLoading(false);
     }
@@ -455,17 +451,10 @@ const HeroSection: React.FC = () => {
   const handleLinkWallet = async () => {
     if (!address) {
       try {
-        if (connectWallet) {
-          connectWallet();
-          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
-        } else if (typeof openWallet === "function") {
-          openWallet();
-          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
-        } else {
-          toast.info("Use the connect button in the menu (top right) to connect your wallet, then click here again");
-        }
+        connectWallet();
+        toast.info("Connect your MiniPay wallet, then tap Connect wallet again to link");
       } catch {
-        toast.info("Use the connect button in the menu (top right) to connect your wallet, then click here again");
+        toast.info("Use the menu to connect your wallet, then tap here again");
       }
       return;
     }
@@ -703,7 +692,7 @@ const HeroSection: React.FC = () => {
               </p>
               <button
                 type="button"
-                onClick={() => openWallet?.()}
+                onClick={connectWallet}
                 className="relative group w-full sm:w-auto min-w-[220px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
               >
                 <svg
@@ -744,7 +733,7 @@ const HeroSection: React.FC = () => {
             <div className="w-[80%] md:w-[400px] flex flex-col gap-4 items-center">
               <button
                 type="button"
-                onClick={() => openWallet?.()}
+                onClick={connectWallet}
                 className="relative group w-full sm:w-auto min-w-[220px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
               >
                 <svg
@@ -778,6 +767,7 @@ const HeroSection: React.FC = () => {
               onClick={handleRegister}
               disabled={
                 loading ||
+                registerPending ||
                 (registrationStatus === "none" && !inputUsername.trim())
               }
               className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
@@ -798,13 +788,13 @@ const HeroSection: React.FC = () => {
                 />
               </svg>
               <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] -tracking-[2%] font-orbitron font-[700] z-2">
-                {loading ? "Please wait…" : user ? "Continue" : "Let's Go!"}
+                {loading || registerPending ? "Registering..." : "Let's Go!"}
               </span>
             </button>
           )}
           {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
             <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
-              {user ? "Finish syncing your account" : "Creates your game account & smart wallet"}
+              Creates your game account &amp; smart wallet
             </p>
           )}
 
