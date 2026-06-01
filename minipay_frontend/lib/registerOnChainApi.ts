@@ -10,10 +10,7 @@ export type RegisterOnChainResult = {
   message?: string;
 };
 
-/**
- * On-chain registration without a user-signed tx.
- * MiniPay always uses POST /users/register-on-chain (backend-sponsored).
- */
+/** Sponsored on-chain registration (MiniPay → /users/register-on-chain; web → /auth with fallback). */
 export async function postRegisterOnChain(params: {
   chain: string;
   address?: Address;
@@ -22,9 +19,7 @@ export async function postRegisterOnChain(params: {
   const { chain, address, username } = params;
 
   if (isMiniPayEmbeddedWallet()) {
-    if (!address) {
-      throw new Error("Connect your MiniPay wallet to register");
-    }
+    if (!address) throw new Error("Connect your MiniPay wallet to register");
     await registerViaBackendSponsor({
       address,
       username: username?.trim() || "Player",
@@ -33,7 +28,7 @@ export async function postRegisterOnChain(params: {
       setLocalRegistered: () => {},
       setLocalUsername: () => {},
     });
-    return { success: true, message: "Registered on-chain" };
+    return { success: true };
   }
 
   try {

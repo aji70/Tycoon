@@ -1,0 +1,42 @@
+/**
+ * Non-critical UI CSS — loaded after first paint (tw-animate, toast theme).
+ */
+@import "tw-animate-css";
+
+.Toastify__toast {
+  background: #0a1a1b !important;
+  color: #e0f7f8 !important;
+  border: 1px solid #003b3e !important;
+  font-family: var(--font-orbitron), Orbitron, sans-serif !important;
+}
+.Toastify__toast--success {
+  background: #0a1a1b !important;
+  color: #00f0ff !important;
+  border-color: rgba(0, 240, 255, 0.4) !important;
+}
+.Toastify__toast--error {
+  background: #0a1a1b !important;
+  color: #ff6b6b !important;
+  border-color: rgba(255, 107, 107, 0.4) !important;
+}
+.Toastify__toast--warning {
+  background: #0a1a1b !important;
+  color: #f1c40f !important;
+  border-color: rgba(241, 196, 15, 0.4) !important;
+}
+.Toastify__toast--info,
+.Toastify__toast--default {
+  background: #0a1a1b !important;
+  color: #00f0ff !important;
+  border-color: #003b3e !important;
+}
+.Toastify__progress-bar {
+  background: #00f0ff !important;
+}
+.Toastify__close-button {
+  color: #869298 !important;
+  opacity: 1;
+}
+.Toastify__close-button:hover {
+  color: #00f0ff !important;
+}

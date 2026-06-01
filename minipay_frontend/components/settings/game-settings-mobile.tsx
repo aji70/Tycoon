@@ -12,7 +12,7 @@ import {
   useChainId,
   useReadContract,
 } from 'wagmi';
-import { resolveChainForBackend } from '@/lib/utils/chain';
+import { useAppKitNetwork } from '@reown/appkit/react';
 import { toast } from "react-toastify";
 import { generateGameCode } from "@/lib/utils/games";
 import { GamePieces } from "@/lib/constants/games";
@@ -63,6 +63,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
   const router = useRouter();
   const { address } = useAccount();
   const wagmiChainId = useChainId();
+  const { caipNetwork } = useAppKitNetwork();
   const guestAuth = useGuestAuthOptional();
   const isGuest = shouldUseBackendGuestGameFlow(guestAuth?.guestUser ?? null, address, wagmiChainId);
 
@@ -70,7 +71,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
   const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
 
   const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);
-  const chainName = resolveChainForBackend(wagmiChainId);
+  const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${wagmiChainId}` || "unknown";
 
   const [isFreeGame, setIsFreeGame] = useState(true);
   const [isStarting, setIsStarting] = useState(false);

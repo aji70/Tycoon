@@ -10,7 +10,6 @@ import { resolveChainForBackend } from "@/lib/utils/chain";
 import { generateGameCode } from "@/lib/utils/games";
 import { apiClient } from "@/lib/api";
 import { postRegisterOnChain } from "@/lib/registerOnChainApi";
-import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { useMediaQuery } from "@/components/useMediaQuery";
 import {
   useIsRegistered,
@@ -202,9 +201,9 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
         }
       } catch (apiErr: unknown) {
         const status = (apiErr as { response?: { status?: number } })?.response?.status;
-        if (status === 401 && !address) {
+        if (status === 401) {
           toast.update(toastId, {
-            render: "Connect your wallet and register on the home page, then try again.",
+            render: "Log in to your account (or create one on the home page), then try again.",
             type: "warning",
             isLoading: false,
             autoClose: 8000,

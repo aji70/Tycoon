@@ -49,7 +49,6 @@ import {
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import Erc20Abi from "@/context/abi/ERC20abi.json";
 import { apiClient } from "@/lib/api";
-import { isMinipayEoaFirstFlow, shouldPromoteSmartWalletUi } from "@/lib/minipayGuestFlow";
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "@/lib/constants/ngnPayments";
 import { getNairaEligibility, nairaBlockedMessage } from "@/lib/shop/nairaPayment";
 import { ApiResponse } from "@/types/api";
@@ -132,9 +131,7 @@ export default function CollectibleInventoryBar({
   // Smart wallet support
   const guestSmartWallet = guestAuth?.guestUser?.smart_wallet_address ?? undefined;
   const { data: registrySmartWallet } = useUserRegistryWallet(wagmiAddress);
-  const smartWalletAddress = isMinipayEoaFirstFlow()
-    ? undefined
-    : registrySmartWallet || (guestSmartWallet as Address | undefined);
+  const smartWalletAddress = registrySmartWallet || (guestSmartWallet as Address | undefined);
 
   const isValidWallet = (a: string | undefined): a is Address =>
     !!a && a !== '0x0000000000000000000000000000000000000000' && a.toLowerCase() !== '0x0000000000000000000000000000000000000000'.toLowerCase();
@@ -162,13 +159,9 @@ export default function CollectibleInventoryBar({
     }
   };
 
+  // Auto-switch to smart wallet if guest has one but not connected via wagmi
   useEffect(() => {
-    if (
-      shouldPromoteSmartWalletUi() &&
-      smartWalletAddress &&
-      isValidWallet(smartWalletAddress) &&
-      !isConnected
-    ) {
+    if (smartWalletAddress && isValidWallet(smartWalletAddress) && !isConnected) {
       setPayWith('smart_wallet');
     }
   }, [smartWalletAddress, isConnected]);
@@ -987,7 +980,7 @@ export default function CollectibleInventoryBar({
                         Connected Wallet
                       </button>
                     )}
-                    {shouldPromoteSmartWalletUi() && smartWalletAddress && (
+                    {smartWalletAddress && (
                       <button
                         onClick={() => setPayWith('smart_wallet')}
                         className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition ${

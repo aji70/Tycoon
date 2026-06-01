@@ -6,38 +6,27 @@ import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { useAccount, useChainId, useSignMessage } from "wagmi";
+import { useAccount, useChainId, useSignMessage, usePublicClient, useSwitchChain } from "wagmi";
 import {
   useIsRegistered,
   useGetUsername,
   useRegisterPlayer,
+  useRegisterPlayerWithoutWallet,
   usePreviousGameCode,
   useGetGameByCode,
   useHasSmartWallet,
   useProfileOwner,
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { useConnect } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { useAppKit } from "@reown/appkit/react";
 import toast from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
-import {
-  isRecoverableOnChainRegistrationError,
-  registerOnChainMinipay,
-  registerOnChainWithWallet,
-  registerViaBackendSponsor,
-} from "@/lib/registerOnChainFallback";
-import {
-  getGuestUserPlayAddress,
-  isMiniPayEmbeddedWallet,
-  isMinipayEoaFirstFlow,
-  shouldPromoteSmartWalletUi,
-} from "@/lib/minipayGuestFlow";
 import { apiClient } from "@/lib/api";
-import { preferDisplayUsername } from "@/lib/displayUsername";
+import { registerViaBackendSponsor } from "@/lib/registerOnChainFallback";
+import { postRegisterOnChain } from "@/lib/registerOnChainApi";
+import { getGuestUserPlayAddress, isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
-import { TYCOON_CONTRACT_ADDRESSES } from "@/constants/contracts";
 import { useUserLevel } from "@/hooks/useUserLevel";
 import { ParticleBackground } from "@/components/hero/ParticleBackground";
 import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
@@ -63,12 +52,13 @@ const HeroSection: React.FC = () => {
   const { address, isConnecting } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
-  const { connect } = useConnect();
-  const connectWallet = () => connect({ connector: injected() });
+  const publicClient = usePublicClient();
+  const { open: openWallet } = useAppKit();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const [isMiniPay, setIsMiniPay] = useState(false);
   const walletSessionReady = !!address;
+  const didAutoConnectRef = useRef(false);
   const signOutGuestAndPrivy = () => {
     guestAuth?.logoutGuest();
   };
@@ -87,7 +77,23 @@ const HeroSection: React.FC = () => {
     setIsMiniPay(Boolean(eth?.isMiniPay));
   }, []);
 
-  const { write: registerPlayer, isPending: registerPending } = useRegisterPlayer();
+  useEffect(() => {
+    if (!isMiniPay || !!address || isConnecting || didAutoConnectRef.current) return;
+    didAutoConnectRef.current = true;
+    openWallet?.();
+  }, [isMiniPay, address, isConnecting, openWallet]);
+
+  const {
+    write: registerPlayerWithWallet,
+    isPending: registerPending,
+  } = useRegisterPlayerWithoutWallet();
+
+  const {
+    write: registerPlayerLegacy,
+  } = useRegisterPlayer();
+
+  // Use optimized registration when wallet is connected, otherwise use legacy
+  const registerPlayer = address ? registerPlayerWithWallet : registerPlayerLegacy;
 
   const {
     data: isUserRegistered,
@@ -105,18 +111,22 @@ const HeroSection: React.FC = () => {
   const effectiveAddress = address ?? guestUser?.address ?? guestUser?.linked_wallet_address ?? undefined;
   const { data: hasSmartWalletFromChain } = useHasSmartWallet(effectiveAddress as `0x${string}` | undefined);
   const hasSmartWallet =
-    !isMinipayEoaFirstFlow() &&
-    ((!!effectiveAddress && hasSmartWalletFromChain === true) ||
-      (!!guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() !== ""));
+    (!!effectiveAddress && hasSmartWalletFromChain === true) ||
+    (!!guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() !== "");
   const smartWalletAddress = guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() && guestUser.smart_wallet_address !== "0x0000000000000000000000000000000000000000"
     ? (guestUser.smart_wallet_address as `0x${string}`)
     : undefined;
   const { data: profileOwner } = useProfileOwner(smartWalletAddress);
   const needsTransferToLink = !!smartWalletAddress && !!profileOwner && profileOwner !== zeroAddr && !!address && address.toLowerCase() !== (profileOwner as string).toLowerCase();
 
-  /** On-chain stats: MiniPay uses injected EOA; web may use smart wallet when linked. */
+  /** On-chain stats (incl. level) are keyed like profile: smart wallet when linked EOA is connected. */
+  const connectedWalletIsLinked =
+    !!guestUser &&
+    !!address &&
+    isValidNonZeroAddress(guestUser.linked_wallet_address ?? undefined) &&
+    address.toLowerCase() === (guestUser.linked_wallet_address as string).trim().toLowerCase();
   const levelContractLookupAddress =
-    getGuestUserPlayAddress(guestUser) ?? address ?? undefined;
+    connectedWalletIsLinked && smartWalletAddress ? smartWalletAddress : (address ?? undefined);
 
   const [backendGame, setBackendGame] = useState<{ status: string; is_ai?: boolean } | null>(null);
   const [guestLastGame, setGuestLastGame] = useState<{ code: string; status: string; is_ai?: boolean } | null>(null);
@@ -239,23 +249,22 @@ const HeroSection: React.FC = () => {
     if (address) {
       const hasBackend = !!user;
       const hasOnChain = isUserRegistered === true || localRegistered;
-      if (isRegisteredLoading && !hasBackend && !localRegistered && isUserRegistered !== false) {
-        return "checking";
-      }
-      if (hasOnChain) return "fully-registered";
+      if ((hasBackend || localRegistered) && hasOnChain) return "fully-registered";
       if (hasBackend && !hasOnChain) return "backend-only";
       return "none";
     }
     if (guestUser) return "privy";
     return "disconnected";
-  }, [address, user, isUserRegistered, guestUser, localRegistered, isRegisteredLoading]);
+  }, [address, user, isUserRegistered, guestUser, localRegistered]);
 
   const displayUsername = useMemo(() => {
     if (guestUser) return guestUser.username;
-    return preferDisplayUsername(
-      user?.username || localUsername || inputUsername,
-      typeof fetchedUsername === "string" ? fetchedUsername : null,
-      inputUsername || "Player"
+    return (
+      user?.username ||
+      localUsername ||
+      fetchedUsername ||
+      inputUsername ||
+      "Player"
     );
   }, [guestUser, user, localUsername, fetchedUsername, inputUsername]);
 
@@ -295,66 +304,61 @@ const HeroSection: React.FC = () => {
     }
 
     setLoading(true);
-    const toastId = toast.loading(
-      isMiniPayEmbeddedWallet()
-        ? "Setting up your account (no gas needed)…"
-        : "Processing registration..."
-    );
 
     try {
       // Register on-chain if contract doesn't have this address (required for create game / create AI game)
       if (isUserRegistered !== true) {
         if (isMiniPayEmbeddedWallet()) {
-          toast.update(toastId, {
-            render: "Setting up your account (no gas needed)…",
-            isLoading: true,
-          });
-          await registerOnChainMinipay({
-            address,
-            username: finalUsername,
-            user,
-            setUser,
-            setLocalRegistered,
-            setLocalUsername,
-            refetchIsRegistered,
-            refetchUsername,
-          });
-          setLocalRegistered(true);
-          setLocalUsername(finalUsername);
-        } else {
+          const gasToastId = toast.loading("Setting up your account (no gas needed)…");
           try {
-            const txHash = await registerOnChainWithWallet({
+            await registerViaBackendSponsor({
+              address,
               username: finalUsername,
-              contractAddress: TYCOON_CONTRACT_ADDRESSES[chainId],
-              registerPlayer,
+              user,
+              setUser,
+              setLocalRegistered,
+              setLocalUsername,
               refetchIsRegistered,
+              refetchUsername,
             });
-            if (!txHash) throw new Error("Registration transaction did not return a hash");
-          } catch (onChainErr: unknown) {
-            if (isRecoverableOnChainRegistrationError(onChainErr)) {
-              const fallbackToastId = toast.loading(
-                "No gas for fees — completing registration for you..."
-              );
-              try {
-                await registerViaBackendSponsor({
-                  address,
-                  username: finalUsername,
-                  user,
-                  setUser,
-                  setLocalRegistered,
-                  setLocalUsername,
-                  refetchIsRegistered,
-                  refetchUsername,
-                });
-                toast.dismiss(fallbackToastId);
-                toast.dismiss(toastId);
-                toast.success("Welcome to Tycoon!");
-                return;
-              } catch (backendErr) {
-                toast.dismiss(fallbackToastId);
-                throw backendErr;
-              }
+            toast.dismiss(gasToastId);
+            toast.success("Welcome to Tycoon!");
+            return;
+          } catch (backendErr: unknown) {
+            toast.dismiss(gasToastId);
+            throw backendErr;
+          }
+        }
+
+        try {
+          const txHash = await registerPlayer(finalUsername);
+          await refetchIsRegistered();
+        } catch (onChainErr: any) {
+          const isInsufficientGas =
+            onChainErr?.message?.toLowerCase().includes("insufficient") ||
+            onChainErr?.shortMessage?.toLowerCase().includes("insufficient");
+
+          if (isInsufficientGas) {
+            const gasToastId = toast.loading("No gas available. Using backend registration...");
+            try {
+              await registerViaBackendSponsor({
+                address,
+                username: finalUsername,
+                user,
+                setUser,
+                setLocalRegistered,
+                setLocalUsername,
+                refetchIsRegistered,
+                refetchUsername,
+              });
+              toast.dismiss(gasToastId);
+              toast.success("Welcome to Tycoon!");
+              return;
+            } catch (backendErr: any) {
+              toast.dismiss(gasToastId);
+              throw backendErr;
             }
+          } else {
             throw onChainErr;
           }
         }
@@ -382,10 +386,8 @@ const HeroSection: React.FC = () => {
         refetchUsername?.(),
       ]);
 
-      toast.dismiss(toastId);
       toast.success("Welcome to Tycoon!");
     } catch (err: any) {
-      toast.dismiss(toastId);
       if (
         err?.code === 4001 ||
         err?.message?.includes("User rejected") ||
@@ -444,47 +446,19 @@ const HeroSection: React.FC = () => {
     if (!guestAuth?.refetchGuest) return;
     setRegisterOnChainLoading(true);
     try {
-      const sponsorAddress = (address ?? getGuestUserPlayAddress(guestUser)) as `0x${string}` | undefined;
-      const sponsorUsername = (
-        guestUser?.username ??
-        user?.username ??
-        inputUsername.trim()
-      ).trim();
-
-      if (isMiniPayEmbeddedWallet() || isMiniPay) {
-        if (!sponsorAddress) {
-          toast.error("Connect your MiniPay wallet first");
-          return;
-        }
-        if (!sponsorUsername) {
-          toast.error("Enter a username first");
-          return;
-        }
-        await registerViaBackendSponsor({
-          address: sponsorAddress,
-          username: sponsorUsername,
-          user,
-          setUser,
-          setLocalRegistered,
-          setLocalUsername,
-          refetchIsRegistered,
-          refetchUsername,
-        });
+      const data = await postRegisterOnChain({
+        chain: "Celo",
+        address: (address ?? getGuestUserPlayAddress(guestUser)) as `0x${string}` | undefined,
+        username: (guestUser?.username ?? user?.username ?? inputUsername.trim()) || undefined,
+      });
+      if (data?.success) {
         await guestAuth.refetchGuest();
-        toast.success("Registered on-chain. You can play now.");
-        return;
-      }
-
-      const res = await apiClient.post<ApiResponse>("auth/register-on-chain", { chain: "Celo" });
-      if (res?.data?.success) {
-        await guestAuth.refetchGuest();
-        const data = res?.data as { success?: boolean; alreadyRegistered?: boolean };
         toast.success(data?.alreadyRegistered ? "Already registered" : "Registered on-chain. You can play now.");
       } else {
-        toast.error((res?.data as { message?: string })?.message ?? "Registration failed");
+        toast.error(data?.message ?? "Registration failed");
       }
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? getContractErrorMessage(err, "Registration failed"));
+      toast.error(err?.response?.data?.message ?? err?.message ?? getContractErrorMessage(err, "Registration failed"));
     } finally {
       setRegisterOnChainLoading(false);
     }
@@ -493,10 +467,17 @@ const HeroSection: React.FC = () => {
   const handleLinkWallet = async () => {
     if (!address) {
       try {
-        connectWallet();
-        toast.info("Connect your MiniPay wallet, then tap Connect wallet again to link");
+        if (connectWallet) {
+          connectWallet();
+          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
+        } else if (typeof openWallet === "function") {
+          openWallet();
+          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
+        } else {
+          toast.info("Use the connect button in the menu (top right) to connect your wallet, then click here again");
+        }
       } catch {
-        toast.info("Use the menu to connect your wallet, then tap here again");
+        toast.info("Use the connect button in the menu (top right) to connect your wallet, then click here again");
       }
       return;
     }
@@ -657,14 +638,6 @@ const HeroSection: React.FC = () => {
           </div>
         )}
 
-        {registrationStatus === "checking" && !loading && (
-          <div className="mt-20 md:mt-28 lg:mt-0">
-            <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
-              Checking your account…
-            </p>
-          </div>
-        )}
-
         {loading && (
           <div className="mt-20 md:mt-28 lg:mt-0">
             <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
@@ -742,7 +715,7 @@ const HeroSection: React.FC = () => {
               </p>
               <button
                 type="button"
-                onClick={connectWallet}
+                onClick={() => openWallet?.()}
                 className="relative group w-full sm:w-auto min-w-[220px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
               >
                 <svg
@@ -783,7 +756,7 @@ const HeroSection: React.FC = () => {
             <div className="w-[80%] md:w-[400px] flex flex-col gap-4 items-center">
               <button
                 type="button"
-                onClick={connectWallet}
+                onClick={() => openWallet?.()}
                 className="relative group w-full sm:w-auto min-w-[220px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
               >
                 <svg
@@ -812,7 +785,7 @@ const HeroSection: React.FC = () => {
           )}
 
           {/* "Let's Go!" for wallet users (backend-only or none) — only when Privy-authed */}
-          {address && walletSessionReady && registrationStatus !== "fully-registered" && registrationStatus !== "checking" && !loading && (
+          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
             <button
               onClick={handleRegister}
               disabled={
@@ -842,22 +815,14 @@ const HeroSection: React.FC = () => {
               </span>
             </button>
           )}
-          {address && walletSessionReady && registrationStatus !== "fully-registered" && registrationStatus !== "checking" && !loading && (
+          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
             <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
-              {isMinipayEoaFirstFlow()
-                ? "Sign in MiniPay to register on Celo (cUSD pays network fees)"
-                : "Creates your game account & smart wallet"}
+              Creates your game account &amp; smart wallet
             </p>
           )}
 
-          {/* Register + Link wallet (web/Privy smart-wallet path — not shown in MiniPay) */}
-          {shouldPromoteSmartWalletUi() &&
-          (registrationStatus === "privy" || (address && walletSessionReady && registrationStatus === "fully-registered" && !hasSmartWallet)) &&
-          !hasSmartWallet &&
-          (guestUser || walletSessionReady) &&
-          !loading &&
-          !((address && registrationStatus === "fully-registered" && walletSessionReady) ||
-            (registrationStatus === "privy" && (guestUser || walletSessionReady))) && (
+          {/* Register + Link wallet: when Privy/guest without smart wallet — hide when action buttons are shown */}
+          {(registrationStatus === "privy" || (address && walletSessionReady && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || walletSessionReady) && !loading && !((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) && (
             <div className="flex flex-col items-center gap-4 mt-4">
               <p className="text-[#869298] text-sm text-center max-w-sm">
                 Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.

@@ -14,7 +14,6 @@ import { Copy, Wallet, Coins, Loader2, Send, ArrowRightLeft, Banknote } from "lu
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "@/lib/constants/ngnPayments";
-import { isMinipayEoaFirstFlow } from "@/lib/minipayGuestFlow";
 
 const UserWalletABI = [
   { inputs: [], name: "balanceNative", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
@@ -30,42 +29,7 @@ const UserWalletABI = [
   { inputs: [{ name: "_authority", type: "address" }], name: "setWithdrawalAuthority", outputs: [], stateMutability: "nonpayable", type: "function" },
 ] as const;
 
-function MinipayEoaWalletPage() {
-  const { address: walletAddress } = useAccount();
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415]">
-      <header className="sticky top-0 z-20 border-b border-white/5 bg-[#030c0d]/90 backdrop-blur-xl">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between max-w-5xl">
-          <Link href="/profile" className="flex items-center gap-2 text-cyan-300/90 hover:text-cyan-200 text-sm font-medium">
-            <span className="w-8 h-8 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">←</span>
-            Back
-          </Link>
-          <h1 className="text-lg font-semibold text-white/90">Your wallet</h1>
-          <div className="w-20" />
-        </div>
-      </header>
-      <main className="container mx-auto px-4 py-12 max-w-xl text-center space-y-4">
-        <p className="text-white/85">
-          MiniPay uses your connected Celo wallet directly for Tycoon — rewards, vouchers, and play all use that address.
-        </p>
-        <p className="text-sm text-white/55">
-          Separate smart wallets are for the web app only. Redeem vouchers and check balances on your Profile.
-        </p>
-        {walletAddress && (
-          <p className="font-mono text-sm text-cyan-300/90 break-all">{walletAddress}</p>
-        )}
-        <Link
-          href="/profile"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 font-medium"
-        >
-          Go to Profile
-        </Link>
-      </main>
-    </div>
-  );
-}
-
-function ManageSmartWalletPageInner() {
+export default function ManageSmartWalletPage() {
   const { address: walletAddress, isConnected } = useAccount();
   const chainId = useChainId();
   const auth = useGuestAuthOptional();
@@ -872,11 +836,4 @@ function ManageSmartWalletPageInner() {
       </main>
     </div>
   );
-}
-
-export default function ManageSmartWalletPage() {
-  if (isMinipayEoaFirstFlow()) {
-    return <MinipayEoaWalletPage />;
-  }
-  return <ManageSmartWalletPageInner />;
 }

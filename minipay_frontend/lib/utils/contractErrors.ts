@@ -179,27 +179,13 @@ export function getContractErrorMessage(
     return "This game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Celo).";
   }
 
-  // Contract revert / execution reverted — prefer decoded revert reason when present
-  const revertHay = collectErrorText(error);
+  // Contract revert / execution reverted
   if (
     e?.cause?.name === "ExecutionRevertedError" ||
-    revertHay.includes("execution reverted") ||
-    revertHay.includes("contractfunctionrevertederror")
+    e?.message?.toLowerCase().includes("execution reverted") ||
+    e?.shortMessage?.toLowerCase().includes("execution reverted")
   ) {
-    const reasonMatch = revertHay.match(
-      /reverted with the following reason:\s*['"]?([^'".\n]+)/i
-    );
-    if (reasonMatch?.[1]) {
-      const reason = reasonMatch[1].trim();
-      if (reason.toLowerCase().includes("already registered")) {
-        return "This wallet is already registered on-chain.";
-      }
-      if (reason.toLowerCase().includes("username")) {
-        return `Registration rejected: ${reason}`;
-      }
-      return `Registration rejected: ${reason}`;
-    }
-    return "Smart contract rejected registration (username taken or already registered).";
+    return "Smart contract rejected transaction (check balance/stake).";
   }
 
   // Backend API errors (status on axios response or ApiError.status)
@@ -250,19 +236,6 @@ export function getContractErrorMessage(
 
   if (e?.response?.status === 503 || e?.response?.status === 502) {
     return "Server temporarily unavailable. Wait a moment and try again.";
-  }
-
-  // Wallet / provider returned an unclassified JSON-RPC failure (common in MiniPay)
-  const rpcHay = collectErrorText(error);
-  if (rpcHay.includes("unknownrpcerror") || rpcHay.includes("unknown rpc error")) {
-    if (typeof window !== "undefined" && (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum?.isMiniPay) {
-      return "MiniPay could not send the transaction. Ensure you have a little cUSD for fees, then try again.";
-    }
-    return "Wallet could not complete the transaction. Try again, or ensure you have a small CELO balance for network fees.";
-  }
-
-  if (rpcHay.includes("permission denied") || rpcHay.includes("not authorized")) {
-    return "MiniPay could not send the transaction. Ensure you have a little cUSD or CELO for fees, then try again.";
   }
 
   // Prefer backend message so we don't show generic "API request failed" when we have context

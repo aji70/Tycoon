@@ -2,10 +2,9 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { usePrivy } from "@/hooks/usePrivy";
+import { usePrivy } from "@privy-io/react-auth";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { Wallet, X } from "lucide-react";
-import { shouldPromoteSmartWalletUi } from "@/lib/minipayGuestFlow";
 
 const SKIP_KEY = "tycoon_add_wallet_modal_skipped";
 
@@ -43,7 +42,6 @@ export default function AddWalletPromptModal() {
   const hasSmartWallet =
     !!guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() !== "";
   const show =
-    shouldPromoteSmartWalletUi() &&
     authenticated &&
     !!guestUser &&
     !hasSmartWallet &&
