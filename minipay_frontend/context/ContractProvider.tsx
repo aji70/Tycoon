@@ -22,6 +22,7 @@ import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
 import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
 import { getCeloRpcUrlForChainId, registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
+import { minipayContractWriteOverrides } from '@/lib/minipayWagmiTransport';
 import { API_BASE_URL } from '@/lib/api';
 
 const REWARD_TOKEN_READ_ABI = [
@@ -387,6 +388,8 @@ export function useRegisterPlayerWithoutWallet() {
         abi: TycoonABI,
         functionName: 'registerPlayerWithoutWallet',
         args: [username.trim()],
+        chainId: celo.id,
+        ...minipayContractWriteOverrides(),
       });
       return hash;
     },

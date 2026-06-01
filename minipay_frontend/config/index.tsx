@@ -1,8 +1,8 @@
-import { cookieStorage, createStorage, http } from "@wagmi/core";
+import { cookieStorage, createStorage } from "@wagmi/core";
 import { createConfig } from "wagmi";
 import { celo } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
-import { getCeloRpcUrlForChainId } from "@/lib/utils/erc8004InjectedEoa";
+import { celoTransportForWagmi } from "@/lib/minipayWagmiTransport";
 
 export const appChain = "CELO";
 export const defaultNetwork = celo;
@@ -17,7 +17,7 @@ export const wagmiConfig = createConfig({
   }),
   ssr: true,
   transports: {
-    [celo.id]: http(getCeloRpcUrlForChainId(celo.id)),
+    [celo.id]: celoTransportForWagmi(),
   },
 });
 
