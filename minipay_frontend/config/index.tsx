@@ -2,7 +2,7 @@ import { cookieStorage, createStorage } from "@wagmi/core";
 import { createConfig } from "wagmi";
 import { celo } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
-import { celoTransportForWagmi } from "@/lib/minipayWagmiTransport";
+import { celoTransportForWagmi } from "@/lib/celoTransportForWagmi";
 
 export const appChain = "CELO";
 export const defaultNetwork = celo;
