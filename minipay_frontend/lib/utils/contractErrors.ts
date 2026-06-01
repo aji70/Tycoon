@@ -216,7 +216,7 @@ export function getContractErrorMessage(
     msgLower.includes("not authorized") ||
     msgLower.includes("unauthorized")
   ) {
-    return "MiniPay did not allow this transaction. Disconnect and reconnect your wallet on the home page, then try again.";
+    return "MiniPay blocked this transaction. Open Tycoon from the MiniPay app, wait until your wallet shows as connected, then try again.";
   }
   if (
     msgLower.includes("unknown rpc error") ||

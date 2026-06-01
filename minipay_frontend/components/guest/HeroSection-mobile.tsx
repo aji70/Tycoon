@@ -56,7 +56,6 @@ const HeroSection: React.FC = () => {
   const guestUser = guestAuth?.guestUser ?? null;
   const [isMiniPay, setIsMiniPay] = useState(false);
   const walletSessionReady = !!address;
-  const didAutoConnectRef = useRef(false);
   const signOutGuestAndPrivy = () => {
     guestAuth?.logoutGuest();
   };
@@ -74,12 +73,6 @@ const HeroSection: React.FC = () => {
     const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
     setIsMiniPay(Boolean(eth?.isMiniPay));
   }, []);
-
-  useEffect(() => {
-    if (!isMiniPay || !!address || isConnecting || didAutoConnectRef.current) return;
-    didAutoConnectRef.current = true;
-    connect({ connector: injected() });
-  }, [isMiniPay, address, isConnecting, connect]);
 
   const {
     data: isUserRegistered,
@@ -732,33 +725,41 @@ const HeroSection: React.FC = () => {
           {/* When disconnected: primary path is wallet connect. */}
           {!address && registrationStatus === "disconnected" && !loading && (
             <div className="w-[85%] max-w-xs flex flex-col gap-4 items-center">
-              <button
-                type="button"
-                onClick={connectWallet}
-                className="relative group w-full sm:w-auto min-w-[220px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
-              >
-                <svg
-                  width="260"
-                  height="52"
-                  viewBox="0 0 260 52"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-[260px] transform scale-x-[-1]"
-                >
-                  <path
-                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
-                    fill="#00F0FF"
-                    stroke="#0E282A"
-                    strokeWidth={2}
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] font-orbitron font-[700] z-2">
-                  {isMiniPay ? "Connect MiniPay Wallet" : "Connect Wallet"}
-                </span>
-              </button>
-              <p className="text-[#869298] text-xs text-center font-dmSans">
-                Connect your wallet to start playing
-              </p>
+              {isMiniPay ? (
+                <p className="text-[#17ffff] text-sm text-center font-dmSans animate-pulse">
+                  {isConnecting ? "Connecting to MiniPay…" : "Open Tycoon from the MiniPay app to connect your wallet."}
+                </p>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={connectWallet}
+                    className="relative group w-full sm:w-auto min-w-[220px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
+                  >
+                    <svg
+                      width="260"
+                      height="52"
+                      viewBox="0 0 260 52"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-[260px] transform scale-x-[-1]"
+                    >
+                      <path
+                        d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+                        fill="#00F0FF"
+                        stroke="#0E282A"
+                        strokeWidth={2}
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] font-orbitron font-[700] z-2">
+                      Connect Wallet
+                    </span>
+                  </button>
+                  <p className="text-[#869298] text-xs text-center font-dmSans">
+                    Connect your wallet to start playing
+                  </p>
+                </>
+              )}
             </div>
           )}
 

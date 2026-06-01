@@ -37,6 +37,24 @@ export function isMiniPayEmbeddedWallet(): boolean {
   return Boolean(eth?.isMiniPay);
 }
 
+type EthereumRequestProvider = {
+  request: (args: { method: string; params?: readonly unknown[] }) => Promise<unknown>;
+};
+
+/**
+ * MiniPay docs: auto-connect on load; call eth_requestAccounts before sending txs
+ * so the provider authorizes the active account (avoids "permission denied").
+ * @see https://docs.minipay.xyz/getting-started/wallet-connection.html
+ */
+export async function ensureMiniPayWalletReady(): Promise<void> {
+  if (!isMiniPayEmbeddedWallet()) return;
+  const eth = (window as Window & { ethereum?: EthereumRequestProvider }).ethereum;
+  if (!eth?.request) {
+    throw new Error("Open Tycoon inside the MiniPay app.");
+  }
+  await eth.request({ method: "eth_requestAccounts" });
+}
+
 /**
  * Use backend-signed guest create/join when:
  * - JWT guest with no wagmi address, or

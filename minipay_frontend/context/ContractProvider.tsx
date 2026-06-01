@@ -5,13 +5,14 @@ import {
   useReadContract,
   useReadContracts,
   useWriteContract,
+  useSendTransaction,
   useAccount,
   useWaitForTransactionReceipt,
   useChainId,
   usePublicClient,
 } from 'wagmi';
 import { celo } from 'wagmi/chains';
-import { Address, createPublicClient, decodeEventLog, getAddress, hexToBigInt, http, parseEventLogs, zeroAddress } from 'viem';
+import { Address, createPublicClient, decodeEventLog, encodeFunctionData, getAddress, hexToBigInt, http, parseEventLogs, zeroAddress } from 'viem';
 import { celo as celoChain, celoAlfajores } from 'viem/chains';
 import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
@@ -22,8 +23,8 @@ import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
 import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
 import { getCeloRpcUrlForChainId, registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
-import { minipayRegistrationFeeAttempts } from '@/lib/celoTransportForWagmi';
-import { isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
+import { minipaySendTransactionAttempts } from '@/lib/celoTransportForWagmi';
+import { ensureMiniPayWalletReady, isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
 import { isUserRejectedTransaction } from '@/lib/utils/contractErrors';
 import { API_BASE_URL } from '@/lib/api';
 
@@ -352,7 +353,8 @@ export function usePreviousGameCode(address?: Address) {
 export function useRegisterPlayer() {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
-  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { sendTransactionAsync, isPending, error: writeError, data: txHash, reset } =
+    useSendTransaction();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   const write = useCallback(
@@ -360,18 +362,24 @@ export function useRegisterPlayer() {
       if (!contractAddress) throw new Error('Contract not deployed on this chain');
       if (!username.trim()) throw new Error('Username cannot be empty');
 
-      const attempts = isMiniPayEmbeddedWallet()
-        ? minipayRegistrationFeeAttempts()
-        : [{}];
+      await ensureMiniPayWalletReady();
+
+      const data = encodeFunctionData({
+        abi: TycoonABI,
+        functionName: 'registerPlayer',
+        args: [username.trim()],
+      });
+
+      // MiniPay docs: encodeFunctionData + sendTransaction({ to, data, feeCurrency })
+      // https://docs.minipay.xyz/getting-started/examples.html
+      const attempts = isMiniPayEmbeddedWallet() ? minipaySendTransactionAttempts() : [{}];
 
       let lastError: unknown;
       for (const attempt of attempts) {
         try {
-          return await writeContractAsync({
-            address: contractAddress,
-            abi: TycoonABI,
-            functionName: 'registerPlayer',
-            args: [username.trim()],
+          return await sendTransactionAsync({
+            to: contractAddress,
+            data,
             ...attempt,
           });
         } catch (err) {
@@ -381,7 +389,7 @@ export function useRegisterPlayer() {
       }
       throw lastError ?? new Error('Registration failed');
     },
-    [writeContractAsync, contractAddress]
+    [sendTransactionAsync, contractAddress]
   );
 
   return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
