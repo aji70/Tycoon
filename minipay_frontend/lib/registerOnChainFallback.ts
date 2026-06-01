@@ -2,7 +2,7 @@ import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
-import { registerPlayerViaMiniPayInjected } from "@/lib/minipayWagmiTransport";
+import { ensureMiniPayWagmiConnected } from "@/lib/connectMiniPayWallet";
 import { isUserRejectedTransaction } from "@/lib/utils/contractErrors";
 import type { Address, Hash, PublicClient } from "viem";
 
@@ -14,13 +14,24 @@ export function isUnknownRpcError(error: unknown): boolean {
   return hay.includes("unknownrpcerror") || hay.includes("unknown rpc error");
 }
 
-/** On-chain registration failed in a way we can recover via backend-sponsored register-on-chain. */
+/**
+ * On-chain registration failed in a way we can recover via backend-sponsored register-on-chain.
+ * MiniPay: only when the user truly lacks gas — do not mask wallet/RPC errors (those broke after
+ * routing MiniPay through a separate @wagmi/core write path).
+ */
 export function isRecoverableOnChainRegistrationError(error: unknown): boolean {
   if (error == null) return false;
   if (isUserRejectedTransaction(error)) return false;
   const e = error as { message?: string; shortMessage?: string };
   const hay = `${e.message ?? ""} ${e.shortMessage ?? ""}`.toLowerCase();
-  if (hay.includes("insufficient")) return true;
+  const insufficient =
+    hay.includes("insufficient") || hay.includes("insufficient funds");
+
+  if (isMiniPayEmbeddedWallet()) {
+    return insufficient;
+  }
+
+  if (insufficient) return true;
   if (hay.includes("permission denied") || hay.includes("not authorized")) return true;
   return isUnknownRpcError(error);
 }
@@ -33,21 +44,15 @@ export async function registerOnChainWithWallet(params: {
   publicClient: PublicClient | undefined;
   refetchIsRegistered?: () => Promise<unknown>;
 }): Promise<void> {
-  let txHash: Hash | undefined;
-
-  // MiniPay: bypass wagmi writeContract (works in MetaMask, fails in MiniPay WebView)
-  if (isMiniPayEmbeddedWallet() && params.contractAddress) {
-    txHash = await registerPlayerViaMiniPayInjected({
-      contractAddress: params.contractAddress,
-      username: params.username,
-    });
-  } else {
-    txHash = await params.registerPlayer(params.username);
-    if (txHash && params.publicClient) {
-      await params.publicClient.waitForTransactionReceipt({ hash: txHash });
-    }
+  if (isMiniPayEmbeddedWallet()) {
+    await ensureMiniPayWagmiConnected();
   }
 
+  // Same wagmi hook path as mobile browser / MetaMask (includes minipayContractWriteOverrides).
+  const txHash = await params.registerPlayer(params.username);
+  if (txHash && params.publicClient) {
+    await params.publicClient.waitForTransactionReceipt({ hash: txHash });
+  }
   await params.refetchIsRegistered?.();
 }
 

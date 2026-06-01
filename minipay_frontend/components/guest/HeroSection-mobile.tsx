@@ -24,7 +24,6 @@ import toast from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import {
   isRecoverableOnChainRegistrationError,
-  isUnknownRpcError,
   registerOnChainWithWallet,
   registerViaBackendSponsor,
 } from "@/lib/registerOnChainFallback";
@@ -319,13 +318,8 @@ const HeroSection: React.FC = () => {
           });
         } catch (onChainErr: unknown) {
           if (isRecoverableOnChainRegistrationError(onChainErr)) {
-            const errHay = String((onChainErr as Error)?.message ?? "").toLowerCase();
             const fallbackToastId = toast.loading(
-              errHay.includes("permission")
-                ? "Completing registration for you..."
-                : isUnknownRpcError(onChainErr)
-                  ? "Wallet error — registering via Tycoon..."
-                  : "No gas available. Using backend registration..."
+              "No CELO for gas — completing registration for you..."
             );
             try {
               await registerViaBackendSponsor({
