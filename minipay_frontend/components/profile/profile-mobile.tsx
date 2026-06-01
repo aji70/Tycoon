@@ -33,6 +33,11 @@ import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAsse
 import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
+import {
+  getRedeemVoucherErrorMessage,
+  redeemVoucherViaBackend,
+  shouldRedeemVoucherViaBackend,
+} from '@/lib/redeemVoucherApi';
 import { getGuestUserPlayAddress } from '@/lib/minipayGuestFlow';
 import GameRoomLoading from '@/components/settings/game-room-loading';
 
@@ -510,20 +515,13 @@ function GuestProfileViewMobile({
   const handleRedeemVoucherViaApi = useCallback(async (tokenId: bigint, voucherOwner?: Address) => {
     try {
       setRedeemingId(tokenId);
-      await apiClient.post<ApiResponse>('/auth/redeem-voucher', {
-        tokenId: tokenId.toString(),
-        chain: 'CELO',
-        ...(voucherOwner ? { voucher_owner: voucherOwner } : {}),
-      });
+      await redeemVoucherViaBackend(tokenId, voucherOwner);
       await tycBalanceLinked.refetch?.();
       await tycBalanceSmart.refetch?.();
       await refetchVouchers();
       toast.success('Voucher redeemed successfully!');
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string; voucher_owner?: string | null } }; message?: string };
-      const owner = err?.response?.data?.voucher_owner;
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to redeem voucher';
-      toast.error(owner ? `${msg} (Owner: ${owner})` : msg);
+      toast.error(getRedeemVoucherErrorMessage(e));
     } finally {
       setRedeemingId(null);
     }
@@ -1259,46 +1257,34 @@ export default function ProfilePageMobile() {
     });
   };
 
-  const handleRedeemVoucherViaApi = React.useCallback(async (tokenId: bigint) => {
+  const handleRedeemVoucherViaApi = React.useCallback(async (tokenId: bigint, voucherOwner?: Address) => {
     try {
       setRedeemingId(tokenId);
-      await apiClient.post<ApiResponse>('/auth/redeem-voucher', { tokenId: tokenId.toString(), chain: 'CELO' });
+      await redeemVoucherViaBackend(tokenId, voucherOwner);
       tycBalanceSmart.refetch();
       tycBalance.refetch();
       await refetchVouchers();
       toast.success('Voucher redeemed successfully!');
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string; voucher_owner?: string | null } }; message?: string };
-      const owner = err?.response?.data?.voucher_owner;
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to redeem voucher';
-      toast.error(owner ? `${msg} (Owner: ${owner})` : msg);
+      toast.error(getRedeemVoucherErrorMessage(e));
     } finally {
       setRedeemingId(null);
     }
   }, [tycBalanceSmart, tycBalance, refetchVouchers]);
 
-  const handleRedeemVoucher = (tokenId: bigint, voucherHolder: Address) => {
-    if (!rewardAddress) return toast.error("Contract not available");
-    const isSmartWalletVoucher =
-      !!walletAddress && voucherHolder.toLowerCase() !== walletAddress.toLowerCase();
-
-    if (isSmartWalletVoucher) {
-      setRedeemingId(tokenId);
-      writeContract({
-        address: rewardAddress,
-        abi: RewardABI,
-        functionName: 'redeemVoucherFor',
-        args: [voucherHolder, tokenId],
-      });
-    } else {
-      setRedeemingId(tokenId);
-      writeContract({
-        address: rewardAddress,
-        abi: RewardABI,
-        functionName: 'redeemVoucher',
-        args: [tokenId],
-      });
+  const handleRedeemVoucher = async (tokenId: bigint, voucherHolder: Address) => {
+    if (shouldRedeemVoucherViaBackend(walletAddress, voucherHolder)) {
+      await handleRedeemVoucherViaApi(tokenId, voucherHolder);
+      return;
     }
+    if (!rewardAddress) return toast.error("Contract not available");
+    setRedeemingId(tokenId);
+    writeContract({
+      address: rewardAddress,
+      abi: RewardABI,
+      functionName: 'redeemVoucher',
+      args: [tokenId],
+    });
   };
 
   useEffect(() => {

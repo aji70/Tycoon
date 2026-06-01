@@ -31,6 +31,11 @@ import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
 import { getGuestUserPlayAddress } from '@/lib/minipayGuestFlow';
+import {
+  getRedeemVoucherErrorMessage,
+  redeemVoucherViaBackend,
+  shouldRedeemVoucherViaBackend,
+} from '@/lib/redeemVoucherApi';
 import GameRoomLoading from '@/components/settings/game-room-loading';
 
 const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
@@ -492,22 +497,11 @@ function GuestProfileView({
   const handleRedeemVoucher = async (voucherId: bigint, voucherOwner?: Address) => {
     try {
       setRedeemingVoucherId(voucherId.toString());
-      const res = await apiClient.post<ApiResponse>('/auth/redeem-voucher', {
-        tokenId: voucherId.toString(),
-        chain: 'CELO',
-        ...(voucherOwner ? { voucher_owner: voucherOwner } : {}),
-      });
-      if (res?.data?.success) {
-        toast.success('Voucher redeemed! Check your balance.');
-        await refetchVouchers();
-      } else {
-        toast.error(res?.data?.message || 'Failed to redeem voucher');
-      }
+      await redeemVoucherViaBackend(voucherId, voucherOwner);
+      toast.success('Voucher redeemed! Check your balance.');
+      await refetchVouchers();
     } catch (err) {
-      const e = err as { response?: { data?: { message?: string; voucher_owner?: string | null } }; message?: string };
-      const owner = e?.response?.data?.voucher_owner;
-      const msg = e?.response?.data?.message ?? e?.message ?? 'Failed to redeem voucher';
-      toast.error(owner ? `${msg} (Owner: ${owner})` : msg);
+      toast.error(getRedeemVoucherErrorMessage(err));
     } finally {
       setRedeemingVoucherId(null);
     }
@@ -992,13 +986,9 @@ function GuestProfileView({
                         ) : null}
                         <button
                           type="button"
-                          disabled={!smartWalletAddress || redeemingVoucherId === voucher.tokenId.toString()}
+                          disabled={redeemingVoucherId === voucher.tokenId.toString()}
                           onClick={() => handleRedeemVoucher(voucher.tokenId, voucher.heldBy)}
-                          className={`w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition ${
-                            !smartWalletAddress
-                              ? 'bg-white/10 text-white/50 cursor-not-allowed'
-                              : 'bg-amber-500 text-white hover:bg-amber-600 disabled:bg-amber-500/50 disabled:cursor-wait'
-                          }`}
+                          className="w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition bg-amber-500 text-white hover:bg-amber-600 disabled:bg-amber-500/50 disabled:cursor-wait"
                         >
                           {redeemingVoucherId === voucher.tokenId.toString() ? (
                             <>
@@ -1009,9 +999,6 @@ function GuestProfileView({
                             'Redeem'
                           )}
                         </button>
-                        {!smartWalletAddress && (
-                          <p className="text-xs text-white/50 mt-2">Create a smart wallet to redeem.</p>
-                        )}
                       </motion.div>
                     ))}
                   </div>
@@ -1308,45 +1295,27 @@ export default function Profile() {
 
   const handleRedeemVoucher = async (tokenId: bigint, voucherHolder: Address) => {
     try {
+      setRedeemingId(tokenId);
+      if (shouldRedeemVoucherViaBackend(walletAddress, voucherHolder)) {
+        await redeemVoucherViaBackend(tokenId, voucherHolder);
+        toast.success('Voucher redeemed! Check your balance.');
+        tycBalance.refetch();
+        await refetchVouchers();
+        return;
+      }
       if (!rewardAddress) {
         toast.error('Reward contract not available');
         return;
       }
-      setRedeemingId(tokenId);
-      const redeemFromSmart =
-        !!walletAddress &&
-        voucherHolder.toLowerCase() !== walletAddress.toLowerCase();
-      if (redeemFromSmart) {
-        writeContract({
-          address: rewardAddress,
-          abi: RewardABI,
-          functionName: 'redeemVoucherFor',
-          args: [voucherHolder, tokenId],
-        });
-        return;
-      }
-      const res = await apiClient.post<ApiResponse>('/auth/redeem-voucher', {
-        tokenId: tokenId.toString(),
-        chain: 'CELO',
-        voucher_owner: voucherHolder,
+      writeContract({
+        address: rewardAddress,
+        abi: RewardABI,
+        functionName: 'redeemVoucher',
+        args: [tokenId],
       });
-      if (res?.data?.success) {
-        toast.success('Voucher redeemed! Check your balance.');
-        tycBalance.refetch();
-        await refetchVouchers();
-      } else {
-        toast.error(res?.data?.message || 'Failed to redeem voucher');
-      }
     } catch (err) {
-      const e = err as { response?: { data?: { message?: string; voucher_owner?: string | null } }; message?: string };
-      const owner = e?.response?.data?.voucher_owner;
-      const msg = e?.response?.data?.message ?? e?.message ?? 'Failed to redeem voucher';
-      toast.error(owner ? `${msg} (Owner: ${owner})` : msg);
-    } finally {
-      const redeemFromSmart =
-        !!walletAddress &&
-        voucherHolder.toLowerCase() !== walletAddress.toLowerCase();
-      if (!redeemFromSmart) setRedeemingId(null);
+      toast.error(getRedeemVoucherErrorMessage(err));
+      setRedeemingId(null);
     }
   };
 

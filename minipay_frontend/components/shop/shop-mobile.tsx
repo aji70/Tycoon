@@ -54,6 +54,7 @@ import {
 } from '@/context/ContractProvider';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { apiClient } from '@/lib/api';
+import { redeemVoucherViaBackend, shouldRedeemVoucherViaBackend } from '@/lib/redeemVoucherApi';
 import { useConnectWallet } from '@/hooks/useConnectWallet';
 import {
   buildMergedHolderSlotCalls,
@@ -908,11 +909,12 @@ export default function GameShopMobile() {
     }
 
     try {
-      if (address.toLowerCase() === voucherOwner.toLowerCase()) {
-        await redeem(tokenId);
-      } else {
-        await redeemFor(voucherOwner, tokenId);
+      if (shouldRedeemVoucherViaBackend(address, voucherOwner)) {
+        await redeemVoucherViaBackend(tokenId, voucherOwner);
+        toast.success('Voucher redeemed successfully!');
+        return;
       }
+      await redeem(tokenId);
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Redemption failed');
       resetRedeem();
