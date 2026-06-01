@@ -15,25 +15,15 @@ export function isUnknownRpcError(error: unknown): boolean {
 }
 
 /**
- * On-chain registration failed in a way we can recover via backend-sponsored register-on-chain.
- * MiniPay: only when the user truly lacks gas — do not mask wallet/RPC errors (those broke after
- * routing MiniPay through a separate @wagmi/core write path).
+ * Backend fallback only when the wallet tx failed for lack of gas/fees.
+ * MiniPay registration is wallet-signed by default (registerPlayerWithoutWallet + feeCurrency).
  */
 export function isRecoverableOnChainRegistrationError(error: unknown): boolean {
   if (error == null) return false;
   if (isUserRejectedTransaction(error)) return false;
   const e = error as { message?: string; shortMessage?: string };
   const hay = `${e.message ?? ""} ${e.shortMessage ?? ""}`.toLowerCase();
-  const insufficient =
-    hay.includes("insufficient") || hay.includes("insufficient funds");
-
-  if (isMiniPayEmbeddedWallet()) {
-    return insufficient;
-  }
-
-  if (insufficient) return true;
-  if (hay.includes("permission denied") || hay.includes("not authorized")) return true;
-  return isUnknownRpcError(error);
+  return hay.includes("insufficient") || hay.includes("insufficient funds");
 }
 
 export async function registerOnChainWithWallet(params: {

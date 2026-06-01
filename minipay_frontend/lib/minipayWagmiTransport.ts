@@ -2,7 +2,7 @@ import { waitForTransactionReceipt, writeContract } from "@wagmi/core";
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import { celo } from "wagmi/chains";
 import TycoonABI from "@/context/abi/tycoonabi.json";
-import { MINIPAY_REGISTER_GAS } from "@/lib/celoTransportForWagmi";
+import { minipayContractWriteOverrides } from "@/lib/celoTransportForWagmi";
 
 export {
   celoTransportForWagmi,
@@ -10,13 +10,13 @@ export {
   minipayContractWriteOverrides,
 } from "@/lib/celoTransportForWagmi";
 
-/** cUSD on Celo mainnet — optional gas currency for raw provider calls. */
-export const CELO_CUSD_FEE_CURRENCY = (process.env.NEXT_PUBLIC_CELO_CUSDC ||
-  "0x765DE816845861e75A25fCA122bb6898B8B1282a") as Address;
+export {
+  CELO_CUSD_FEE_CURRENCY,
+  MINIPAY_FEE_CURRENCY,
+} from "@/lib/celoTransportForWagmi";
 
 /**
- * MiniPay: use @wagmi/core writeContract (same stack as create-game) with fixed gas.
- * Avoids raw eth_sendTransaction (permission denied) and sendTransaction feeCurrency typing issues.
+ * MiniPay: use @wagmi/core writeContract (same stack as create-game) with fixed gas + feeCurrency.
  */
 export async function registerPlayerViaMiniPayInjected(params: {
   contractAddress: Address;
@@ -32,7 +32,7 @@ export async function registerPlayerViaMiniPayInjected(params: {
     functionName: "registerPlayerWithoutWallet",
     args: [username],
     chainId: celo.id,
-    gas: MINIPAY_REGISTER_GAS,
+    ...minipayContractWriteOverrides(),
   });
 
   await waitForTransactionReceipt(wagmiConfig, { hash, chainId: celo.id });

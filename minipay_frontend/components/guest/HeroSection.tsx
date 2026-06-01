@@ -306,7 +306,11 @@ const HeroSection: React.FC = () => {
     }
 
     setLoading(true);
-    const toastId = toast.loading("Processing registration...");
+    const toastId = toast.loading(
+      isMinipayEoaFirstFlow()
+        ? "Confirm registration in MiniPay…"
+        : "Processing registration..."
+    );
 
     try {
       // Register on-chain if contract doesn't have this address (required for create game / create AI game)
@@ -323,7 +327,7 @@ const HeroSection: React.FC = () => {
         } catch (onChainErr: unknown) {
           if (isRecoverableOnChainRegistrationError(onChainErr)) {
             const fallbackToastId = toast.loading(
-              "No CELO for gas — completing registration for you..."
+              "No gas for fees — completing registration for you..."
             );
             try {
               await registerViaBackendSponsor({
@@ -803,7 +807,7 @@ const HeroSection: React.FC = () => {
           {address && walletSessionReady && registrationStatus !== "fully-registered" && registrationStatus !== "checking" && !loading && (
             <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
               {isMinipayEoaFirstFlow()
-                ? "Creates your game account on Celo"
+                ? "Sign in MiniPay to register on Celo (cUSD pays network fees)"
                 : "Creates your game account & smart wallet"}
             </p>
           )}

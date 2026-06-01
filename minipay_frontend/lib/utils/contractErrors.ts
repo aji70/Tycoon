@@ -241,6 +241,9 @@ export function getContractErrorMessage(
   // Wallet / provider returned an unclassified JSON-RPC failure (common in MiniPay)
   const rpcHay = collectErrorText(error);
   if (rpcHay.includes("unknownrpcerror") || rpcHay.includes("unknown rpc error")) {
+    if (typeof window !== "undefined" && (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum?.isMiniPay) {
+      return "MiniPay could not send the transaction. Ensure you have a little cUSD for fees, then try again.";
+    }
     return "Wallet could not complete the transaction. Try again, or ensure you have a small CELO balance for network fees.";
   }
 
