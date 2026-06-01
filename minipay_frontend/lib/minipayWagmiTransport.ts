@@ -16,7 +16,10 @@ export {
 
 export {
   CELO_CUSD_FEE_CURRENCY,
+  CELO_USDC_FEE_ADAPTER,
+  CELO_USDM_FEE_TOKEN,
   MINIPAY_FEE_CURRENCY,
+  minipayRegistrationFeeAttempts,
 } from "@/lib/celoTransportForWagmi";
 
 /**

@@ -6,8 +6,8 @@ import { wagmiConfig } from "@/config";
 import { ensureMiniPayWagmiConnected } from "@/lib/connectMiniPayWallet";
 import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import {
-  MINIPAY_FEE_CURRENCY,
   MINIPAY_REGISTER_GAS,
+  minipayRegistrationFeeAttempts,
 } from "@/lib/celoTransportForWagmi";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 
@@ -46,11 +46,7 @@ export async function registerPlayerWalletSignedMinipay(
     account: account.address,
   };
 
-  const attempts: Array<{ gas?: bigint; feeCurrency?: Address }> = [
-    { gas: MINIPAY_REGISTER_GAS },
-    { gas: MINIPAY_REGISTER_GAS, feeCurrency: MINIPAY_FEE_CURRENCY },
-    {},
-  ];
+  const attempts = minipayRegistrationFeeAttempts(MINIPAY_REGISTER_GAS);
 
   let lastError: unknown;
   let lastRevertError: unknown;

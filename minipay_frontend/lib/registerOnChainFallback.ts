@@ -26,6 +26,9 @@ export function isRecoverableOnChainRegistrationError(error: unknown): boolean {
   return (
     hay.includes("insufficient") ||
     hay.includes("insufficient funds") ||
+    hay.includes("not enough") ||
+    hay.includes("usdm") ||
+    hay.includes("usdcm") ||
     hay.includes("estimate") ||
     hay.includes("gas required")
   );
