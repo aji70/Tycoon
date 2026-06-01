@@ -11,7 +11,6 @@ import {
   useIsRegistered,
   useGetUsername,
   useRegisterPlayer,
-  useRegisterPlayerWithoutWallet,
   usePreviousGameCode,
   useGetGameByCode,
   useHasSmartWallet,
@@ -23,6 +22,11 @@ import { injected } from "wagmi/connectors";
 import toast from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { apiClient } from "@/lib/api";
+import {
+  completeBackendRegistration,
+  registerViaWalletSign,
+  shouldFallbackToBackendRegistration,
+} from "@/lib/minipayRegisterOnChain";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
@@ -75,17 +79,7 @@ const HeroSection: React.FC = () => {
     setIsMiniPay(Boolean(eth?.isMiniPay));
   }, []);
 
-  const {
-    write: registerPlayerWithWallet,
-    isPending: registerPending,
-  } = useRegisterPlayerWithoutWallet();
-
-  const {
-    write: registerPlayerLegacy,
-  } = useRegisterPlayer();
-
-  // Use optimized registration when wallet is connected, otherwise use legacy
-  const registerPlayer = address ? registerPlayerWithWallet : registerPlayerLegacy;
+  const { write: registerPlayer, isPending: registerPending } = useRegisterPlayer();
 
   const {
     data: isUserRegistered,
@@ -296,57 +290,42 @@ const HeroSection: React.FC = () => {
     }
 
     setLoading(true);
+    const toastId = toast.loading("Processing registration...");
 
     try {
-      // Register on-chain if contract doesn't have this address (required for create game / create AI game)
+      // Same path as createGame / shop: writeContract → MiniPay sign → wait for receipt
       if (isUserRegistered !== true) {
         try {
-          const txHash = await registerPlayer(finalUsername);
-          await refetchIsRegistered();
-        } catch (onChainErr: any) {
-          const isInsufficientGas =
-            onChainErr?.message?.toLowerCase().includes("insufficient") ||
-            onChainErr?.shortMessage?.toLowerCase().includes("insufficient");
-
-          if (isInsufficientGas) {
-            const gasToastId = toast.loading("No gas available. Using backend registration...");
-            try {
-              // Ensure backend user exists first
-              if (!user) {
-                const createRes = await apiClient.post<ApiResponse>("/users", {
-                  username: finalUsername,
-                  address,
-                  chain: "Celo",
-                });
-                if (createRes?.success && createRes?.data) {
-                  setUser(createRes.data as UserType);
-                } else if (createRes?.status !== 409) {
-                  throw new Error("Failed to create user before backend registration");
-                }
-              }
-
-              const backendRes = await apiClient.post<ApiResponse>("/users/register-on-chain", {
-                address,
-                chain: "Celo",
-              });
-
-              if (!backendRes?.success) throw new Error("Backend registration failed");
-
-              const userRes = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Celo`);
-              if (userRes?.success && userRes?.data) setUser(userRes.data as UserType);
-
-              setLocalRegistered(true);
-              setLocalUsername(finalUsername);
-              await Promise.all([refetchIsRegistered?.(), refetchUsername?.()]);
-              toast.dismiss(gasToastId);
-              toast.success("Welcome to Tycoon!");
-              return;
-            } catch (backendErr: any) {
-              toast.dismiss(gasToastId);
-              throw backendErr;
-            }
-          } else {
+          await registerViaWalletSign({
+            registerPlayer,
+            publicClient: publicClient ?? undefined,
+            finalUsername,
+          });
+        } catch (onChainErr: unknown) {
+          if (!shouldFallbackToBackendRegistration(onChainErr)) {
             throw onChainErr;
+          }
+          const fallbackToastId = toast.loading(
+            "Could not prepare wallet transaction. Registering via server…"
+          );
+          try {
+            await completeBackendRegistration({
+              address,
+              finalUsername,
+              user,
+              setUser,
+            });
+            setLocalRegistered(true);
+            setLocalUsername(finalUsername);
+            void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
+            toast.dismiss(fallbackToastId);
+            toast.dismiss(toastId);
+            toast.success("Welcome to Tycoon!");
+            router.refresh();
+            return;
+          } catch (backendErr) {
+            toast.dismiss(fallbackToastId);
+            throw backendErr;
           }
         }
       }
@@ -367,13 +346,11 @@ const HeroSection: React.FC = () => {
       setLocalRegistered(true);
       setLocalUsername(finalUsername);
 
-      // Refetch to update UI (wait for both to complete)
-      await Promise.all([
-        refetchIsRegistered?.(),
-        refetchUsername?.(),
-      ]);
+      void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
 
+      toast.dismiss(toastId);
       toast.success("Welcome to Tycoon!");
+      router.refresh();
     } catch (err: any) {
       if (
         err?.code === 4001 ||
