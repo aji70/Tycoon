@@ -11,7 +11,6 @@ import {
   useIsRegistered,
   useGetUsername,
   useRegisterPlayer,
-  useRegisterPlayerWithoutWallet,
   usePreviousGameCode,
   useGetGameByCode,
   useHasSmartWallet,
@@ -85,17 +84,7 @@ const HeroSection: React.FC = () => {
     setIsMiniPay(Boolean(eth?.isMiniPay));
   }, []);
 
-  const {
-    write: registerPlayerWithWallet,
-    isPending: registerPending,
-  } = useRegisterPlayerWithoutWallet();
-
-  const {
-    write: registerPlayerLegacy,
-  } = useRegisterPlayer();
-
-  // Use optimized registration when wallet is connected, otherwise use legacy
-  const registerPlayer = address ? registerPlayerWithWallet : registerPlayerLegacy;
+  const { write: registerPlayer, isPending: registerPending } = useRegisterPlayer();
 
   const {
     data: isUserRegistered,
@@ -314,10 +303,8 @@ const HeroSection: React.FC = () => {
       // Register on-chain if contract doesn't have this address (required for create game / create AI game)
       if (isUserRegistered !== true) {
         try {
-          const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
           const txHash = await registerOnChainWithWallet({
             username: finalUsername,
-            contractAddress,
             registerPlayer,
             refetchIsRegistered,
           });

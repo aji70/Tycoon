@@ -41,9 +41,3 @@ export function minipayContractWriteOverrides(): {
     feeCurrency: MINIPAY_FEE_CURRENCY,
   };
 }
-
-/** Registration is heavier (mintVoucher); let MiniPay pick the fee token (do not set feeCurrency). */
-export function minipayRegisterWriteOverrides(): { gas?: bigint } {
-  if (!isMiniPayEmbeddedWallet()) return {};
-  return { gas: BigInt(1_200_000) };
-}

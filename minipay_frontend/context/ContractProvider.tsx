@@ -22,10 +22,9 @@ import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
 import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
 import { getCeloRpcUrlForChainId, registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
-import {
-  minipayContractWriteOverrides,
-  minipayRegisterWriteOverrides,
-} from '@/lib/minipayWagmiTransport';
+import { minipayContractWriteOverrides } from '@/lib/minipayWagmiTransport';
+import { ensureMiniPayWagmiConnected } from '@/lib/connectMiniPayWallet';
+import { isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
 import { API_BASE_URL } from '@/lib/api';
 
 const REWARD_TOKEN_READ_ABI = [
@@ -361,11 +360,16 @@ export function useRegisterPlayer() {
       if (!contractAddress) throw new Error('Contract not deployed on this chain');
       if (!username.trim()) throw new Error('Username cannot be empty');
 
+      if (isMiniPayEmbeddedWallet()) {
+        await ensureMiniPayWagmiConnected();
+      }
+
       const hash = await writeContractAsync({
         address: contractAddress,
         abi: TycoonABI,
         functionName: 'registerPlayer',
         args: [username.trim()],
+        ...minipayContractWriteOverrides(),
       });
       return hash;
     },
@@ -375,30 +379,9 @@ export function useRegisterPlayer() {
   return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
+/** @deprecated Use useRegisterPlayer — same on-chain function as the MetaMask frontend. */
 export function useRegisterPlayerWithoutWallet() {
-  const chainId = useChainId();
-  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
-  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
-
-  const write = useCallback(
-    async (username: string) => {
-      if (!contractAddress) throw new Error('Contract not deployed on this chain');
-      if (!username.trim()) throw new Error('Username cannot be empty');
-
-      const hash = await writeContractAsync({
-        address: contractAddress,
-        abi: TycoonABI,
-        functionName: 'registerPlayerWithoutWallet',
-        args: [username.trim()],
-        ...minipayRegisterWriteOverrides(),
-      });
-      return hash;
-    },
-    [writeContractAsync, contractAddress]
-  );
-
-  return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+  return useRegisterPlayer();
 }
 
 export function useCreateGame(
@@ -2219,11 +2202,15 @@ export const TycoonProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const registerPlayer = useCallback(async (username: string) => {
     const addr = TYCOON_CONTRACT_ADDRESSES[chainId];
     if (!userAddress || !addr) throw new Error('Wallet or contract not available');
+    if (isMiniPayEmbeddedWallet()) {
+      await ensureMiniPayWagmiConnected();
+    }
     return await writeContractAsync({
       address: addr,
       abi: TycoonABI,
       functionName: 'registerPlayer',
       args: [username],
+      ...minipayContractWriteOverrides(),
     });
   }, [userAddress, writeContractAsync, chainId]);
 

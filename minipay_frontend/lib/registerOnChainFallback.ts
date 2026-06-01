@@ -1,18 +1,10 @@
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
+import { ensureMiniPayWagmiConnected } from "@/lib/connectMiniPayWallet";
 import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
-import { registerPlayerWalletSignedMinipay } from "@/lib/minipayRegister";
 import { isUserRejectedTransaction } from "@/lib/utils/contractErrors";
 import type { Address, Hash } from "viem";
-
-/** MiniPay / wallet providers often surface failures as viem UnknownRpcError instead of a clear revert. */
-export function isUnknownRpcError(error: unknown): boolean {
-  if (error == null) return false;
-  const e = error as { name?: string; shortMessage?: string; message?: string };
-  const hay = `${e.name ?? ""} ${e.shortMessage ?? ""} ${e.message ?? ""}`.toLowerCase();
-  return hay.includes("unknownrpcerror") || hay.includes("unknown rpc error");
-}
 
 /**
  * Backend fallback only when the wallet tx failed for lack of gas/fees.
@@ -25,23 +17,14 @@ export function isRecoverableOnChainRegistrationError(error: unknown): boolean {
   return hay.includes("insufficient") || hay.includes("insufficient funds");
 }
 
+/** Same wallet path as MetaMask frontend: `registerPlayer` via wagmi hook. */
 export async function registerOnChainWithWallet(params: {
   username: string;
-  address?: Address;
-  contractAddress?: Address;
   registerPlayer: (username: string) => Promise<Hash | undefined>;
   refetchIsRegistered?: () => Promise<unknown>;
 }): Promise<Hash | undefined> {
   if (isMiniPayEmbeddedWallet()) {
-    if (!params.contractAddress) {
-      throw new Error("Contract not deployed on this chain");
-    }
-    const txHash = await registerPlayerWalletSignedMinipay({
-      contractAddress: params.contractAddress,
-      username: params.username,
-    });
-    await params.refetchIsRegistered?.();
-    return txHash;
+    await ensureMiniPayWagmiConnected();
   }
 
   const txHash = await params.registerPlayer(params.username);

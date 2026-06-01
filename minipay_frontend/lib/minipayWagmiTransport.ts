@@ -8,7 +8,6 @@ export {
   celoTransportForWagmi,
   MINIPAY_REGISTER_GAS,
   minipayContractWriteOverrides,
-  minipayRegisterWriteOverrides,
 } from "@/lib/celoTransportForWagmi";
 
 export {
@@ -30,7 +29,7 @@ export async function registerPlayerViaMiniPayInjected(params: {
   const hash = await writeContract(wagmiConfig, {
     address: params.contractAddress,
     abi: TycoonABI,
-    functionName: "registerPlayerWithoutWallet",
+    functionName: "registerPlayer",
     args: [username],
     chainId: celo.id,
     ...minipayContractWriteOverrides(),
@@ -44,7 +43,7 @@ export async function registerPlayerViaMiniPayInjected(params: {
 export function encodeRegisterPlayerWithoutWalletCalldata(username: string): `0x${string}` {
   return encodeFunctionData({
     abi: TycoonABI,
-    functionName: "registerPlayerWithoutWallet",
+    functionName: "registerPlayer",
     args: [username.trim()],
   });
 }
