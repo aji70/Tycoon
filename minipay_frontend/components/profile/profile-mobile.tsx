@@ -21,7 +21,12 @@ import { apiClient } from '@/lib/api';
 import { ApiResponse } from '@/types/api';
 import { useQuery } from '@tanstack/react-query';
 import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
-import { useProfileOwner, useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
+import {
+  useIsRegistered,
+  useProfileOwner,
+  useRewardTokenAddresses,
+  useUserRegistryWallet,
+} from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
@@ -34,10 +39,11 @@ import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
 import {
+  executeRedeemVoucher,
   getRedeemVoucherErrorMessage,
   redeemVoucherViaBackend,
-  shouldRedeemVoucherViaBackend,
 } from '@/lib/redeemVoucherApi';
+import { minipayContractWriteOverrides } from '@/lib/minipayWagmiTransport';
 import {
   getGuestUserPlayAddress,
   getGuestUserRewardHolderAddresses,
@@ -1081,6 +1087,8 @@ export default function ProfilePageMobile() {
     if (!smartWallet) setActiveWalletView('connected');
   }, [smartWallet]);
 
+  const { data: isRegisteredOnChain } = useIsRegistered(walletAddress);
+
   const {
     data: username,
     isLoading: usernameLoading,
@@ -1174,6 +1182,36 @@ export default function ProfilePageMobile() {
       return;
     }
 
+    if (isMinipayEoaFirstFlow() && isRegisteredOnChain === true && walletAddress) {
+      const chainName = typeof username === 'string' && username.trim() ? username.trim() : '';
+      if (chainName && playerData) {
+        const parsed = parseUserFromContract(playerData, chainName, tycoonProfileOwnerAddress);
+        if (parsed) {
+          setUserData(parsed);
+          setLoading(false);
+          return;
+        }
+      }
+      if (chainName && !usernameLoading) {
+        setUserData({
+          username: chainName,
+          shortAddress: `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`,
+          gamesPlayed: 0,
+          gamesWon: 0,
+          gamesLost: 0,
+          winRate: '0%',
+          totalStaked: 0,
+          totalEarned: 0,
+          totalWithdrawn: 0,
+          propertiesBought: 0,
+          propertiesSold: 0,
+          registeredAt: 0,
+        });
+        setLoading(false);
+        return;
+      }
+    }
+
     if (usernameReadError) {
       setError(usernameReadError instanceof Error ? usernameReadError.message : 'Failed to load username');
       setLoading(false);
@@ -1214,6 +1252,31 @@ export default function ProfilePageMobile() {
     walletAddress,
     tycoonProfileOwnerAddress,
     backendUser,
+    guestUser?.username,
+    isRegisteredOnChain,
+  ]);
+
+  useEffect(() => {
+    if (!isMinipayEoaFirstFlow() || !isConnected || !loading) return;
+    const timer = window.setTimeout(() => {
+      const fallback = parseUserFromBackend(
+        backendUser,
+        walletAddress ?? tycoonProfileOwnerAddress,
+        guestUser?.username
+      );
+      if (fallback) {
+        setError(null);
+        setUserData(fallback);
+        setLoading(false);
+      }
+    }, 12_000);
+    return () => window.clearTimeout(timer);
+  }, [
+    isConnected,
+    loading,
+    backendUser,
+    walletAddress,
+    tycoonProfileOwnerAddress,
     guestUser?.username,
   ]);
 
@@ -1289,18 +1352,31 @@ export default function ProfilePageMobile() {
   }, [tycBalanceSmart, tycBalance, refetchVouchers]);
 
   const handleRedeemVoucher = async (tokenId: bigint, voucherHolder: Address) => {
-    if (shouldRedeemVoucherViaBackend(walletAddress, voucherHolder)) {
-      await handleRedeemVoucherViaApi(tokenId, voucherHolder);
-      return;
-    }
     if (!rewardAddress) return toast.error("Contract not available");
-    setRedeemingId(tokenId);
-    writeContract({
-      address: rewardAddress,
-      abi: RewardABI,
-      functionName: 'redeemVoucher',
-      args: [tokenId],
-    });
+    try {
+      setRedeemingId(tokenId);
+      await executeRedeemVoucher({
+        tokenId,
+        voucherHolder,
+        connectedWallet: walletAddress,
+        redeemOnChain: async () => {
+          writeContract({
+            address: rewardAddress,
+            abi: RewardABI,
+            functionName: 'redeemVoucher',
+            args: [tokenId],
+            ...minipayContractWriteOverrides(),
+          });
+        },
+      });
+      toast.success('Voucher redeemed successfully!');
+      tycBalance.refetch();
+      tycBalanceSmart.refetch();
+      await refetchVouchers();
+    } catch (e: unknown) {
+      toast.error(getRedeemVoucherErrorMessage(e));
+      setRedeemingId(null);
+    }
   };
 
   useEffect(() => {

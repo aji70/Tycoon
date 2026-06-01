@@ -247,13 +247,16 @@ const HeroSection: React.FC = () => {
     if (address) {
       const hasBackend = !!user;
       const hasOnChain = isUserRegistered === true || localRegistered;
-      if ((hasBackend || localRegistered) && hasOnChain) return "fully-registered";
+      if (isRegisteredLoading && !hasBackend && !localRegistered && isUserRegistered !== false) {
+        return "checking";
+      }
+      if (hasOnChain) return "fully-registered";
       if (hasBackend && !hasOnChain) return "backend-only";
       return "none";
     }
     if (guestUser) return "privy";
     return "disconnected";
-  }, [address, user, isUserRegistered, guestUser, localRegistered]);
+  }, [address, user, isUserRegistered, guestUser, localRegistered, isRegisteredLoading]);
 
   const displayUsername = useMemo(() => {
     if (guestUser) return guestUser.username;
@@ -635,6 +638,14 @@ const HeroSection: React.FC = () => {
           </div>
         )}
 
+        {registrationStatus === "checking" && !loading && (
+          <div className="mt-16">
+            <p className="font-orbitron text-[16px] font-[700] text-[#00F0FF] text-center">
+              Checking your account…
+            </p>
+          </div>
+        )}
+
         {loading && (
           <div className="mt-16">
             <p className="font-orbitron text-[16px] font-[700] text-[#00F0FF] text-center">
@@ -794,7 +805,7 @@ const HeroSection: React.FC = () => {
           )}
 
           {/* "Let's Go!" for wallet users (backend-only or none) — only when Privy-authed */}
-          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
+          {address && walletSessionReady && registrationStatus !== "fully-registered" && registrationStatus !== "checking" && !loading && (
             <button
               onClick={handleRegister}
               disabled={
@@ -824,7 +835,7 @@ const HeroSection: React.FC = () => {
               </span>
             </button>
           )}
-          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
+          {address && walletSessionReady && registrationStatus !== "fully-registered" && registrationStatus !== "checking" && !loading && (
             <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
               {isMinipayEoaFirstFlow()
                 ? "Creates your game account on Celo"

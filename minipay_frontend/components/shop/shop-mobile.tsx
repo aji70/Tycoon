@@ -54,7 +54,7 @@ import {
 } from '@/context/ContractProvider';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { apiClient } from '@/lib/api';
-import { redeemVoucherViaBackend, shouldRedeemVoucherViaBackend } from '@/lib/redeemVoucherApi';
+import { executeRedeemVoucher } from '@/lib/redeemVoucherApi';
 import { isMinipayEoaFirstFlow } from '@/lib/minipayGuestFlow';
 import { useConnectWallet } from '@/hooks/useConnectWallet';
 import {
@@ -918,12 +918,13 @@ export default function GameShopMobile() {
     }
 
     try {
-      if (shouldRedeemVoucherViaBackend(address, voucherOwner)) {
-        await redeemVoucherViaBackend(tokenId, voucherOwner);
-        toast.success('Voucher redeemed successfully!');
-        return;
-      }
-      await redeem(tokenId);
+      await executeRedeemVoucher({
+        tokenId,
+        voucherHolder: voucherOwner,
+        connectedWallet: address,
+        redeemOnChain: () => redeem(tokenId),
+      });
+      toast.success('Voucher redeemed successfully!');
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Redemption failed');
       resetRedeem();

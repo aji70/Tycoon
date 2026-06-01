@@ -1471,6 +1471,7 @@ export function useRewardRedeemVoucher() {
       abi: RewardABI,
       functionName: 'redeemVoucher',
       args: [tokenId],
+      ...minipayContractWriteOverrides(),
     });
   }, [writeContractAsync, contractAddress]);
 
@@ -1491,6 +1492,7 @@ export function useRewardRedeemVoucherFor() {
       abi: RewardABI,
       functionName: 'redeemVoucherFor',
       args: [voucherOwner, tokenId],
+      ...minipayContractWriteOverrides(),
     });
   }, [writeContractAsync, contractAddress]);
 
