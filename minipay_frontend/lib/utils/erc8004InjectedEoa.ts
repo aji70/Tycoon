@@ -1,6 +1,8 @@
 import { createWalletClient, custom, getAddress, type Address, type Chain } from "viem";
 import { celo, celoAlfajores } from "viem/chains";
 import type { Abi } from "viem";
+import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
+import { minipayContractWriteOverrides } from "@/lib/celoTransportForWagmi";
 
 type EthereumProvider = {
   request: (args: { method: string; params?: readonly unknown[] }) => Promise<unknown>;
@@ -25,6 +27,7 @@ export function getInjectedEthereumProvider(): EthereumProvider | null {
   const w = window as Window & { ethereum?: unknown };
   const raw = w.ethereum;
   if (!raw) return null;
+  if ((raw as { isMiniPay?: boolean }).isMiniPay) return asProvider(raw);
   const providers = (raw as { providers?: unknown[] }).providers;
   if (Array.isArray(providers) && providers.length > 0) {
     const preferred =
@@ -43,6 +46,11 @@ export async function getInjectedEthereumProviderAsync(): Promise<EthereumProvid
 
   const from6963 = await discoverEip6963Providers();
   if (from6963.length > 0) {
+    const minipay = from6963.find((d) => (d.provider as { isMiniPay?: boolean })?.isMiniPay);
+    if (minipay) {
+      const chosen = asProvider(minipay.provider);
+      if (chosen) return chosen;
+    }
     const metamask = from6963.find(
       (d) =>
         d.info.rdns === "io.metamask" ||
@@ -106,17 +114,26 @@ export async function registerErc8004AgentViaInjectedEoa(params: {
     transport: custom(provider),
   });
 
-  const accounts = (await provider.request({ method: "eth_requestAccounts" })) as string[];
+  const isMiniPay = isMiniPayEmbeddedWallet();
+  const accounts = (await provider.request({
+    method: isMiniPay ? "eth_accounts" : "eth_requestAccounts",
+  })) as string[];
   if (!Array.isArray(accounts) || accounts.length === 0) {
-    throw new Error("Unlock your wallet and allow this site to use your accounts.");
+    throw new Error(
+      isMiniPay
+        ? "Open Tycoon inside the MiniPay app so your Celo wallet is available."
+        : "Unlock your wallet and allow this site to use your accounts."
+    );
   }
 
   const account = getAddress(accounts[0] as Address);
 
-  try {
-    await walletClient.switchChain({ id: chain.id });
-  } catch {
-    // Already on chain or wallet will prompt on send
+  if (!isMiniPay) {
+    try {
+      await walletClient.switchChain({ id: chain.id });
+    } catch {
+      // Already on chain or wallet will prompt on send
+    }
   }
 
   const hash = await walletClient.writeContract({
@@ -126,6 +143,7 @@ export async function registerErc8004AgentViaInjectedEoa(params: {
     args: [params.agentURI],
     account,
     chain,
+    ...minipayContractWriteOverrides(),
   });
 
   return { hash, account };
@@ -136,7 +154,9 @@ export async function getInjectedEoaAddress(): Promise<Address | null> {
   const provider = await getInjectedEthereumProviderAsync();
   if (!provider) return null;
   try {
-    const accounts = (await provider.request({ method: "eth_requestAccounts" })) as string[];
+    const accounts = (await provider.request({
+      method: isMiniPayEmbeddedWallet() ? "eth_accounts" : "eth_requestAccounts",
+    })) as string[];
     if (!Array.isArray(accounts) || !accounts[0]) return null;
     return getAddress(accounts[0] as Address);
   } catch {

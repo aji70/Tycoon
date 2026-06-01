@@ -438,6 +438,7 @@ export function useCreateGame(
         startingCash,
         stake,
       ],
+      ...minipayContractWriteOverrides(),
     });
   }, [
     writeContractAsync,
@@ -501,6 +502,7 @@ export function useCreateAIGame(
         code,
         startingCash,
       ],
+      ...minipayContractWriteOverrides(),
     });
   }, [
     writeContractAsync,
@@ -579,6 +581,7 @@ export function useJoinGame(gameId: bigint, username: string, playerSymbol: stri
       abi: TycoonABI,
       functionName: 'joinGame',
       args: [gameId, username, playerSymbol, code],
+      ...minipayContractWriteOverrides(),
     });
     return hash;
   }, [writeContractAsync, contractAddress, gameId, username, playerSymbol, code]);
@@ -599,6 +602,7 @@ export function useEndAIGameAndClaim(gameId: bigint, finalPosition: number, fina
       abi: TycoonABI,
       functionName: 'endAIGame',
       args: [gameId, finalPosition, finalBalance, isWin],
+      ...minipayContractWriteOverrides(),
     });
     return hash;
   }, [writeContractAsync, contractAddress, gameId, finalPosition, finalBalance, isWin]);

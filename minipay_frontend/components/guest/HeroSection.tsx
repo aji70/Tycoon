@@ -6,7 +6,7 @@ import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { useAccount, useChainId, useSignMessage, usePublicClient, useSwitchChain } from "wagmi";
+import { useAccount, useChainId, useSignMessage, usePublicClient } from "wagmi";
 import {
   useIsRegistered,
   useGetUsername,

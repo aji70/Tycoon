@@ -13,7 +13,8 @@ export function useMinipayAutoConnect(): void {
   const didConnectRef = useRef(false);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !window.ethereum) return;
+    const eth = typeof window !== "undefined" ? window.ethereum : undefined;
+    if (!eth?.isMiniPay) return;
     if (address || isConnecting || didConnectRef.current) return;
     didConnectRef.current = true;
     connect({ connector: injected() });
