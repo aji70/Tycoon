@@ -22,7 +22,10 @@ import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
 import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
 import { getCeloRpcUrlForChainId, registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
-import { minipayContractWriteOverrides } from '@/lib/minipayWagmiTransport';
+import {
+  minipayContractWriteOverrides,
+  minipayRegisterWriteOverrides,
+} from '@/lib/minipayWagmiTransport';
 import { ensureMiniPayWagmiConnected } from '@/lib/connectMiniPayWallet';
 import { isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
 import { API_BASE_URL } from '@/lib/api';
@@ -367,9 +370,11 @@ export function useRegisterPlayer() {
       const hash = await writeContractAsync({
         address: contractAddress,
         abi: TycoonABI,
-        functionName: 'registerPlayer',
+        functionName: isMiniPayEmbeddedWallet() ? 'registerPlayerWithoutWallet' : 'registerPlayer',
         args: [username.trim()],
-        ...minipayContractWriteOverrides(),
+        ...(isMiniPayEmbeddedWallet()
+          ? minipayRegisterWriteOverrides()
+          : minipayContractWriteOverrides()),
       });
       return hash;
     },
@@ -379,7 +384,7 @@ export function useRegisterPlayer() {
   return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
-/** @deprecated Use useRegisterPlayer — same on-chain function as the MetaMask frontend. */
+/** @deprecated Use useRegisterPlayer */
 export function useRegisterPlayerWithoutWallet() {
   return useRegisterPlayer();
 }
@@ -2208,9 +2213,11 @@ export const TycoonProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return await writeContractAsync({
       address: addr,
       abi: TycoonABI,
-      functionName: 'registerPlayer',
+      functionName: isMiniPayEmbeddedWallet() ? 'registerPlayerWithoutWallet' : 'registerPlayer',
       args: [username],
-      ...minipayContractWriteOverrides(),
+      ...(isMiniPayEmbeddedWallet()
+        ? minipayRegisterWriteOverrides()
+        : minipayContractWriteOverrides()),
     });
   }, [userAddress, writeContractAsync, chainId]);
 

@@ -16,8 +16,11 @@ export function celoTransportForWagmi(): Transport {
   return http(getCeloRpcUrlForChainId(celo.id));
 }
 
-/** MiniPay `eth_estimateGas` often fails; use a safe ceiling. */
-export const MINIPAY_REGISTER_GAS = BigInt(600_000);
+/** MiniPay `eth_estimateGas` often fails; use a safe ceiling for game txs. */
+export const MINIPAY_CONTRACT_GAS = BigInt(600_000);
+
+/** registerPlayer* mints vouchers — needs more gas than createGame. */
+export const MINIPAY_REGISTER_GAS = BigInt(1_200_000);
 
 /**
  * Pay gas with cUSD (or env override) — MiniPay users rarely hold CELO.
@@ -37,7 +40,13 @@ export function minipayContractWriteOverrides(): {
 } {
   if (!isMiniPayEmbeddedWallet()) return {};
   return {
-    gas: MINIPAY_REGISTER_GAS,
+    gas: MINIPAY_CONTRACT_GAS,
     feeCurrency: MINIPAY_FEE_CURRENCY,
   };
+}
+
+/** Registration mints welcome vouchers — higher gas; let MiniPay pick fee token (no feeCurrency). */
+export function minipayRegisterWriteOverrides(): { gas?: bigint } {
+  if (!isMiniPayEmbeddedWallet()) return {};
+  return { gas: MINIPAY_REGISTER_GAS };
 }

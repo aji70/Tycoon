@@ -306,6 +306,7 @@ const HeroSection: React.FC = () => {
         try {
           const txHash = await registerOnChainWithWallet({
             username: finalUsername,
+            contractAddress: TYCOON_CONTRACT_ADDRESSES[chainId],
             registerPlayer,
             refetchIsRegistered,
           });

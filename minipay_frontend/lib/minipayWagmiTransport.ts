@@ -2,12 +2,16 @@ import { waitForTransactionReceipt, writeContract } from "@wagmi/core";
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import { celo } from "wagmi/chains";
 import TycoonABI from "@/context/abi/tycoonabi.json";
-import { minipayContractWriteOverrides } from "@/lib/celoTransportForWagmi";
+import {
+  minipayContractWriteOverrides,
+  minipayRegisterWriteOverrides,
+} from "@/lib/celoTransportForWagmi";
 
 export {
   celoTransportForWagmi,
   MINIPAY_REGISTER_GAS,
   minipayContractWriteOverrides,
+  minipayRegisterWriteOverrides,
 } from "@/lib/celoTransportForWagmi";
 
 export {
@@ -29,10 +33,10 @@ export async function registerPlayerViaMiniPayInjected(params: {
   const hash = await writeContract(wagmiConfig, {
     address: params.contractAddress,
     abi: TycoonABI,
-    functionName: "registerPlayer",
+    functionName: "registerPlayerWithoutWallet",
     args: [username],
     chainId: celo.id,
-    ...minipayContractWriteOverrides(),
+    ...minipayRegisterWriteOverrides(),
   });
 
   await waitForTransactionReceipt(wagmiConfig, { hash, chainId: celo.id });
@@ -43,7 +47,7 @@ export async function registerPlayerViaMiniPayInjected(params: {
 export function encodeRegisterPlayerWithoutWalletCalldata(username: string): `0x${string}` {
   return encodeFunctionData({
     abi: TycoonABI,
-    functionName: "registerPlayer",
+    functionName: "registerPlayerWithoutWallet",
     args: [username.trim()],
   });
 }

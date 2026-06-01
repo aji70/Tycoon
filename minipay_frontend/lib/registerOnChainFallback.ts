@@ -1,30 +1,52 @@
-import { apiClient } from "@/lib/api";
+import { apiClient, ApiError } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
-import { ensureMiniPayWagmiConnected } from "@/lib/connectMiniPayWallet";
 import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
+import { registerPlayerWalletSignedMinipay } from "@/lib/minipayRegister";
 import { isUserRejectedTransaction } from "@/lib/utils/contractErrors";
 import type { Address, Hash } from "viem";
 
+/** MiniPay / wallet providers often surface failures as viem UnknownRpcError instead of a clear revert. */
+export function isUnknownRpcError(error: unknown): boolean {
+  if (error == null) return false;
+  const e = error as { name?: string; shortMessage?: string; message?: string };
+  const hay = `${e.name ?? ""} ${e.shortMessage ?? ""} ${e.message ?? ""}`.toLowerCase();
+  return hay.includes("unknownrpcerror") || hay.includes("unknown rpc error");
+}
+
 /**
- * Backend fallback only when the wallet tx failed for lack of gas/fees.
+ * Backend fallback when the wallet tx failed for lack of gas/fees or opaque MiniPay RPC errors.
  */
 export function isRecoverableOnChainRegistrationError(error: unknown): boolean {
   if (error == null) return false;
   if (isUserRejectedTransaction(error)) return false;
+  if (isUnknownRpcError(error)) return true;
   const e = error as { message?: string; shortMessage?: string };
   const hay = `${e.message ?? ""} ${e.shortMessage ?? ""}`.toLowerCase();
-  return hay.includes("insufficient") || hay.includes("insufficient funds");
+  return (
+    hay.includes("insufficient") ||
+    hay.includes("insufficient funds") ||
+    hay.includes("estimate") ||
+    hay.includes("gas required")
+  );
 }
 
-/** Same wallet path as MetaMask frontend: `registerPlayer` via wagmi hook. */
 export async function registerOnChainWithWallet(params: {
   username: string;
+  contractAddress?: Address;
   registerPlayer: (username: string) => Promise<Hash | undefined>;
   refetchIsRegistered?: () => Promise<unknown>;
 }): Promise<Hash | undefined> {
   if (isMiniPayEmbeddedWallet()) {
-    await ensureMiniPayWagmiConnected();
+    if (!params.contractAddress) {
+      throw new Error("Contract not deployed on this chain");
+    }
+    const txHash = await registerPlayerWalletSignedMinipay({
+      contractAddress: params.contractAddress,
+      username: params.username,
+    });
+    await params.refetchIsRegistered?.();
+    return txHash;
   }
 
   const txHash = await params.registerPlayer(params.username);
@@ -49,15 +71,19 @@ export async function registerViaBackendSponsor(params: {
   const { address, username, setUser, setLocalRegistered, setLocalUsername } = params;
 
   if (!params.user) {
-    const createRes = await apiClient.post<ApiResponse>("/users", {
-      username,
-      address,
-      chain: "Celo",
-    });
-    if (createRes?.success && createRes?.data) {
-      setUser(createRes.data as UserType);
-    } else if (createRes?.status !== 409) {
-      throw new Error("Failed to create user before backend registration");
+    try {
+      const createRes = await apiClient.post<ApiResponse>("/users", {
+        username,
+        address,
+        chain: "Celo",
+      });
+      if (createRes?.success && createRes?.data) {
+        setUser(createRes.data as UserType);
+      }
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.status !== 409) {
+        throw new Error("Failed to create user before backend registration");
+      }
     }
   }
 
