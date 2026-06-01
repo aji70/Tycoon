@@ -1,6 +1,11 @@
 import User from "../models/User.js";
 import { getUserPropertyStats } from "../utils/userPropertyStats.js";
-import { callContractRead, getSmartWalletAddress, isContractConfigured, registerPlayerFor } from "../services/tycoonContract.js";
+import {
+  callContractRead,
+  getSmartWalletAddress,
+  isContractConfigured,
+  redeemVoucherForUser,
+} from "../services/tycoonContract.js";
 import crypto from "crypto";
 import { ethers } from "ethers";
 import { registerPlayerForPreferredUsername } from "../utils/ensureContractAuth.js";
@@ -326,6 +331,46 @@ const userController = {
       return res.status(500).json({
         success: false,
         message: "Registration failed. Try again.",
+      });
+    }
+  },
+
+  /**
+   * POST /api/users/redeem-voucher
+   * Redeem voucher on EOA without wallet popup (MiniPay). Body: { address, tokenId, chain }
+   */
+  async redeemVoucherNoGas(req, res) {
+    try {
+      const { address, tokenId, chain } = req.body || {};
+      if (!address) {
+        return res.status(400).json({ success: false, message: "Address is required" });
+      }
+      if (tokenId == null || (typeof tokenId !== "string" && typeof tokenId !== "number")) {
+        return res.status(400).json({ success: false, message: "Provide tokenId (voucher token ID)." });
+      }
+
+      const chainNorm = User.normalizeChain(chain || "CELO");
+      if (!isContractConfigured(chainNorm)) {
+        return res.status(503).json({ success: false, message: "Contract not configured for this network" });
+      }
+
+      const user = await User.resolveUserByAddress(address, chainNorm);
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found. Register first." });
+      }
+
+      const { hash } = await redeemVoucherForUser(address, tokenId, chainNorm);
+      logger.info({ userId: user.id, address, tokenId: String(tokenId), hash }, "redeemVoucherNoGas");
+
+      return res.status(200).json({
+        success: true,
+        data: { hash, voucher_owner: address },
+      });
+    } catch (err) {
+      logger.error({ err: err?.message, address: req.body?.address }, "redeemVoucherNoGas failed");
+      return res.status(500).json({
+        success: false,
+        message: err?.message || "Redeem failed",
       });
     }
   },

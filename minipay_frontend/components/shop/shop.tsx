@@ -58,9 +58,7 @@ import {
 } from '@/context/ContractProvider';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { apiClient } from '@/lib/api';
-import { executeRedeemVoucher } from '@/lib/redeemVoucherApi';
-import { isMinipayEoaFirstFlow } from '@/lib/minipayGuestFlow';
-import { useConnectWallet } from '@/hooks/useConnectWallet';
+import { useAppKit, useAppKitAccount } from '@reown/appkit/react';
 import { SkeletonPerkGrid } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
 import {
@@ -187,11 +185,14 @@ const isValidWallet = (a: string | undefined): a is Address =>
 export default function GameShop() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const connectWallet = useConnectWallet();
-  const { address: wagmiAddress, isConnected } = useAccount();
+  const { open: openWallet } = useAppKit();
+  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
+  const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount();
   const address = useMemo((): Address | undefined => {
-    return wagmiAddress && isAddress(wagmiAddress) ? (wagmiAddress as Address) : undefined;
-  }, [wagmiAddress]);
+    const a = appKitAddress ?? wagmiAddress;
+    return a && isAddress(a) ? (a as Address) : undefined;
+  }, [appKitAddress, wagmiAddress]);
+  const isConnected = Boolean(appKitConnected || wagmiConnected);
   const chainId = useReadChainIdOrCelo();
   const auth = useGuestAuthOptional();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
@@ -536,11 +537,7 @@ export default function GameShop() {
     // Allow if wallet is connected OR smart wallet is available
     const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
     if (!hasPaymentMethod) {
-      toast.error(
-        isMinipayEoaFirstFlow()
-          ? 'Connect your MiniPay wallet to continue.'
-          : 'Please connect your wallet or register to use your smart wallet'
-      );
+      toast.error('Please connect your wallet or register to use your smart wallet');
       return;
     }
     const selectedPriceRaw =
@@ -691,11 +688,7 @@ export default function GameShop() {
   const handleBuyBundleWithUsdc = async (bundleName: string) => {
     const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
     if (!hasPaymentMethod) {
-      toast.error(
-        isMinipayEoaFirstFlow()
-          ? 'Connect your MiniPay wallet to continue.'
-          : 'Please connect your wallet or register to use your smart wallet'
-      );
+      toast.error('Please connect your wallet or register to use your smart wallet');
       return;
     }
     if (!contractAddress || !preferredStable.tokenAddress) {
@@ -771,19 +764,17 @@ export default function GameShop() {
 
   const handleRedeemVoucher = async (tokenId: bigint, voucherOwner: Address) => {
     if (!isConnected || !address) {
-      connectWallet();
+      openWallet();
       toast.info('Connect your wallet to redeem');
       return;
     }
 
     try {
-      await executeRedeemVoucher({
-        tokenId,
-        voucherHolder: voucherOwner,
-        connectedWallet: address,
-        redeemOnChain: () => redeem(tokenId),
-      });
-      toast.success('Voucher redeemed successfully!');
+      if (address.toLowerCase() === voucherOwner.toLowerCase()) {
+        await redeem(tokenId);
+      } else {
+        await redeemFor(voucherOwner, tokenId);
+      }
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Redemption failed');
       resetRedeem();

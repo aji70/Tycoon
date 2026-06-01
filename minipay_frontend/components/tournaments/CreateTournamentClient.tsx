@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { usePrivy } from "@/hooks/usePrivy";
+import { usePrivy } from "@privy-io/react-auth";
 import { useTournament } from "@/context/TournamentContext";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { appChain } from "@/config";

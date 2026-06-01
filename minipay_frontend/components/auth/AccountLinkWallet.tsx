@@ -4,13 +4,12 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { usePrivy } from "@/hooks/usePrivy";
+import { usePrivy } from "@privy-io/react-auth";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useProfileOwner, useTransferProfileTo } from "@/context/ContractProvider";
 import { Link2, Unlink, Loader2, Mail, Wallet, ArrowRightLeft, Copy, ExternalLink } from "lucide-react";
 import { Address, isAddress } from "viem";
 import { toast } from "react-toastify";
-import { shouldPromoteSmartWalletUi } from "@/lib/minipayGuestFlow";
 
 /** Chain id to backend chain name */
 function chainIdToBackendChain(chainId: number): string {
@@ -186,7 +185,7 @@ export default function AccountLinkWallet() {
               Link this wallet to your account. If the wallet is already registered, accounts will be merged.
             </p>
           )}
-          {shouldPromoteSmartWalletUi() && hasSmartWallet && (
+          {hasSmartWallet && (
             <div className="pt-3 border-t border-white/10 flex flex-wrap items-center gap-2">
               <p className="text-sm text-white/80">
                 Smart wallet: <span className="font-mono text-cyan-300">{guestUser.smart_wallet_address!.slice(0, 6)}...{guestUser.smart_wallet_address!.slice(-4)}</span>
@@ -214,7 +213,7 @@ export default function AccountLinkWallet() {
             </div>
           )}
           {/* Bottom danger action: transfer profile (no inline input) */}
-          {shouldPromoteSmartWalletUi() && hasSmartWallet && (
+          {hasSmartWallet && (
             <div className="pt-3 border-t border-white/10">
               {!profileOwnerLoading && profileOwner && profileOwner !== zeroAddr && (
                 <p className="text-xs text-white/50 mb-2">
@@ -236,8 +235,8 @@ export default function AccountLinkWallet() {
             </div>
           )}
 
-          {/* Create smart wallet — not offered in MiniPay (EOA-only). */}
-          {shouldPromoteSmartWalletUi() && !hasSmartWallet && auth?.createSmartWallet && (
+          {/* Create smart wallet: when user has no smart wallet (works without linking EOA) */}
+          {!hasSmartWallet && auth?.createSmartWallet && (
             <div className="pt-3 border-t border-white/10">
               <p className="text-sm text-white/70 mb-2">Smart wallet (for gasless play, rewards)</p>
               <button

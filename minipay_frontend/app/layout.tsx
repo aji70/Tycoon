@@ -4,12 +4,13 @@ import ScrollToTopBtn from "@/components/shared/scroll-to-top-btn";
 import "@/styles/globals.css";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
+import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
+import PrivyProviderWrapper from "@/components/PrivyProviderWrapper";
 import ReferralCapture from "@/components/ReferralCapture";
-import MinipayAutoConnect from "@/components/MinipayAutoConnect";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
-import DeferredToasts from "@/components/DeferredToasts";
-import DeferredUiStyles from "@/components/DeferredUiStyles";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import { SocketProvider } from "@/context/SocketContext";
 import { TournamentProvider } from "@/context/TournamentContext";
 import { Toaster } from "react-hot-toast";
@@ -96,18 +97,26 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <head />
-      <body
-        className={`${dmSans.variable} ${kronaOne.variable} ${orbitron.variable} antialiased bg-[#010F10] w-full`}
-      >
+      <head>
+        <link rel="dns-prefetch" href="https://api.web3modal.org" />
+        <link rel="dns-prefetch" href="https://pulse.walletconnect.org" />
+        <link rel="dns-prefetch" href="https://fonts.reown.com" />
+        <link rel="preconnect" href="https://fonts.reown.com" crossOrigin="anonymous" />
+      </head>
+      <body className="antialiased bg-[#010F10] w-full">
         <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
         <FarcasterReady />
-        <ContextProvider cookies={cookies}>
+        <PrivyProviderWrapper>
+          <ContextProvider cookies={cookies}>
             <TycoonProvider>
               <GuestAuthProvider>
               <ReferralCapture />
-              <MinipayAutoConnect />
               <TournamentProvider>
+              <AppKitProviderWrapper>
+                {/* SocketProvider commented out as in your code */}
+                {/* <SocketProvider serverUrl="https://base-monopoly-production.up.railway.app/api"> */}
+                
+                {/* ← Use the client wrapper here—no more useMediaQuery! */}
                 <QueryProvider>
                 <BfcacheReloadGuard />
                 <ClientLayout cookies={cookies}>
@@ -115,14 +124,34 @@ export default async function RootLayout({
                 </ClientLayout>
                 
                 <ScrollToTopBtn />
-                <DeferredUiStyles />
-                <DeferredToasts />
+                <ToastContainer
+                  position="top-right"
+                  autoClose={5000}
+                  hideProgressBar={false}
+                  newestOnTop
+                  closeOnClick
+                  rtl={false}
+                  pauseOnFocusLoss
+                  draggable
+                  pauseOnHover
+                  theme="dark"
+                  toastStyle={{
+                    fontFamily: "Orbitron, sans-serif",
+                    background: "#0E1415",
+                    color: "#00F0FF",
+                    border: "1px solid #003B3E",
+                  }}
+                />
                 <Toaster position="top-center" />
                 </QueryProvider>
+                
+                {/* </SocketProvider> */}
+              </AppKitProviderWrapper>
               </TournamentProvider>
               </GuestAuthProvider>
             </TycoonProvider>
-        </ContextProvider>
+          </ContextProvider>
+        </PrivyProviderWrapper>
       </body>
     </html>
   );

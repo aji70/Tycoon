@@ -1,5 +1,4 @@
 import type { GuestUser } from "@/context/GuestAuthContext";
-import { isMinipayEoaFirstFlow } from "@/lib/minipayGuestFlow";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -24,9 +23,6 @@ export function getNairaEligibility(
   }
   if (!guestUser) {
     return { ok: false, reason: "sign_in" };
-  }
-  if (isMinipayEoaFirstFlow()) {
-    return { ok: true };
   }
   const sw = String(guestUser.smart_wallet_address ?? "").trim().toLowerCase();
   if (!sw || sw === ZERO_ADDRESS) {
