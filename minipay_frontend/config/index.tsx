@@ -61,5 +61,3 @@ export function getWagmiConfig() {
   return ssrConfig;
 }
 
-/** @deprecated Use `getWagmiConfig()` */
-export const config = { get value() { return getWagmiConfig(); } };
