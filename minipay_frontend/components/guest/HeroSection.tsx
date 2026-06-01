@@ -31,6 +31,7 @@ import {
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
+import { TYCOON_CONTRACT_ADDRESSES } from "@/constants/contracts";
 import { useUserLevel } from "@/hooks/useUserLevel";
 import { ParticleBackground } from "@/components/hero/ParticleBackground";
 import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
@@ -310,6 +311,8 @@ const HeroSection: React.FC = () => {
         try {
           await registerOnChainWithWallet({
             username: finalUsername,
+            address,
+            contractAddress: TYCOON_CONTRACT_ADDRESSES[chainId],
             registerPlayer,
             publicClient: publicClient ?? undefined,
             refetchIsRegistered,
