@@ -304,7 +304,7 @@ const HeroSection: React.FC = () => {
 
     try {
       if (isUserRegistered !== true) {
-        await registerViaWalletSign({ finalUsername });
+        await registerViaWalletSign({ finalUsername, account: address });
       }
 
       if (!user) {
@@ -392,7 +392,7 @@ const HeroSection: React.FC = () => {
     setRegisterOnChainLoading(true);
     const toastId = toast.loading("Register on-chain…");
     try {
-      await registerViaWalletSign({ finalUsername: playUsername });
+      await registerViaWalletSign({ finalUsername: playUsername, account: address });
       void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
       if (guestAuth?.refetchGuest) await guestAuth.refetchGuest();
       toast.dismiss(toastId);

@@ -212,6 +212,12 @@ export function getContractErrorMessage(
   // Connection / network errors
   const msgLower = (e?.message ?? e?.shortMessage ?? "").toLowerCase();
   if (
+    msgLower.includes("unknown rpc error") ||
+    msgLower.includes("an unknown rpc error occurred")
+  ) {
+    return "Could not reach the network. Stay in MiniPay, ensure you are on Celo, and try again.";
+  }
+  if (
     msgLower.includes("network") ||
     msgLower.includes("fetch failed") ||
     msgLower.includes("econnreset") ||
