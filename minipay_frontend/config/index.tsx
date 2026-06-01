@@ -1,3 +1,4 @@
+import { getCeloRpcUrl } from "@/lib/celoRpc";
 import { cookieStorage, createStorage, http } from "@wagmi/core";
 import { createConfig } from "wagmi";
 import { celo } from "wagmi/chains";
@@ -16,7 +17,7 @@ export const wagmiConfig = createConfig({
   }),
   ssr: true,
   transports: {
-    [celo.id]: http(),
+    [celo.id]: http(getCeloRpcUrl()),
   },
 });
 

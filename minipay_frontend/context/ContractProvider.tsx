@@ -154,7 +154,7 @@ export const isCollectibleToken = (tokenId: bigint): boolean =>
 /* ----------------------- Core Hooks ----------------------- */
 
 export function useIsRegistered(address?: Address) {
-  const chainId = useChainId();
+  const chainId = useReadChainIdOrCelo();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
 
   const result = useReadContract({
@@ -174,7 +174,7 @@ export function useIsRegistered(address?: Address) {
 }
 
 export function useGetUsername(address?: Address) {
-  const chainId = useChainId();
+  const chainId = useReadChainIdOrCelo();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
 
   const result = useReadContract({

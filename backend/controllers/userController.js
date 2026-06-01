@@ -294,8 +294,21 @@ const userController = {
         return res.status(404).json({ success: false, message: "User not found. Register first." });
       }
 
-      // Check if already registered on-chain
-      const isRegistered = await callContractRead("registered", [address], chainNorm);
+      // Check if already registered on-chain (fallback: addressToUsername when registered[] read fails)
+      let isRegistered = false;
+      try {
+        isRegistered = await callContractRead("registered", [address], chainNorm);
+      } catch (readErr) {
+        logger.warn({ err: readErr?.message, address, chain: chainNorm }, "registerOnChainNoGas: registered read failed");
+      }
+      if (!isRegistered) {
+        try {
+          const onChainName = await callContractRead("addressToUsername", [address], chainNorm);
+          if (onChainName != null && String(onChainName).trim() !== "") {
+            isRegistered = true;
+          }
+        } catch (_) {}
+      }
       if (isRegistered) {
         return res.status(200).json({ success: true, alreadyRegistered: true, message: "Already registered on-chain" });
       }
@@ -327,6 +340,14 @@ const userController = {
         message: "Registered on-chain. You can create games now.",
       });
     } catch (err) {
+      const errText = `${err?.message || ""} ${err?.reason || ""} ${err?.shortMessage || ""}`;
+      if (/already registered/i.test(errText)) {
+        return res.status(200).json({
+          success: true,
+          alreadyRegistered: true,
+          message: "Already registered on-chain",
+        });
+      }
       logger.error({ err: err?.message, address: req.body?.address }, "registerOnChainNoGas failed");
       return res.status(500).json({
         success: false,

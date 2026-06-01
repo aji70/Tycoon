@@ -20,7 +20,10 @@ import { useAppKit } from "@reown/appkit/react";
 import toast from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { apiClient } from "@/lib/api";
-import { registerViaBackendSponsor } from "@/lib/registerOnChainFallback";
+import {
+  registerViaBackendSponsor,
+  syncReturningUserRegistration,
+} from "@/lib/registerOnChainFallback";
 import { postRegisterOnChain } from "@/lib/registerOnChainApi";
 import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { User as UserType } from "@/lib/types/users";
@@ -231,17 +234,25 @@ const HeroSection: React.FC = () => {
     };
   }, [address]);
 
+  const onChainUsername = useMemo(() => {
+    const u = fetchedUsername != null ? String(fetchedUsername).trim() : "";
+    return u.length > 0 ? u : "";
+  }, [fetchedUsername]);
+
   const registrationStatus = useMemo(() => {
     if (address) {
       const hasBackend = !!user;
-      const hasOnChain = isUserRegistered === true || localRegistered;
+      const hasOnChain =
+        isUserRegistered === true ||
+        localRegistered ||
+        onChainUsername.length > 0;
       if ((hasBackend || localRegistered) && hasOnChain) return "fully-registered";
       if (hasBackend && !hasOnChain) return "backend-only";
       return "none";
     }
     if (guestUser) return "privy";
     return "disconnected";
-  }, [address, user, isUserRegistered, guestUser, localRegistered]);
+  }, [address, user, isUserRegistered, guestUser, localRegistered, onChainUsername]);
 
   const displayUsername = useMemo(() => {
     if (guestUser) return guestUser.username;
@@ -278,10 +289,10 @@ const HeroSection: React.FC = () => {
     }
 
     let finalUsername = inputUsername.trim();
-
-    // If backend user exists but not on-chain → use backend username
-    if (registrationStatus === "backend-only" && user?.username) {
-      finalUsername = user.username.trim();
+    if (user?.username) {
+      finalUsername = user.username.trim() || finalUsername;
+    } else if (onChainUsername) {
+      finalUsername = onChainUsername;
     }
 
     if (!finalUsername) {
@@ -290,9 +301,47 @@ const HeroSection: React.FC = () => {
     }
 
     setLoading(true);
-    const setupToastId = toast.loading("Setting up your account…");
+    const setupToastId = toast.loading(
+      user ? "Syncing your account…" : "Setting up your account…"
+    );
 
     try {
+      const alreadyOnChain =
+        isUserRegistered === true || onChainUsername.length > 0 || localRegistered;
+
+      // Returning player: DB + chain — no re-registration
+      if (user && alreadyOnChain) {
+        setLocalRegistered(true);
+        setLocalUsername(finalUsername);
+        toast.dismiss(setupToastId);
+        toast.success(`Welcome back, ${finalUsername}!`);
+        router.refresh();
+        void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
+        return;
+      }
+
+      // Returning player: DB only — idempotent on-chain sync
+      if (user) {
+        const { alreadyRegistered } = await syncReturningUserRegistration({
+          address,
+          username: finalUsername,
+          user,
+          setUser,
+          setLocalRegistered,
+          setLocalUsername,
+          refetchIsRegistered,
+          refetchUsername,
+        });
+        toast.dismiss(setupToastId);
+        toast.success(
+          alreadyRegistered
+            ? `Welcome back, ${finalUsername}!`
+            : "You're all set — welcome back!"
+        );
+        router.refresh();
+        return;
+      }
+
       if (isUserRegistered !== true) {
         await registerViaBackendSponsor({
           address,
@@ -310,22 +359,19 @@ const HeroSection: React.FC = () => {
         return;
       }
 
-      if (!user) {
-        const res = await apiClient.post<ApiResponse>("/users", {
-          username: finalUsername,
-          address,
-          chain: "Celo",
-        });
-        if (!res?.success) throw new Error("Failed to save user on backend");
-        setUser((res.data as UserType) ?? ({ username: finalUsername } as UserType));
-      }
-
+      const res = await apiClient.post<ApiResponse>("/users", {
+        username: finalUsername,
+        address,
+        chain: "Celo",
+      });
+      if (!res?.success) throw new Error("Failed to save user on backend");
+      setUser((res.data as UserType) ?? ({ username: finalUsername } as UserType));
       setLocalRegistered(true);
       setLocalUsername(finalUsername);
-      await Promise.all([refetchIsRegistered?.(), refetchUsername?.()]);
       toast.dismiss(setupToastId);
       toast.success("Welcome to Tycoon!");
       router.refresh();
+      void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
     } catch (err: unknown) {
       toast.dismiss(setupToastId);
       const e = err as {
@@ -344,9 +390,9 @@ const HeroSection: React.FC = () => {
           if (res?.success && res?.data) {
             setUser(res.data as UserType);
             setLocalUsername(finalUsername);
-            await Promise.all([refetchIsRegistered?.(), refetchUsername?.()]);
             toast.success("Welcome to Tycoon!");
             router.refresh();
+            void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
             return;
           }
         } catch {
@@ -752,13 +798,13 @@ const HeroSection: React.FC = () => {
                 />
               </svg>
               <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] -tracking-[2%] font-orbitron font-[700] z-2">
-                {loading ? "Registering..." : "Let's Go!"}
+                {loading ? "Please wait…" : user ? "Continue" : "Let's Go!"}
               </span>
             </button>
           )}
           {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
             <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
-              Creates your game account &amp; smart wallet
+              {user ? "Finish syncing your account" : "Creates your game account & smart wallet"}
             </p>
           )}
 

@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api";
+import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import type { Address } from "viem";
 
 export type RegisterOnChainResult = {
@@ -21,7 +21,11 @@ export async function postRegisterOnChain(opts: {
     typeof window !== "undefined" ? window.localStorage.getItem("token") : null;
 
   if (token) {
-    const res = await apiClient.post<RegisterOnChainResult>("auth/register-on-chain", { chain });
+    const res = await apiClient.post<RegisterOnChainResult>(
+      "auth/register-on-chain",
+      { chain },
+      { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
+    );
     const body = res.data as RegisterOnChainResult | undefined;
     if (body?.success === false) {
       throw new Error(body.message ?? "Registration failed");
@@ -46,10 +50,11 @@ export async function postRegisterOnChain(opts: {
     }
   }
 
-  const res = await apiClient.post<RegisterOnChainResult>("/users/register-on-chain", {
-    address: opts.address,
-    chain,
-  });
+  const res = await apiClient.post<RegisterOnChainResult>(
+    "/users/register-on-chain",
+    { address: opts.address, chain },
+    { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
+  );
   const body = res.data as RegisterOnChainResult | undefined;
   if (body?.success === false) {
     throw new Error(body.message ?? "Registration failed");
