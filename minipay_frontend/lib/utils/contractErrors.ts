@@ -238,6 +238,12 @@ export function getContractErrorMessage(
     return "Server temporarily unavailable. Wait a moment and try again.";
   }
 
+  // Wallet / provider returned an unclassified JSON-RPC failure (common in MiniPay)
+  const rpcHay = collectErrorText(error);
+  if (rpcHay.includes("unknownrpcerror") || rpcHay.includes("unknown rpc error")) {
+    return "Wallet could not complete the transaction. Try again, or ensure you have a small CELO balance for network fees.";
+  }
+
   // Prefer backend message so we don't show generic "API request failed" when we have context
   const backendMsg =
     e?.response?.data?.message ?? e?.response?.data?.error ?? e?.data?.message ?? e?.data?.error;

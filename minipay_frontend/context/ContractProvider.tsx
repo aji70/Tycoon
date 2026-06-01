@@ -1246,7 +1246,7 @@ export function useGetGameByCode(code?: string, options = { enabled: true }) {
     functionName: 'getGameByCode',
     args: code ? [code] : undefined,
     query: {
-      enabled: options.enabled && !!contractAddress,
+      enabled: options.enabled && !!contractAddress && !!code?.trim(),
       retry: false,
     },
   });

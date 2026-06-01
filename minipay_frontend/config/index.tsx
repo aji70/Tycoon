@@ -2,6 +2,7 @@ import { cookieStorage, createStorage, http } from "@wagmi/core";
 import { createConfig } from "wagmi";
 import { celo } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
+import { getCeloRpcUrlForChainId } from "@/lib/utils/erc8004InjectedEoa";
 
 export const appChain = "CELO";
 export const defaultNetwork = celo;
@@ -16,7 +17,7 @@ export const wagmiConfig = createConfig({
   }),
   ssr: true,
   transports: {
-    [celo.id]: http(),
+    [celo.id]: http(getCeloRpcUrlForChainId(celo.id)),
   },
 });
 

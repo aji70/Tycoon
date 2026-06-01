@@ -22,6 +22,12 @@ import { useConnect } from "wagmi";
 import { injected } from "wagmi/connectors";
 import toast from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import {
+  isRecoverableOnChainRegistrationError,
+  isUnknownRpcError,
+  registerOnChainWithWallet,
+  registerViaBackendSponsor,
+} from "@/lib/registerOnChainFallback";
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
@@ -296,58 +302,46 @@ const HeroSection: React.FC = () => {
     }
 
     setLoading(true);
+    const toastId = toast.loading("Processing registration...");
 
     try {
       // Register on-chain if contract doesn't have this address (required for create game / create AI game)
       if (isUserRegistered !== true) {
         try {
-          const txHash = await registerPlayer(finalUsername);
-          await refetchIsRegistered();
-        } catch (onChainErr: any) {
-          const isInsufficientGas =
-            onChainErr?.message?.toLowerCase().includes("insufficient") ||
-            onChainErr?.shortMessage?.toLowerCase().includes("insufficient");
-
-          if (isInsufficientGas) {
-            const gasToastId = toast.loading("No gas available. Using backend registration...");
+          await registerOnChainWithWallet({
+            username: finalUsername,
+            registerPlayer,
+            publicClient: publicClient ?? undefined,
+            refetchIsRegistered,
+          });
+        } catch (onChainErr: unknown) {
+          if (isRecoverableOnChainRegistrationError(onChainErr)) {
+            const fallbackToastId = toast.loading(
+              isUnknownRpcError(onChainErr)
+                ? "Wallet error — registering via Tycoon..."
+                : "No gas available. Using backend registration..."
+            );
             try {
-              // Ensure backend user exists first
-              if (!user) {
-                const createRes = await apiClient.post<ApiResponse>("/users", {
-                  username: finalUsername,
-                  address,
-                  chain: "Celo",
-                });
-                if (createRes?.success && createRes?.data) {
-                  setUser(createRes.data as UserType);
-                } else if (createRes?.status !== 409) {
-                  throw new Error("Failed to create user before backend registration");
-                }
-              }
-
-              const backendRes = await apiClient.post<ApiResponse>("/users/register-on-chain", {
+              await registerViaBackendSponsor({
                 address,
-                chain: "Celo",
+                username: finalUsername,
+                user,
+                setUser,
+                setLocalRegistered,
+                setLocalUsername,
+                refetchIsRegistered,
+                refetchUsername,
               });
-
-              if (!backendRes?.success) throw new Error("Backend registration failed");
-
-              const userRes = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Celo`);
-              if (userRes?.success && userRes?.data) setUser(userRes.data as UserType);
-
-              setLocalRegistered(true);
-              setLocalUsername(finalUsername);
-              await Promise.all([refetchIsRegistered?.(), refetchUsername?.()]);
-              toast.dismiss(gasToastId);
+              toast.dismiss(fallbackToastId);
+              toast.dismiss(toastId);
               toast.success("Welcome to Tycoon!");
               return;
-            } catch (backendErr: any) {
-              toast.dismiss(gasToastId);
+            } catch (backendErr) {
+              toast.dismiss(fallbackToastId);
               throw backendErr;
             }
-          } else {
-            throw onChainErr;
           }
+          throw onChainErr;
         }
       }
 
@@ -373,8 +367,10 @@ const HeroSection: React.FC = () => {
         refetchUsername?.(),
       ]);
 
+      toast.dismiss(toastId);
       toast.success("Welcome to Tycoon!");
     } catch (err: any) {
+      toast.dismiss(toastId);
       if (
         err?.code === 4001 ||
         err?.message?.includes("User rejected") ||
