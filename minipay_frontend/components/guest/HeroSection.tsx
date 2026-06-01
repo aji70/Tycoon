@@ -6,7 +6,7 @@ import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { useAccount, useChainId, useSignMessage, usePublicClient } from "wagmi";
+import { useAccount, useChainId, useSignMessage } from "wagmi";
 import {
   useIsRegistered,
   useGetUsername,
@@ -61,7 +61,6 @@ const HeroSection: React.FC = () => {
   const { address, isConnecting } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
-  const publicClient = usePublicClient();
   const { connect } = useConnect();
   const connectWallet = () => connect({ connector: injected() });
   const guestAuth = useGuestAuthOptional();
@@ -316,14 +315,12 @@ const HeroSection: React.FC = () => {
       // Register on-chain if contract doesn't have this address (required for create game / create AI game)
       if (isUserRegistered !== true) {
         try {
-          await registerOnChainWithWallet({
+          const txHash = await registerOnChainWithWallet({
             username: finalUsername,
-            address,
-            contractAddress: TYCOON_CONTRACT_ADDRESSES[chainId],
             registerPlayer,
-            publicClient: publicClient ?? undefined,
             refetchIsRegistered,
           });
+          if (!txHash) throw new Error("Registration transaction did not return a hash");
         } catch (onChainErr: unknown) {
           if (isRecoverableOnChainRegistrationError(onChainErr)) {
             const fallbackToastId = toast.loading(

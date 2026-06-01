@@ -4,7 +4,7 @@ import { ApiResponse } from "@/types/api";
 import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { ensureMiniPayWagmiConnected } from "@/lib/connectMiniPayWallet";
 import { isUserRejectedTransaction } from "@/lib/utils/contractErrors";
-import type { Address, Hash, PublicClient } from "viem";
+import type { Address, Hash } from "viem";
 
 /** MiniPay / wallet providers often surface failures as viem UnknownRpcError instead of a clear revert. */
 export function isUnknownRpcError(error: unknown): boolean {
@@ -16,7 +16,6 @@ export function isUnknownRpcError(error: unknown): boolean {
 
 /**
  * Backend fallback only when the wallet tx failed for lack of gas/fees.
- * MiniPay registration is wallet-signed by default (registerPlayerWithoutWallet + feeCurrency).
  */
 export function isRecoverableOnChainRegistrationError(error: unknown): boolean {
   if (error == null) return false;
@@ -26,24 +25,22 @@ export function isRecoverableOnChainRegistrationError(error: unknown): boolean {
   return hay.includes("insufficient") || hay.includes("insufficient funds");
 }
 
+/**
+ * Wallet-signed on-chain registration — kept aligned with createGame():
+ * hook writeContractAsync + minipayContractWriteOverrides only (no extra receipt wait).
+ */
 export async function registerOnChainWithWallet(params: {
   username: string;
-  address?: Address;
-  contractAddress?: Address;
   registerPlayer: (username: string) => Promise<Hash | undefined>;
-  publicClient: PublicClient | undefined;
   refetchIsRegistered?: () => Promise<unknown>;
-}): Promise<void> {
+}): Promise<Hash | undefined> {
   if (isMiniPayEmbeddedWallet()) {
     await ensureMiniPayWagmiConnected();
   }
 
-  // Same wagmi hook path as mobile browser / MetaMask (includes minipayContractWriteOverrides).
   const txHash = await params.registerPlayer(params.username);
-  if (txHash && params.publicClient) {
-    await params.publicClient.waitForTransactionReceipt({ hash: txHash });
-  }
   await params.refetchIsRegistered?.();
+  return txHash;
 }
 
 /**

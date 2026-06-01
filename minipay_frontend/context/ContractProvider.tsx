@@ -388,7 +388,6 @@ export function useRegisterPlayerWithoutWallet() {
         abi: TycoonABI,
         functionName: 'registerPlayerWithoutWallet',
         args: [username.trim()],
-        chainId: celo.id,
         ...minipayContractWriteOverrides(),
       });
       return hash;
