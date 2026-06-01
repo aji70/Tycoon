@@ -215,7 +215,7 @@ export function getContractErrorMessage(
     msgLower.includes("unknown rpc error") ||
     msgLower.includes("an unknown rpc error occurred")
   ) {
-    return "Could not reach the network. Stay in MiniPay, ensure you are on Celo, and try again.";
+    return "MiniPay could not send the transaction. Ensure you have a little USDC for gas, stay in the MiniPay app, and try again.";
   }
   if (
     msgLower.includes("network") ||

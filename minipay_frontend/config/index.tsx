@@ -3,29 +3,13 @@
 import { cookieStorage, createStorage, createConfig } from "wagmi";
 import { celo } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
-import { custom, http, type Transport } from "viem";
+import { celoTransportForWagmi } from "@/lib/celoTransportForWagmi";
 
 export const appChain = "CELO";
 export const defaultNetwork = celo;
 export const chains = [celo] as const;
 
-const publicCeloRpc =
-  process.env.NEXT_PUBLIC_CELO_RPC_URL?.trim() || "https://forno.celo.org";
-
-/** Injected-only transport when ethereum is present (MiniPay). */
 export function createMiniPayWagmiConfig() {
-  const eth =
-    typeof window !== "undefined"
-      ? (window as Window & { ethereum?: unknown }).ethereum
-      : undefined;
-
-  let transport: Transport;
-  if (eth) {
-    transport = custom(eth);
-  } else {
-    transport = http(publicCeloRpc);
-  }
-
   return createConfig({
     chains,
     connectors: [injected()],
@@ -34,7 +18,7 @@ export function createMiniPayWagmiConfig() {
     }),
     ssr: true,
     transports: {
-      [celo.id]: transport,
+      [celo.id]: celoTransportForWagmi(),
     },
   });
 }
@@ -60,4 +44,3 @@ export function getWagmiConfig() {
   }
   return ssrConfig;
 }
-

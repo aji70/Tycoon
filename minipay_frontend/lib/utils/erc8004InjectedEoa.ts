@@ -25,8 +25,15 @@ export function getInjectedEthereumProvider(): EthereumProvider | null {
   const w = window as Window & { ethereum?: unknown };
   const raw = w.ethereum;
   if (!raw) return null;
+
+  if ((raw as { isMiniPay?: boolean }).isMiniPay) {
+    return asProvider(raw);
+  }
+
   const providers = (raw as { providers?: unknown[] }).providers;
   if (Array.isArray(providers) && providers.length > 0) {
+    const minipay = providers.find((p) => (p as { isMiniPay?: boolean }).isMiniPay);
+    if (minipay) return asProvider(minipay);
     const preferred =
       providers.find((p) => (p as { isMetaMask?: boolean }).isMetaMask) ?? providers[0];
     return asProvider(preferred);
