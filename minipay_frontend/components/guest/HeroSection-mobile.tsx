@@ -15,12 +15,12 @@ import {
   useGetGameByCode,
   useHasSmartWallet,
   useProfileOwner,
+  useRegisterPlayer,
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import toast from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { apiClient } from "@/lib/api";
-import { registerViaWalletSign } from "@/lib/minipayRegisterOnChain";
 import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
@@ -87,6 +87,8 @@ const HeroSection: React.FC = () => {
     error: registeredError,
     refetch: refetchIsRegistered,
   } = useIsRegistered(address);
+
+  const { write: registerPlayer } = useRegisterPlayer();
 
   const { data: fetchedUsername, refetch: refetchUsername } = useGetUsername(address);
 
@@ -304,7 +306,7 @@ const HeroSection: React.FC = () => {
 
     try {
       if (isUserRegistered !== true) {
-        await registerViaWalletSign({ finalUsername, account: address });
+        await registerPlayer(finalUsername);
       }
 
       if (!user) {
@@ -392,7 +394,7 @@ const HeroSection: React.FC = () => {
     setRegisterOnChainLoading(true);
     const toastId = toast.loading("Register on-chain…");
     try {
-      await registerViaWalletSign({ finalUsername: playUsername, account: address });
+      await registerPlayer(playUsername);
       void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
       if (guestAuth?.refetchGuest) await guestAuth.refetchGuest();
       toast.dismiss(toastId);

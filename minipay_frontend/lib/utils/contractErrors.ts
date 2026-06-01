@@ -212,6 +212,13 @@ export function getContractErrorMessage(
   // Connection / network errors
   const msgLower = (e?.message ?? e?.shortMessage ?? "").toLowerCase();
   if (
+    msgLower.includes("permission denied") ||
+    msgLower.includes("not authorized") ||
+    msgLower.includes("unauthorized")
+  ) {
+    return "MiniPay did not allow this transaction. Disconnect and reconnect your wallet on the home page, then try again.";
+  }
+  if (
     msgLower.includes("unknown rpc error") ||
     msgLower.includes("an unknown rpc error occurred")
   ) {

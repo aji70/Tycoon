@@ -22,6 +22,9 @@ import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
 import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
 import { getCeloRpcUrlForChainId, registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
+import { minipayRegistrationFeeAttempts } from '@/lib/celoTransportForWagmi';
+import { isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
+import { isUserRejectedTransaction } from '@/lib/utils/contractErrors';
 import { API_BASE_URL } from '@/lib/api';
 
 const REWARD_TOKEN_READ_ABI = [
@@ -357,13 +360,26 @@ export function useRegisterPlayer() {
       if (!contractAddress) throw new Error('Contract not deployed on this chain');
       if (!username.trim()) throw new Error('Username cannot be empty');
 
-      const hash = await writeContractAsync({
-        address: contractAddress,
-        abi: TycoonABI,
-        functionName: 'registerPlayer',
-        args: [username.trim()],
-      });
-      return hash;
+      const attempts = isMiniPayEmbeddedWallet()
+        ? minipayRegistrationFeeAttempts()
+        : [{}];
+
+      let lastError: unknown;
+      for (const attempt of attempts) {
+        try {
+          return await writeContractAsync({
+            address: contractAddress,
+            abi: TycoonABI,
+            functionName: 'registerPlayer',
+            args: [username.trim()],
+            ...attempt,
+          });
+        } catch (err) {
+          lastError = err;
+          if (isUserRejectedTransaction(err)) throw err;
+        }
+      }
+      throw lastError ?? new Error('Registration failed');
     },
     [writeContractAsync, contractAddress]
   );
