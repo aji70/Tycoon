@@ -244,6 +244,10 @@ export function getContractErrorMessage(
     return "Wallet could not complete the transaction. Try again, or ensure you have a small CELO balance for network fees.";
   }
 
+  if (rpcHay.includes("permission denied") || rpcHay.includes("not authorized")) {
+    return "MiniPay could not send the transaction. Ensure you have a little cUSD or CELO for fees, then try again.";
+  }
+
   // Prefer backend message so we don't show generic "API request failed" when we have context
   const backendMsg =
     e?.response?.data?.message ?? e?.response?.data?.error ?? e?.data?.message ?? e?.data?.error;

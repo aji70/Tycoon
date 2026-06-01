@@ -1,12 +1,15 @@
-import { encodeFunctionData, type Address, type Hash, type PublicClient } from "viem";
+import { wagmiConfig } from "@/config";
+import { sendTransaction, waitForTransactionReceipt } from "@wagmi/core";
+import { encodeFunctionData, type Address, type Hash } from "viem";
 import { custom, http, type Transport } from "viem";
 import { celo } from "wagmi/chains";
 import TycoonABI from "@/context/abi/tycoonabi.json";
 import { getCeloRpcUrlForChainId } from "@/lib/utils/erc8004InjectedEoa";
-type InjectedProvider = {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-  isMiniPay?: boolean;
-};
+import { isUserRejectedTransaction } from "@/lib/utils/contractErrors";
+
+/** cUSD on Celo mainnet — MiniPay users often pay gas in cUSD, not CELO. */
+const CELO_CUSD_FEE_CURRENCY = (process.env.NEXT_PUBLIC_CELO_CUSDC ||
+  "0x765DE816845861e75A25fCA122bb6898B8B1282a") as Address;
 
 /**
  * MiniPay docs: route RPC through `window.ethereum`, not a separate HTTP forno URL.
@@ -30,27 +33,14 @@ export function minipayContractWriteOverrides(): { gas?: bigint } {
   return {};
 }
 
-function getInjectedProvider(): InjectedProvider {
-  const ethereum = (window as Window & { ethereum?: InjectedProvider }).ethereum;
-  if (!ethereum?.request) {
-    throw new Error("Wallet provider not found. Open this app in MiniPay.");
-  }
-  return ethereum;
-}
-
-const CELO_CHAIN_ID_HEX = `0x${celo.id.toString(16)}`;
-
 /**
- * MiniPay: wagmi/viem writeContract often fails (estimate/simulate → "wallet error").
- * MetaMask works with wagmi; MiniPay needs a plain eth_sendTransaction.
+ * Register via wagmi `sendTransaction` (MiniPay-recommended), not raw `eth_sendTransaction`.
+ * Raw RPC with explicit `from` + `wallet_switchEthereumChain` often returns "permission denied".
  */
 export async function registerPlayerViaMiniPayInjected(params: {
-  from: Address;
   contractAddress: Address;
   username: string;
-  publicClient?: PublicClient;
 }): Promise<Hash> {
-  const ethereum = getInjectedProvider();
   const username = params.username.trim();
   if (!username) throw new Error("Username cannot be empty");
 
@@ -60,54 +50,31 @@ export async function registerPlayerViaMiniPayInjected(params: {
     args: [username],
   });
 
+  const baseTx = {
+    chainId: celo.id,
+    to: params.contractAddress,
+    data,
+    gas: MINIPAY_REGISTER_GAS,
+  };
+
+  let hash: Hash;
   try {
-    const chainId = (await ethereum.request({ method: "eth_chainId" })) as string;
-    if (chainId?.toLowerCase() !== CELO_CHAIN_ID_HEX) {
-      await ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: CELO_CHAIN_ID_HEX }],
-      });
+    // Pay gas in cUSD (typical MiniPay balance)
+    hash = await sendTransaction(wagmiConfig, {
+      ...baseTx,
+      feeCurrency: CELO_CUSD_FEE_CURRENCY,
+    } as Parameters<typeof sendTransaction>[1]);
+  } catch (firstErr: unknown) {
+    if (isUserRejectedTransaction(firstErr)) throw firstErr;
+    const hay = String((firstErr as Error)?.message ?? "").toLowerCase();
+    // Retry with native CELO gas if cUSD fee currency is rejected
+    if (hay.includes("permission") || hay.includes("fee") || hay.includes("currency")) {
+      hash = await sendTransaction(wagmiConfig, baseTx);
+    } else {
+      throw firstErr;
     }
-  } catch {
-    // MiniPay is Celo-only; switch may be unsupported — continue
   }
 
-  const hash = (await ethereum.request({
-    method: "eth_sendTransaction",
-    params: [
-      {
-        from: params.from,
-        to: params.contractAddress,
-        data,
-        gas: `0x${MINIPAY_REGISTER_GAS.toString(16)}`,
-      },
-    ],
-  })) as Hash;
-
-  if (params.publicClient) {
-    await params.publicClient.waitForTransactionReceipt({ hash });
-  } else {
-    await waitForInjectedTxReceipt(ethereum, hash);
-  }
-
+  await waitForTransactionReceipt(wagmiConfig, { hash, chainId: celo.id });
   return hash;
-}
-
-async function waitForInjectedTxReceipt(
-  ethereum: InjectedProvider,
-  hash: Hash,
-  maxAttempts = 90
-): Promise<void> {
-  for (let i = 0; i < maxAttempts; i++) {
-    const receipt = (await ethereum.request({
-      method: "eth_getTransactionReceipt",
-      params: [hash],
-    })) as { status?: string } | null;
-    if (receipt) {
-      if (receipt.status === "0x0") throw new Error("Transaction reverted on-chain");
-      return;
-    }
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-  throw new Error("Transaction not confirmed. Check your wallet activity.");
 }

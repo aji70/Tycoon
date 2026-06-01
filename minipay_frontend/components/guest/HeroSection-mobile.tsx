@@ -319,10 +319,13 @@ const HeroSection: React.FC = () => {
           });
         } catch (onChainErr: unknown) {
           if (isRecoverableOnChainRegistrationError(onChainErr)) {
+            const errHay = String((onChainErr as Error)?.message ?? "").toLowerCase();
             const fallbackToastId = toast.loading(
-              isUnknownRpcError(onChainErr)
-                ? "Wallet error — registering via Tycoon..."
-                : "No gas available. Using backend registration..."
+              errHay.includes("permission")
+                ? "Completing registration for you..."
+                : isUnknownRpcError(onChainErr)
+                  ? "Wallet error — registering via Tycoon..."
+                  : "No gas available. Using backend registration..."
             );
             try {
               await registerViaBackendSponsor({

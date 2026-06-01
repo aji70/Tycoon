@@ -3,6 +3,7 @@ import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { registerPlayerViaMiniPayInjected } from "@/lib/minipayWagmiTransport";
+import { isUserRejectedTransaction } from "@/lib/utils/contractErrors";
 import type { Address, Hash, PublicClient } from "viem";
 
 /** MiniPay / wallet providers often surface failures as viem UnknownRpcError instead of a clear revert. */
@@ -16,9 +17,11 @@ export function isUnknownRpcError(error: unknown): boolean {
 /** On-chain registration failed in a way we can recover via backend-sponsored register-on-chain. */
 export function isRecoverableOnChainRegistrationError(error: unknown): boolean {
   if (error == null) return false;
+  if (isUserRejectedTransaction(error)) return false;
   const e = error as { message?: string; shortMessage?: string };
   const hay = `${e.message ?? ""} ${e.shortMessage ?? ""}`.toLowerCase();
   if (hay.includes("insufficient")) return true;
+  if (hay.includes("permission denied") || hay.includes("not authorized")) return true;
   return isUnknownRpcError(error);
 }
 
@@ -33,16 +36,10 @@ export async function registerOnChainWithWallet(params: {
   let txHash: Hash | undefined;
 
   // MiniPay: bypass wagmi writeContract (works in MetaMask, fails in MiniPay WebView)
-  if (
-    isMiniPayEmbeddedWallet() &&
-    params.address &&
-    params.contractAddress
-  ) {
+  if (isMiniPayEmbeddedWallet() && params.contractAddress) {
     txHash = await registerPlayerViaMiniPayInjected({
-      from: params.address,
       contractAddress: params.contractAddress,
       username: params.username,
-      publicClient: params.publicClient,
     });
   } else {
     txHash = await params.registerPlayer(params.username);
