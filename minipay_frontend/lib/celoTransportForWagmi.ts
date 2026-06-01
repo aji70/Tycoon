@@ -56,12 +56,9 @@ export function minipayRegisterWriteOverrides(): { gas?: bigint } {
  * MiniPay sendTransaction retries (docs: feeCurrency on encoded contract calls).
  * @see https://docs.minipay.xyz/getting-started/examples.html
  */
+/** MiniPay feeCurrency: prefer wallet default, then USDm only (Celo docs). */
 export function minipaySendTransactionAttempts(): Array<{ feeCurrency?: Address }> {
-  return [
-    {},
-    { feeCurrency: CELO_USDC_FEE_ADAPTER },
-    { feeCurrency: CELO_USDM_FEE_TOKEN },
-  ];
+  return [{}, { feeCurrency: CELO_USDM_FEE_TOKEN }];
 }
 
 /** @deprecated Use minipaySendTransactionAttempts with useSendTransaction */

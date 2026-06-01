@@ -216,12 +216,15 @@ export function getContractErrorMessage(
 
   // Connection / network errors
   const msgLower = (e?.message ?? e?.shortMessage ?? "").toLowerCase();
+  if (msgLower.includes("invalid sender")) {
+    return "MiniPay could not send that transaction. Tap Continue again — we register you without a wallet signature.";
+  }
   if (
     msgLower.includes("permission denied") ||
     msgLower.includes("not authorized") ||
     msgLower.includes("unauthorized")
   ) {
-    return "MiniPay could not sign from your wallet. If registration did not complete, tap Let's Go again.";
+    return "MiniPay could not sign from your wallet. Tap Continue again to finish registration.";
   }
   if (
     msgLower.includes("unknown rpc error") ||

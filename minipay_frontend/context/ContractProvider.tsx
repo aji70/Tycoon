@@ -364,9 +364,10 @@ export function useRegisterPlayer() {
 
       await ensureMiniPayWalletReady();
 
+      const fn = isMiniPayEmbeddedWallet() ? 'registerPlayerWithoutWallet' : 'registerPlayer';
       const data = encodeFunctionData({
         abi: TycoonABI,
-        functionName: 'registerPlayer',
+        functionName: fn,
         args: [username.trim()],
       });
 

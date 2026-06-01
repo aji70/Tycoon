@@ -310,10 +310,7 @@ const HeroSection: React.FC = () => {
 
       if (isUserRegistered !== true) {
         if (isMiniPayEmbeddedWallet()) {
-          const mode = await completeMiniPayOnChainRegistration(finalUsername, address);
-          if (mode === "backend") {
-            toast("Registered via MiniPay (no gas needed from your wallet).", { icon: "✓" });
-          }
+          await completeMiniPayOnChainRegistration(finalUsername, address);
         } else {
           await registerPlayer(finalUsername);
         }
