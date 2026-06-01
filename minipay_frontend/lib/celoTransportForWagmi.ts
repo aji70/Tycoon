@@ -30,6 +30,7 @@ export const MINIPAY_FEE_CURRENCY = (process.env.NEXT_PUBLIC_MINIPAY_FEE_CURRENC
 /** @deprecated Use MINIPAY_FEE_CURRENCY */
 export const CELO_CUSD_FEE_CURRENCY = MINIPAY_FEE_CURRENCY;
 
+/** Game writes (createGame, joinGame, …) — feeCurrency + gas. */
 export function minipayContractWriteOverrides(): {
   gas?: bigint;
   feeCurrency?: Address;
@@ -39,4 +40,10 @@ export function minipayContractWriteOverrides(): {
     gas: MINIPAY_REGISTER_GAS,
     feeCurrency: MINIPAY_FEE_CURRENCY,
   };
+}
+
+/** Registration is heavier (mintVoucher); let MiniPay pick the fee token (do not set feeCurrency). */
+export function minipayRegisterWriteOverrides(): { gas?: bigint } {
+  if (!isMiniPayEmbeddedWallet()) return {};
+  return { gas: BigInt(1_200_000) };
 }

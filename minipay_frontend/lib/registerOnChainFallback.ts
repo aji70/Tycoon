@@ -2,7 +2,7 @@ import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
-import { ensureMiniPayWagmiConnected } from "@/lib/connectMiniPayWallet";
+import { registerPlayerWalletSignedMinipay } from "@/lib/minipayRegister";
 import { isUserRejectedTransaction } from "@/lib/utils/contractErrors";
 import type { Address, Hash } from "viem";
 
@@ -25,17 +25,23 @@ export function isRecoverableOnChainRegistrationError(error: unknown): boolean {
   return hay.includes("insufficient") || hay.includes("insufficient funds");
 }
 
-/**
- * Wallet-signed on-chain registration — kept aligned with createGame():
- * hook writeContractAsync + minipayContractWriteOverrides only (no extra receipt wait).
- */
 export async function registerOnChainWithWallet(params: {
   username: string;
+  address?: Address;
+  contractAddress?: Address;
   registerPlayer: (username: string) => Promise<Hash | undefined>;
   refetchIsRegistered?: () => Promise<unknown>;
 }): Promise<Hash | undefined> {
   if (isMiniPayEmbeddedWallet()) {
-    await ensureMiniPayWagmiConnected();
+    if (!params.contractAddress) {
+      throw new Error("Contract not deployed on this chain");
+    }
+    const txHash = await registerPlayerWalletSignedMinipay({
+      contractAddress: params.contractAddress,
+      username: params.username,
+    });
+    await params.refetchIsRegistered?.();
+    return txHash;
   }
 
   const txHash = await params.registerPlayer(params.username);

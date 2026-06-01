@@ -179,13 +179,27 @@ export function getContractErrorMessage(
     return "This game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Celo).";
   }
 
-  // Contract revert / execution reverted
+  // Contract revert / execution reverted — prefer decoded revert reason when present
+  const revertHay = collectErrorText(error);
   if (
     e?.cause?.name === "ExecutionRevertedError" ||
-    e?.message?.toLowerCase().includes("execution reverted") ||
-    e?.shortMessage?.toLowerCase().includes("execution reverted")
+    revertHay.includes("execution reverted") ||
+    revertHay.includes("contractfunctionrevertederror")
   ) {
-    return "Smart contract rejected transaction (check balance/stake).";
+    const reasonMatch = revertHay.match(
+      /reverted with the following reason:\s*['"]?([^'".\n]+)/i
+    );
+    if (reasonMatch?.[1]) {
+      const reason = reasonMatch[1].trim();
+      if (reason.toLowerCase().includes("already registered")) {
+        return "This wallet is already registered on-chain.";
+      }
+      if (reason.toLowerCase().includes("username")) {
+        return `Registration rejected: ${reason}`;
+      }
+      return `Registration rejected: ${reason}`;
+    }
+    return "Smart contract rejected registration (username taken or already registered).";
   }
 
   // Backend API errors (status on axios response or ApiError.status)

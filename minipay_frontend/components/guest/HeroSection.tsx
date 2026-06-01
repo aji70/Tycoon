@@ -315,8 +315,10 @@ const HeroSection: React.FC = () => {
       // Register on-chain if contract doesn't have this address (required for create game / create AI game)
       if (isUserRegistered !== true) {
         try {
+          const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
           const txHash = await registerOnChainWithWallet({
             username: finalUsername,
+            contractAddress,
             registerPlayer,
             refetchIsRegistered,
           });

@@ -8,6 +8,7 @@ export {
   celoTransportForWagmi,
   MINIPAY_REGISTER_GAS,
   minipayContractWriteOverrides,
+  minipayRegisterWriteOverrides,
 } from "@/lib/celoTransportForWagmi";
 
 export {
