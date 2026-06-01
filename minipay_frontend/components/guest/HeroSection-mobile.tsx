@@ -21,7 +21,8 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import toast from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { apiClient } from "@/lib/api";
-import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import { getGuestUserPlayAddress, isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
+import { completeMiniPayOnChainRegistration } from "@/lib/minipayRegisterPlayer";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
@@ -298,18 +299,24 @@ const HeroSection: React.FC = () => {
     );
 
     try {
-      if (isUserRegistered !== true) {
-        await registerPlayer(finalUsername);
-      }
-
       if (!user) {
         const res = await apiClient.post<ApiResponse>("/users", {
           username: finalUsername,
           address,
           chain: "Celo",
         });
-        if (!res?.success) throw new Error("Failed to save user on backend");
         setUser((res.data as UserType) ?? ({ username: finalUsername } as UserType));
+      }
+
+      if (isUserRegistered !== true) {
+        if (isMiniPayEmbeddedWallet()) {
+          const mode = await completeMiniPayOnChainRegistration(finalUsername, address);
+          if (mode === "backend") {
+            toast("Registered via MiniPay (no gas needed from your wallet).", { icon: "✓" });
+          }
+        } else {
+          await registerPlayer(finalUsername);
+        }
       }
 
       setLocalRegistered(true);
@@ -387,7 +394,11 @@ const HeroSection: React.FC = () => {
     setRegisterOnChainLoading(true);
     const toastId = toast.loading("Register on-chain…");
     try {
-      await registerPlayer(playUsername);
+      if (isMiniPayEmbeddedWallet()) {
+        await completeMiniPayOnChainRegistration(playUsername, address);
+      } else {
+        await registerPlayer(playUsername);
+      }
       void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
       if (guestAuth?.refetchGuest) await guestAuth.refetchGuest();
       toast.dismiss(toastId);

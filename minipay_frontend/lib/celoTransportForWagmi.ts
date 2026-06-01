@@ -58,9 +58,9 @@ export function minipayRegisterWriteOverrides(): { gas?: bigint } {
  */
 export function minipaySendTransactionAttempts(): Array<{ feeCurrency?: Address }> {
   return [
+    {},
     { feeCurrency: CELO_USDC_FEE_ADAPTER },
     { feeCurrency: CELO_USDM_FEE_TOKEN },
-    {},
   ];
 }
 

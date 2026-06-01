@@ -102,6 +102,11 @@ function collectErrorText(error: unknown): string {
   return walkErrorChain(error).join(" ").toLowerCase();
 }
 
+/** @internal Exported for MiniPay registration fallback detection */
+export function collectErrorTextForMiniPay(error: unknown): string {
+  return collectErrorText(error);
+}
+
 function hasRejectedCode(error: unknown): boolean {
   for (const part of walkErrorChain(error)) {
     const code = String(part).trim();
@@ -216,7 +221,7 @@ export function getContractErrorMessage(
     msgLower.includes("not authorized") ||
     msgLower.includes("unauthorized")
   ) {
-    return "MiniPay blocked this transaction. Open Tycoon from the MiniPay app, wait until your wallet shows as connected, then try again.";
+    return "MiniPay could not sign from your wallet. If registration did not complete, tap Let's Go again.";
   }
   if (
     msgLower.includes("unknown rpc error") ||
