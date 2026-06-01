@@ -10,15 +10,12 @@ import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
 import DeferredToasts from "@/components/DeferredToasts";
 import DeferredUiStyles from "@/components/DeferredUiStyles";
-import { SocketProvider } from "@/context/SocketContext";
-import { TournamentProvider } from "@/context/TournamentContext";
 import { Toaster } from "react-hot-toast";
 import FarcasterReady from "@/components/FarcasterReady"; 
 import { minikitConfig } from "../minikit.config";
 import type { Metadata } from "next";
 import Script from "next/script";
 import ClientLayout from "../clients/ClientLayout"; // ← Import the new wrapper
-import QueryProvider from "./QueryProvider";
 import BfcacheReloadGuard from "@/components/BfcacheReloadGuard";
 
 // Run before React: (1) Reload board when restored from bfcache so WebGL is fresh. (2) Disable bfcache on board so back button does full load instead of restore (avoids Context Lost + .style crash).
@@ -108,19 +105,15 @@ export default async function RootLayout({
               <GuestAuthProvider>
               <ReferralCapture />
               <MinipayAutoConnect />
-              <TournamentProvider>
-                <QueryProvider>
-                <BfcacheReloadGuard />
-                <ClientLayout cookies={cookies}>
-                  {children}
-                </ClientLayout>
-                
-                <ScrollToTopBtn />
-                <DeferredUiStyles />
-                <DeferredToasts />
-                <Toaster position="top-center" />
-                </QueryProvider>
-              </TournamentProvider>
+              <BfcacheReloadGuard />
+              <ClientLayout cookies={cookies}>
+                {children}
+              </ClientLayout>
+
+              <ScrollToTopBtn />
+              <DeferredUiStyles />
+              <DeferredToasts />
+              <Toaster position="top-center" />
               </GuestAuthProvider>
             </TycoonProvider>
         </ContextProvider>
