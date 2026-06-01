@@ -1,14 +1,13 @@
 import { wagmiConfig } from "@/config";
-import { sendTransaction, waitForTransactionReceipt } from "@wagmi/core";
+import { waitForTransactionReceipt, writeContract } from "@wagmi/core";
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import { custom, http, type Transport } from "viem";
 import { celo } from "wagmi/chains";
 import TycoonABI from "@/context/abi/tycoonabi.json";
 import { getCeloRpcUrlForChainId } from "@/lib/utils/erc8004InjectedEoa";
-import { isUserRejectedTransaction } from "@/lib/utils/contractErrors";
 
-/** cUSD on Celo mainnet — MiniPay users often pay gas in cUSD, not CELO. */
-const CELO_CUSD_FEE_CURRENCY = (process.env.NEXT_PUBLIC_CELO_CUSDC ||
+/** cUSD on Celo mainnet — optional gas currency for raw provider calls. */
+export const CELO_CUSD_FEE_CURRENCY = (process.env.NEXT_PUBLIC_CELO_CUSDC ||
   "0x765DE816845861e75A25fCA122bb6898B8B1282a") as Address;
 
 /**
@@ -23,8 +22,8 @@ export function celoTransportForWagmi(): Transport {
   return http(getCeloRpcUrlForChainId(celo.id));
 }
 
-/** MiniPay `eth_estimateGas` often fails on register; fixed limit avoids UnknownRpcError. */
-export const MINIPAY_REGISTER_GAS = 600_000n;
+/** MiniPay `eth_estimateGas` often fails on register; fixed limit avoids opaque RPC errors. */
+export const MINIPAY_REGISTER_GAS = BigInt(600_000);
 
 export function minipayContractWriteOverrides(): { gas?: bigint } {
   if (typeof window === "undefined") return {};
@@ -34,8 +33,8 @@ export function minipayContractWriteOverrides(): { gas?: bigint } {
 }
 
 /**
- * Register via wagmi `sendTransaction` (MiniPay-recommended), not raw `eth_sendTransaction`.
- * Raw RPC with explicit `from` + `wallet_switchEthereumChain` often returns "permission denied".
+ * MiniPay: use @wagmi/core writeContract (same stack as create-game) with fixed gas.
+ * Avoids raw eth_sendTransaction (permission denied) and sendTransaction feeCurrency typing issues.
  */
 export async function registerPlayerViaMiniPayInjected(params: {
   contractAddress: Address;
@@ -44,37 +43,24 @@ export async function registerPlayerViaMiniPayInjected(params: {
   const username = params.username.trim();
   if (!username) throw new Error("Username cannot be empty");
 
-  const data = encodeFunctionData({
+  const hash = await writeContract(wagmiConfig, {
+    address: params.contractAddress,
     abi: TycoonABI,
     functionName: "registerPlayerWithoutWallet",
     args: [username],
-  });
-
-  const baseTx = {
     chainId: celo.id,
-    to: params.contractAddress,
-    data,
     gas: MINIPAY_REGISTER_GAS,
-  };
-
-  let hash: Hash;
-  try {
-    // Pay gas in cUSD (typical MiniPay balance)
-    hash = await sendTransaction(wagmiConfig, {
-      ...baseTx,
-      feeCurrency: CELO_CUSD_FEE_CURRENCY,
-    } as Parameters<typeof sendTransaction>[1]);
-  } catch (firstErr: unknown) {
-    if (isUserRejectedTransaction(firstErr)) throw firstErr;
-    const hay = String((firstErr as Error)?.message ?? "").toLowerCase();
-    // Retry with native CELO gas if cUSD fee currency is rejected
-    if (hay.includes("permission") || hay.includes("fee") || hay.includes("currency")) {
-      hash = await sendTransaction(wagmiConfig, baseTx);
-    } else {
-      throw firstErr;
-    }
-  }
+  });
 
   await waitForTransactionReceipt(wagmiConfig, { hash, chainId: celo.id });
   return hash;
+}
+
+/** Encode register calldata (e.g. debugging or future provider-specific send). */
+export function encodeRegisterPlayerWithoutWalletCalldata(username: string): `0x${string}` {
+  return encodeFunctionData({
+    abi: TycoonABI,
+    functionName: "registerPlayerWithoutWallet",
+    args: [username.trim()],
+  });
 }
