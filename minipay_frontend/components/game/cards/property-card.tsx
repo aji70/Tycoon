@@ -1,6 +1,7 @@
 import React from "react";
 import Image from "next/image";
 import { Property } from "@/types/game";
+import { vacantPropertyNameLines } from "@/lib/vacantPropertyName";
 
 type Position = "bottom" | "left" | "top" | "right";
 
@@ -50,12 +51,17 @@ const PropertyCard = ({ square, owner }: PropertyCardProps) => {
         style={{ borderColor: color, textSizeAdjust: "none" }}
         aria-label={name}
       >
-        <p
-          className="font-semibold uppercase text-center leading-tight text-[#2d2618] line-clamp-4 w-full"
-          style={{ ...smallTextStyle, fontSize: "clamp(4px, 1.15vw, 6px)" }}
-        >
-          {name}
-        </p>
+        <div className="flex flex-col items-center justify-center gap-0 w-full min-w-0 px-0.5">
+          {vacantPropertyNameLines(name).map((word, i) => (
+            <span
+              key={`${word}-${i}`}
+              className="font-semibold uppercase text-center leading-[1.1] text-[#2d2618] block max-w-full truncate"
+              style={{ ...smallTextStyle, fontSize: "clamp(4px, 1.1vw, 5.5px)" }}
+            >
+              {word}
+            </span>
+          ))}
+        </div>
       </div>
     );
   }

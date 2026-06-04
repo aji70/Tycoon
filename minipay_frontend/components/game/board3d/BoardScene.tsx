@@ -9,6 +9,7 @@ import * as THREE from "three";
 import { getPosition3D, getPosition3DFromGrid } from "./positions";
 import { getSquareName } from "./squareNames";
 import { getPlayerSymbol } from "@/lib/types/symbol";
+import { vacantPropertyNameMultiline } from "@/lib/vacantPropertyName";
 import type { Property } from "@/types/game";
 import type { Player } from "@/types/game";
 
@@ -155,19 +156,16 @@ function SquareTile({
               fontWeight: 600,
               color: "#2d2618",
               textAlign: "center",
-              whiteSpace: isTopOrBottomRow ? "normal" : "nowrap",
-              writingMode: isTopOrBottomRow ? "vertical-rl" : undefined,
-              textOrientation: isTopOrBottomRow ? "mixed" : undefined,
-              maxWidth: isTopOrBottomRow ? "52px" : "110px",
+              whiteSpace: "pre-line",
+              maxWidth: "46px",
               overflow: "hidden",
-              textOverflow: "ellipsis",
               pointerEvents: "none",
               userSelect: "none",
-              lineHeight: 1.2,
+              lineHeight: 1.15,
               textShadow: "0 0 4px rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.25)",
             },
           },
-          displayName
+          vacantPropertyNameMultiline(displayName)
         )
       : null;
 
