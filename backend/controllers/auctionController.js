@@ -3,6 +3,7 @@ import GamePlayer from "../models/GamePlayer.js";
 import { invalidateGameById } from "../utils/gameCache.js";
 import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";
+import { propertyDisplayNameForBoard } from "../utils/boardVariant.js";
 
 /**
  * Get active auction for a game (status = open). Returns null if none.
@@ -63,6 +64,8 @@ async function resolveAuction(req, auctionId) {
       const winner = await trx("game_players").where({ id: winnerBid.game_player_id }).first();
       const property = await trx("properties").where({ id: auction.property_id }).first();
       if (winner && property) {
+        const gameRow = await trx("games").where({ id: gameId }).select("board_id").first();
+        const propLabel = await propertyDisplayNameForBoard(property, gameRow?.board_id);
         await trx("game_players").where({ id: winner.id }).update({
           balance: Number(winner.balance) - Number(winnerBid.amount),
           updated_at: db.fn.now(),
@@ -83,7 +86,7 @@ async function resolveAuction(req, auctionId) {
           action: "property_action",
           amount: -Number(winnerBid.amount),
           extra: null,
-          comment: `won auction for ${property.name} with $${winnerBid.amount}`,
+          comment: `won auction for ${propLabel} with $${winnerBid.amount}`,
           active: 1,
           created_at: db.fn.now(),
           updated_at: db.fn.now(),

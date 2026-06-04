@@ -5,6 +5,7 @@ import GameSetting from "../models/GameSetting.js";
 import User from "../models/User.js";
 import Property from "../models/Property.js";
 import { PROPERTY_ACTION } from "../utils/properties.js";
+import { getSquareNameMap, propertyDisplayName } from "../utils/boardVariant.js";
 import db from "../config/database.js";
 import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
 import {
@@ -368,6 +369,9 @@ const payRent = async (
       return { success: false, message: "Invalid game state or player" };
     }
 
+    const variantNameMap = await getSquareNameMap(game.board_id);
+    const displayPropName = (p) => propertyDisplayName(p, variantNameMap);
+
     // Initialize response variables
     let rent = null;
     let position = new_position;
@@ -576,7 +580,7 @@ const payRent = async (
           .where({ id: position })
           .first();
         if (destProp && destProp.name) {
-          const name = destProp.name;
+          const name = displayPropName(destProp);
           if (position === 0)
             displayInstruction = `Advance to ${name} (Collect $200)`;
           else if (PROPERTY_TYPES.RAILWAY.includes(position))
@@ -611,7 +615,7 @@ const payRent = async (
     } else if (PROPERTY_TYPES.TAX.includes(property.id)) {
       const rentAmount = Number(property.price);
       rent = { player: -rentAmount, owner: 0, players: 0 };
-      comment = `paid ${rentAmount} for ${property.name}`;
+      comment = `paid ${rentAmount} for ${displayPropName(property)}`;
     } else {
       // Fetch game property for owned properties
       game_property = await trx("game_properties")
@@ -822,8 +826,8 @@ const payRent = async (
               players: rent?.players ?? 0,
             };
             comment = comment
-              ? `${comment} Landed on ${destProperty.name}: ${destComment}`
-              : `drew card. Landed on ${destProperty.name}: ${destComment}`;
+              ? `${comment} Landed on ${displayPropName(destProperty)}: ${destComment}`
+              : `drew card. Landed on ${displayPropName(destProperty)}: ${destComment}`;
           }
         } else if (!destGameProperty) {
           requires_buy = true;
@@ -1710,6 +1714,9 @@ const gamePlayerController = {
         });
       }
 
+      const variantNameMap = await getSquareNameMap(game.board_id);
+      const displayPropName = (p) => propertyDisplayName(p, variantNameMap);
+
       // Ensure it's this player's turn
       if (game.next_player_id !== user_id) {
         return await respondAndRollback({
@@ -1808,7 +1815,7 @@ const gamePlayerController = {
             description: `Player moved from ${old_position} → ${new_position}`,
             ...extra,
           }),
-          comment: `${comment ? comment : `Moved to ${property.name}`}`,
+          comment: `${comment ? comment : `Moved to ${displayPropName(property)}`}`,
           active: 1,
           created_at: now,
         });

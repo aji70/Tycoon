@@ -12,6 +12,7 @@ import { invalidateGameById } from "../utils/gameCache.js";
 import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";
 import { ACTIVITY_XP, awardActivityXpByGameUser } from "../services/eloService.js";
+import { propertyDisplayNameForBoard } from "../utils/boardVariant.js";
 
 const gamePropertyController = {
   async create(req, res) {
@@ -227,7 +228,7 @@ const gamePropertyController = {
         action: "property_action",
         amount: -Number(property.price),
         extra: null,
-        comment: `bought ${property.name}`,
+        comment: `bought ${await propertyDisplayNameForBoard(property, game.board_id)}`,
         active: 1,
         created_at: db.fn.now(),
         updated_at: db.fn.now(),
@@ -481,7 +482,7 @@ const gamePropertyController = {
         action: "property_action",
         amount: -Number(property.cost_of_house),
         extra: null,
-        comment: `${buildLabel} ${property.name}`,
+        comment: `${buildLabel} ${await propertyDisplayNameForBoard(property, game.board_id)}`,
         active: 1,
         created_at: db.fn.now(),
         updated_at: db.fn.now(),
@@ -617,7 +618,7 @@ const gamePropertyController = {
         action: "property_action",
         amount: Number(property.cost_of_house) / 2,
         extra: null,
-        comment: `sold a building on ${property.name}`,
+        comment: `sold a building on ${await propertyDisplayNameForBoard(property, game.board_id)}`,
         active: 1,
         created_at: db.fn.now(),
         updated_at: db.fn.now(),
@@ -750,7 +751,7 @@ const gamePropertyController = {
         action: "property_action",
         amount: Number(property.price) / 2,
         extra: null,
-        comment: `mortgaged ${property.name}`,
+        comment: `mortgaged ${await propertyDisplayNameForBoard(property, game.board_id)}`,
         active: 1,
         created_at: db.fn.now(),
         updated_at: db.fn.now(),
@@ -884,7 +885,7 @@ const gamePropertyController = {
         action: "property_action",
         amount: -Number(property.price),
         extra: null,
-        comment: `redeemed ${property.name} from mortgage`,
+        comment: `redeemed ${await propertyDisplayNameForBoard(property, game.board_id)} from mortgage`,
         active: 1,
         created_at: db.fn.now(),
         updated_at: db.fn.now(),
@@ -964,7 +965,7 @@ const gamePropertyController = {
         action: "property_action",
         amount: sellPrice,
         extra: null,
-        comment: `sold ${property.name} back to bank`,
+        comment: `sold ${await propertyDisplayNameForBoard(property, game.board_id)} back to bank`,
         active: 1,
         created_at: db.fn.now(),
         updated_at: db.fn.now(),

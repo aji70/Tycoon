@@ -1,4 +1,5 @@
 import db from "../config/database.js";
+import { remapHistoryForBoardVariant } from "../utils/boardVariant.js";
 
 /**
  * GamePlayHistory Model
@@ -59,7 +60,7 @@ const GamePlayHistory = {
   },
 
   async findByGameId(gameId, { limit = 200, offset = 0 } = {}) {
-    return db("game_play_history as h")
+    const rows = await db("game_play_history as h")
       .leftJoin("game_players as gp", "h.game_player_id", "gp.id")
       .leftJoin("users as u", "gp.user_id", "u.id")
       .leftJoin("agent_slot_assignments as asa", function linkAsa() {
@@ -76,6 +77,8 @@ const GamePlayHistory = {
       .limit(limit)
       .offset(offset)
       .orderBy("h.created_at", "desc"); // chronological order
+    const game = await db("games").where({ id: gameId }).select("board_id").first();
+    return remapHistoryForBoardVariant(rows, game?.board_id);
   },
 
   async findByPlayerId(gamePlayerId, { limit = 100, offset = 0 } = {}) {

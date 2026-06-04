@@ -36,6 +36,71 @@ export async function mergeCanonicalPropertiesWithVariant(canonicalRows, boardVa
   });
 }
 
+/** Display name for a catalog property row (sync; pass map from getSquareNameMap). */
+export function propertyDisplayName(property, nameMap) {
+  if (!property) return "";
+  const alt = nameMap?.get(Number(property.id));
+  return alt ?? String(property.name ?? "");
+}
+
+export async function propertyDisplayNameForBoard(property, boardId) {
+  if (!property) return "";
+  const map = await getSquareNameMap(boardId);
+  return propertyDisplayName(property, map);
+}
+
+function remapTextWithReplacements(text, replacements) {
+  if (text == null || replacements.length === 0) return text;
+  let out = String(text);
+  for (const [from, to] of replacements) {
+    if (from && to && from !== to) out = out.split(from).join(to);
+  }
+  return out;
+}
+
+/** Canonical name → themed name pairs, longest first (safe substring replace in comments). */
+export async function buildPropertyNameReplacements(boardId) {
+  const id = boardId == null || String(boardId).trim() === "" ? DEFAULT_BOARD_ID : String(boardId).trim().toLowerCase();
+  if (id === DEFAULT_BOARD_ID) return [];
+  const map = await getSquareNameMap(id);
+  if (map.size === 0) return [];
+  const canonical = await db("properties").whereNull("board_id").select("id", "name");
+  const replacements = [];
+  for (const p of canonical) {
+    const alt = map.get(Number(p.id));
+    if (alt && alt !== p.name) replacements.push([String(p.name), String(alt)]);
+  }
+  replacements.sort((a, b) => b[0].length - a[0].length);
+  return replacements;
+}
+
+/** Apply board theme names to stored history comments (and extra.description). */
+export async function remapHistoryForBoardVariant(history, boardId) {
+  if (!Array.isArray(history) || history.length === 0) return history ?? [];
+  const replacements = await buildPropertyNameReplacements(boardId);
+  if (replacements.length === 0) return history;
+  return history.map((entry) => {
+    if (!entry || typeof entry !== "object") return entry;
+    const next = { ...entry };
+    if (next.comment != null) {
+      next.comment = remapTextWithReplacements(next.comment, replacements);
+    }
+    if (next.extra != null) {
+      const wasString = typeof next.extra === "string";
+      try {
+        const ex = wasString ? JSON.parse(next.extra) : { ...next.extra };
+        if (ex && typeof ex === "object" && ex.description != null) {
+          ex.description = remapTextWithReplacements(ex.description, replacements);
+          next.extra = wasString ? JSON.stringify(ex) : ex;
+        }
+      } catch {
+        /* keep original extra */
+      }
+    }
+    return next;
+  });
+}
+
 /** Invalidate cached property lists for each known variant (call after mutating properties). */
 export async function invalidatePropertyListCaches(redis) {
   const ids = await db("board_variants").select("id");
