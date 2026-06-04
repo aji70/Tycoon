@@ -1,6 +1,6 @@
 import React from "react";
 import { Property } from "@/types/game";
-import { vacantPropertyNameLines } from "@/lib/vacantPropertyName";
+import VacantLotName from "./VacantLotName";
 
 type Position = "bottom" | "left" | "top" | "right";
 
@@ -25,21 +25,11 @@ const PropertyCardMobile = ({ square, owner }: PropertyCardMobileProps) => {
   if (!isOwned) {
     return (
       <div
-        className={`relative w-full h-full rounded-[2px] bg-[#c9b896]/75 flex items-center justify-center p-0.5 box-border border border-[#1a1510]/35 shadow-[inset_0_0_0_1px_rgba(26,21,16,0.4)] ${orientationClasses[position]}`}
+        className={`relative w-full h-full rounded-[2px] bg-[#c9b896]/75 box-border border border-[#1a1510]/35 shadow-[inset_0_0_0_1px_rgba(26,21,16,0.4)] ${orientationClasses[position]}`}
         style={{ borderColor: color, textSizeAdjust: "none" }}
         aria-label={name}
       >
-        <div className="flex flex-col items-center justify-center gap-0 w-full min-w-0 px-0.5">
-          {vacantPropertyNameLines(name).map((word, i) => (
-            <span
-              key={`${word}-${i}`}
-              className="font-semibold uppercase text-center leading-[1.1] text-[#2d2618] block max-w-full truncate"
-              style={{ ...smallTextStyle, fontSize: "clamp(4px, 1.1vw, 5.5px)" }}
-            >
-              {word}
-            </span>
-          ))}
-        </div>
+        <VacantLotName name={name} />
       </div>
     );
   }
