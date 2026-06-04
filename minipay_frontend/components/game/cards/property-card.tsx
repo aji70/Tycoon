@@ -51,7 +51,12 @@ const PropertyCard = ({ square, owner }: PropertyCardProps) => {
       style={{ borderColor: color, textSizeAdjust: "none" }}
     >
       <div className="flex flex-col items-center pt-1.5">
-        <p className="font-bold uppercase text-center max-w-full truncate" style={{ ...smallTextStyle, fontSize: "clamp(4px, 1.2vw, 6px)" }}>
+        <p
+          className={`font-bold uppercase text-center max-w-full leading-tight px-0.5 ${
+            isOwned ? "truncate" : "line-clamp-3 whitespace-normal"
+          }`}
+          style={{ ...smallTextStyle, fontSize: isOwned ? "clamp(4px, 1.2vw, 6px)" : "clamp(5px, 1.35vw, 7px)" }}
+        >
           {name}
         </p>
         {isOwned && icon && (
@@ -62,11 +67,6 @@ const PropertyCard = ({ square, owner }: PropertyCardProps) => {
             height={25}
             className={`my-1 transform ${imageOrientationClasses[position]}`}
           />
-        )}
-        {!isOwned && (
-          <span className="my-0.5 text-[8px] uppercase tracking-wide opacity-70" style={smallTextStyle}>
-            Vacant
-          </span>
         )}
       </div>
 

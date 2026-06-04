@@ -51,14 +51,14 @@ const PropertyCardMobile = ({ square, owner }: PropertyCardMobileProps) => {
       style={{ borderColor: color, textSizeAdjust: "none" }}
     >
       <div className="flex flex-col items-center pt-1.5">
-        <p className="font-bold uppercase text-center max-w-full truncate" style={{ ...smallTextStyle, fontSize: "clamp(4px, 1.2vw, 6px)" }}>
+        <p
+          className={`font-bold uppercase text-center max-w-full leading-tight px-0.5 ${
+            isOwned ? "truncate" : "line-clamp-3 whitespace-normal"
+          }`}
+          style={{ ...smallTextStyle, fontSize: isOwned ? "clamp(4px, 1.2vw, 6px)" : "clamp(5px, 1.35vw, 7px)" }}
+        >
           {name}
         </p>
-        {!isOwned && (
-          <span className="text-[7px] uppercase tracking-wide opacity-70" style={smallTextStyle}>
-            Vacant
-          </span>
-        )}
       </div>
 
       {owner ? (
