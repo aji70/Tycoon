@@ -65,9 +65,9 @@ export default function BattleSetupOptimized() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 relative overflow-x-hidden flex flex-col pb-10">
-      {/* Scanline overlay */}
-      <ScanlineOverlay />
+    <div className="min-h-[100dvh] pt-[calc(env(safe-area-inset-top)+5.5rem)] md:min-h-0 md:pt-0 bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 relative overflow-x-hidden flex flex-col pb-10">
+      {/* Scanline overlay — static on setup so animated translateY cannot extend scroll height */}
+      <ScanlineOverlay animated={false} />
 
       {/* Content */}
       <div className="relative z-10 flex-1 flex items-start justify-center p-3 sm:p-4 md:p-6 lg:p-8">
@@ -92,8 +92,8 @@ export default function BattleSetupOptimized() {
               <div>
                 <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Select Piece</p>
                 {/* Mobile: Horizontal scroll */}
-                <div className="md:hidden overflow-x-auto pb-2">
-                  <div className="flex gap-2 min-w-min">
+                <div className="md:hidden overflow-x-auto overscroll-x-contain touch-pan-x pb-2 -mx-1 px-1">
+                  <div className="flex gap-2 min-w-min w-max">
                     {GamePieces.map((piece, idx) => (
                       <motion.button
                         key={piece.id}
@@ -352,7 +352,7 @@ export default function BattleSetupOptimized() {
           </div>
 
           {/* LAUNCH BUTTON - Full width */}
-          <div className="flex justify-center mt-8">
+          <div className="flex justify-center mt-8 overflow-hidden">
             <LaunchButton
               onClick={() => playGuard.submit(() => handlePlay())}
               disabled={!canCreate || playGuard.isSubmitting || (!isGuest && isCreatePending)}

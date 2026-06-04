@@ -7,9 +7,9 @@ interface BattleHeaderProps {
 
 export function BattleHeader({ onBack }: BattleHeaderProps) {
   return (
-    <div className="relative mb-6 md:mb-12">
-      {/* Glowing background */}
-      <div className="absolute -inset-4 bg-gradient-to-r from-cyan-500/20 via-cyan-400/10 to-cyan-500/20 rounded-lg md:rounded-2xl blur-3xl opacity-60" />
+    <div className="relative mb-6 md:mb-12 overflow-hidden">
+      {/* Glowing background — clip so blur does not widen scroll width */}
+      <div className="absolute -inset-4 bg-gradient-to-r from-cyan-500/20 via-cyan-400/10 to-cyan-500/20 rounded-lg md:rounded-2xl blur-3xl opacity-60 pointer-events-none" />
 
       <div className="relative">
         <motion.button

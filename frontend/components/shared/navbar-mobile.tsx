@@ -28,6 +28,12 @@ import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 const SCROLL_TOP_THRESHOLD = 40;
 const SCROLL_SENSITIVITY = 8;
 
+/** Form/setup pages: keep header visible — auto-hide on scroll feels broken on long config UIs. */
+function isSetupScrollPage(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return pathname === "/play-ai-3d" || pathname === "/play-ai" || pathname.startsWith("/game-waiting");
+}
+
 interface NavBarMobileProps {
   minimal?: boolean;
 }
@@ -48,6 +54,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
   const { scrollY, scrollYProgress } = useScroll();
 
   const isGamePage = pathname?.includes('/board') || pathname?.includes('game-play') || pathname?.includes('ai-play');
+  const setupPage = isSetupScrollPage(pathname);
   const shopHref = isGamePage && pathname
     ? `/game-shop?returnTo=${encodeURIComponent(pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : ''))}`
     : '/game-shop';
@@ -59,14 +66,18 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
 
   useEffect(() => {
     if (minimal) return;
+    if (setupPage) {
+      setNavVisible(true);
+      return;
+    }
     const y = typeof window !== 'undefined' ? window.scrollY ?? 0 : 0;
     lastScrollY.current = y;
     setNavVisible(y < SCROLL_TOP_THRESHOLD);
     hasScrolled.current = y > 0;
-  }, [minimal]);
+  }, [minimal, setupPage]);
 
   useEffect(() => {
-    if (minimal) return;
+    if (minimal || setupPage) return;
     const unsubscribe = scrollY.on('change', (latest) => {
       const diff = latest - lastScrollY.current;
       if (latest < SCROLL_TOP_THRESHOLD) {
