@@ -128,6 +128,7 @@ function SquareTile({
   const size = 0.9;
   const displayName = square.name || getSquareName(square.id);
   const ownerSuffix = owner ? ` — Owner: ${owner}` : "";
+  const isOwned = !!(owner || ownerSymbol);
   const isRailroadSquare = square.color === "railroad" || [5, 15, 25, 35].includes(square.id);
   const [r, g, b] = isRailroadSquare ? [0.95, 0.95, 0.98] : (square.color && /^#?[0-9A-Fa-f]{6}$/.test(square.color) ? hexToRgb(square.color) : [0.3, 0.35, 0.4]);
   const color = new THREE.Color(r, g, b);
@@ -341,8 +342,11 @@ function SquareTile({
     }
   }
 
-  // ---- RAILROADS: station (light) + colored awning + train (red engine, blue carriage) ----
+  // ---- RAILROADS: empty lot until purchased, then station + train ----
   if (isRailroadSquare) {
+    if (!isOwned) {
+      return createElement("group", groupProps, ground, nameLabel);
+    }
     const platform = createElement("mesh", { position: [x, 0.06, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.85, 0.08, size * 0.5] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
     const station = createElement("mesh", { position: [x, 0.22, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.45, 0.25, size * 0.4] }), createElement("meshStandardMaterial", { color: 0xd5d8dc }));
     const awning = createElement("mesh", { position: [x, 0.38, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.9, 0.04, size * 0.35] }), createElement("meshStandardMaterial", { color: 0x27ae60 }));
@@ -352,8 +356,11 @@ function SquareTile({
     return createElement("group", groupProps, ground, platform, station, awning, engine, chimney, carriage, nameLabel, ownerBadge);
   }
 
-  // ---- UTILITIES: Electric Company (12) vs Water Works (28) ----
+  // ---- UTILITIES: empty lot until purchased ----
   if (square.color === "utility" || [12, 28].includes(id)) {
+    if (!isOwned) {
+      return createElement("group", groupProps, ground, nameLabel);
+    }
     if (id === 12) {
       // Electric Company: substation with transformer, poles, and "Electric" label
       const building = createElement("mesh", { position: [x, 0.14, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.22, size * 0.5] }), createElement("meshStandardMaterial", { color: 0x2c3e50 }));
@@ -469,7 +476,11 @@ function SquareTile({
     return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, steps, building, roof, taxLabel, nameLabel);
   }
 
-  // ---- PROPERTIES: terraced buildings by color group, pitched roof + houses/hotel ----
+  // ---- PROPERTIES: empty colored lot until purchased; then building + houses/hotel ----
+  if (!isOwned) {
+    return createElement("group", groupProps, ground, nameLabel);
+  }
+
   const groupHeight = { brown: 0.14, lightblue: 0.16, pink: 0.18, orange: 0.2, red: 0.22, yellow: 0.2, green: 0.24, darkblue: 0.26 }[group] ?? 0.18;
   const bodyH = groupHeight * 0.65;
   const roofH = groupHeight * 0.35;

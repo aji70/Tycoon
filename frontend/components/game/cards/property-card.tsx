@@ -11,6 +11,7 @@ interface PropertyCardProps {
 
 const PropertyCard = ({ square, owner }: PropertyCardProps) => {
   const { name, price, rent_site_only, color, position, icon } = square;
+  const isOwned = !!owner;
 
   const orientationClasses: Record<Position, string> = {
     bottom: "border-t-8",
@@ -44,14 +45,16 @@ const PropertyCard = ({ square, owner }: PropertyCardProps) => {
 
   return (
     <div
-      className={`relative w-full h-full bg-[#F0F7F7] text-[#0B191A] p-1 flex flex-col justify-between rounded-[2.5px] ${orientationClasses[position]}`}
+      className={`relative w-full h-full p-1 flex flex-col justify-between rounded-[2.5px] ${orientationClasses[position]} ${
+        isOwned ? "bg-[#F0F7F7] text-[#0B191A]" : "bg-[#c9b896]/85 text-[#3d3528]"
+      }`}
       style={{ borderColor: color, textSizeAdjust: "none" }}
     >
       <div className="flex flex-col items-center pt-1.5">
         <p className="font-bold uppercase text-center max-w-full truncate" style={{ ...smallTextStyle, fontSize: "clamp(4px, 1.2vw, 6px)" }}>
           {name}
         </p>
-        {icon && (
+        {isOwned && icon && (
           <Image
             src={icon}
             alt={name}
@@ -59,6 +62,11 @@ const PropertyCard = ({ square, owner }: PropertyCardProps) => {
             height={25}
             className={`my-1 transform ${imageOrientationClasses[position]}`}
           />
+        )}
+        {!isOwned && (
+          <span className="my-0.5 text-[8px] uppercase tracking-wide opacity-70" style={smallTextStyle}>
+            Vacant
+          </span>
         )}
       </div>
 
