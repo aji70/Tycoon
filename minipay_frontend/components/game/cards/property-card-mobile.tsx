@@ -24,7 +24,7 @@ const PropertyCardMobile = ({ square, owner }: PropertyCardMobileProps) => {
   if (!isOwned) {
     return (
       <div
-        className={`relative w-full h-full rounded-[2.5px] bg-[#c9b896]/75 flex items-center justify-center p-0.5 ${orientationClasses[position]}`}
+        className={`relative w-full h-full rounded-[2px] bg-[#c9b896]/75 flex items-center justify-center p-0.5 box-border border border-[#1a1510]/35 shadow-[inset_0_0_0_1px_rgba(26,21,16,0.4)] ${orientationClasses[position]}`}
         style={{ borderColor: color, textSizeAdjust: "none" }}
         aria-label={name}
       >

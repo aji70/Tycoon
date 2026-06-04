@@ -135,13 +135,15 @@ function SquareTile({
   const rotFlat = [-Math.PI / 2, 0, 0] as [number, number, number];
   const type = square.type;
   const id = square.id;
+  const isVacantLot = type === "property" && !isOwned;
+  const groundSize = isVacantLot ? size * 0.93 : size;
   const { group, index: groupIndex } = getGroupIndex(id);
   // Top row (20–29) and bottom row (0–9): vertical text so it doesn't encroach on adjacent properties.
   const isTopOrBottomRow = id <= 9 || (id >= 20 && id <= 29);
 
   // Vacant lots: property name always on tile (no building until owned).
   const vacantLotNameLabel =
-    type === "property" && !isOwned
+    isVacantLot
       ? createElement(
           Html,
           {
@@ -257,7 +259,7 @@ function SquareTile({
   const ground = createElement(
     "mesh",
     { position: [x, 0.005, z] as [number, number, number], rotation: rotFlat, receiveShadow: true },
-    createElement("planeGeometry", { args: [size, size] }),
+    createElement("planeGeometry", { args: [groundSize, groundSize] }),
     createElement("meshStandardMaterial", { color, roughness: 0.85, metalness: 0.05 })
   );
 
