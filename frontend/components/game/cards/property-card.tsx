@@ -43,23 +43,26 @@ const PropertyCard = ({ square, owner }: PropertyCardProps) => {
 
   const smallTextStyle = { fontSize: "clamp(4px, 1.1vw, 6px)", textSizeAdjust: "none" as const };
 
+  if (!isOwned) {
+    return (
+      <div
+        className={`relative w-full h-full rounded-[2.5px] bg-[#c9b896]/75 ${orientationClasses[position]}`}
+        style={{ borderColor: color, textSizeAdjust: "none" }}
+        aria-label="Vacant lot"
+      />
+    );
+  }
+
   return (
     <div
-      className={`relative w-full h-full p-1 flex flex-col justify-between rounded-[2.5px] ${orientationClasses[position]} ${
-        isOwned ? "bg-[#F0F7F7] text-[#0B191A]" : "bg-[#c9b896]/85 text-[#3d3528]"
-      }`}
+      className={`relative w-full h-full bg-[#F0F7F7] text-[#0B191A] p-1 flex flex-col justify-between rounded-[2.5px] ${orientationClasses[position]}`}
       style={{ borderColor: color, textSizeAdjust: "none" }}
     >
       <div className="flex flex-col items-center pt-1.5">
-        <p
-          className={`font-bold uppercase text-center max-w-full leading-tight px-0.5 ${
-            isOwned ? "truncate" : "line-clamp-3 whitespace-normal"
-          }`}
-          style={{ ...smallTextStyle, fontSize: isOwned ? "clamp(4px, 1.2vw, 6px)" : "clamp(5px, 1.35vw, 7px)" }}
-        >
+        <p className="font-bold uppercase text-center max-w-full truncate" style={{ ...smallTextStyle, fontSize: "clamp(4px, 1.2vw, 6px)" }}>
           {name}
         </p>
-        {isOwned && icon && (
+        {icon && (
           <Image
             src={icon}
             alt={name}
@@ -86,15 +89,9 @@ const PropertyCard = ({ square, owner }: PropertyCardProps) => {
         </p>
       )}
 
-      {owner ? (
-        <p className="absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] bottom-0.5 right-0.5 text-amber-600" style={smallTextStyle}>
-          {owner}
-        </p>
-      ) : (
-        <p className="absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] bottom-0.5 right-0.5 text-green-600" style={smallTextStyle}>
-          Available
-        </p>
-      )}
+      <p className="absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] bottom-0.5 right-0.5 text-amber-600" style={smallTextStyle}>
+        {owner}
+      </p>
     </div>
   );
 };
