@@ -139,6 +139,36 @@ function SquareTile({
   // Top row (20–29) and bottom row (0–9): vertical text so it doesn't encroach on adjacent properties.
   const isTopOrBottomRow = id <= 9 || (id >= 20 && id <= 29);
 
+  // Vacant lots: property name always on tile (no building until owned).
+  const vacantLotNameLabel =
+    type === "property" && !isOwned
+      ? createElement(
+          Html,
+          {
+            position: [x, 0.06, z] as [number, number, number],
+            center: true,
+            distanceFactor: 10,
+            style: {
+              fontSize: "8px",
+              fontWeight: 600,
+              color: "#2d2618",
+              textAlign: "center",
+              whiteSpace: isTopOrBottomRow ? "normal" : "nowrap",
+              writingMode: isTopOrBottomRow ? "vertical-rl" : undefined,
+              textOrientation: isTopOrBottomRow ? "mixed" : undefined,
+              maxWidth: isTopOrBottomRow ? "52px" : "110px",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              pointerEvents: "none",
+              userSelect: "none",
+              lineHeight: 1.2,
+              textShadow: "0 0 4px rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.25)",
+            },
+          },
+          displayName
+        )
+      : null;
+
   // Label: only visible on hover when owned; higher for corner buildings (Jail, Go to Jail).
   const labelY = type === "corner" && (id === 10 || id === 30) ? 0.18 : 0.07;
   const nameLabel = hovered
@@ -345,7 +375,7 @@ function SquareTile({
   // ---- RAILROADS: empty lot until purchased, then station + train ----
   if (isRailroadSquare) {
     if (!isOwned) {
-      return createElement("group", groupProps, ground);
+      return createElement("group", groupProps, ground, vacantLotNameLabel);
     }
     const platform = createElement("mesh", { position: [x, 0.06, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.85, 0.08, size * 0.5] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
     const station = createElement("mesh", { position: [x, 0.22, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.45, 0.25, size * 0.4] }), createElement("meshStandardMaterial", { color: 0xd5d8dc }));
@@ -359,7 +389,7 @@ function SquareTile({
   // ---- UTILITIES: empty lot until purchased ----
   if (square.color === "utility" || [12, 28].includes(id)) {
     if (!isOwned) {
-      return createElement("group", groupProps, ground);
+      return createElement("group", groupProps, ground, vacantLotNameLabel);
     }
     if (id === 12) {
       // Electric Company: substation with transformer, poles, and "Electric" label
@@ -478,7 +508,7 @@ function SquareTile({
 
   // ---- PROPERTIES: empty colored lot until purchased; then building + houses/hotel ----
   if (!isOwned) {
-    return createElement("group", groupProps, ground);
+    return createElement("group", groupProps, ground, vacantLotNameLabel);
   }
 
   const groupHeight = { brown: 0.14, lightblue: 0.16, pink: 0.18, orange: 0.2, red: 0.22, yellow: 0.2, green: 0.24, darkblue: 0.26 }[group] ?? 0.18;

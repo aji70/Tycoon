@@ -46,10 +46,17 @@ const PropertyCard = ({ square, owner }: PropertyCardProps) => {
   if (!isOwned) {
     return (
       <div
-        className={`relative w-full h-full rounded-[2.5px] bg-[#c9b896]/75 ${orientationClasses[position]}`}
+        className={`relative w-full h-full rounded-[2.5px] bg-[#c9b896]/75 flex items-center justify-center p-0.5 ${orientationClasses[position]}`}
         style={{ borderColor: color, textSizeAdjust: "none" }}
-        aria-label="Vacant lot"
-      />
+        aria-label={name}
+      >
+        <p
+          className="font-semibold uppercase text-center leading-tight text-[#2d2618] line-clamp-4 w-full"
+          style={{ ...smallTextStyle, fontSize: "clamp(4px, 1.15vw, 6px)" }}
+        >
+          {name}
+        </p>
+      </div>
     );
   }
 
