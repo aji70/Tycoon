@@ -10,9 +10,7 @@ import { getPosition3D, getPosition3DFromGrid } from "./positions";
 import { getSquareName } from "./squareNames";
 import { getPlayerSymbol } from "@/lib/types/symbol";
 import {
-  vacantPropertyNameLines,
-  vacantPropertyNameMultiline,
-  vacantLotLabelFontSizePx,
+  squareNameTextStyle,
 } from "@/lib/vacantPropertyName";
 import type { Property } from "@/types/game";
 import type { Player } from "@/types/game";
@@ -141,14 +139,12 @@ function SquareTile({
   const type = square.type;
   const id = square.id;
   const isVacantLot = type === "property" && !isOwned;
-  const groundSize = isVacantLot ? size * 0.93 : size;
+  const groundSize = size;
   const { group, index: groupIndex } = getGroupIndex(id);
   // Top row (20–29) and bottom row (0–9): vertical text so it doesn't encroach on adjacent properties.
   const isTopOrBottomRow = id <= 9 || (id >= 20 && id <= 29);
 
   // Vacant lots: property name always on tile (no building until owned).
-  const vacantNameLines = vacantPropertyNameLines(displayName);
-  const vacantFontPx = vacantLotLabelFontSizePx(vacantNameLines, 44, 38);
   const vacantLotNameLabel =
     isVacantLot
       ? createElement(
@@ -156,30 +152,17 @@ function SquareTile({
           {
             position: [x, 0.06, z] as [number, number, number],
             center: true,
-            distanceFactor: 9 + vacantFontPx * 0.15,
+            distanceFactor: 10,
             style: {
-              fontSize: `${vacantFontPx}px`,
-              fontWeight: 700,
+              ...squareNameTextStyle,
               color: "#fff",
               textAlign: "center",
-              whiteSpace: "pre-line",
-              width: `${Math.min(44, vacantFontPx * 5.2)}px`,
               maxWidth: "46px",
-              overflow: "hidden",
               pointerEvents: "none",
               userSelect: "none",
-              lineHeight: 1.1,
-              background: "rgba(0,0,0,0.4)",
-              padding: "3px 6px",
-              borderRadius: "6px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              textOverflow: "ellipsis",
             },
           },
-          vacantPropertyNameMultiline(displayName)
+          displayName
         )
       : null;
 
