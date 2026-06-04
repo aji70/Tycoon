@@ -7,10 +7,11 @@ import RollResult from "./roll-result";
 import ActionLog from "./action-log";
 
 import { Property, Player, Game } from "@/types/game";
-
-const bgUrl = "./bb.jpg";
+import { getBoardCenterImageUrl } from "@/lib/boardCenterImage";
 
 type CenterAreaProps = {
+  /** Board theme id from game (`board_id`) — selects center background image */
+  boardId?: string | null;
   isMyTurn: boolean;
   isAITurn: boolean;
   currentPlayer?: Player;
@@ -62,6 +63,7 @@ type CenterAreaProps = {
 };
 
 export default function CenterArea({
+  boardId,
   isMyTurn,
   isAITurn,
   currentPlayer,
@@ -103,6 +105,7 @@ export default function CenterArea({
   jailSubmitting = false,
 }: CenterAreaProps) {
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
+  const centerBgUrl = getBoardCenterImageUrl(boardId);
 
   return (
     <>
@@ -124,9 +127,9 @@ export default function CenterArea({
 
     <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden"
        style={{
-    backgroundImage: `url(/bb.jpg)`,
-    backgroundSize: 'cover',    // ← usually good to add
-    backgroundPosition: 'center',
+    backgroundImage: `url(${centerBgUrl})`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
   }}
      >
       {/* Dice Animation */}

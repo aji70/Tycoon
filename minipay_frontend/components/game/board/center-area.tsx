@@ -7,6 +7,7 @@ import RollResult from "./roll-result";
 import ActionLog from "./action-log";
 
 import { Property, Player, Game } from "@/types/game";
+import { getBoardCenterImageUrl } from "@/lib/boardCenterImage";
 
 type CenterAreaProps = {
   isMyTurn: boolean;
@@ -121,6 +122,7 @@ export default function CenterArea({
   transparentOverlay = false,
 }: CenterAreaProps) {
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
+  const centerBgUrl = getBoardCenterImageUrl(game?.board_id);
 
   return (
     <>
@@ -147,7 +149,7 @@ export default function CenterArea({
           : "col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden"
       }
       style={transparentOverlay ? undefined : {
-        backgroundImage: `url(/bb.jpg)`,
+        backgroundImage: `url(${centerBgUrl})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}

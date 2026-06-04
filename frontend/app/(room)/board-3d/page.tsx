@@ -13,6 +13,7 @@ import type { Property, Player, History, Game, GameProperty } from "@/types/game
 import { PROPERTY_ACTION } from "@/types/game";
 import { getSquareName, getSquareNameFromProperties } from "@/components/game/board3d/squareNames";
 import { getCornersPassed } from "@/components/game/board3d/positions";
+import { getBoardCenterImageUrl } from "@/lib/boardCenterImage";
 import { getPlayerSymbol } from "@/lib/types/symbol";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getDiceValues } from "@/components/game/constants";
@@ -2807,6 +2808,7 @@ function Board3DPageContent() {
                         focusTilePosition={landedPositionForBuy}
                         onFocusComplete={onFocusComplete}
                         spinOrbitDegrees={spinOrbitDegrees}
+                        boardCenterImageUrl={getBoardCenterImageUrl(game?.board_id)}
                       />
                     </Canvas>
                   ) : (

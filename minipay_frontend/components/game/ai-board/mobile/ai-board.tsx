@@ -914,6 +914,7 @@ const endTime =
             currentGameProperties={currentGameProperties}
             animatedPositions={animatedPositions}
             currentPlayerId={currentPlayerId}
+            boardId={currentGame.board_id}
             onPropertyClick={handlePropertyClick}
             centerContent={
               <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative w-full">

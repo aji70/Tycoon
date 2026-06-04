@@ -672,6 +672,7 @@ const MobileGameLayout = ({
             currentGameProperties={game_properties}
             animatedPositions={animatedPositions}
             currentPlayerId={currentPlayerId}
+            boardId={game.board_id}
             onPropertyClick={onPropertyClick}
             centerContent={
               <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative w-full bg-transparent">

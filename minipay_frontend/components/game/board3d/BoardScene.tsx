@@ -69,6 +69,8 @@ type BoardSceneProps = {
   onFocusComplete?: () => void;
   /** When set to a positive value (e.g. 90), orbit the camera by that many degrees (e.g. when passing corners 0, 10, 20, 30) */
   spinOrbitDegrees?: number;
+  /** Center decal image URL (from `getBoardCenterImageUrl(game.board_id)`) */
+  boardCenterImageUrl?: string;
 };
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -580,9 +582,9 @@ function BoardTiles({
   );
 }
 
-/** Center of board: decal with /bb.jpg (same as 2D board center). */
-function BoardCenter() {
-  const texture = useLoader(THREE.TextureLoader, "/bb.jpg");
+/** Center of board: regional background decal (same as 2D board center). */
+function BoardCenter({ imageUrl }: { imageUrl: string }) {
+  const texture = useLoader(THREE.TextureLoader, imageUrl);
   const size = 7;
   return createElement(
     "mesh",
@@ -919,6 +921,7 @@ export default function BoardScene({
   focusTilePosition = null,
   onFocusComplete,
   spinOrbitDegrees = 0,
+  boardCenterImageUrl = "/bb.jpg",
 }: BoardSceneProps) {
   const camera = useThree((s) => s.camera);
   const controlsRef = useRef<any>(null);
@@ -1083,7 +1086,7 @@ export default function BoardScene({
       onSquareClick,
       hideOwnerBadges,
     }),
-    createElement(BoardCenter),
+    createElement(BoardCenter, { key: boardCenterImageUrl, imageUrl: boardCenterImageUrl }),
     rollingDice && onDiceComplete
       ? createElement(RollingDice, {
           key: "dice",

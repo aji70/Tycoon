@@ -6,6 +6,7 @@ import SpecialCard from "../../cards/special-card";
 import CornerCard from "../../cards/corner-card";
 import { getPlayerSymbol } from "@/lib/types/symbol";
 import { GameProperty, Property, Player } from "@/types/game";
+import { getBoardCenterImageUrl } from "@/lib/boardCenterImage";
 
 interface BoardProps {
   properties: Property[];
@@ -14,6 +15,8 @@ interface BoardProps {
   animatedPositions: Record<number, number>;
   currentPlayerId: number | null | undefined;
   onPropertyClick?: (propertyId: number) => void;
+  /** Board theme id (`game.board_id`) — center background image */
+  boardId?: string | null;
   /** Renders in the center of the board (e.g. timers + roll dice) */
   centerContent?: React.ReactNode;
 }
@@ -30,9 +33,11 @@ const Board: React.FC<BoardProps> = ({
   animatedPositions,
   currentPlayerId,
   onPropertyClick,
+  boardId,
   centerContent,
 }) => {
   const boardRef = useRef<HTMLDivElement>(null);
+  const centerBgUrl = getBoardCenterImageUrl(boardId);
 
   const playersByPosition = React.useMemo(() => {
     const map = new Map<number, Player[]>();
@@ -74,9 +79,9 @@ const Board: React.FC<BoardProps> = ({
         {/* Center Area - z-20 so timers + roll dice show above surrounding squares */}
         <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-3 relative overflow-hidden rounded-lg z-20"
          style={{
-    backgroundImage: `url(/bb.jpg)`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
+    backgroundImage: `url(${centerBgUrl})`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
      }}
         >
           {centerContent}
