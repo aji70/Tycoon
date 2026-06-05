@@ -9,9 +9,7 @@ import * as THREE from "three";
 import { getPosition3D, getPosition3DFromGrid } from "./positions";
 import { getSquareName } from "./squareNames";
 import { getPlayerSymbol } from "@/lib/types/symbol";
-import {
-  squareNameTextStyle,
-} from "@/lib/vacantPropertyName";
+import VacantPropertyCard3D from "./VacantPropertyCard3D";
 import type { Property } from "@/types/game";
 import type { Player } from "@/types/game";
 
@@ -138,32 +136,15 @@ function SquareTile({
   const rotFlat = [-Math.PI / 2, 0, 0] as [number, number, number];
   const type = square.type;
   const id = square.id;
-  const isVacantLot = type === "property" && !isOwned;
   const groundSize = size;
   const { group, index: groupIndex } = getGroupIndex(id);
   // Top row (20–29) and bottom row (0–9): vertical text so it doesn't encroach on adjacent properties.
   const isTopOrBottomRow = id <= 9 || (id >= 20 && id <= 29);
 
-  // Vacant lots: property name always on tile (no building until owned).
-  const vacantLotNameLabel =
-    isVacantLot
-      ? createElement(
-          Html,
-          {
-            position: [x, 0.06, z] as [number, number, number],
-            center: true,
-            distanceFactor: 10,
-            style: {
-              ...squareNameTextStyle,
-              color: "#fff",
-              textAlign: "center",
-              maxWidth: "46px",
-              pointerEvents: "none",
-              userSelect: "none",
-            },
-          },
-          displayName
-        )
+  // Unowned purchasable tiles: flat 2D deed card; 3D building appears after purchase.
+  const vacantPropertyCard =
+    type === "property" && !isOwned
+      ? createElement(VacantPropertyCard3D, { square, x, z })
       : null;
 
   // Label: only visible on hover when owned; higher for corner buildings (Jail, Go to Jail).
@@ -372,7 +353,7 @@ function SquareTile({
   // ---- RAILROADS: empty lot until purchased, then station + train ----
   if (isRailroadSquare) {
     if (!isOwned) {
-      return createElement("group", groupProps, ground, vacantLotNameLabel);
+      return createElement("group", groupProps, ground, vacantPropertyCard);
     }
     const platform = createElement("mesh", { position: [x, 0.06, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.85, 0.08, size * 0.5] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
     const station = createElement("mesh", { position: [x, 0.22, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.45, 0.25, size * 0.4] }), createElement("meshStandardMaterial", { color: 0xd5d8dc }));
@@ -386,7 +367,7 @@ function SquareTile({
   // ---- UTILITIES: empty lot until purchased ----
   if (square.color === "utility" || [12, 28].includes(id)) {
     if (!isOwned) {
-      return createElement("group", groupProps, ground, vacantLotNameLabel);
+      return createElement("group", groupProps, ground, vacantPropertyCard);
     }
     if (id === 12) {
       // Electric Company: substation with transformer, poles, and "Electric" label
@@ -505,7 +486,7 @@ function SquareTile({
 
   // ---- PROPERTIES: empty colored lot until purchased; then building + houses/hotel ----
   if (!isOwned) {
-    return createElement("group", groupProps, ground, vacantLotNameLabel);
+    return createElement("group", groupProps, ground, vacantPropertyCard);
   }
 
   const groupHeight = { brown: 0.14, lightblue: 0.16, pink: 0.18, orange: 0.2, red: 0.22, yellow: 0.2, green: 0.24, darkblue: 0.26 }[group] ?? 0.18;
