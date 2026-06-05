@@ -8,9 +8,11 @@ type Position = "bottom" | "left" | "top" | "right";
 interface PropertyCardProps {
   square: Property & { position: Position }; // enforce correct keys
   owner: string | null;
+  /** 3D board: always bottom-row deed layout (flat card + horizontal name). */
+  flatDeed?: boolean;
 }
 
-const PropertyCard = ({ square, owner }: PropertyCardProps) => {
+const PropertyCard = ({ square, owner, flatDeed = false }: PropertyCardProps) => {
   const { name, price, rent_site_only, color, position, icon } = square;
   const isOwned = !!owner;
 
@@ -45,13 +47,14 @@ const PropertyCard = ({ square, owner }: PropertyCardProps) => {
   const smallTextStyle = { fontSize: "clamp(4px, 1.1vw, 6px)", textSizeAdjust: "none" as const };
 
   if (!isOwned) {
+    const vacantPosition: Position = flatDeed ? "bottom" : position;
     return (
       <div
-        className={`relative w-full h-full rounded-[2px] bg-[#c9b896]/75 box-border border border-[#1a1510]/35 shadow-[inset_0_0_0_1px_rgba(26,21,16,0.4)] ${orientationClasses[position]}`}
+        className={`relative w-full h-full rounded-[2px] bg-[#c9b896]/75 box-border border border-[#1a1510]/35 shadow-[inset_0_0_0_1px_rgba(26,21,16,0.4)] ${orientationClasses[vacantPosition]}`}
         style={{ borderColor: color, textSizeAdjust: "none" }}
         aria-label={name}
       >
-        <VacantLotName name={name} />
+        <VacantLotName name={name} layout={flatDeed ? "flat-deed" : "default"} />
       </div>
     );
   }

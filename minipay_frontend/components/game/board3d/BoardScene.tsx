@@ -141,12 +141,6 @@ function SquareTile({
   // Top row (20–29) and bottom row (0–9): vertical text so it doesn't encroach on adjacent properties.
   const isTopOrBottomRow = id <= 9 || (id >= 20 && id <= 29);
 
-  // Unowned purchasable tiles: flat 2D deed card; 3D building appears after purchase.
-  const vacantPropertyCard =
-    type === "property" && !isOwned
-      ? createElement(VacantPropertyCard3D, { square, x, z })
-      : null;
-
   // Label: only visible on hover when owned; higher for corner buildings (Jail, Go to Jail).
   const labelY = type === "corner" && (id === 10 || id === 30) ? 0.18 : 0.07;
   const nameLabel = hovered
@@ -246,6 +240,17 @@ function SquareTile({
     onPointerLeave: () => setHovered(false),
   };
   if (isClickable) (groupProps as Record<string, () => void>).onClick = onClick!;
+
+  // Unowned purchasable tiles: flat 2D deed card; opens same detail popup on click.
+  const vacantPropertyCard =
+    type === "property" && !isOwned
+      ? createElement(VacantPropertyCard3D, {
+          square,
+          x,
+          z,
+          onClick: isClickable ? onClick : undefined,
+        })
+      : null;
 
   // ---- CORNERS: iconic Monopoly look ----
   if (type === "corner") {
