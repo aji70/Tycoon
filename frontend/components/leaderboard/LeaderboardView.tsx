@@ -30,14 +30,12 @@ function RankCard({
   isMe,
   bountyMode,
   bountyCompleted,
-  showGamesPlayed,
 }: {
   row: BountyRow;
   rank: number;
   isMe: boolean;
   bountyMode: boolean;
   bountyCompleted?: boolean;
-  showGamesPlayed: boolean;
 }) {
   const isChampion = rank === 1;
   const inBountyPrize = bountyMode && rank <= 10;
@@ -125,14 +123,6 @@ function RankCard({
             )}
           </div>
         </div>
-        {showGamesPlayed ? (
-          <div className="flex flex-col items-end shrink-0 text-right">
-            <span className="text-[9px] uppercase tracking-widest text-white/40 font-orbitron">Games</span>
-            <span className="text-base sm:text-lg font-black font-orbitron tabular-nums text-cyan-300/90">
-              {row.games_played}
-            </span>
-          </div>
-        ) : null}
         {bountyMode ? (
           <div className="flex flex-col items-end shrink-0 text-right">
             <span className="text-[9px] uppercase tracking-widest text-white/40 font-orbitron">Prize</span>
@@ -273,7 +263,6 @@ export function LeaderboardView({
 }: LeaderboardViewProps) {
   const showRankPill = myLeaderboardUsernames.size > 0 && !loading;
   const bountyMode = timeScope === 'bounty' || isCompletedBountyView;
-  const showGamesPlayed = timeScope === 'bounty' || timeScope === 'month' || isCompletedBountyView;
 
   const gridBgStyle = {
     backgroundImage: `
@@ -384,7 +373,6 @@ export function LeaderboardView({
                     isMe={isMe}
                     bountyMode={bountyMode}
                     bountyCompleted={isCompletedBountyView}
-                    showGamesPlayed={showGamesPlayed}
                   />
                 </div>
               );
