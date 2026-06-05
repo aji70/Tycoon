@@ -12,16 +12,13 @@ import TycoonABI from '@/context/abi/tycoonabi.json';
 import { LeaderboardView } from './LeaderboardView';
 import {
   BOUNTY_MONTH_KEY,
+  COMPLETED_BOUNTY_LIMIT,
+  COMPLETED_BOUNTY_MONTH_KEY,
+  JUNE_2026_END_UTC,
   LEADERBOARD_LIMIT,
-  MAY_2026_END_UTC,
   type BountyRow,
   type TimeScope,
 } from './leaderboard-types';
-
-function defaultLeaderboardMonthKey(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-}
 
 function formatMonthLabelUtc(yyyyMm: string): string {
   const [y, m] = yyyyMm.split('-').map(Number);
@@ -39,7 +36,11 @@ function utcYearMonthOptions(count: number): { value: string; label: string }[] 
   for (let i = 0; i < count; i += 1) {
     const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - i, 1));
     const value = `${x.getUTCFullYear()}-${String(x.getUTCMonth() + 1).padStart(2, '0')}`;
-    out.push({ value, label: formatMonthLabelUtc(value) });
+    const base = formatMonthLabelUtc(value);
+    out.push({
+      value,
+      label: value === COMPLETED_BOUNTY_MONTH_KEY ? `${base} (Completed)` : base,
+    });
   }
   return out;
 }
@@ -91,8 +92,11 @@ export default function Leaderboard() {
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<BountyRow[]>([]);
   const [timeScope, setTimeScope] = useState<TimeScope>('bounty');
-  const [monthKey, setMonthKey] = useState<string>(() => defaultLeaderboardMonthKey());
-  const countdown = useCountdownTo(MAY_2026_END_UTC);
+  const [monthKey, setMonthKey] = useState<string>(BOUNTY_MONTH_KEY);
+  const countdown = useCountdownTo(JUNE_2026_END_UTC);
+
+  const isCompletedBountyView =
+    timeScope === 'month' && monthKey === COMPLETED_BOUNTY_MONTH_KEY;
 
   useEffect(() => {
     setMounted(true);
@@ -126,7 +130,8 @@ export default function Leaderboard() {
       const params: Record<string, string | number> = {
         chain: chainParam,
         type: 'played',
-        limit: LEADERBOARD_LIMIT,
+        limit:
+          isCompletedBountyView ? COMPLETED_BOUNTY_LIMIT : LEADERBOARD_LIMIT,
       };
 
       if (timeScope === 'bounty') {
@@ -153,7 +158,7 @@ export default function Leaderboard() {
     } finally {
       setLoading(false);
     }
-  }, [chainParam, monthKey, mounted, timeScope]);
+  }, [chainParam, isCompletedBountyView, monthKey, mounted, timeScope]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -175,10 +180,12 @@ export default function Leaderboard() {
 
   const infoLabel =
     timeScope === 'bounty'
-      ? `${chainParam} · May 2026 · Finished games only`
-      : timeScope === 'month'
-        ? `${chainParam} · ${formatMonthLabelUtc(monthKey)} · Finished games only`
-        : `${chainParam} · All-time · Finished games only`;
+      ? `${chainParam} · June 2026 · Finished games only`
+      : isCompletedBountyView
+        ? `${chainParam} · May 2026 (Completed) · Final standings · Games played`
+        : timeScope === 'month'
+          ? `${chainParam} · ${formatMonthLabelUtc(monthKey)} · Finished games only`
+          : `${chainParam} · All-time · Finished games only`;
 
   return (
     <LeaderboardView
@@ -196,6 +203,9 @@ export default function Leaderboard() {
       myLeaderboardUsernames={myLeaderboardUsernames}
       onRetry={fetchLeaderboard}
       countdown={countdown}
+      isCompletedBountyView={isCompletedBountyView}
+      activeBountyMonthLabel="June 2026"
+      completedBountyMonthLabel="May 2026"
     />
   );
 }

@@ -29,15 +29,19 @@ function RankCard({
   rank,
   isMe,
   bountyMode,
+  bountyCompleted,
+  showGamesPlayed,
 }: {
   row: BountyRow;
   rank: number;
   isMe: boolean;
   bountyMode: boolean;
+  bountyCompleted?: boolean;
+  showGamesPlayed: boolean;
 }) {
   const isChampion = rank === 1;
   const inBountyPrize = bountyMode && rank <= 10;
-  const outOfBountyPrize = bountyMode && rank > 10;
+  const outOfBountyPrize = bountyMode && rank > 10 && !bountyCompleted;
 
   let borderClass = 'border-white/10 bg-[#081517]/90';
   let badge: React.ReactNode = null;
@@ -64,6 +68,14 @@ function RankCard({
     badge = (
       <span className="text-[10px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-orange-500/50 bg-orange-500/15 text-orange-200">
         VETERAN
+      </span>
+    );
+  }
+
+  if (bountyCompleted && rank > 10) {
+    badge = (
+      <span className="text-[10px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-white/20 bg-white/5 text-white/55">
+        REMAINING
       </span>
     );
   }
@@ -113,6 +125,14 @@ function RankCard({
             )}
           </div>
         </div>
+        {showGamesPlayed ? (
+          <div className="flex flex-col items-end shrink-0 text-right">
+            <span className="text-[9px] uppercase tracking-widest text-white/40 font-orbitron">Games</span>
+            <span className="text-base sm:text-lg font-black font-orbitron tabular-nums text-cyan-300/90">
+              {row.games_played}
+            </span>
+          </div>
+        ) : null}
         {bountyMode ? (
           <div className="flex flex-col items-end shrink-0 text-right">
             <span className="text-[9px] uppercase tracking-widest text-white/40 font-orbitron">Prize</span>
@@ -121,7 +141,7 @@ function RankCard({
                 inBountyPrize ? 'text-amber-300' : 'text-white/35'
               }`}
             >
-              {inBountyPrize ? '5 USDT' : '0 USDT'}
+              {inBountyPrize ? (bountyCompleted ? '5 USDT ✓' : '5 USDT') : '0 USDT'}
             </span>
           </div>
         ) : null}
@@ -130,7 +150,13 @@ function RankCard({
   );
 }
 
-function BountyHeroPanel({ countdown }: { countdown: Countdown }) {
+function BountyHeroPanel({
+  monthLabel,
+  countdown,
+}: {
+  monthLabel: string;
+  countdown: Countdown;
+}) {
   const units = [
     { label: 'Days', value: countdown.days },
     { label: 'Hours', value: countdown.hours },
@@ -147,7 +173,7 @@ function BountyHeroPanel({ countdown }: { countdown: Countdown }) {
     >
       <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
         <h2 className="text-lg sm:text-xl font-black font-orbitron uppercase tracking-wide text-white text-center">
-          🎯 MAY 2026 BOUNTY — ACTIVE
+          🎯 {monthLabel.toUpperCase()} BOUNTY — ACTIVE
         </h2>
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-400/60 bg-emerald-500/20 text-emerald-200 text-xs font-bold uppercase tracking-widest animate-pulse shadow-[0_0_16px_rgba(52,211,153,0.4)]">
           <span className="w-2 h-2 rounded-full bg-emerald-400" />
@@ -179,6 +205,33 @@ function BountyHeroPanel({ countdown }: { countdown: Countdown }) {
   );
 }
 
+function BountyCompletedPanel({ monthLabel }: { monthLabel: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45 }}
+      className="mb-8 rounded-2xl border-2 border-slate-500/40 bg-gradient-to-br from-slate-900/50 via-[#081517]/95 to-[#081517]/90 p-5 sm:p-8"
+    >
+      <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+        <h2 className="text-lg sm:text-xl font-black font-orbitron uppercase tracking-wide text-white text-center">
+          🏁 {monthLabel.toUpperCase()} BOUNTY — COMPLETED
+        </h2>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-400/50 bg-slate-500/20 text-slate-200 text-xs font-bold uppercase tracking-widest">
+          FINAL
+        </span>
+      </div>
+
+      <p className="text-center text-base sm:text-lg font-bold text-amber-200/90 mb-2">
+        Top 10 won 5 USDT each · Ranked by games played
+      </p>
+      <p className="text-center text-sm text-white/55 max-w-xl mx-auto">
+        All remaining players are listed below with their final game counts.
+      </p>
+    </motion.div>
+  );
+}
+
 export type LeaderboardViewProps = {
   chainParam: string;
   timeScope: TimeScope;
@@ -194,6 +247,9 @@ export type LeaderboardViewProps = {
   myLeaderboardUsernames: Set<string>;
   onRetry: () => void;
   countdown: Countdown;
+  isCompletedBountyView: boolean;
+  activeBountyMonthLabel: string;
+  completedBountyMonthLabel: string;
 };
 
 export function LeaderboardView({
@@ -211,8 +267,13 @@ export function LeaderboardView({
   myLeaderboardUsernames,
   onRetry,
   countdown,
+  isCompletedBountyView,
+  activeBountyMonthLabel,
+  completedBountyMonthLabel,
 }: LeaderboardViewProps) {
   const showRankPill = myLeaderboardUsernames.size > 0 && !loading;
+  const bountyMode = timeScope === 'bounty' || isCompletedBountyView;
+  const showGamesPlayed = timeScope === 'bounty' || timeScope === 'month' || isCompletedBountyView;
 
   const gridBgStyle = {
     backgroundImage: `
@@ -224,9 +285,7 @@ export function LeaderboardView({
 
   return (
     <div className="relative min-h-screen bg-[#020a0b] text-white overflow-hidden">
-      
       <div className="pointer-events-none absolute inset-0 opacity-40" style={gridBgStyle} />
-      
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,#10343b_0%,#061416_45%,transparent_70%)]" />
 
       <header className="relative z-20 border-b border-cyan-400/15 bg-[#031012]/70 backdrop-blur-xl">
@@ -289,7 +348,12 @@ export function LeaderboardView({
           <span className="font-medium tracking-wide">{infoLabel}</span>
         </div>
 
-        {timeScope === 'bounty' && <BountyHeroPanel countdown={countdown} />}
+        {timeScope === 'bounty' && (
+          <BountyHeroPanel monthLabel={activeBountyMonthLabel} countdown={countdown} />
+        )}
+        {isCompletedBountyView && (
+          <BountyCompletedPanel monthLabel={completedBountyMonthLabel} />
+        )}
 
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-white/10 bg-black/30 py-20">
@@ -302,13 +366,11 @@ export function LeaderboardView({
             <button type="button" onClick={onRetry} className="rounded-full border-2 border-cyan-400/50 bg-cyan-500/15 px-5 py-2 font-semibold text-cyan-100 hover:shadow-[0_0_16px_rgba(0,240,255,0.35)] transition">Retry</button>
           </div>
         ) : rows.length === 0 ? (
-          
           <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-black/30 py-16 text-white/60">
             <Users className="h-10 w-10 text-cyan-300/70" />
             <p>No entries yet for this scope.</p>
           </div>
         ) : (
-          
           <div className="space-y-3 sm:space-y-4">
             {rows.map((row, idx) => {
               const rank = idx + 1;
@@ -316,7 +378,14 @@ export function LeaderboardView({
               return (
                 <div key={`${row.id}-${rank}`} className="relative">
                   {rank === 1 && <div className="pointer-events-none absolute -inset-4 rounded-3xl bg-amber-400/10 blur-2xl opacity-70" aria-hidden />}
-                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={timeScope === 'bounty'} />
+                  <RankCard
+                    row={row}
+                    rank={rank}
+                    isMe={isMe}
+                    bountyMode={bountyMode}
+                    bountyCompleted={isCompletedBountyView}
+                    showGamesPlayed={showGamesPlayed}
+                  />
                 </div>
               );
             })}
