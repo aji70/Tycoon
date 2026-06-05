@@ -6,28 +6,8 @@ import type { Property } from "@/types/game";
 
 const CARD_PX = 76;
 
-/**
- * Flat on the board like bottom-row tiles (0–9), with Y spin so the deed
- * face + text point toward the board center from every edge.
- */
-function flatCardRotation(square: Property): [number, number, number] {
-  const row = square.grid_row;
-  const col = square.grid_col;
-
-  // Reference: positions 0–9 (grid_row 11) — Y = 0
-  if (row === 11) return [-Math.PI / 2, 0, 0];
-  if (row === 1) return [-Math.PI / 2, Math.PI, 0];
-  if (col === 1) return [-Math.PI / 2, Math.PI / 2, 0];
-  if (col === 11) return [-Math.PI / 2, -Math.PI / 2, 0];
-
-  const yByPosition: Record<string, number> = {
-    bottom: 0,
-    top: Math.PI,
-    left: Math.PI / 2,
-    right: -Math.PI / 2,
-  };
-  return [-Math.PI / 2, yByPosition[square.position] ?? 0, 0];
-}
+/** Same flat lay + orientation as mobile bottom row (grid_row 11). */
+const BOTTOM_ROW_ROTATION: [number, number, number] = [-Math.PI / 2, 0, 0];
 
 /** Flat 2D property card on an unowned 3D tile; replaced by 3D buildings once owned. */
 export default function VacantPropertyCard3D({
@@ -45,7 +25,7 @@ export default function VacantPropertyCard3D({
     <Html
       transform
       position={[x, 0.035, z]}
-      rotation={flatCardRotation(square)}
+      rotation={BOTTOM_ROW_ROTATION}
       scale={0.44}
       center
       style={{
@@ -72,7 +52,6 @@ export default function VacantPropertyCard3D({
         <PropertyCard
           square={{ ...square, position: "bottom" }}
           owner={null}
-          flatDeed
         />
       </div>
     </Html>

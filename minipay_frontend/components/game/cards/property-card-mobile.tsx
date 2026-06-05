@@ -9,23 +9,19 @@ interface PropertyCardMobileProps {
   owner: string | null;
 }
 
-const PropertyCardMobile = ({ square, owner }: PropertyCardMobileProps) => {
-  const { name, color, position } = square;
-  const isOwned = !!owner;
+/** Bottom-row deed layout — reference style for every property side on mobile. */
+const BOTTOM_ROW_CLASS = "border-t-8";
 
-  const orientationClasses: Record<Position, string> = {
-    bottom: "border-t-8",
-    left: "border-t-8 rotate-90",
-    top: "border-b-8",
-    right: "border-t-8 -rotate-90",
-  };
+const PropertyCardMobile = ({ square, owner }: PropertyCardMobileProps) => {
+  const { name, color } = square;
+  const isOwned = !!owner;
 
   const smallTextStyle = { fontSize: "clamp(4px, 1.1vw, 6px)", textSizeAdjust: "none" as const };
 
   if (!isOwned) {
     return (
       <div
-        className={`relative w-full h-full rounded-[2px] bg-[#c9b896]/75 box-border border border-[#1a1510]/35 shadow-[inset_0_0_0_1px_rgba(26,21,16,0.4)] ${orientationClasses[position]}`}
+        className={`relative w-full h-full rounded-[2px] bg-[#c9b896]/75 box-border border border-[#1a1510]/35 shadow-[inset_0_0_0_1px_rgba(26,21,16,0.4)] ${BOTTOM_ROW_CLASS}`}
         style={{ borderColor: color, textSizeAdjust: "none" }}
         aria-label={name}
       >
@@ -36,7 +32,7 @@ const PropertyCardMobile = ({ square, owner }: PropertyCardMobileProps) => {
 
   return (
     <div
-      className={`relative w-full h-full bg-[#F0F7F7] text-[#0B191A] p-1 flex flex-col justify-between rounded-[2.5px] ${orientationClasses[position]}`}
+      className={`relative w-full h-full bg-[#F0F7F7] text-[#0B191A] p-1 flex flex-col justify-between rounded-[2.5px] ${BOTTOM_ROW_CLASS}`}
       style={{ borderColor: color, textSizeAdjust: "none" }}
     >
       <div className="flex flex-col items-center pt-1.5">
