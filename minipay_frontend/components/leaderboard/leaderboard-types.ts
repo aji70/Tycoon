@@ -6,13 +6,13 @@ export interface BountyRow {
 
 export type TimeScope = 'all' | 'month' | 'bounty';
 
-/** Active monthly bounty (June 2026). */
-export const BOUNTY_MONTH_KEY = '2026-06';
-export const JUNE_2026_END_UTC = Date.UTC(2026, 6, 1, 0, 0, 0, 0);
+/** Featured bounty month (default Bounty tab). */
+export const BOUNTY_MONTH_KEY = '2026-05';
+export const BOUNTY_MONTH_LABEL = 'May 2026';
 
-/** Completed May 2026 bounty — final standings. */
-export const COMPLETED_BOUNTY_MONTH_KEY = '2026-05';
+/** May bounty has ended — show final standings on the Bounty tab. */
+export const BOUNTY_COMPLETED = true;
 
 export const LEADERBOARD_LIMIT = 20;
-/** Show all remaining May players beyond the top 10 prize slots. */
+/** Full May standings (top 10 + remaining players). */
 export const COMPLETED_BOUNTY_LIMIT = 100;

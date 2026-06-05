@@ -2,23 +2,36 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAccount, useChainId, useReadContract } from 'wagmi';
-import { celo } from 'wagmi/chains';
-import { Loader2 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
-import { chainIdToLeaderboardChain } from '@/lib/profile-stats-address';
 import { TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { LeaderboardView } from './LeaderboardView';
 import {
+  BOUNTY_COMPLETED,
   BOUNTY_MONTH_KEY,
+  BOUNTY_MONTH_LABEL,
   COMPLETED_BOUNTY_LIMIT,
-  COMPLETED_BOUNTY_MONTH_KEY,
-  JUNE_2026_END_UTC,
   LEADERBOARD_LIMIT,
   type BountyRow,
   type TimeScope,
 } from './leaderboard-types';
+
+function chainIdToLeaderboardChain(chainId: number): string {
+  switch (chainId) {
+    case 137:
+    case 80001:
+      return 'POLYGON';
+    case 42220:
+    case 44787:
+      return 'CELO';
+    case 8453:
+    case 84531:
+      return 'BASE';
+    default:
+      return 'CELO';
+  }
+}
 
 function formatMonthLabelUtc(yyyyMm: string): string {
   const [y, m] = yyyyMm.split('-').map(Number);
@@ -37,23 +50,21 @@ function utcYearMonthOptions(count: number): { value: string; label: string }[] 
     const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - i, 1));
     const value = `${x.getUTCFullYear()}-${String(x.getUTCMonth() + 1).padStart(2, '0')}`;
     const base = formatMonthLabelUtc(value);
-    out.push({
-      value,
-      label: value === COMPLETED_BOUNTY_MONTH_KEY ? `${base} (Completed)` : base,
-    });
+    const suffix =
+      value === BOUNTY_MONTH_KEY && BOUNTY_COMPLETED ? ' (Active · Completed)' : '';
+    out.push({ value, label: `${base}${suffix}` });
   }
   return out;
 }
 
 function normalizeLeaderboardArray(res: unknown): BountyRow[] {
-  const payload = res && typeof res === 'object' && 'data' in (res as object) ? (res as { data?: unknown }).data : res;
-  let list: unknown = payload;
-  if (Array.isArray(payload)) {
-    list = payload;
-  } else if (payload && typeof payload === 'object') {
-    const obj = payload as { data?: unknown; leaderboard?: unknown };
-    if (Array.isArray(obj.data)) list = obj.data;
-    else if (Array.isArray(obj.leaderboard)) list = obj.leaderboard;
+  const raw = (res as { data?: unknown })?.data;
+  let list: unknown = raw;
+  if (Array.isArray(raw)) list = raw;
+  else if (raw && typeof raw === 'object' && Array.isArray((raw as { data?: unknown[] }).data)) {
+    list = (raw as { data: unknown[] }).data;
+  } else if (raw && typeof raw === 'object' && Array.isArray((raw as { leaderboard?: unknown[] }).leaderboard)) {
+    list = (raw as { leaderboard: unknown[] }).leaderboard;
   }
   if (!Array.isArray(list)) return [];
   return list.map((row: Record<string, unknown>, index: number) => ({
@@ -63,51 +74,30 @@ function normalizeLeaderboardArray(res: unknown): BountyRow[] {
   }));
 }
 
-function useCountdownTo(targetMs: number) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const diff = Math.max(0, targetMs - now);
-  return {
-    days: Math.floor(diff / 86400000),
-    hours: Math.floor((diff % 86400000) / 3600000),
-    minutes: Math.floor((diff % 3600000) / 60000),
-    seconds: Math.floor((diff % 60000) / 1000),
-  };
-}
-
 export default function Leaderboard() {
-  const [mounted, setMounted] = useState(false);
   const { address: walletAddress } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUsername = guestAuth?.guestUser?.username?.trim() || '';
   const chainId = useChainId();
-  const effectiveChainId = chainId ?? celo.id;
-  const chainParam = chainIdToLeaderboardChain(effectiveChainId);
-  const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[effectiveChainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
+  const chainParam = chainIdToLeaderboardChain(chainId);
+  const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<BountyRow[]>([]);
   const [timeScope, setTimeScope] = useState<TimeScope>('bounty');
   const [monthKey, setMonthKey] = useState<string>(BOUNTY_MONTH_KEY);
-  const countdown = useCountdownTo(JUNE_2026_END_UTC);
 
-  const isCompletedBountyView =
-    timeScope === 'month' && monthKey === COMPLETED_BOUNTY_MONTH_KEY;
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const isMayView =
+    timeScope === 'bounty' ||
+    (timeScope === 'month' && monthKey === BOUNTY_MONTH_KEY);
 
   const { data: username } = useReadContract({
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'addressToUsername',
-    args: walletAddress ? [walletAddress as `0x${string}`] : undefined,
-    query: { enabled: mounted && !!walletAddress && !!tycoonAddress },
+    args: walletAddress ? [walletAddress] : undefined,
+    query: { enabled: !!walletAddress && !!tycoonAddress },
   });
 
   const myLeaderboardUsernames = useMemo(() => {
@@ -121,17 +111,15 @@ export default function Leaderboard() {
   const monthOptions = useMemo(() => utcYearMonthOptions(12), []);
 
   const fetchLeaderboard = useCallback(async () => {
-    if (!mounted) return;
-
     setRows([]);
     setLoading(true);
     setError(null);
     try {
+      const useFullMayList = isMayView && BOUNTY_COMPLETED;
       const params: Record<string, string | number> = {
         chain: chainParam,
         type: 'played',
-        limit:
-          isCompletedBountyView ? COMPLETED_BOUNTY_LIMIT : LEADERBOARD_LIMIT,
+        limit: useFullMayList ? COMPLETED_BOUNTY_LIMIT : LEADERBOARD_LIMIT,
       };
 
       if (timeScope === 'bounty') {
@@ -158,20 +146,11 @@ export default function Leaderboard() {
     } finally {
       setLoading(false);
     }
-  }, [chainParam, isCompletedBountyView, monthKey, mounted, timeScope]);
+  }, [chainParam, isMayView, monthKey, timeScope]);
 
   useEffect(() => {
-    if (!mounted) return;
     fetchLeaderboard();
-  }, [fetchLeaderboard, mounted]);
-
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#020a0b]">
-        <Loader2 className="h-10 w-10 animate-spin text-cyan-300" />
-      </div>
-    );
-  }
+  }, [fetchLeaderboard]);
 
   const myPosition =
     myLeaderboardUsernames.size > 0
@@ -179,13 +158,15 @@ export default function Leaderboard() {
       : 0;
 
   const infoLabel =
-    timeScope === 'bounty'
-      ? `${chainParam} · June 2026 · Finished games only`
-      : isCompletedBountyView
-        ? `${chainParam} · May 2026 (Completed) · Final standings · Games played`
-        : timeScope === 'month'
-          ? `${chainParam} · ${formatMonthLabelUtc(monthKey)} · Finished games only`
-          : `${chainParam} · All-time · Finished games only`;
+    timeScope === 'bounty' && BOUNTY_COMPLETED
+      ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Active bounty · Final standings`
+      : timeScope === 'bounty'
+        ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Finished games only`
+        : timeScope === 'month' && monthKey === BOUNTY_MONTH_KEY && BOUNTY_COMPLETED
+          ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Active · Completed · Final standings`
+          : timeScope === 'month'
+            ? `${chainParam} · ${formatMonthLabelUtc(monthKey)} · Finished games only`
+            : `${chainParam} · All-time · Finished games only`;
 
   return (
     <LeaderboardView
@@ -202,10 +183,9 @@ export default function Leaderboard() {
       myPosition={myPosition}
       myLeaderboardUsernames={myLeaderboardUsernames}
       onRetry={fetchLeaderboard}
-      countdown={countdown}
-      isCompletedBountyView={isCompletedBountyView}
-      activeBountyMonthLabel="June 2026"
-      completedBountyMonthLabel="May 2026"
+      bountyMonthLabel={BOUNTY_MONTH_LABEL}
+      bountyCompleted={BOUNTY_COMPLETED}
+      isMayBountyView={isMayView && BOUNTY_COMPLETED}
     />
   );
 }

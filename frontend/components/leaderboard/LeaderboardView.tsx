@@ -6,8 +6,6 @@ import { motion } from 'framer-motion';
 import { CalendarDays, ChevronLeft, Coins, Info, Loader2, Users, Zap } from 'lucide-react';
 import type { BountyRow, TimeScope } from './leaderboard-types';
 
-type Countdown = { days: number; hours: number; minutes: number; seconds: number };
-
 function tabPillClass(active: boolean, bounty = false): string {
   const base =
     'shrink-0 px-4 py-2.5 rounded-full text-sm font-semibold font-orbitron tracking-wide border-2 transition-all duration-300 inline-flex items-center gap-2';
@@ -140,83 +138,33 @@ function RankCard({
   );
 }
 
-function BountyHeroPanel({
-  monthLabel,
-  countdown,
-}: {
-  monthLabel: string;
-  countdown: Countdown;
-}) {
-  const units = [
-    { label: 'Days', value: countdown.days },
-    { label: 'Hours', value: countdown.hours },
-    { label: 'Minutes', value: countdown.minutes },
-    { label: 'Seconds', value: countdown.seconds },
-  ];
-
+function MayBountyActiveCompletedPanel({ monthLabel }: { monthLabel: string }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45 }}
-      className="mb-8 rounded-2xl border-2 border-emerald-500/40 bg-gradient-to-br from-emerald-950/40 via-[#081517]/95 to-amber-950/30 p-5 sm:p-8 shadow-[0_0_48px_rgba(16,185,129,0.12)]"
+      className="mb-8 rounded-2xl border-2 border-amber-500/35 bg-gradient-to-br from-amber-950/30 via-[#081517]/95 to-slate-900/50 p-5 sm:p-8 shadow-[0_0_48px_rgba(251,191,36,0.1)]"
     >
       <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
         <h2 className="text-lg sm:text-xl font-black font-orbitron uppercase tracking-wide text-white text-center">
-          🎯 {monthLabel.toUpperCase()} BOUNTY — ACTIVE
+          🎯 {monthLabel.toUpperCase()} BOUNTY
         </h2>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-400/60 bg-emerald-500/20 text-emerald-200 text-xs font-bold uppercase tracking-widest animate-pulse shadow-[0_0_16px_rgba(52,211,153,0.4)]">
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
-          LIVE
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-400/60 bg-emerald-500/20 text-emerald-200 text-xs font-bold uppercase tracking-widest shadow-[0_0_12px_rgba(52,211,153,0.25)]">
+          ACTIVE
+        </span>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-400/50 bg-slate-500/20 text-slate-200 text-xs font-bold uppercase tracking-widest">
+          COMPLETED
         </span>
       </div>
 
       <p className="text-center text-lg sm:text-2xl md:text-3xl font-black text-amber-300 mb-2 flex flex-wrap items-center justify-center gap-2 px-2">
         <Coins className="w-7 h-7 sm:w-8 sm:h-8 text-amber-400 shrink-0" />
-        TOP 10 PLAYERS WIN 5 USDT EACH
+        TOP 10 PLAYERS WON 5 USDT EACH
       </p>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 max-w-lg sm:max-w-2xl mx-auto my-6">
-        {units.map((u) => (
-          <div
-            key={u.label}
-            className="rounded-xl border border-cyan-500/25 bg-[#020a0b]/80 py-3 px-2 text-center"
-          >
-            <p className="text-2xl sm:text-3xl font-black tabular-nums text-cyan-300">{u.value}</p>
-            <p className="text-[10px] sm:text-xs uppercase tracking-widest text-white/50 mt-1">{u.label}</p>
-          </div>
-        ))}
-      </div>
 
       <p className="text-center text-sm text-white/55 max-w-xl mx-auto">
-        Rankings based on games played this month. Play more to climb.
-      </p>
-    </motion.div>
-  );
-}
-
-function BountyCompletedPanel({ monthLabel }: { monthLabel: string }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45 }}
-      className="mb-8 rounded-2xl border-2 border-slate-500/40 bg-gradient-to-br from-slate-900/50 via-[#081517]/95 to-[#081517]/90 p-5 sm:p-8"
-    >
-      <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
-        <h2 className="text-lg sm:text-xl font-black font-orbitron uppercase tracking-wide text-white text-center">
-          🏁 {monthLabel.toUpperCase()} BOUNTY — COMPLETED
-        </h2>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-400/50 bg-slate-500/20 text-slate-200 text-xs font-bold uppercase tracking-widest">
-          FINAL
-        </span>
-      </div>
-
-      <p className="text-center text-base sm:text-lg font-bold text-amber-200/90 mb-2">
-        Top 10 won 5 USDT each · Ranked by games played
-      </p>
-      <p className="text-center text-sm text-white/55 max-w-xl mx-auto">
-        All remaining players are listed below with their final game counts.
+        Final standings ranked by games played. All remaining players are listed below.
       </p>
     </motion.div>
   );
@@ -236,10 +184,9 @@ export type LeaderboardViewProps = {
   myPosition: number;
   myLeaderboardUsernames: Set<string>;
   onRetry: () => void;
-  countdown: Countdown;
-  isCompletedBountyView: boolean;
-  activeBountyMonthLabel: string;
-  completedBountyMonthLabel: string;
+  bountyMonthLabel: string;
+  bountyCompleted: boolean;
+  isMayBountyView: boolean;
 };
 
 export function LeaderboardView({
@@ -256,13 +203,12 @@ export function LeaderboardView({
   myPosition,
   myLeaderboardUsernames,
   onRetry,
-  countdown,
-  isCompletedBountyView,
-  activeBountyMonthLabel,
-  completedBountyMonthLabel,
+  bountyMonthLabel,
+  bountyCompleted,
+  isMayBountyView,
 }: LeaderboardViewProps) {
   const showRankPill = myLeaderboardUsernames.size > 0 && !loading;
-  const bountyMode = timeScope === 'bounty' || isCompletedBountyView;
+  const bountyMode = isMayBountyView;
 
   const gridBgStyle = {
     backgroundImage: `
@@ -310,7 +256,7 @@ export function LeaderboardView({
         <div className="mb-6 -mx-1 px-1 overflow-x-auto scrollbar-none">
           <div className="flex flex-nowrap items-center justify-start sm:justify-center gap-2 min-w-min pb-1">
             <button type="button" onClick={() => setTimeScope('bounty')} className={tabPillClass(timeScope === 'bounty', true)}>
-              <span className={timeScope === 'bounty' ? 'animate-pulse' : ''}>💰</span> Bounty
+              <span className={timeScope === 'bounty' ? 'animate-pulse' : ''}>💰</span> May Bounty
             </button>
             <button type="button" onClick={() => setTimeScope('month')} className={tabPillClass(timeScope === 'month')}>
               <CalendarDays className="h-4 w-4 opacity-90" /> Monthly
@@ -337,11 +283,8 @@ export function LeaderboardView({
           <span className="font-medium tracking-wide">{infoLabel}</span>
         </div>
 
-        {timeScope === 'bounty' && (
-          <BountyHeroPanel monthLabel={activeBountyMonthLabel} countdown={countdown} />
-        )}
-        {isCompletedBountyView && (
-          <BountyCompletedPanel monthLabel={completedBountyMonthLabel} />
+        {isMayBountyView && bountyCompleted && (
+          <MayBountyActiveCompletedPanel monthLabel={bountyMonthLabel} />
         )}
 
         {loading ? (
@@ -372,7 +315,7 @@ export function LeaderboardView({
                     rank={rank}
                     isMe={isMe}
                     bountyMode={bountyMode}
-                    bountyCompleted={isCompletedBountyView}
+                    bountyCompleted={bountyCompleted}
                   />
                 </div>
               );
