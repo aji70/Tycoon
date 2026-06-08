@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { CalendarDays, ChevronLeft, Coins, Info, Loader2, Users, Zap } from 'lucide-react';
 import type { BountyRow, TimeScope } from './leaderboard-types';
+import { BOUNTY_WINNER_COUNT } from './leaderboard-types';
 
 function tabPillClass(active: boolean, bounty = false): string {
   const base =
@@ -22,58 +23,82 @@ function profileHrefForUsername(username: string): string {
   return `/u/${encodeURIComponent(username)}`;
 }
 
+type RankCardTier = 'winner' | 'rest' | 'normal';
+
 function RankCard({
   row,
   rank,
   isMe,
   bountyMode,
   bountyCompleted,
+  tier = 'normal',
 }: {
   row: BountyRow;
   rank: number;
   isMe: boolean;
   bountyMode: boolean;
   bountyCompleted?: boolean;
+  tier?: RankCardTier;
 }) {
-  const isChampion = rank === 1;
-  const inBountyPrize = bountyMode && rank <= 10;
-  const outOfBountyPrize = bountyMode && rank > 10 && !bountyCompleted;
+  const isChampion = tier === 'winner' && rank === 1;
+  const showPrize = tier === 'winner' && bountyMode;
+  const isRest = tier === 'rest';
 
   let borderClass = 'border-white/10 bg-[#081517]/90';
   let badge: React.ReactNode = null;
 
-  if (isChampion) {
-    borderClass =
-      'border-amber-400/70 bg-gradient-to-r from-amber-950/50 via-[#081517]/95 to-[#081517]/90 shadow-[0_0_32px_rgba(251,191,36,0.25)]';
-    badge = (
-      <span className="text-[10px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-amber-400/60 bg-amber-500/20 text-amber-200">
-        CHAMPION
-      </span>
-    );
-  } else if (rank === 2) {
-    borderClass =
-      'border-slate-300/50 bg-gradient-to-r from-slate-400/10 via-[#081517]/95 to-[#081517]/90 shadow-[0_0_20px_rgba(203,213,225,0.15)]';
-    badge = (
-      <span className="text-[10px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-slate-300/50 bg-slate-400/15 text-slate-200">
-        ELITE
-      </span>
-    );
-  } else if (rank === 3) {
-    borderClass =
-      'border-orange-600/50 bg-gradient-to-r from-orange-950/40 via-[#081517]/95 to-[#081517]/90 shadow-[0_0_18px_rgba(234,88,12,0.12)]';
-    badge = (
-      <span className="text-[10px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-orange-500/50 bg-orange-500/15 text-orange-200">
-        VETERAN
-      </span>
-    );
-  }
-
-  if (bountyCompleted && rank > 10) {
-    badge = (
-      <span className="text-[10px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-white/20 bg-white/5 text-white/55">
-        REMAINING
-      </span>
-    );
+  if (tier === 'winner') {
+    if (isChampion) {
+      borderClass =
+        'border-amber-400/70 bg-gradient-to-r from-amber-950/50 via-[#081517]/95 to-[#081517]/90 shadow-[0_0_32px_rgba(251,191,36,0.25)]';
+      badge = (
+        <span className="text-[10px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-amber-400/60 bg-amber-500/20 text-amber-200">
+          CHAMPION
+        </span>
+      );
+    } else if (rank === 2) {
+      borderClass =
+        'border-slate-300/50 bg-gradient-to-r from-slate-400/10 via-[#081517]/95 to-[#081517]/90 shadow-[0_0_20px_rgba(203,213,225,0.15)]';
+      badge = (
+        <span className="text-[10px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-slate-300/50 bg-slate-400/15 text-slate-200">
+          ELITE
+        </span>
+      );
+    } else if (rank === 3) {
+      borderClass =
+        'border-orange-600/50 bg-gradient-to-r from-orange-950/40 via-[#081517]/95 to-[#081517]/90 shadow-[0_0_18px_rgba(234,88,12,0.12)]';
+      badge = (
+        <span className="text-[10px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-orange-500/50 bg-orange-500/15 text-orange-200">
+          VETERAN
+        </span>
+      );
+    }
+  } else if (!isRest) {
+    if (isChampion) {
+      borderClass =
+        'border-amber-400/70 bg-gradient-to-r from-amber-950/50 via-[#081517]/95 to-[#081517]/90 shadow-[0_0_32px_rgba(251,191,36,0.25)]';
+      badge = (
+        <span className="text-[10px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-amber-400/60 bg-amber-500/20 text-amber-200">
+          CHAMPION
+        </span>
+      );
+    } else if (rank === 2) {
+      borderClass =
+        'border-slate-300/50 bg-gradient-to-r from-slate-400/10 via-[#081517]/95 to-[#081517]/90 shadow-[0_0_20px_rgba(203,213,225,0.15)]';
+      badge = (
+        <span className="text-[10px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-slate-300/50 bg-slate-400/15 text-slate-200">
+          ELITE
+        </span>
+      );
+    } else if (rank === 3) {
+      borderClass =
+        'border-orange-600/50 bg-gradient-to-r from-orange-950/40 via-[#081517]/95 to-[#081517]/90 shadow-[0_0_18px_rgba(234,88,12,0.12)]';
+      badge = (
+        <span className="text-[10px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-orange-500/50 bg-orange-500/15 text-orange-200">
+          VETERAN
+        </span>
+      );
+    }
   }
 
   if (isMe) {
@@ -81,60 +106,81 @@ function RankCard({
       'border-cyan-400/70 bg-cyan-500/10 shadow-[0_0_24px_rgba(0,240,255,0.2)] ring-1 ring-cyan-400/30';
   }
 
+  const rankClass = isRest
+    ? 'text-base sm:text-lg text-white/70'
+    : rank === 1
+      ? 'text-xl sm:text-2xl text-amber-300'
+      : rank === 2
+        ? 'text-lg sm:text-xl text-slate-200'
+        : rank === 3
+          ? 'text-lg sm:text-xl text-orange-400'
+          : 'text-base sm:text-lg text-cyan-300/90';
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: Math.min(rank * 0.04, 0.6) }}
-      className={`relative rounded-xl border-2 backdrop-blur-sm ${borderClass} ${outOfBountyPrize ? 'opacity-55' : ''}`}
+      className={`relative rounded-xl border-2 backdrop-blur-sm ${borderClass}`}
     >
-      <div className="flex items-center gap-2 sm:gap-3 px-3 py-3 sm:px-5 sm:py-4">
+      <div className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-5 ${isRest ? 'py-2.5 sm:py-3' : 'py-3 sm:py-4'}`}>
         <div className="flex items-center gap-0.5 shrink-0 w-12 sm:w-16">
           {isChampion && <span className="text-lg sm:text-xl" aria-hidden>👑</span>}
-          <span
-            className={`font-black tabular-nums ${
-              rank === 1
-                ? 'text-xl sm:text-2xl text-amber-300'
-                : rank === 2
-                  ? 'text-lg sm:text-xl text-slate-200'
-                  : rank === 3
-                    ? 'text-lg sm:text-xl text-orange-400'
-                    : 'text-base sm:text-lg text-cyan-300/90'
-            }`}
-          >
-            #{rank}
-          </span>
+          <span className={`font-black tabular-nums ${rankClass}`}>#{rank}</span>
         </div>
         <div className="flex-1 min-w-0 flex flex-col items-center sm:items-start gap-1">
           <Link
             href={profileHrefForUsername(row.username)}
-            className="font-semibold text-white truncate hover:text-cyan-200 transition text-sm sm:text-base"
+            className={`font-semibold text-white truncate hover:text-cyan-200 transition ${isRest ? 'text-sm' : 'text-sm sm:text-base'}`}
           >
             {row.username || '—'}
           </Link>
-          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
-            {badge}
-            {isMe && (
-              <span className="text-[10px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-cyan-400/60 bg-cyan-500/25 text-cyan-100">
-                YOU
-              </span>
-            )}
-          </div>
+          {(badge || isMe) && (
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
+              {badge}
+              {isMe && (
+                <span className="text-[10px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-cyan-400/60 bg-cyan-500/25 text-cyan-100">
+                  YOU
+                </span>
+              )}
+            </div>
+          )}
         </div>
-        {bountyMode ? (
+        {showPrize ? (
           <div className="flex flex-col items-end shrink-0 text-right">
             <span className="text-[9px] uppercase tracking-widest text-white/40 font-orbitron">Prize</span>
-            <span
-              className={`text-base sm:text-lg font-black font-orbitron tabular-nums ${
-                inBountyPrize ? 'text-amber-300' : 'text-white/35'
-              }`}
-            >
-              {inBountyPrize ? (bountyCompleted ? '5 USDT ✓' : '5 USDT') : '0 USDT'}
+            <span className="text-base sm:text-lg font-black font-orbitron tabular-nums text-amber-300">
+              {bountyCompleted ? '5 USDT ✓' : '5 USDT'}
             </span>
           </div>
         ) : null}
       </div>
     </motion.div>
+  );
+}
+
+function renderRankCard(
+  row: BountyRow,
+  rank: number,
+  isMe: boolean,
+  bountyMode: boolean,
+  bountyCompleted: boolean,
+  tier: RankCardTier
+) {
+  return (
+    <div key={`${row.id}-${rank}`} className="relative">
+      {tier === 'winner' && rank === 1 && (
+        <div className="pointer-events-none absolute -inset-4 rounded-3xl bg-amber-400/10 blur-2xl opacity-70" aria-hidden />
+      )}
+      <RankCard
+        row={row}
+        rank={rank}
+        isMe={isMe}
+        bountyMode={bountyMode}
+        bountyCompleted={bountyCompleted}
+        tier={tier}
+      />
+    </div>
   );
 }
 
@@ -302,23 +348,34 @@ export function LeaderboardView({
             <Users className="h-10 w-10 text-cyan-300/70" />
             <p>No entries yet for this scope.</p>
           </div>
+        ) : bountyMode ? (
+          <>
+            <div className="space-y-3 sm:space-y-4">
+              {rows.slice(0, BOUNTY_WINNER_COUNT).map((row, idx) => {
+                const rank = idx + 1;
+                const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
+                return renderRankCard(row, rank, isMe, bountyMode, bountyCompleted, 'winner');
+              })}
+            </div>
+            {rows.length > BOUNTY_WINNER_COUNT && (
+              <>
+                <div className="my-6 border-t border-white/10" aria-hidden />
+                <div className="space-y-2">
+                  {rows.slice(BOUNTY_WINNER_COUNT).map((row, idx) => {
+                    const rank = BOUNTY_WINNER_COUNT + idx + 1;
+                    const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
+                    return renderRankCard(row, rank, isMe, bountyMode, bountyCompleted, 'rest');
+                  })}
+                </div>
+              </>
+            )}
+          </>
         ) : (
           <div className="space-y-3 sm:space-y-4">
             {rows.map((row, idx) => {
               const rank = idx + 1;
               const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
-              return (
-                <div key={`${row.id}-${rank}`} className="relative">
-                  {rank === 1 && <div className="pointer-events-none absolute -inset-4 rounded-3xl bg-amber-400/10 blur-2xl opacity-70" aria-hidden />}
-                  <RankCard
-                    row={row}
-                    rank={rank}
-                    isMe={isMe}
-                    bountyMode={bountyMode}
-                    bountyCompleted={bountyCompleted}
-                  />
-                </div>
-              );
+              return renderRankCard(row, rank, isMe, bountyMode, bountyCompleted, 'normal');
             })}
           </div>
         )}
