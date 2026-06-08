@@ -42,6 +42,60 @@ function applyGameChainFilterLeaderboard(qb, gameAlias, normalized) {
   qb.whereRaw(`COALESCE(${col}, ?) = ?`, [def, normalized]);
 }
 
+function tagLeaderboardRows(rows, eligible) {
+  return (rows || []).map((r) => ({ ...r, leaderboard_eligible: eligible }));
+}
+
+/** Ranked players first, then users with finished games that did not meet LEADERBOARD_MIN_TURNS. */
+function mergeLeaderboardLists(eligibleRows, ineligibleRows, limit) {
+  const lim = Math.min(Number(limit) || 20, 100);
+  const eligible = tagLeaderboardRows(eligibleRows, true).slice(0, lim);
+  if (LEADERBOARD_MIN_TURNS <= 0) return eligible;
+  const excludeIds = new Set(eligible.map((r) => r.id));
+  const ineligible = tagLeaderboardRows(
+    (ineligibleRows || []).filter((r) => !excludeIds.has(r.id)),
+    false
+  ).slice(0, lim);
+  return [...eligible, ...ineligible];
+}
+
+function baseIneligibleLeaderboardQuery(normalized) {
+  return db("game_players as gp")
+    .join("games as g", "g.id", "gp.game_id")
+    .join("users as u", "u.id", "gp.user_id")
+    .where("g.status", "FINISHED")
+    .modify((qb) => applyGameChainFilterLeaderboard(qb, "g", normalized))
+    .modify((qb) => excludeAgentOrchestratedGames(qb, "g"))
+    .andWhereRaw("u.username NOT LIKE ?", ["%AI_%"]);
+}
+
+async function fetchIneligibleLeaderboard(normalized, { start, end } = {}, limit = 20) {
+  if (LEADERBOARD_MIN_TURNS <= 0) return [];
+  const lim = Math.min(Number(limit) || 20, 100);
+  const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
+  const lostExpr = "SUM(CASE WHEN g.winner_id IS NOT NULL AND g.winner_id <> gp.user_id THEN 1 ELSE 0 END)";
+  let qb = baseIneligibleLeaderboardQuery(normalized);
+  if (start != null && end != null) {
+    qb = qb.where("g.updated_at", ">=", start).where("g.updated_at", "<", end);
+  }
+  return qb
+    .groupBy("u.id", "u.username", "u.address")
+    .select(
+      "u.id",
+      "u.username",
+      "u.address",
+      db.raw("COUNT(*) AS games_played"),
+      db.raw(`${wonExpr} AS game_won`),
+      db.raw(`${lostExpr} AS game_lost`)
+    )
+    .havingRaw("SUM(CASE WHEN gp.turn_count >= ? THEN 1 ELSE 0 END) = 0", [LEADERBOARD_MIN_TURNS])
+    .havingRaw("COUNT(*) > 0")
+    .orderByRaw("COUNT(*) DESC")
+    .orderByRaw(`${wonExpr} DESC`)
+    .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
+    .limit(lim);
+}
+
 const User = {
   /**
    * Create a new user
@@ -413,7 +467,7 @@ const User = {
     const normalized = this.normalizeChain(chain);
     const lim = Math.min(Number(limit) || 20, 100);
     const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
-    return db("game_players as gp")
+    const eligible = await db("game_players as gp")
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
@@ -434,6 +488,8 @@ const User = {
       .orderByRaw(`${wonExpr} DESC`)
       .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
+    const ineligible = await fetchIneligibleLeaderboard(normalized, {}, lim);
+    return mergeLeaderboardLists(eligible, ineligible, lim);
   },
 
   /**
@@ -501,7 +557,7 @@ const User = {
     const lim = Math.min(Number(limit) || 20, 100);
     const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
     const rateExpr = `(${wonExpr} * 1.0 / NULLIF(COUNT(*), 0))`;
-    return db("game_players as gp")
+    const eligible = await db("game_players as gp")
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
@@ -524,6 +580,8 @@ const User = {
       .orderByRaw(`${rateExpr} DESC`)
       .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
+    const ineligible = await fetchIneligibleLeaderboard(normalized, {}, lim);
+    return mergeLeaderboardLists(eligible, ineligible, lim);
   },
 
   /**
@@ -536,7 +594,7 @@ const User = {
     const { start, end } = monthUtcBounds(parseYearMonth(yearMonth));
     const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
     const lostExpr = "SUM(CASE WHEN g.winner_id IS NOT NULL AND g.winner_id <> gp.user_id THEN 1 ELSE 0 END)";
-    return db("game_players as gp")
+    const eligible = await db("game_players as gp")
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
@@ -559,6 +617,8 @@ const User = {
       .orderByRaw(`${wonExpr} DESC`)
       .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
+    const ineligible = await fetchIneligibleLeaderboard(normalized, { start, end }, lim);
+    return mergeLeaderboardLists(eligible, ineligible, lim);
   },
 
   /**
@@ -570,7 +630,7 @@ const User = {
     const { start, end } = monthUtcBounds(parseYearMonth(yearMonth));
     const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
     const rateExpr = `(${wonExpr} * 1.0 / NULLIF(COUNT(*), 0))`;
-    return db("game_players as gp")
+    const eligible = await db("game_players as gp")
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
@@ -594,6 +654,8 @@ const User = {
       .orderByRaw(`${rateExpr} DESC`)
       .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
+    const ineligible = await fetchIneligibleLeaderboard(normalized, { start, end }, lim);
+    return mergeLeaderboardLists(eligible, ineligible, lim);
   },
 
   /**
@@ -606,7 +668,7 @@ const User = {
     const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
     const lostExpr = "SUM(CASE WHEN g.winner_id IS NOT NULL AND g.winner_id <> gp.user_id THEN 1 ELSE 0 END)";
 
-    return db("game_players as gp")
+    const eligible = await db("game_players as gp")
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
@@ -630,6 +692,8 @@ const User = {
       .orderByRaw(`${wonExpr} DESC`)
       .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
+    const ineligible = await fetchIneligibleLeaderboard(normalized, { start, end }, lim);
+    return mergeLeaderboardLists(eligible, ineligible, lim);
   },
 
   /**
@@ -648,7 +712,7 @@ const User = {
     const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
     const lostExpr = "SUM(CASE WHEN g.winner_id IS NOT NULL AND g.winner_id <> gp.user_id THEN 1 ELSE 0 END)";
 
-    return db("game_players as gp")
+    const eligible = await db("game_players as gp")
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
@@ -672,6 +736,8 @@ const User = {
       .orderByRaw(`${wonExpr} DESC`)
       .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
       .limit(lim);
+    const ineligible = await fetchIneligibleLeaderboard(normalized, { start, end }, lim);
+    return mergeLeaderboardLists(eligible, ineligible, lim);
   },
 };
 

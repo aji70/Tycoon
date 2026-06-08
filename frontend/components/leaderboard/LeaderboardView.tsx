@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { CalendarDays, ChevronLeft, Coins, Info, Loader2, Users, Zap } from 'lucide-react';
@@ -255,6 +255,11 @@ export function LeaderboardView({
 }: LeaderboardViewProps) {
   const showRankPill = myLeaderboardUsernames.size > 0 && !loading;
   const bountyMode = isMayBountyView;
+  const { eligibleRows, ineligibleRows } = useMemo(() => {
+    const eligible = rows.filter((r) => r.leaderboard_eligible !== false);
+    const ineligible = rows.filter((r) => r.leaderboard_eligible === false);
+    return { eligibleRows: eligible, ineligibleRows: ineligible };
+  }, [rows]);
 
   const gridBgStyle = {
     backgroundImage: `
@@ -351,18 +356,30 @@ export function LeaderboardView({
         ) : bountyMode ? (
           <>
             <div className="space-y-3 sm:space-y-4">
-              {rows.slice(0, BOUNTY_WINNER_COUNT).map((row, idx) => {
+              {eligibleRows.slice(0, BOUNTY_WINNER_COUNT).map((row, idx) => {
                 const rank = idx + 1;
                 const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
                 return renderRankCard(row, rank, isMe, bountyMode, bountyCompleted, 'winner');
               })}
             </div>
-            {rows.length > BOUNTY_WINNER_COUNT && (
+            {eligibleRows.length > BOUNTY_WINNER_COUNT && (
               <>
                 <div className="my-6 border-t border-white/10" aria-hidden />
                 <div className="space-y-2">
-                  {rows.slice(BOUNTY_WINNER_COUNT).map((row, idx) => {
+                  {eligibleRows.slice(BOUNTY_WINNER_COUNT).map((row, idx) => {
                     const rank = BOUNTY_WINNER_COUNT + idx + 1;
+                    const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
+                    return renderRankCard(row, rank, isMe, bountyMode, bountyCompleted, 'rest');
+                  })}
+                </div>
+              </>
+            )}
+            {ineligibleRows.length > 0 && (
+              <>
+                <div className="my-6 border-t border-white/10" aria-hidden />
+                <div className="space-y-2">
+                  {ineligibleRows.map((row, idx) => {
+                    const rank = eligibleRows.length + idx + 1;
                     const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
                     return renderRankCard(row, rank, isMe, bountyMode, bountyCompleted, 'rest');
                   })}
@@ -371,13 +388,27 @@ export function LeaderboardView({
             )}
           </>
         ) : (
-          <div className="space-y-3 sm:space-y-4">
-            {rows.map((row, idx) => {
-              const rank = idx + 1;
-              const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
-              return renderRankCard(row, rank, isMe, bountyMode, bountyCompleted, 'normal');
-            })}
-          </div>
+          <>
+            <div className="space-y-3 sm:space-y-4">
+              {eligibleRows.map((row, idx) => {
+                const rank = idx + 1;
+                const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
+                return renderRankCard(row, rank, isMe, bountyMode, bountyCompleted, 'normal');
+              })}
+            </div>
+            {ineligibleRows.length > 0 && (
+              <>
+                <div className="my-6 border-t border-white/10" aria-hidden />
+                <div className="space-y-2">
+                  {ineligibleRows.map((row, idx) => {
+                    const rank = eligibleRows.length + idx + 1;
+                    const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
+                    return renderRankCard(row, rank, isMe, bountyMode, bountyCompleted, 'rest');
+                  })}
+                </div>
+              </>
+            )}
+          </>
         )}
       </main>
     </div>

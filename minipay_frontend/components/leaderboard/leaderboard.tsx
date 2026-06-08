@@ -11,7 +11,6 @@ import {
   BOUNTY_COMPLETED,
   BOUNTY_MONTH_KEY,
   BOUNTY_MONTH_LABEL,
-  COMPLETED_BOUNTY_LIMIT,
   LEADERBOARD_LIMIT,
   type BountyRow,
   type TimeScope,
@@ -71,6 +70,7 @@ function normalizeLeaderboardArray(res: unknown): BountyRow[] {
     id: Number(row.id ?? index),
     username: String(row.username ?? '—'),
     games_played: Number(row.games_played ?? 0),
+    leaderboard_eligible: row.leaderboard_eligible !== false,
   }));
 }
 
@@ -115,11 +115,10 @@ export default function Leaderboard() {
     setLoading(true);
     setError(null);
     try {
-      const useFullMayList = isMayView && BOUNTY_COMPLETED;
       const params: Record<string, string | number> = {
         chain: chainParam,
         type: 'played',
-        limit: useFullMayList ? COMPLETED_BOUNTY_LIMIT : LEADERBOARD_LIMIT,
+        limit: LEADERBOARD_LIMIT,
       };
 
       if (timeScope === 'bounty') {
