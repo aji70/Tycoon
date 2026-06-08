@@ -19,10 +19,6 @@ function tabPillClass(active: boolean, bounty = false): string {
   return `${base} border-cyan-500/25 bg-slate-900/70 text-white/55 hover:border-cyan-400/50 hover:text-white/90`;
 }
 
-function profileHrefForUsername(username: string): string {
-  return `/u/${encodeURIComponent(username)}`;
-}
-
 type RankCardTier = 'winner' | 'rest' | 'normal';
 
 function RankCard({
@@ -129,12 +125,11 @@ function RankCard({
           <span className={`font-black tabular-nums ${rankClass}`}>#{rank}</span>
         </div>
         <div className="flex-1 min-w-0 flex flex-col items-center sm:items-start gap-1">
-          <Link
-            href={profileHrefForUsername(row.username)}
-            className={`font-semibold text-white truncate hover:text-cyan-200 transition ${isRest ? 'text-sm' : 'text-sm sm:text-base'}`}
+          <span
+            className={`font-semibold text-white truncate ${isRest ? 'text-sm' : 'text-sm sm:text-base'}`}
           >
             {row.username || '—'}
-          </Link>
+          </span>
           {(badge || isMe) && (
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
               {badge}
