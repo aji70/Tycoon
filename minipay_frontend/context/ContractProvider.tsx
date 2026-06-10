@@ -25,7 +25,7 @@ import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
 import { getCeloRpcUrlForChainId, registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
 import { minipaySendTransactionAttempts } from '@/lib/celoTransportForWagmi';
 import { ensureMiniPayWalletReady, isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
-import { miniPayWriteOrFallback } from '@/lib/minipaySendContract';
+import { miniPayWriteOrFallback, MINIPAY_SHOP_BUY_GAS } from '@/lib/minipaySendContract';
 import { isUserRejectedTransaction } from '@/lib/utils/contractErrors';
 import { API_BASE_URL } from '@/lib/api';
 
@@ -1580,6 +1580,7 @@ export function useRewardBuyCollectible() {
         abi: RewardABI,
         functionName: 'buyCollectible',
         args: [tokenId, paymentToken],
+        gas: MINIPAY_SHOP_BUY_GAS,
       });
     }
     return miniPayWriteOrFallback({
@@ -1595,6 +1596,7 @@ export function useRewardBuyCollectible() {
       abi: REWARD_BUY_COLLECTIBLE_ENUM_ABI,
       functionName: 'buyCollectible',
       args: [tokenId, paymentToken],
+      gas: MINIPAY_SHOP_BUY_GAS,
     });
   }, [writeContractAsync, sendTransactionAsync, contractAddress]);
 
@@ -1639,6 +1641,7 @@ export function useRewardBuyCollectibleFrom() {
         abi: RewardABI,
         functionName: 'buyCollectibleFrom',
         args: [payer, tokenId, paymentToken],
+        gas: MINIPAY_SHOP_BUY_GAS,
       });
     }
     return miniPayWriteOrFallback({
@@ -1654,6 +1657,7 @@ export function useRewardBuyCollectibleFrom() {
       abi: REWARD_BUY_COLLECTIBLE_FROM_ENUM_ABI,
       functionName: 'buyCollectibleFrom',
       args: [payer, tokenId, paymentToken],
+      gas: MINIPAY_SHOP_BUY_GAS,
     });
   }, [writeContractAsync, sendTransactionAsync, contractAddress]);
 

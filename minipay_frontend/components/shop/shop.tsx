@@ -575,20 +575,25 @@ export default function GameShop() {
           }
           toast.success('Purchase successful!');
         } else {
-          await smartWalletApprove(paymentTokenAddress, contractAddress, price);
-          await buyFrom(smartWalletAddress, item.tokenId, paymentToken);
+          const swApproveHash = await smartWalletApprove(paymentTokenAddress, contractAddress, price);
+          if (swApproveHash) await waitForBundleTx(swApproveHash);
+          const buyHash = await buyFrom(smartWalletAddress, item.tokenId, paymentToken);
+          if (buyHash) await waitForBundleTx(buyHash);
         }
       } else {
         if (stableAllowance === undefined || stableAllowance === null) {
           toast.info('Approval required');
-          await approve(paymentTokenAddress, contractAddress, price);
-          toast.success('Approval successful, completing purchase...');
+          const approveHash = await approve(paymentTokenAddress, contractAddress, price);
+          if (approveHash) await waitForBundleTx(approveHash);
+          toast.success('Approval confirmed, completing purchase...');
         } else if (typeof stableAllowance === 'bigint' && stableAllowance < price) {
           toast.info('Increasing approval...');
-          await approve(paymentTokenAddress, contractAddress, price);
-          toast.success('Approval successful, completing purchase...');
+          const approveHash = await approve(paymentTokenAddress, contractAddress, price);
+          if (approveHash) await waitForBundleTx(approveHash);
+          toast.success('Approval confirmed, completing purchase...');
         }
-        await buy(item.tokenId, paymentToken);
+        const buyHash = await buy(item.tokenId, paymentToken);
+        if (buyHash) await waitForBundleTx(buyHash);
       }
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Purchase failed');

@@ -19,6 +19,9 @@ export function celoTransportForWagmi(): Transport {
 /** MiniPay `eth_estimateGas` often fails; safe ceiling for typical game txs. */
 export const MINIPAY_CONTRACT_GAS = 600_000n;
 
+/** buyCollectible: ERC-20 transferFrom + ERC-1155 safeTransferFrom. */
+export const MINIPAY_BUY_GAS = 1_000_000n;
+
 /** registerPlayer mints vouchers — needs more gas than createGame. */
 export const MINIPAY_REGISTER_GAS = 1_200_000n;
 
