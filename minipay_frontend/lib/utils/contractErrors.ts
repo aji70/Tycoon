@@ -213,7 +213,7 @@ export function getContractErrorMessage(
   const msgLower = (e?.message ?? e?.shortMessage ?? "").toLowerCase();
   const rpcHay = collectErrorText(error);
   if (rpcHay.includes("unknownrpcerror") || rpcHay.includes("unknown rpc error")) {
-    return "MiniPay could not send the transaction. Keep a little USDT or cUSD for gas, approve the wallet prompt, and try again.";
+    return "MiniPay could not send this transaction (wallet RPC glitch — not your balance). Close Tycoon, reopen it from MiniPay, wait a few seconds after approving USDT, then try Buy again.";
   }
   if (
     msgLower.includes("network") ||

@@ -272,7 +272,7 @@ export default function GameShop() {
   const activeStableBalance = Number.isFinite(preferredStable.balance) ? preferredStable.balance : 0;
   const stableLoading = usdcLoading || cusdcLoading || usdtLoading;
 
-  const { data: stableAllowance } = useReadContract({
+  const { data: stableAllowance, refetch: refetchStableAllowance } = useReadContract({
     address: preferredStable.tokenAddress,
     abi: Erc20Abi,
     functionName: 'allowance',
@@ -581,6 +581,10 @@ export default function GameShop() {
           if (buyHash) await waitForBundleTx(buyHash);
         }
       } else {
+        let neededApproval =
+          stableAllowance === undefined ||
+          stableAllowance === null ||
+          (typeof stableAllowance === 'bigint' && stableAllowance < price);
         if (stableAllowance === undefined || stableAllowance === null) {
           toast.info('Approval required');
           const approveHash = await approve(paymentTokenAddress, contractAddress, price);
@@ -591,6 +595,10 @@ export default function GameShop() {
           const approveHash = await approve(paymentTokenAddress, contractAddress, price);
           if (approveHash) await waitForBundleTx(approveHash);
           toast.success('Approval confirmed, completing purchase...');
+        }
+        if (neededApproval) {
+          await refetchStableAllowance();
+          await new Promise((r) => setTimeout(r, 2000));
         }
         const buyHash = await buy(item.tokenId, paymentToken);
         if (buyHash) await waitForBundleTx(buyHash);
