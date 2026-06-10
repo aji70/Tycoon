@@ -48,8 +48,6 @@ import {
 } from '@/lib/shop/preferredStable';
 import { connectMiniPayWallet } from '@/lib/connectMiniPayWallet';
 import {
-  ensureMiniPayWalletReady,
-  getMiniPayActiveAddress,
   isMiniPayEmbeddedWallet,
 } from '@/lib/minipayGuestFlow';
 
@@ -567,19 +565,17 @@ export default function GameShop() {
         try {
           await connectMiniPayWallet();
         } catch {
-          /* fall through — eth_requestAccounts below */
+          /* wrapper will call getMiniPayActiveAddress */
         }
       }
-      walletAddress = address ?? (await getMiniPayActiveAddress());
+      // Don't call getMiniPayActiveAddress here; let writeContractWithMiniPay wrapper handle it
+      walletAddress = address;
     }
     if (!walletAddress && !(payWith === 'smart_wallet' && smartWalletAddress)) {
       toast.error('Connect your MiniPay wallet first');
       return;
     }
     try {
-      if (isMiniPayEmbeddedWallet()) {
-        await ensureMiniPayWalletReady();
-      }
       if (payWith === 'smart_wallet' && smartWalletAddress) {
         const session = readAppSessionToken();
         if (session && payment.symbol === 'USDT') {
