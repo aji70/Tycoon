@@ -1561,9 +1561,8 @@ export function useRewardBuyCollectible() {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const buy = useCallback(async (tokenId: bigint, useUsdc: number | boolean = false) => {
+  const buy = useCallback(async (tokenId: bigint, useUsdc = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    await ensureMiniPayWalletReady();
     return await writeContractAsync({
       address: contractAddress,
       abi: RewardABI,
@@ -1582,9 +1581,8 @@ export function useRewardBuyCollectibleFrom() {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const buyFrom = useCallback(async (payer: Address, tokenId: bigint, useUsdc: number | boolean = false) => {
+  const buyFrom = useCallback(async (payer: Address, tokenId: bigint, useUsdc = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    await ensureMiniPayWalletReady();
     return await writeContractAsync({
       address: contractAddress,
       abi: RewardABI,
@@ -1672,7 +1670,6 @@ export function useApprove() {
     ) => {
       if (!contractAddress) throw new Error('Reward contract not deployed');
 
-      await ensureMiniPayWalletReady();
       return await writeContractAsync({
         address: contractAddress,
         abi: Erc20Abi,

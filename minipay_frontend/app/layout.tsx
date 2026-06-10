@@ -6,17 +6,17 @@ import { headers } from "next/headers";
 import ContextProvider from "@/context";
 import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
 import ReferralCapture from "@/components/ReferralCapture";
-import MinipayAutoConnect from "@/components/MinipayAutoConnect";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
-import DeferredToasts from "@/components/DeferredToasts";
-import DeferredUiStyles from "@/components/DeferredUiStyles";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import { Toaster } from "react-hot-toast";
 import FarcasterReady from "@/components/FarcasterReady"; 
 import { minikitConfig } from "../minikit.config";
 import type { Metadata } from "next";
 import Script from "next/script";
-import ClientLayout from "../clients/ClientLayout"; // ← Import the new wrapper
+import ClientLayout from "../clients/ClientLayout";
+import QueryProvider from "./QueryProvider";
 import BfcacheReloadGuard from "@/components/BfcacheReloadGuard";
 
 // Run before React: (1) Reload board when restored from bfcache so WebGL is fresh. (2) Disable bfcache on board so back button does full load instead of restore (avoids Context Lost + .style crash).
@@ -114,16 +114,33 @@ export default async function RootLayout({
               <GuestAuthProvider>
               <ReferralCapture />
               <AppKitProviderWrapper>
-              <MinipayAutoConnect />
-              <BfcacheReloadGuard />
-              <ClientLayout cookies={cookies}>
-                {children}
-              </ClientLayout>
+                <QueryProvider>
+                <BfcacheReloadGuard />
+                <ClientLayout cookies={cookies}>
+                  {children}
+                </ClientLayout>
 
-              <ScrollToTopBtn />
-              <DeferredUiStyles />
-              <DeferredToasts />
-              <Toaster position="top-center" />
+                <ScrollToTopBtn />
+                <ToastContainer
+                  position="top-right"
+                  autoClose={5000}
+                  hideProgressBar={false}
+                  newestOnTop
+                  closeOnClick
+                  rtl={false}
+                  pauseOnFocusLoss
+                  draggable
+                  pauseOnHover
+                  theme="dark"
+                  toastStyle={{
+                    fontFamily: "Orbitron, sans-serif",
+                    background: "#0E1415",
+                    color: "#00F0FF",
+                    border: "1px solid #003B3E",
+                  }}
+                />
+                <Toaster position="top-center" />
+                </QueryProvider>
               </AppKitProviderWrapper>
               </GuestAuthProvider>
             </TycoonProvider>
