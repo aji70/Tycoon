@@ -249,7 +249,7 @@ export default function GameShop() {
 
   const USDC_TO_NGN_RATE = 1600; // approximate; min charge matches MIN_FLUTTERWAVE_CHECKOUT_NGN
 
-  const payerAddress = address ?? undefined;
+  const payerAddress = payWith === 'smart_wallet' && smartWalletAddress ? smartWalletAddress : address ?? undefined;
 
   // Minipay in-app purchases: USDT (default) from the connected MiniPay wallet.
 
