@@ -215,6 +215,13 @@ export function getContractErrorMessage(
   if (msgLower.includes("invalid sender") || rpcHay.includes("invalidsender")) {
     return "MiniPay wallet address was not ready. Close Tycoon, reopen it from MiniPay, then try Buy again.";
   }
+  if (
+    msgLower.includes("permission denied") ||
+    msgLower.includes("not authorized") ||
+    rpcHay.includes("permissiondenied")
+  ) {
+    return "MiniPay blocked the transaction. Tap Allow on the wallet prompt, or close Tycoon and reopen it from the MiniPay app.";
+  }
   if (rpcHay.includes("not for sale")) {
     return "This perk is not priced in the token you selected. Try again — the shop will use USDT or cUSD automatically.";
   }

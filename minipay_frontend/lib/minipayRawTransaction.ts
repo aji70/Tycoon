@@ -2,11 +2,7 @@
 
 import { getAddress, type Address, type Hash } from "viem";
 import { CELO_USDM_FEE_TOKEN } from "@/lib/celoTransportForWagmi";
-import {
-  ensureMiniPayWalletReady,
-  getMiniPayActiveAddress,
-  isMiniPayEmbeddedWallet,
-} from "@/lib/minipayGuestFlow";
+import { getMiniPayActiveAddress, isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { isUserRejectedTransaction } from "@/lib/utils/contractErrors";
 
 const CELO_CHAIN_ID_HEX = "0xa4ec";
@@ -36,35 +32,39 @@ async function ensureCeloChain(provider: MiniPayProvider): Promise<void> {
   }
 }
 
+function isInvalidSenderError(err: unknown): boolean {
+  const hay = String((err as { message?: string })?.message ?? err).toLowerCase();
+  return hay.includes("invalid sender") || hay.includes("invalidsender");
+}
+
 /**
- * Send via `window.ethereum.request(eth_sendTransaction)` with explicit `from`.
- * MiniPay returns "invalid sender address null" when `from` is omitted on some contract calls.
+ * Raw `eth_sendTransaction` — registration style: no `from`, no gas (MiniPay sets both).
+ * @see minipayRegisterPlayer.ts
  */
 export async function minipayEthSendTransaction(tx: {
   to: Address;
   data: `0x${string}`;
   feeCurrency?: Address;
-  from?: Address;
 }): Promise<Hash> {
   if (!isMiniPayEmbeddedWallet()) {
     throw new Error("Not running in MiniPay");
   }
 
-  const from = getAddress(tx.from ?? (await ensureMiniPayWalletReady()) ?? (await getMiniPayActiveAddress()));
+  await getMiniPayActiveAddress();
   const provider = getMiniPayProvider();
   await ensureCeloChain(provider);
 
   const to = getAddress(tx.to);
-  const attempts: Array<Record<string, string>> = [
-    { from, to, data: tx.data },
-    { from, to, data: tx.data, feeCurrency: CELO_USDM_FEE_TOKEN },
+  const baseAttempts: Array<Record<string, string>> = [
+    { to, data: tx.data },
+    { to, data: tx.data, feeCurrency: CELO_USDM_FEE_TOKEN },
   ];
   if (tx.feeCurrency) {
-    attempts.unshift({ from, to, data: tx.data, feeCurrency: tx.feeCurrency });
+    baseAttempts.unshift({ to, data: tx.data, feeCurrency: tx.feeCurrency });
   }
 
   let lastError: unknown;
-  for (const params of attempts) {
+  for (const params of baseAttempts) {
     try {
       const hash = await provider.request({
         method: "eth_sendTransaction",
@@ -79,5 +79,26 @@ export async function minipayEthSendTransaction(tx: {
       if (isUserRejectedTransaction(err)) throw err;
     }
   }
+
+  if (isInvalidSenderError(lastError)) {
+    const from = await getMiniPayActiveAddress();
+    const withFrom = baseAttempts.map((p) => ({ ...p, from }));
+    for (const params of withFrom) {
+      try {
+        const hash = await provider.request({
+          method: "eth_sendTransaction",
+          params: [params],
+        });
+        if (typeof hash !== "string" || !hash.startsWith("0x")) {
+          throw new Error("MiniPay did not return a transaction hash");
+        }
+        return hash as Hash;
+      } catch (err) {
+        lastError = err;
+        if (isUserRejectedTransaction(err)) throw err;
+      }
+    }
+  }
+
   throw lastError ?? new Error("MiniPay could not send transaction");
 }

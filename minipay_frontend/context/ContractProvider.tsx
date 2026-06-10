@@ -1560,6 +1560,7 @@ export function useRewardBuyCollectible() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { sendTransactionAsync } = useSendTransaction();
   const [localHash, setLocalHash] = useState<Hash | undefined>();
   const effectiveHash = txHash ?? localHash;
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: effectiveHash });
@@ -1569,6 +1570,7 @@ export function useRewardBuyCollectible() {
     setLocalHash(undefined);
     if (typeof paymentToken === 'boolean') {
       const hash = await miniPayWriteOrFallback({
+        sendTransactionAsync,
         writeContractAsync: () =>
           writeContractAsync({
             address: contractAddress,
@@ -1585,6 +1587,7 @@ export function useRewardBuyCollectible() {
       return hash;
     }
     const hash = await miniPayWriteOrFallback({
+      sendTransactionAsync,
       writeContractAsync: () =>
         writeContractAsync({
           address: contractAddress,
@@ -1599,7 +1602,7 @@ export function useRewardBuyCollectible() {
     });
     if (hash) setLocalHash(hash as Hash);
     return hash;
-  }, [writeContractAsync, contractAddress]);
+  }, [writeContractAsync, sendTransactionAsync, contractAddress]);
 
   const resetAll = useCallback(() => {
     reset();
@@ -1622,6 +1625,7 @@ export function useRewardBuyCollectibleFrom() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { sendTransactionAsync } = useSendTransaction();
   const [localHash, setLocalHash] = useState<Hash | undefined>();
   const effectiveHash = txHash ?? localHash;
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: effectiveHash });
@@ -1631,6 +1635,7 @@ export function useRewardBuyCollectibleFrom() {
     setLocalHash(undefined);
     if (typeof paymentToken === 'boolean') {
       const hash = await miniPayWriteOrFallback({
+        sendTransactionAsync,
         writeContractAsync: () =>
           writeContractAsync({
             address: contractAddress,
@@ -1647,6 +1652,7 @@ export function useRewardBuyCollectibleFrom() {
       return hash;
     }
     const hash = await miniPayWriteOrFallback({
+      sendTransactionAsync,
       writeContractAsync: () =>
         writeContractAsync({
           address: contractAddress,
@@ -1661,7 +1667,7 @@ export function useRewardBuyCollectibleFrom() {
     });
     if (hash) setLocalHash(hash as Hash);
     return hash;
-  }, [writeContractAsync, contractAddress]);
+  }, [writeContractAsync, sendTransactionAsync, contractAddress]);
 
   const resetAll = useCallback(() => {
     reset();
@@ -1684,6 +1690,7 @@ export function useRewardBuyBundle() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { sendTransactionAsync } = useSendTransaction();
   const [localHash, setLocalHash] = useState<Hash | undefined>();
   const effectiveHash = txHash ?? localHash;
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: effectiveHash });
@@ -1692,6 +1699,7 @@ export function useRewardBuyBundle() {
     if (!contractAddress) throw new Error('Reward contract not deployed');
     setLocalHash(undefined);
     const hash = await miniPayWriteOrFallback({
+      sendTransactionAsync,
       writeContractAsync: () =>
         writeContractAsync({
           address: contractAddress,
@@ -1706,7 +1714,7 @@ export function useRewardBuyBundle() {
     });
     if (hash) setLocalHash(hash as Hash);
     return hash;
-  }, [writeContractAsync, contractAddress]);
+  }, [writeContractAsync, sendTransactionAsync, contractAddress]);
 
   const resetAll = useCallback(() => {
     reset();
@@ -1729,6 +1737,7 @@ export function useRewardBuyBundleFrom() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { sendTransactionAsync } = useSendTransaction();
   const [localHash, setLocalHash] = useState<Hash | undefined>();
   const effectiveHash = txHash ?? localHash;
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: effectiveHash });
@@ -1737,6 +1746,7 @@ export function useRewardBuyBundleFrom() {
     if (!contractAddress) throw new Error('Reward contract not deployed');
     setLocalHash(undefined);
     const hash = await miniPayWriteOrFallback({
+      sendTransactionAsync,
       writeContractAsync: () =>
         writeContractAsync({
           address: contractAddress,
@@ -1751,7 +1761,7 @@ export function useRewardBuyBundleFrom() {
     });
     if (hash) setLocalHash(hash as Hash);
     return hash;
-  }, [writeContractAsync, contractAddress]);
+  }, [writeContractAsync, sendTransactionAsync, contractAddress]);
 
   const resetAll = useCallback(() => {
     reset();
@@ -1793,6 +1803,7 @@ export function useUserWalletApproveERC20(walletAddress: Address | undefined) {
 export function useApprove() {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } =
     useWriteContract();
+  const { sendTransactionAsync } = useSendTransaction();
   const [localHash, setLocalHash] = useState<Hash | undefined>();
   const effectiveHash = txHash ?? localHash;
 
@@ -1809,6 +1820,7 @@ export function useApprove() {
       setLocalHash(undefined);
 
       const hash = await miniPayWriteOrFallback({
+        sendTransactionAsync,
         writeContractAsync: () =>
           writeContractAsync({
             address: tokenAddress,
@@ -1824,7 +1836,7 @@ export function useApprove() {
       if (hash) setLocalHash(hash as Hash);
       return hash;
     },
-    [writeContractAsync]
+    [writeContractAsync, sendTransactionAsync]
   );
 
   const resetAll = useCallback(() => {

@@ -45,7 +45,11 @@ import {
   resolveMinipayShopPayment,
   type MinipayStableOption,
 } from '@/lib/shop/preferredStable';
-import { getMiniPayActiveAddress, isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
+import {
+  ensureMiniPayWalletReady,
+  getMiniPayActiveAddress,
+  isMiniPayEmbeddedWallet,
+} from '@/lib/minipayGuestFlow';
 
 import {
   useRewardBuyCollectible,
@@ -569,6 +573,9 @@ export default function GameShop() {
       return;
     }
     try {
+      if (isMiniPayEmbeddedWallet()) {
+        await ensureMiniPayWalletReady();
+      }
       if (payWith === 'smart_wallet' && smartWalletAddress) {
         const session = readAppSessionToken();
         if (session && payment.symbol === 'USDT') {
