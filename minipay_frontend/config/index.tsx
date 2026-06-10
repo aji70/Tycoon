@@ -1,6 +1,7 @@
-import { cookieStorage, createStorage, http } from '@wagmi/core'
+import { cookieStorage, createStorage } from '@wagmi/core'
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { celo } from '@reown/appkit/networks'
+import { celoTransportForWagmi } from '@/lib/celoTransportForWagmi'
 
 export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID
 
@@ -29,7 +30,11 @@ export const wagmiAdapter = new WagmiAdapter({
   }),
   ssr: true,
   projectId,
-  networks
+  networks,
+  /** MiniPay requires RPC via injected provider, not public HTTP. @see celoTransportForWagmi */
+  transports: {
+    [celo.id]: celoTransportForWagmi(),
+  },
 })
 
 export const config = wagmiAdapter.wagmiConfig

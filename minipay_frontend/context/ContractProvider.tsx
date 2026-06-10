@@ -1561,21 +1561,14 @@ export function useRewardBuyCollectible() {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const buy = useCallback(async (tokenId: bigint, paymentToken: number | boolean = false) => {
+  const buy = useCallback(async (tokenId: bigint, useUsdc: number | boolean = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    if (typeof paymentToken === 'boolean') {
-      return await writeContractAsync({
-        address: contractAddress,
-        abi: RewardABI,
-        functionName: 'buyCollectible',
-        args: [tokenId, paymentToken],
-      });
-    }
+    await ensureMiniPayWalletReady();
     return await writeContractAsync({
       address: contractAddress,
-      abi: REWARD_BUY_COLLECTIBLE_ENUM_ABI,
+      abi: RewardABI,
       functionName: 'buyCollectible',
-      args: [tokenId, paymentToken],
+      args: [tokenId, useUsdc],
     });
   }, [writeContractAsync, contractAddress]);
 
@@ -1589,21 +1582,14 @@ export function useRewardBuyCollectibleFrom() {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const buyFrom = useCallback(async (payer: Address, tokenId: bigint, paymentToken: number | boolean = false) => {
+  const buyFrom = useCallback(async (payer: Address, tokenId: bigint, useUsdc: number | boolean = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    if (typeof paymentToken === 'boolean') {
-      return await writeContractAsync({
-        address: contractAddress,
-        abi: RewardABI,
-        functionName: 'buyCollectibleFrom',
-        args: [payer, tokenId, paymentToken],
-      });
-    }
+    await ensureMiniPayWalletReady();
     return await writeContractAsync({
       address: contractAddress,
-      abi: REWARD_BUY_COLLECTIBLE_FROM_ENUM_ABI,
+      abi: RewardABI,
       functionName: 'buyCollectibleFrom',
-      args: [payer, tokenId, paymentToken],
+      args: [payer, tokenId, useUsdc],
     });
   }, [writeContractAsync, contractAddress]);
 
@@ -1686,6 +1672,7 @@ export function useApprove() {
     ) => {
       if (!contractAddress) throw new Error('Reward contract not deployed');
 
+      await ensureMiniPayWalletReady();
       return await writeContractAsync({
         address: contractAddress,
         abi: Erc20Abi,
