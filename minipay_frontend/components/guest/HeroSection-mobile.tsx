@@ -6,35 +6,32 @@ import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { useAccount, useChainId, useSignMessage } from "wagmi";
+import { useAccount, useChainId, useConnect, useSignMessage, usePublicClient, useSwitchChain } from "wagmi";
+import { injected } from "wagmi/connectors";
 import {
   useIsRegistered,
   useGetUsername,
-  useRegisterPlayer,
   usePreviousGameCode,
   useGetGameByCode,
   useHasSmartWallet,
   useProfileOwner,
+  useRegisterPlayer,
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { usePrivy } from "@privy-io/react-auth";
-import { useAppKit } from "@reown/appkit/react";
-import { toast } from "react-toastify";
+import toast from "react-hot-toast";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { apiClient } from "@/lib/api";
+import { getGuestUserPlayAddress, isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
+import { completeMiniPayOnChainRegistration } from "@/lib/minipayRegisterPlayer";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
 import { ParticleBackground } from "@/components/hero/ParticleBackground";
 import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
-import { HUDLevelBadge } from "@/components/hero/HUDLevelBadge";
 import { NeonTitle } from "@/components/hero/NeonTitle";
-import { GlowButton } from "@/components/hero/GlowButton";
 import { WorldStatsBar } from "@/components/hero/WorldStatsBar";
 
 function chainIdToBackendChain(chainId: number): string {
-  if (chainId === 137 || chainId === 80001) return "POLYGON";
-  if (chainId === 42220 || chainId === 44787) return "CELO";
-  if (chainId === 8453 || chainId === 84531) return "BASE";
   return "CELO";
 }
 
@@ -48,19 +45,20 @@ function isValidNonZeroAddress(a: string | null | undefined): a is `0x${string}`
   return /^0x[a-fA-F0-9]{40}$/i.test(s);
 }
 
-const HeroSectionMobile: React.FC = () => {
+const HeroSection: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
-  const { open: openWallet } = useAppKit();
-  const { ready, authenticated, login, logout, connectWallet, user: privyUser } = usePrivy();
+  const publicClient = usePublicClient();
+  const { connect } = useConnect();
+  const connectWallet = () => connect({ connector: injected() });
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
-  const isPrivyAuthed = ready && authenticated;
+  const [isMiniPay, setIsMiniPay] = useState(false);
+  const walletSessionReady = !!address;
   const signOutGuestAndPrivy = () => {
     guestAuth?.logoutGuest();
-    if (isPrivyAuthed) void logout();
   };
 
   const [loading, setLoading] = useState(false);
@@ -71,14 +69,22 @@ const HeroSectionMobile: React.FC = () => {
   const [registerOnChainLoading, setRegisterOnChainLoading] = useState(false);
   const [linkWalletLoading, setLinkWalletLoading] = useState(false);
 
-  const { write: registerPlayer, isPending: registerPending } = useRegisterPlayer();
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
+    setIsMiniPay(Boolean(eth?.isMiniPay));
+  }, []);
 
   const {
     data: isUserRegistered,
     isLoading: isRegisteredLoading,
+    error: registeredError,
+    refetch: refetchIsRegistered,
   } = useIsRegistered(address);
 
-  const { data: fetchedUsername } = useGetUsername(address);
+  const { write: registerPlayer } = useRegisterPlayer();
+
+  const { data: fetchedUsername, refetch: refetchUsername } = useGetUsername(address);
 
   const { data: gameCode } = usePreviousGameCode(address);
 
@@ -95,6 +101,7 @@ const HeroSectionMobile: React.FC = () => {
   const { data: profileOwner } = useProfileOwner(smartWalletAddress);
   const needsTransferToLink = !!smartWalletAddress && !!profileOwner && profileOwner !== zeroAddr && !!address && address.toLowerCase() !== (profileOwner as string).toLowerCase();
 
+  /** On-chain stats (incl. level) are keyed like profile: smart wallet when linked EOA is connected. */
   const connectedWalletIsLinked =
     !!guestUser &&
     !!address &&
@@ -106,6 +113,7 @@ const HeroSectionMobile: React.FC = () => {
   const [backendGame, setBackendGame] = useState<{ status: string; is_ai?: boolean } | null>(null);
   const [guestLastGame, setGuestLastGame] = useState<{ code: string; status: string; is_ai?: boolean } | null>(null);
   const [guestGameCount, setGuestGameCount] = useState(0);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const parallaxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -154,8 +162,11 @@ const HeroSectionMobile: React.FC = () => {
     };
   }, [guestUser, address]);
 
-  // Parallax mouse tracking
+  // Parallax mouse tracking - desktop only
   useEffect(() => {
+    const isMobile = window.innerWidth < 768;
+    if (isMobile) return;
+
     const handleMouseMove = (e: MouseEvent) => {
       if (!parallaxRef.current) return;
       const rect = parallaxRef.current.getBoundingClientRect();
@@ -188,7 +199,9 @@ const HeroSectionMobile: React.FC = () => {
 
     const fetchUser = async () => {
       try {
-        const res = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Celo`);
+        const res = await apiClient.get<ApiResponse>(
+          `/users/by-address/${address}?chain=Celo`
+        );
 
         if (!isActive) return;
 
@@ -201,6 +214,8 @@ const HeroSectionMobile: React.FC = () => {
         if (!isActive) return;
         if (error?.response?.status === 404) {
           setUser(null);
+        } else {
+          console.error("Error fetching user:", error);
         }
       }
     };
@@ -212,26 +227,36 @@ const HeroSectionMobile: React.FC = () => {
     };
   }, [address]);
 
+  const onChainUsername = useMemo(() => {
+    const u = fetchedUsername != null ? String(fetchedUsername).trim() : "";
+    return u.length > 0 ? u : "";
+  }, [fetchedUsername]);
+
   const registrationStatus = useMemo(() => {
     if (address) {
       const hasBackend = !!user;
-      const hasOnChain = isUserRegistered === true;
-      if (hasBackend && hasOnChain) return "fully-registered";
+      const hasOnChain =
+        isUserRegistered === true ||
+        localRegistered ||
+        onChainUsername.length > 0;
+      if ((hasBackend || localRegistered) && hasOnChain) return "fully-registered";
       if (hasBackend && !hasOnChain) return "backend-only";
       return "none";
     }
-    if (guestUser || isPrivyAuthed) return "privy";
+    if (guestUser) return "privy";
     return "disconnected";
-  }, [address, user, isUserRegistered, guestUser, isPrivyAuthed]);
+  }, [address, user, isUserRegistered, guestUser, localRegistered, onChainUsername]);
 
   const displayUsername = useMemo(() => {
     if (guestUser) return guestUser.username;
-    if (isPrivyAuthed && privyUser) {
-      const email = typeof privyUser.email === "string" ? privyUser.email : (privyUser.email as { address?: string })?.address;
-      return email ?? "Player";
-    }
-    return user?.username || localUsername || fetchedUsername || inputUsername || "Player";
-  }, [guestUser, privyUser, user, localUsername, fetchedUsername, inputUsername, isPrivyAuthed]);
+    return (
+      user?.username ||
+      localUsername ||
+      fetchedUsername ||
+      inputUsername ||
+      "Player"
+    );
+  }, [guestUser, user, localUsername, fetchedUsername, inputUsername]);
 
   const { levelInfo } = useUserLevel({
     address: guestUser && !address ? undefined : levelContractLookupAddress,
@@ -249,6 +274,7 @@ const HeroSectionMobile: React.FC = () => {
     isGuest: !!(guestUser && !address),
   });
 
+  // Wallet on-chain registration (same path as createGame / shop). DB user via POST /users only.
   const handleRegister = async () => {
     if (!address) {
       toast.error("Please connect your wallet");
@@ -256,61 +282,69 @@ const HeroSectionMobile: React.FC = () => {
     }
 
     let finalUsername = inputUsername.trim();
-
     if (registrationStatus === "backend-only" && user?.username) {
       finalUsername = user.username.trim();
+    } else if (onChainUsername) {
+      finalUsername = onChainUsername || finalUsername;
     }
 
     if (!finalUsername) {
-      toast.warn("Please enter a username");
+      toast("Please enter a username");
       return;
     }
 
     setLoading(true);
-    const toastId = toast.loading("Processing registration...");
+    const toastId = toast.loading(
+      user ? "Syncing your account…" : "Setting up your account…"
+    );
 
     try {
-      if (isUserRegistered !== true) {
-        await registerPlayer(finalUsername);
-      }
-
       if (!user) {
         const res = await apiClient.post<ApiResponse>("/users", {
           username: finalUsername,
           address,
           chain: "Celo",
         });
+        setUser((res.data as UserType) ?? ({ username: finalUsername } as UserType));
+      }
 
-        if (!res?.success) throw new Error("Failed to save user on backend");
-        setUser({ username: finalUsername } as UserType);
+      if (isUserRegistered !== true) {
+        if (isMiniPayEmbeddedWallet()) {
+          await completeMiniPayOnChainRegistration(finalUsername, address);
+        } else {
+          await registerPlayer(finalUsername);
+        }
       }
 
       setLocalRegistered(true);
       setLocalUsername(finalUsername);
+      void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
 
-      toast.update(toastId, {
-        render: "Welcome to Tycoon!",
-        type: "success",
-        isLoading: false,
-        autoClose: 4000,
-      });
-
+      toast.dismiss(toastId);
+      toast.success(user ? `Welcome back, ${finalUsername}!` : "Welcome to Tycoon!");
       router.refresh();
-    } catch (err: any) {
-      if (err?.code === 4001 || err?.message?.includes("User rejected")) {
-        toast.update(toastId, {
-          render: "Transaction cancelled",
-          type: "info",
-          isLoading: false,
-          autoClose: 3500,
-        });
+    } catch (err: unknown) {
+      toast.dismiss(toastId);
+      const e = err as {
+        code?: number;
+        status?: number;
+        response?: { status?: number; data?: { message?: string; error?: string } };
+        message?: string;
+      };
+
+      if (
+        e?.code === 4001 ||
+        e?.message?.includes("User rejected") ||
+        e?.message?.includes("User denied")
+      ) {
+        toast("Transaction cancelled");
         return;
       }
 
       const isAlreadyExists =
-        err?.status === 409 ||
-        err?.response?.status === 409 ||
-        /already exists|already registered|username.*taken|user.*exists/i.test(err?.message ?? "");
+        e?.status === 409 ||
+        e?.response?.status === 409 ||
+        /already exists|already registered|username.*taken|user.*exists/i.test(e?.message ?? "");
 
       if (isAlreadyExists && isUserRegistered === true) {
         try {
@@ -318,57 +352,57 @@ const HeroSectionMobile: React.FC = () => {
           if (res?.success && res?.data) {
             setUser(res.data as UserType);
             setLocalUsername(finalUsername);
-            toast.update(toastId, {
-              render: "Welcome to Tycoon!",
-              type: "success",
-              isLoading: false,
-              autoClose: 4000,
-            });
+            toast.success(user ? `Welcome back, ${finalUsername}!` : "Welcome to Tycoon!");
             router.refresh();
+            void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
             return;
           }
-        } catch (_) {}
+        } catch {
+          // fall through
+        }
       }
+
       if (isAlreadyExists && isUserRegistered !== true) {
-        toast.update(toastId, {
-          render: "Complete registration: sign the transaction in your wallet to register on-chain.",
-          type: "warning",
-          isLoading: false,
-          autoClose: 6000,
-        });
+        toast("Sign the registration transaction in your wallet to finish on-chain setup.");
         return;
       }
 
-      let message = "Registration failed. Try again.";
-      if (err?.shortMessage) message = err.shortMessage;
-      if (err?.message?.includes("insufficient funds")) message = "Insufficient gas funds";
-
-      toast.update(toastId, {
-        render: message,
-        type: "error",
-        isLoading: false,
-        autoClose: 6000,
-      });
+      toast.error(
+        e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          getContractErrorMessage(err, "Registration failed. Try again.")
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleRegisterOnChain = async () => {
-    if (!guestAuth?.refetchGuest) return;
+    if (!address) {
+      toast.error("Connect your wallet to register on-chain");
+      return;
+    }
+    const playUsername =
+      (guestUser?.username ?? user?.username ?? inputUsername.trim()) || "";
+    if (!playUsername) {
+      toast("Enter a username first");
+      return;
+    }
     setRegisterOnChainLoading(true);
+    const toastId = toast.loading("Register on-chain…");
     try {
-      const res = await apiClient.post<ApiResponse>("auth/register-on-chain", { chain: "Celo" });
-      if (res?.data?.success) {
-        await guestAuth.refetchGuest();
-        const data = res?.data as { success?: boolean; alreadyRegistered?: boolean };
-        toast.success(data?.alreadyRegistered ? "Already registered" : "Registered on-chain. You can play now.");
+      if (isMiniPayEmbeddedWallet()) {
+        await completeMiniPayOnChainRegistration(playUsername, address);
       } else {
-        toast.error((res?.data as { message?: string })?.message ?? "Registration failed");
+        await registerPlayer(playUsername);
       }
+      void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
+      if (guestAuth?.refetchGuest) await guestAuth.refetchGuest();
+      toast.dismiss(toastId);
+      toast.success("Registered on-chain. You can play now.");
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string } }; message?: string };
-      toast.error(e?.response?.data?.message ?? e?.message ?? "Registration failed");
+      toast.dismiss(toastId);
+      toast.error(getContractErrorMessage(err, "Registration failed"));
     } finally {
       setRegisterOnChainLoading(false);
     }
@@ -377,17 +411,10 @@ const HeroSectionMobile: React.FC = () => {
   const handleLinkWallet = async () => {
     if (!address) {
       try {
-        if (connectWallet) {
-          connectWallet();
-          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
-        } else if (typeof openWallet === "function") {
-          openWallet();
-          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
-        } else {
-          toast.info("Open the menu to connect your wallet, then click here again");
-        }
+        connectWallet();
+        toast.info("Connect MiniPay, then tap Connect wallet again to link");
       } catch {
-        toast.info("Open the menu to connect your wallet, then click here again");
+        toast.info("Connect your wallet from the button above, then try again");
       }
       return;
     }
@@ -404,9 +431,8 @@ const HeroSectionMobile: React.FC = () => {
       } else {
         toast.error(res.message ?? "Link failed");
       }
-    } catch (err: unknown) {
-      const e = err as { code?: number; message?: string };
-      if (e?.code === 4001 || e?.message?.includes("User rejected")) {
+    } catch (err: any) {
+      if (err?.code === 4001 || err?.message?.includes("User rejected")) {
         toast.info("Signature cancelled");
       } else {
         toast.error((err as Error)?.message ?? "Link failed");
@@ -435,8 +461,7 @@ const HeroSectionMobile: React.FC = () => {
     router.push(`/board-3d-mobile?gameCode=${encodeURIComponent(code)}`);
     return;
   }
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-  router.push(isMobile ? `/board-3d-multi-mobile?gameCode=${encodeURIComponent(code)}` : `/board-3d-multi?gameCode=${encodeURIComponent(code)}`);
+  router.push(`/board-3d-multi-mobile?gameCode=${encodeURIComponent(code)}`);
 };
 
   if (isConnecting) {
@@ -450,23 +475,27 @@ const HeroSectionMobile: React.FC = () => {
   return (
     <section
       ref={parallaxRef}
-      className="relative w-full min-h-screen min-h-[100dvh] bg-[#010F10] overflow-hidden z-0"
+      className="z-0 w-full h-screen relative overflow-hidden bg-[#010F10]"
     >
-      {/* Background Image - no parallax on mobile */}
+      {/* Background with parallax - disabled on mobile */}
       <motion.div
-        className="absolute inset-0"
-        animate={{}}
+        className="w-full h-full overflow-hidden absolute inset-0"
+        animate={{
+          x: window.innerWidth < 768 ? 0 : mousePosition.x * 10,
+          y: window.innerWidth < 768 ? 0 : mousePosition.y * 10,
+        }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
         <Image
           src={herobg}
           alt="Hero Background"
-          fill
-          className="object-cover object-center hero-bg-zoom"
+          className="w-full h-full object-cover"
+          width={1440}
+          height={1024}
           priority
           fetchPriority="high"
-          quality={78}
-          sizes="100vw"
+          sizes="(max-width: 768px) 100vw, 1440px"
+          quality={75}
         />
       </motion.div>
 
@@ -476,287 +505,496 @@ const HeroSectionMobile: React.FC = () => {
       {/* Scanline and grid overlay */}
       <ScanlineOverlay />
 
-      {/* Gradient overlay for readability on mobile */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#010F10]/40 via-transparent to-[#010F10]/90 z-5" aria-hidden />
+      {/* Gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#010F10]/20 to-[#010F10]/60 z-5" />
 
-      {/* Content Container - safe area for notches & home indicator */}
-      <div className="relative z-20 flex flex-col items-center px-4 sm:px-5 pt-[calc(env(safe-area-inset-top)+8rem)] pb-[max(env(safe-area-inset-bottom),8rem)] min-h-screen min-h-[100dvh]">
-        {/* Title - Neon effect for mobile */}
-        <div className="relative w-full flex justify-center mt-0 sm:mt-2">
-          <NeonTitle text="TYCOON" size="md" />
-        </div>
+      <main className="w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col justify-start items-center gap-1 px-4 pt-8">
+        {/* Welcome Message */}
+        {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "privy") && !loading && (
+          <div className="mt-12 flex flex-col items-center gap-4 px-4">
+            <motion.p
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="font-orbitron text-[18px] font-[700] text-[#00F0FF] text-center drop-shadow-lg"
+              style={{
+                textShadow: "0 0 10px rgba(0, 240, 255, 0.8), 0 0 20px rgba(0, 240, 255, 0.4)",
+              }}
+            >
+              Welcome back, {displayUsername}!
+            </motion.p>
 
-        {/* Welcome / Loading message + Enhanced Level */}
-        <div className="mt-3 sm:mt-4 text-center px-2 flex flex-col items-center gap-2">
-          {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "privy") && !loading && (
-            <>
-              <motion.p
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="font-orbitron text-base sm:text-lg font-bold text-[#00F0FF]"
+            {/* HUD Block */}
+            <motion.div
+              className="flex gap-2 border border-cyan-500/40 rounded p-2 text-[12px] font-orbitron"
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+            >
+              <div className="text-[#00F0FF]">LEVEL <span className="text-white font-bold">26</span></div>
+              <div className="text-[#00F0FF]">STATUS <span className="text-cyan-400 font-bold">Elite</span></div>
+            </motion.div>
+
+            {/* XP Bar */}
+            <motion.div
+              className="flex flex-col items-center gap-1 text-[11px]"
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              <div className="text-[#00F0FF]/70 font-orbitron">XP PROGRESS 60/70</div>
+              <div className="h-1 bg-cyan-500 w-32 rounded"/>
+              <div className="text-[#00F0FF] font-orbitron font-bold">⚡ READY FOR BATTLE</div>
+            </motion.div>
+
+            {levelInfo && (
+              <motion.div
+                className="flex flex-col items-center gap-3 bg-gradient-to-b from-[#0E282A]/80 to-[#0A1719]/80 rounded-lg p-4 border border-[#00F0FF]/40 backdrop-blur-sm"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
               >
-                Welcome back, {displayUsername}!
-              </motion.p>
-              {levelInfo && (
-                <div className="scale-75 sm:scale-100 origin-top">
-                  <HUDLevelBadge
-                    level={levelInfo.level}
-                    label={levelInfo.label}
-                    progress={levelInfo.progress}
-                    maxXp={levelInfo.xpForNextLevel || 100}
-                    currentXp={levelInfo.currentXp || 0}
-                  />
+                <div className="flex items-center gap-3 flex-wrap justify-center">
+                  <motion.span
+                    className="game-badge text-[12px] px-3 py-1.5 bg-gradient-to-r from-[#00F0FF] to-[#00D4D4] text-[#010F10] font-bold rounded-md"
+                    animate={{
+                      boxShadow: [
+                        "0 0 10px rgba(0, 240, 255, 0.5)",
+                        "0 0 20px rgba(0, 240, 255, 0.8)",
+                        "0 0 10px rgba(0, 240, 255, 0.5)",
+                      ]
+                    }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    LEVEL {levelInfo.level}
+                  </motion.span>
+                  <span className="game-level-label text-[11px] text-[#00F0FF]/90 font-orbitron font-semibold tracking-wider">{levelInfo.label}</span>
                 </div>
-              )}
-            </>
-          )}
+                {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
+                  <motion.div
+                    className="w-48 flex flex-col gap-1"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    <div className="text-[10px] font-orbitron text-[#00F0FF]/70 flex justify-between">
+                      <span>XP PROGRESS</span>
+                      <span>{Math.round(levelInfo.progress * 100)}%</span>
+                    </div>
+                    <div className="w-full h-2.5 rounded-full bg-[#0E282A] overflow-hidden border border-[#00F0FF]/60">
+                      <motion.div
+                        className="h-full rounded-full bg-gradient-to-r from-[#00F0FF] to-[#00D4D4]"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.round(levelInfo.progress * 100)}%` }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                        style={{
+                          boxShadow: "0 0 10px rgba(0, 240, 255, 0.8), inset 0 0 5px rgba(0, 240, 255, 0.4)"
+                        }}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </motion.div>
+            )}
+          </div>
+        )}
 
-          {loading && (
-            <p className="font-orbitron text-lg sm:text-xl font-bold text-[#00F0FF]">
-              Registering... Please wait
+        {loading && (
+          <div className="mt-16">
+            <p className="font-orbitron text-[16px] font-[700] text-[#00F0FF] text-center">
+              Registering... Please wait.
             </p>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Animated phrase */}
-        <div className="mt-4 sm:mt-5 px-2 min-h-[2.5rem] flex items-center justify-center">
+        <motion.div
+          className="flex justify-center items-center gap-3 mt-4"
+          style={{ overflow: "visible", whiteSpace: "nowrap" }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3, duration: 0.8 }}
+        >
           <TypeAnimation
             sequence={[
-              "Conquer", 1200,
-              "Conquer • Build", 1200,
-              "Conquer • Build • Trade", 1800,
-              "Play Solo vs AI", 2000,
-              "Conquer • Build", 1000,
-              "Conquer", 1000,
-              "", 500,
+              "Conquer",
+              1200,
+              "Conquer • Build",
+              1200,
+              "Conquer • Build • Trade On",
+              1800,
+              "Play Solo vs AI",
+              2000,
+              "Conquer • Build",
+              1000,
+              "Conquer",
+              1000,
+              "",
+              500,
             ]}
             wrapper="span"
-            speed={45}
+            speed={40}
             repeat={Infinity}
-            className="font-orbitron text-xl sm:text-2xl md:text-3xl font-bold text-[#F0F7F7] text-center block"
+            className="font-orbitron text-[20px] font-[700] text-[#F0F7F7] text-center block"
+            style={{
+              textShadow: "0 0 8px rgba(0, 240, 255, 0.6), 0 0 16px rgba(0, 240, 255, 0.3)",
+            }}
           />
-        </div>
+        </motion.div>
 
-        {/* Short description */}
-        <p className="mt-5 sm:mt-6 text-center text-[#DDEEEE] text-[15px] sm:text-base leading-relaxed max-w-[340px] font-dmSans px-1">
-          Roll the dice • Buy properties • Collect rent •
-          Play against AI • Become the top tycoon
-        </p>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.5, duration: 0.8 }}
+        >
+          <NeonTitle text="TYCOON" size="lg" />
+        </motion.div>
 
-        {/* Main action area — min-height avoids CLS when Privy / registration UI hydrates */}
-        <div className="mt-4 sm:mt-6 w-full max-w-[380px] flex min-h-[100px] flex-col items-center gap-5 sm:gap-6 flex-1">
-          {/* EOA mandatory Privy: wallet connected but not signed in with Privy */}
-          {address && !isPrivyAuthed && !loading && (
-            <div className="w-full flex flex-col gap-3 items-center">
+        <motion.div
+          className="w-full px-4 text-center text-[#F0F7F7] -tracking-[2%]"
+          style={{ overflow: "visible", whiteSpace: "nowrap" }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.8 }}
+        >
+          <TypeAnimation
+            sequence={[
+              "Roll the dice",
+              2000,
+              "Buy properties",
+              2000,
+              "Collect rent",
+              2000,
+              "Play against AI opponents",
+              2200,
+              "Become the top tycoon",
+              2000,
+            ]}
+            wrapper="span"
+            speed={50}
+            repeat={Infinity}
+            className="font-orbitron text-[18px] font-[700] text-[#F0F7F7] text-center block"
+            style={{
+              textShadow: "0 0 6px rgba(0, 240, 255, 0.5), 0 0 12px rgba(0, 240, 255, 0.2)",
+            }}
+          />
+          <p className="font-dmSans font-[400] text-[13px] text-[#F0F7F7] mt-3 leading-relaxed">
+            Step into Tycoon — the Web3 twist on the classic game of strategy,
+            ownership, and fortune. Play solo against AI, compete in multiplayer
+            rooms, collect tokens, complete quests, and become the ultimate
+            blockchain tycoon.
+          </p>
+        </motion.div>
+
+        <div className="z-1 w-full flex min-h-[152px] flex-col justify-center items-center mt-6 gap-4">
+          {/* EOA mandatory Privy: wallet connected but not signed in with Privy — must sign in with Privy to continue */}
+          {address && !walletSessionReady && !loading && (
+            <div className="w-[85%] max-w-xs flex flex-col gap-4 items-center">
               <p className="text-[#869298] text-sm text-center font-dmSans">
-                Sign in with Privy to continue
+                Wallet connected. Continue with wallet.
               </p>
-              <GlowButton
-                onClick={() => login()}
-                variant="primary"
-                size="lg"
+              <button
+                type="button"
+                onClick={connectWallet}
+                className="relative group w-full sm:w-auto min-w-[220px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
               >
-                Sign in with Privy
-              </GlowButton>
+                <svg
+                  width="260"
+                  height="52"
+                  viewBox="0 0 260 52"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-[260px] transform scale-x-[-1]"
+                >
+                  <path
+                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+                    fill="#00F0FF"
+                    stroke="#0E282A"
+                    strokeWidth={2}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] font-orbitron font-[700] z-2">
+                  Continue with Wallet
+                </span>
+              </button>
             </div>
           )}
 
-          {address && isPrivyAuthed && registrationStatus === "none" && !loading && (
-            <motion.input
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
+          {/* Wallet: username input for new users (only when Privy-authed) */}
+          {address && walletSessionReady && registrationStatus === "none" && !loading && (
+            <input
               type="text"
               value={inputUsername}
               onChange={(e) => setInputUsername(e.target.value)}
               placeholder="Choose your tycoon name"
-              className="w-full h-12 bg-[#0E1415]/80 backdrop-blur-sm rounded-xl border-2 border-[#003B3E] outline-none px-5 text-[#17ffff] font-orbitron text-base text-center placeholder:text-[#6B8A8F] placeholder:font-dmSans focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0E1415] focus:border-cyan-500 transition-colors duration-300"
+              className="w-[85%] max-w-xs h-[42px] bg-[#0E1415] rounded-[12px] border-[1px] border-[#003B3E] outline-none px-3 text-[#17ffff] font-orbitron font-[400] text-[14px] text-center placeholder:text-[#455A64] placeholder:font-dmSans focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0E1415] focus:border-cyan-500/50"
             />
           )}
 
-          {/* When disconnected: "Let's Go!" = Sign in with email only (Privy). Wallet can be added after sign-in in Profile. */}
+          {/* When disconnected: primary path is wallet connect. */}
           {!address && registrationStatus === "disconnected" && !loading && (
-            <div className="w-full flex flex-col gap-3 items-center">
-              <GlowButton
-                onClick={() => login()}
-                variant="primary"
-                size="lg"
-              >
-                Let&apos;s Go!
-              </GlowButton>
-              <p className="text-[#869298] text-xs text-center font-dmSans px-2">
-                Sign in with email · Add a wallet later in Profile if you want
-              </p>
+            <div className="w-[85%] max-w-xs flex flex-col gap-4 items-center">
+              {isMiniPay ? (
+                <p className="text-[#17ffff] text-sm text-center font-dmSans animate-pulse">
+                  {isConnecting ? "Connecting to MiniPay…" : "Open Tycoon from the MiniPay app to connect your wallet."}
+                </p>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={connectWallet}
+                    className="relative group w-full sm:w-auto min-w-[220px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
+                  >
+                    <svg
+                      width="260"
+                      height="52"
+                      viewBox="0 0 260 52"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-[260px] transform scale-x-[-1]"
+                    >
+                      <path
+                        d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+                        fill="#00F0FF"
+                        stroke="#0E282A"
+                        strokeWidth={2}
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] font-orbitron font-[700] z-2">
+                      Connect Wallet
+                    </span>
+                  </button>
+                  <p className="text-[#869298] text-xs text-center font-dmSans">
+                    Connect your wallet to start playing
+                  </p>
+                </>
+              )}
             </div>
           )}
 
-          {address && isPrivyAuthed && registrationStatus !== "fully-registered" && !loading && (
-            <>
-              <GlowButton
-                onClick={handleRegister}
-                disabled={loading || registerPending || (registrationStatus === "none" && !inputUsername.trim())}
-                variant="primary"
-                size="lg"
+          {/* "Let's Go!" for wallet users (backend-only or none) — only when Privy-authed */}
+          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
+            <button
+              onClick={handleRegister}
+              disabled={
+                loading ||
+                (registrationStatus === "none" && !inputUsername.trim())
+              }
+              className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
+            >
+              <svg
+                width="260"
+                height="52"
+                viewBox="0 0 260 52"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]"
               >
-                {loading || registerPending ? "Registering..." : "Let's Go!"}
-              </GlowButton>
-              <p className="text-[#869298] text-xs text-center font-dmSans -mt-1 px-2">
-                Creates your game account &amp; smart wallet
-              </p>
-            </>
+                <path
+                  d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+                  fill="#00F0FF"
+                  stroke="#0E282A"
+                  strokeWidth={1}
+                />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] -tracking-[2%] font-orbitron font-[700] z-2">
+                {loading ? "Please wait…" : user ? "Continue" : "Let's Go!"}
+              </span>
+            </button>
+          )}
+          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
+            <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
+              {user ? "Finish syncing your account" : "Creates your game account & smart wallet"}
+            </p>
           )}
 
-          {/* Register + Link wallet: hide when action buttons are shown */}
-          {(registrationStatus === "privy" || (address && isPrivyAuthed && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || isPrivyAuthed) && !loading && !((address && registrationStatus === "fully-registered" && isPrivyAuthed) || (registrationStatus === "privy" && (guestUser || isPrivyAuthed))) && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="flex flex-col items-center gap-4 mt-4"
-            >
-              <p className="text-[#869298] text-sm text-center px-2 max-w-sm">
+          {/* Register + Link wallet: when Privy/guest without smart wallet — hide when action buttons are shown */}
+          {(registrationStatus === "privy" || (address && walletSessionReady && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || walletSessionReady) && !loading && !((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) && (
+            <div className="flex flex-col items-center gap-4 mt-4">
+              <p className="text-[#869298] text-sm text-center max-w-sm">
                 Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.
               </p>
-              <div className="flex flex-wrap justify-center gap-3 mb-4">
+              <div className="flex flex-wrap justify-center gap-3">
                 {canRegisterOnChain && (
-                  <GlowButton
+                  <button
+                    type="button"
                     onClick={handleRegisterOnChain}
                     disabled={registerOnChainLoading}
-                    variant="primary"
-                    size="sm"
+                    className="relative group w-[200px] h-[44px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
                   >
-                    {registerOnChainLoading ? "Registering..." : "Register"}
-                  </GlowButton>
+                    <svg width="200" height="44" viewBox="0 0 200 44" fill="none" className="absolute inset-0 w-full h-full">
+                      <path d="M8 1H192C196.418 1 198.997 5.85486 196.601 9.5127L178.167 39.5127C177.151 41.0646 175.42 42 173.565 42H8C4.96243 42 2.5 39.5376 2.5 36.5V8.5C2.5 5.46243 4.96243 3 8 3Z" fill="#00F0FF" stroke="#0E282A" strokeWidth={1} />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-[700] z-2">
+                      {registerOnChainLoading ? "Registering..." : "Register"}
+                    </span>
+                  </button>
                 )}
                 {needsTransferToLink && (
                   <p className="text-amber-300/90 text-xs text-center max-w-[280px]">
                     Transfer profile first: open Profile and use &quot;Transfer profile to address&quot; with this wallet, then link here.
                   </p>
                 )}
-                <GlowButton
+                <button
+                  type="button"
                   onClick={needsTransferToLink ? () => { router.push("/profile"); toast.info("Use Transfer profile to address with your current wallet, then come back and Link."); } : handleLinkWallet}
                   disabled={linkWalletLoading}
-                  variant="secondary"
-                  size="sm"
+                  className="relative group w-[200px] h-[44px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
                 >
-                  {linkWalletLoading ? "Linking..." : needsTransferToLink ? "Go to Profile" : address ? "Link wallet" : "Connect wallet"}
-                </GlowButton>
+                  <svg width="200" height="44" viewBox="0 0 200 44" fill="none" className="absolute inset-0 w-full h-full">
+                    <path d="M8 1H192C196.418 1 198.997 5.85486 196.601 9.5127L178.167 39.5127C177.151 41.0646 175.42 42 173.565 42H8C4.96243 42 2.5 39.5376 2.5 36.5V8.5C2.5 5.46243 4.96243 3 8 3Z" fill="#003B3E" stroke="#00F0FF" strokeWidth={1} />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-sm font-orbitron font-[700] z-2">
+                    {linkWalletLoading ? "Linking..." : needsTransferToLink ? "Go to Profile" : address ? "Link wallet" : "Connect wallet"}
+                  </span>
+                </button>
               </div>
-            </motion.div>
+            </div>
           )}
 
-          {((address && registrationStatus === "fully-registered" && isPrivyAuthed) || (registrationStatus === "privy" && (guestUser || isPrivyAuthed))) ? (
-            <div className="w-full flex flex-col items-center gap-5">
-              {/* Continue Previous Game - prominent when available, not full width */}
-              {((gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
+          {/* Action buttons: require Privy for EOA; guest/Privy. Show when fully set up (hasSmartWallet preferred, but allow linked/registered users to try). */}
+          {((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) ? (
+            <motion.div
+              className="flex flex-wrap justify-center items-center gap-2 mb-20"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+            >
+              {/* Continue Previous Game - Highlighted (wallet: from contract; guest: from my-games) */}
+              {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
                 (guestUser && guestLastGame && guestLastGame.status !== "COMPLETED" && guestLastGame.status !== "CANCELLED")) && (
-                <button
+                <motion.button
                   onClick={handleContinuePrevious}
-                  className="relative w-full max-w-[280px] h-12 transition-transform active:scale-[0.98]"
+                  className="relative group w-[240px] h-[48px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.98 }}
                 >
                   <svg
-                    className="absolute inset-0 w-full h-full"
+                    width="300"
+                    height="56"
                     viewBox="0 0 300 56"
                     fill="none"
-                    preserveAspectRatio="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="absolute top-0 left-0 w-full h-full transform scale-x-[-1] group-hover:animate-pulse"
                   >
                     <path
                       d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
                       fill="#00F0FF"
                       stroke="#0E282A"
-                      strokeWidth="2.5"
+                      strokeWidth={2}
+                      style={{
+                        filter: "drop-shadow(0 0 8px rgba(0, 240, 255, 0.6))"
+                      }}
                     />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-bold gap-2">
-                    <Gamepad2 size={18} />
-                    Continue Game
+                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[14px] font-orbitron font-[700] z-2">
+                    <Gamepad2 className="mr-1.5 w-4 h-4" />
+                    Continue
                   </span>
-                </button>
+                </motion.button>
               )}
 
-              {/* Secondary buttons grid */}
-              <div className="grid grid-cols-2 gap-4 w-full max-w-[280px]">
-                <button
-                  onClick={() => router.push("/game-settings-3d")}
-                  className="relative w-[130px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+              {/* Play with Friends */}
+              <button
+                onClick={() => router.push("/game-settings-3d")}
+                className="relative group w-[130px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+              >
+                <svg
+                  width="130"
+                  height="40"
+                  viewBox="0 0 130 40"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute top-0 left-0 w-full h-full"
                 >
-                  <svg
-                    width="130"
-                    height="40"
-                    viewBox="0 0 130 40"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="absolute top-0 left-0 w-full h-full"
-                  >
-                    <path
-                      d="M6 1H124C128.373 1 130.996 5.85486 128.601 9.5127L110.167 37.5127C109.151 39.0646 107.42 40 105.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                      fill="#003B3E"
-                      stroke="#003B3E"
-                      strokeWidth={1}
-                      className="group-hover:stroke-[#00F0FF] transition-all duration-300"
-                    />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
-                    <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
-                    Multiplayer
-                  </span>
-                </button>
+                  <path
+                    d="M6 1H124C128.373 1 130.996 5.85486 128.601 9.5127L110.167 37.5127C109.151 39.0646 107.42 40 105.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+                    fill="#003B3E"
+                    stroke="#003B3E"
+                    strokeWidth={1}
+                    className="group-hover:stroke-[#00F0FF] transition-all duration-300"
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
+                  <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
+                  Multiplayer
+                </span>
+              </button>
 
-                <button
-                  onClick={() => router.push("/join-room-3d")}
-                  className="relative w-[130px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer group"
+              {/* Join Room */}
+              <button
+                onClick={() => router.push("/join-room-3d")}
+                className="relative group w-[130px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+              >
+                <svg
+                  width="130"
+                  height="40"
+                  viewBox="0 0 130 40"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute top-0 left-0 w-full h-full"
                 >
-                  <svg
-                    width="130"
-                    height="40"
-                    viewBox="0 0 130 40"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="absolute top-0 left-0 w-full h-full"
-                  >
-                    <path
-                      d="M6 1H124C128.373 1 130.996 5.85486 128.601 9.5127L110.167 37.5127C109.151 39.0646 107.42 40 105.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                      fill="#003B3E"
-                      stroke="#003B3E"
-                      strokeWidth={1}
-                      className="group-hover:stroke-[#00F0FF] transition-all duration-300"
-                    />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
-                    <Dices className="mr-1.5 w-[16px] h-[16px]" />
-                    Join Room
-                  </span>
-                </button>
-              </div>
+                  <path
+                    d="M6 1H124C128.373 1 130.996 5.85486 128.601 9.5127L110.167 37.5127C109.151 39.0646 107.42 40 105.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+                    fill="#003B3E"
+                    stroke="#003B3E"
+                    strokeWidth={1}
+                    className="group-hover:stroke-[#00F0FF] transition-all duration-300"
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
+                  <Dices className="mr-1.5 w-[16px] h-[16px]" />
+                  Join Room
+                </span>
+              </button>
 
               {/* Challenge AI */}
-              <GlowButton
+              <motion.button
                 onClick={() => router.push("/play-ai-3d")}
-                variant="primary"
-                size="md"
+                className="relative group w-[240px] h-[48px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.98 }}
+                animate={{
+                  boxShadow: [
+                    "0 0 10px rgba(0, 240, 255, 0)",
+                    "0 0 20px rgba(0, 240, 255, 0.6)",
+                    "0 0 10px rgba(0, 240, 255, 0)",
+                  ]
+                }}
+                transition={{ duration: 3, repeat: Infinity }}
               >
-                Challenge AI
-              </GlowButton>
+                <svg
+                  width="260"
+                  height="52"
+                  viewBox="0 0 260 52"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute top-0 left-0 w-full h-full transform scale-x-[-1] group-hover:animate-pulse"
+                >
+                  <path
+                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+                    fill="#00F0FF"
+                    stroke="#0E282A"
+                    strokeWidth={1}
+                    style={{
+                      filter: "drop-shadow(0 0 6px rgba(0, 240, 255, 0.8))"
+                    }}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
+                  Challenge AI
+                </span>
+              </motion.button>
 
-              {/* Agent Battles */}
-              <GlowButton
-                onClick={() => router.push("/arena")}
-                variant="secondary"
-                size="md"
-              >
-                Agent Battles
-              </GlowButton>
-            </div>
+            </motion.div>
           ) : null}
 
-          {!address && !guestUser && !isPrivyAuthed && !loading && (
-            <p className="text-gray-400 text-sm text-center mt-4 px-2">
-              Sign in or connect your wallet (menu) to play.
+          {!address && !guestUser && !walletSessionReady && (
+            <p className="text-gray-400 text-sm text-center mt-4">
+              Sign in or connect your wallet to play.
             </p>
           )}
         </div>
-      </div>
+      </main>
 
       {/* World Stats Bar */}
       <WorldStatsBar
@@ -768,4 +1006,4 @@ const HeroSectionMobile: React.FC = () => {
   );
 };
 
-export default HeroSectionMobile;
+export default HeroSection;

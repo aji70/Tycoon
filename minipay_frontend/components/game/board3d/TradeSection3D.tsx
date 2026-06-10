@@ -21,7 +21,6 @@ interface TradeSection3DProps {
   canCreateTrade: boolean;
   /** Legacy: opens Players panel (non-3D). Prefer tradeOpponents + onStartTradeWith. */
   onCreateTradeClick?: () => void;
-  /** Other seats you can open a trade with; when set with onStartTradeWith, shows picker under Active Trades. */
   tradeOpponents?: Player[];
   onStartTradeWith?: (player: Player) => void;
 }

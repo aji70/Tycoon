@@ -15,11 +15,11 @@ import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 
 interface JoinRoomMobileProps {
-  /** When game is RUNNING, redirect here (default: /game-play). e.g. /board-3d-multi for 3D. */
+  /** When game is RUNNING, redirect here (default: /board-3d-multi-mobile). */
   redirectToBoard?: string;
-  /** When game is PENDING, redirect to this waiting room (default: /game-waiting). e.g. /game-waiting-3d. */
+  /** When game is PENDING, redirect to this waiting room (default: /game-waiting-3d). */
   redirectToWaiting?: string;
-  /** "Create new game" link (default: /game-settings). e.g. /game-settings-3d for 3D. */
+  /** "Create new game" link (default: /game-settings-3d). */
   redirectCreateNew?: string;
 }
 
@@ -221,8 +221,8 @@ export default function JoinRoom({
   }, [router, redirectCreateNew, queueAfterAuth]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 relative overflow-hidden flex flex-col">
-      <div className="relative z-10 flex-1 flex items-start justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 relative flex flex-col">
+      <div className="relative z-10 flex-1 flex items-start justify-center p-4 pb-10 overflow-y-auto w-full">
         <div className="w-full max-w-md mx-auto">
           <div className="relative mb-8">
             <div className="absolute -inset-4 bg-gradient-to-r from-cyan-500/20 via-cyan-400/10 to-cyan-500/20 rounded-lg blur-3xl opacity-60" />
@@ -252,7 +252,6 @@ export default function JoinRoom({
           <JoinRoomAuthModal open={modalOpen} hint={modalHint} onDismiss={cancelModal} />
 
           <div className="space-y-6">
-
             {/* ENTER ACCESS CODE */}
             <div>
               <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Enter Access Code</p>

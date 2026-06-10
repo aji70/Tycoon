@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@/hooks/usePrivy";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useProfileOwner, useTransferProfileTo } from "@/context/ContractProvider";
 import { Link2, Unlink, Loader2, Mail, Wallet, ArrowRightLeft, Copy, ExternalLink } from "lucide-react";
@@ -13,9 +13,6 @@ import { toast } from "react-toastify";
 
 /** Chain id to backend chain name */
 function chainIdToBackendChain(chainId: number): string {
-  if (chainId === 137 || chainId === 80001) return "POLYGON";
-  if (chainId === 42220 || chainId === 44787) return "CELO";
-  if (chainId === 8453 || chainId === 84531) return "BASE";
   return "CELO";
 }
 

@@ -1,16 +1,7 @@
 "use client";
 
 import React from "react";
-import { FaUser, FaRobot, FaBrain, FaCoins } from "react-icons/fa6";
-import { House } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/game-switch";
+import { motion } from "framer-motion";
 import { RiAuctionFill } from "react-icons/ri";
 import { GiPrisoner, GiBank } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
@@ -21,7 +12,19 @@ import { useAIGameCreate } from "@/hooks/useAIGameCreate";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { BoardVariantPicker } from "@/components/game-setup/BoardVariantPicker";
 
-/** AI game settings (mobile): redirects to ai-play-3d with theme colors. */
+const PIECE_EMOJI: Record<string, string> = {
+  hat: "🎩",
+  car: "🚗",
+  dog: "🐕",
+  thimble: "🔧",
+  wheelbarrow: "🛒",
+  battleship: "🚢",
+  boot: "👢",
+  iron: "♨️",
+  top_hat: "🎩",
+};
+
+/** AI game settings (mobile): redirects to ai-play-3d with battle setup UI matching frontend. */
 export default function PlayWithAI3DMobile() {
   const router = useRouter();
   const playGuard = usePreventDoubleSubmit();
@@ -34,7 +37,6 @@ export default function PlayWithAI3DMobile() {
     isGuest,
     isRegisteredLoading,
     registeredAgents,
-    agentsLoading,
     registrySupported,
   } = useAIGameCreate({ redirectTo3D: true });
 
@@ -42,211 +44,317 @@ export default function PlayWithAI3DMobile() {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-[#0E282A] to-slate-950">
         <p className="text-cyan-400 text-xl font-medium animate-pulse text-center px-6">
-          Getting ready...
+          Initializing Battle System...
         </p>
       </div>
     );
   }
 
+  const houseRules = [
+    { icon: RiAuctionFill, label: "Auction Unsold", key: "auction" },
+    { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
+    { icon: GiBank, label: "Allow Mortgages", key: "mortgage" },
+    { icon: IoBuild, label: "Even Building", key: "evenBuild" },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 flex flex-col pt-[70px]">
-      <div className="px-5 pt-6 pb-4">
-        <div className="max-w-md mx-auto flex justify-between items-center">
-          <button
-            onClick={() => router.push("/")}
-            className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition group"
-          >
-            <House className="w-5 h-5 group-hover:-translate-x-1 transition" />
-            <span className="font-bold text-sm">Back</span>
-          </button>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-teal-400 bg-clip-text text-transparent">
-            Play vs AI
-          </h1>
-          <a href="/agents" className="text-cyan-400 hover:text-cyan-300 text-xs font-medium">
-            Agents
-          </a>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 relative overflow-x-hidden flex flex-col pb-10">
+      {/* Content */}
+      <div className="relative z-10 flex-1 flex items-start justify-center p-4">
+        <div className="w-full max-w-md mx-auto">
+          {/* HEADER */}
+          <div className="relative mb-8">
+            {/* Glowing background */}
+            <div className="absolute -inset-4 bg-gradient-to-r from-cyan-500/20 via-cyan-400/10 to-cyan-500/20 rounded-lg blur-3xl opacity-60" />
 
-      <div className="flex-1 overflow-y-auto px-5 pb-10">
-        <div className="max-w-md mx-auto space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 rounded-xl p-4 border border-cyan-500/30">
-              <div className="flex items-center gap-2 mb-2">
-                <FaUser className="w-4 h-4 text-cyan-400" />
-                <h3 className="text-sm font-bold text-cyan-300">Your Piece</h3>
-              </div>
-              <Select value={settings.symbol} onValueChange={(v) => setSettings((p) => ({ ...p, symbol: v }))}>
-                <SelectTrigger className="h-10 bg-slate-800/80 border-cyan-500/40 text-white text-sm">
-                  <SelectValue placeholder="Choose" />
-                </SelectTrigger>
-                <SelectContent>
-                  {GamePieces.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 rounded-xl p-4 border border-cyan-500/30">
-              <div className="flex items-center gap-2 mb-2">
-                <FaRobot className="w-4 h-4 text-cyan-400" />
-                <h3 className="text-sm font-bold text-cyan-300">AI Opponents</h3>
-              </div>
-              <Select
-                value={settings.aiCount.toString()}
-                onValueChange={(v) => setSettings((p) => ({ ...p, aiCount: +v }))}
+            <div className="relative">
+              <motion.button
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.4 }}
+                onClick={() => router.push("/")}
+                className="mb-4 flex items-center gap-2 text-cyan-400 hover:text-cyan-300 font-orbitron text-xs font-bold transition"
               >
-                <SelectTrigger className="h-10 bg-slate-800/80 border-cyan-500/40 text-white text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[1, 2, 3, 4, 5, 6].map((n) => (
-                    <SelectItem key={n} value={n.toString()}>{n} AI</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {registrySupported && registeredAgents.length > 0 && (
-                <p className="mt-1.5 text-[10px] text-cyan-300/80 flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" />
-                  {registeredAgents.length} verified
+                ← BACK TO BASE
+              </motion.button>
+
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="text-center"
+              >
+                <h1 className="text-3xl font-black font-orbitron uppercase tracking-wider mb-2">
+                  <span className="text-2xl">⚔️</span>
+                  <br />
+                  <span
+                    className="bg-gradient-to-r from-cyan-400 via-cyan-300 to-cyan-500 bg-clip-text text-transparent"
+                    style={{
+                      textShadow: `
+                        0 0 20px rgba(0, 240, 255, 0.5),
+                        0 0 40px rgba(0, 240, 255, 0.3)
+                      `,
+                    }}
+                  >
+                    BATTLE SETUP
+                  </span>
+                </h1>
+                <p className="text-cyan-300/70 font-dmSans text-xs tracking-widest uppercase mt-2">
+                  Configure Your Match • Engage Enemy • Dominate
                 </p>
-              )}
+              </motion.div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-gradient-to-br from-teal-900/40 to-cyan-900/40 rounded-xl p-4 border border-cyan-500/30">
-              <div className="flex items-center gap-2 mb-2">
-                <FaCoins className="w-4 h-4 text-cyan-400" />
-                <h3 className="text-sm font-bold text-cyan-300">Starting Cash</h3>
-              </div>
-              <Select
-                value={settings.startingCash.toString()}
-                onValueChange={(v) => setSettings((p) => ({ ...p, startingCash: +v }))}
-              >
-                <SelectTrigger className="h-10 bg-slate-800/80 border-cyan-500/40 text-white text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="500">$500</SelectItem>
-                  <SelectItem value="1000">$1,000</SelectItem>
-                  <SelectItem value="1500">$1,500</SelectItem>
-                  <SelectItem value="2000">$2,000</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 rounded-xl p-4 border border-cyan-500/30">
-              <div className="flex items-center gap-2 mb-2">
-                <FaBrain className="w-4 h-4 text-cyan-400" />
-                <h3 className="text-sm font-bold text-cyan-300">Duration</h3>
-              </div>
-              <Select
-                value={settings.duration.toString()}
-                onValueChange={(v) => setSettings((p) => ({ ...p, duration: +v }))}
-              >
-                <SelectTrigger className="h-10 bg-slate-800/80 border-cyan-500/40 text-white text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="30">30m</SelectItem>
-                  <SelectItem value="45">45m</SelectItem>
-                  <SelectItem value="60">60m</SelectItem>
-                  <SelectItem value="90">90m</SelectItem>
-                  <SelectItem value="0">No limit</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-red-900/40 to-orange-900/40 rounded-xl p-4 border border-cyan-500/30">
-            <div className="flex items-center gap-2 mb-2">
-              <FaBrain className="w-4 h-4 text-cyan-400" />
-              <h3 className="text-sm font-bold text-cyan-300">AI Difficulty</h3>
-            </div>
-            <Select
-              value={settings.aiDifficulty}
-              onValueChange={(v) => setSettings((p) => ({ ...p, aiDifficulty: v as any }))}
-            >
-              <SelectTrigger className="h-10 bg-slate-800/80 border-cyan-500/40 text-white text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="easy">Easy</SelectItem>
-                <SelectItem value="hard">Hard</SelectItem>
-                <SelectItem value="boss" className="text-cyan-400 font-bold">BOSS</SelectItem>
-              </SelectContent>
-            </Select>
-            {settings.aiCount > 1 && (
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-xs text-cyan-200/90">Per opponent</span>
-                <Switch
-                  checked={settings.aiDifficultyMode === "random"}
-                  onCheckedChange={(v) => setSettings((p) => ({ ...p, aiDifficultyMode: v ? "random" : "same" }))}
-                />
-                <span className="text-xs text-cyan-200/90">
-                  {settings.aiDifficultyMode === "random" ? "Randomize" : "Same"}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {registrySupported && registeredAgents.length > 0 && !agentsLoading && (
-            <div className="bg-gradient-to-br from-emerald-900/40 to-teal-900/40 rounded-xl p-4 border border-cyan-500/30">
-              <div className="flex items-center gap-2 mb-2">
-                <ShieldCheck className="w-4 h-4 text-cyan-400" />
-                <h3 className="text-sm font-bold text-cyan-300">Verified AI</h3>
-              </div>
-              <ul className="space-y-1 max-h-20 overflow-y-auto">
-                {registeredAgents.map((a) => (
-                  <li key={a.tokenId} className="text-xs text-slate-300 flex justify-between items-center gap-2">
-                    <span className="font-medium text-white truncate">{a.name}</span>
-                    <span className="text-cyan-400/90 shrink-0 text-[10px]">{a.playStyle}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="bg-gradient-to-br from-slate-900/50 to-cyan-950/40 rounded-xl p-4 border border-cyan-500/30">
+          <div className="rounded-xl border border-cyan-500/30 bg-slate-900/60 px-4 py-4 mb-6">
             <BoardVariantPicker
               value={settings.boardVariantId}
               onChange={(id) => setSettings((p) => ({ ...p, boardVariantId: id }))}
             />
           </div>
 
-          <div className="bg-slate-800/60 rounded-xl p-4 border border-cyan-500/30">
-            <h3 className="text-base font-bold text-cyan-400 mb-3 text-center">House Rules</h3>
-            <div className="space-y-2">
-                {[
-                  { icon: RiAuctionFill, label: "Auction Unsold", key: "auction" },
-                  { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
-                  { icon: GiBank, label: "Mortgages", key: "mortgage" },
-                  { icon: IoBuild, label: "Even Build", key: "evenBuild" },
-                ].map((item) => (
-                <div key={item.key} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <item.icon className="w-4 h-4 text-cyan-400" />
-                    <span className="text-slate-300 text-sm">{item.label}</span>
-                  </div>
-                  <Switch
-                    checked={settings[item.key as keyof typeof settings] as boolean}
-                    onCheckedChange={(v) => setSettings((p) => ({ ...p, [item.key]: v }))}
-                  />
+          {/* MAIN CONTENT - Single column stack */}
+          <div className="space-y-6">
+            {/* SELECT PIECE */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Select Piece</p>
+              <div className="overflow-x-auto pb-2">
+                <div className="flex gap-2 min-w-min">
+                  {GamePieces.map((piece, idx) => (
+                    <motion.button
+                      key={piece.id}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.3, delay: idx * 0.05 }}
+                      onClick={() => setSettings((p) => ({ ...p, symbol: piece.id }))}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={`relative p-2 rounded-lg transition-all duration-300 border-2 flex-shrink-0 w-20 h-24 flex flex-col items-center justify-center ${
+                        settings.symbol === piece.id
+                          ? "border-cyan-400 bg-cyan-500/20 shadow-lg shadow-cyan-500/50"
+                          : "border-cyan-500/30 bg-slate-800/40 hover:border-cyan-400/60"
+                      }`}
+                    >
+                      <div className="text-xl mb-1">{PIECE_EMOJI[piece.id]}</div>
+                      <div className="text-[9px] font-orbitron text-cyan-300 font-bold text-center line-clamp-2 px-0.5 leading-tight">
+                        {piece.name}
+                      </div>
+                      {settings.symbol === piece.id && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="absolute -top-2 -right-2 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg shadow-cyan-500/60"
+                        >
+                          ✓
+                        </motion.div>
+                      )}
+                    </motion.button>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
 
-          <div className="pt-4 pb-4">
-            <button
+            {/* ENEMY FORMATION */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Enemy Formation</p>
+              <div className="grid grid-cols-6 gap-2 mb-3">
+                {[1, 2, 3, 4, 5, 6].map((num) => (
+                  <motion.button
+                    key={num}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSettings((p) => ({ ...p, aiCount: num }))}
+                    className={`py-2 rounded-lg font-orbitron font-bold text-sm transition-all duration-300 border-2 ${
+                      settings.aiCount === num
+                        ? "border-cyan-400 bg-cyan-500/20 text-cyan-300 shadow-lg shadow-cyan-500/40"
+                        : "border-cyan-500/30 bg-slate-800/40 text-cyan-400/60 hover:border-cyan-400/60"
+                    }`}
+                  >
+                    {num}
+                  </motion.button>
+                ))}
+              </div>
+
+              {/* Avatar slots */}
+              <div className="grid grid-cols-6 gap-2">
+                {[...Array(6)].map((_, idx) => (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: idx < settings.aiCount ? 1 : 0.3, scale: 1 }}
+                    transition={{ duration: 0.3, delay: idx * 0.05 }}
+                    className={`aspect-square rounded-lg border-2 flex items-center justify-center transition-all ${
+                      idx < settings.aiCount
+                        ? "border-cyan-500 bg-cyan-500/10 shadow-lg shadow-cyan-500/30"
+                        : "border-cyan-500/20 bg-slate-800/20"
+                    }`}
+                  >
+                    <div className="text-lg">🤖</div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {registrySupported && registeredAgents.length > 0 && (
+                <p className="text-xs text-cyan-300/70 flex items-center gap-1 mt-2">
+                  <ShieldCheck className="w-3 h-3" />
+                  {registeredAgents.length} verified agents
+                </p>
+              )}
+            </div>
+
+            {/* BATTLE DIFFICULTY */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Battle Difficulty</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: "easy", label: "EASY", icon: "🟢" },
+                  { id: "hard", label: "HARD", icon: "🟡" },
+                  { id: "boss", label: "BOSS", icon: "💀" },
+                ].map((diff, idx) => (
+                  <motion.button
+                    key={diff.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: idx * 0.1 }}
+                    onClick={() => setSettings((p) => ({ ...p, aiDifficulty: diff.id as any }))}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className={`relative p-2 rounded-lg transition-all duration-300 border-2 font-orbitron text-center py-3 ${
+                      settings.aiDifficulty === diff.id
+                        ? diff.id === "boss"
+                          ? "border-red-500 bg-red-600/30 shadow-lg shadow-red-600/60"
+                          : "border-cyan-400 bg-cyan-500/20 shadow-lg shadow-cyan-500/50"
+                        : diff.id === "boss"
+                        ? "border-red-600/50 bg-red-900/20 hover:border-red-500/70"
+                        : "border-cyan-500/30 bg-slate-800/40 hover:border-cyan-400/60"
+                    }`}
+                  >
+                    <div className="text-xl mb-1">{diff.icon}</div>
+                    <div className="text-xs font-bold text-white">{diff.label}</div>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* STARTING CAPITAL */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Starting Capital</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[500, 1000, 1500, 2000].map((amount) => (
+                  <motion.button
+                    key={amount}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSettings((p) => ({ ...p, startingCash: amount }))}
+                    className={`py-2 px-2 rounded-lg font-orbitron text-xs font-bold transition-all border-2 ${
+                      settings.startingCash === amount
+                        ? "border-cyan-400 bg-cyan-500/20 text-cyan-300"
+                        : "border-cyan-500/30 bg-slate-800/40 text-cyan-400/60 hover:border-cyan-400/60"
+                    }`}
+                  >
+                    ${amount}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* MATCH DURATION */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">Match Duration</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 30, label: "30m" },
+                  { value: 45, label: "45m" },
+                  { value: 60, label: "60m" },
+                  { value: 90, label: "90m" },
+                  { value: 0, label: "∞" },
+                ].map((duration) => (
+                  <motion.button
+                    key={duration.value}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSettings((p) => ({ ...p, duration: duration.value }))}
+                    className={`py-2 px-3 rounded-full font-orbitron text-xs font-bold transition-all border-2 ${
+                      settings.duration === duration.value
+                        ? "border-cyan-400 bg-cyan-500/20 text-cyan-300"
+                        : "border-cyan-500/30 bg-slate-800/40 text-cyan-400/60 hover:border-cyan-400/60"
+                    }`}
+                  >
+                    {duration.label}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* HOUSE RULES */}
+            <div>
+              <p className="text-cyan-400/70 font-orbitron text-xs uppercase tracking-widest mb-3">House Rules</p>
+              <div className="grid grid-cols-2 gap-2">
+                {houseRules.map((rule, idx) => {
+                  const isActive = settings[rule.key as keyof typeof settings];
+                  return (
+                    <motion.div
+                      key={rule.key}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.2, delay: idx * 0.05 }}
+                      className={`flex flex-col items-center p-2 rounded-lg border-2 transition-all gap-2 ${
+                        isActive
+                          ? "border-cyan-500/60 bg-cyan-500/15"
+                          : "border-cyan-500/20 bg-slate-800/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 text-center">
+                        <span className="text-lg text-cyan-400 flex-shrink-0">{<rule.icon />}</span>
+                        <span className="text-xs font-orbitron font-bold text-white uppercase">
+                          {rule.label}
+                        </span>
+                      </div>
+
+                      <motion.button
+                        onClick={() =>
+                          setSettings((p) => ({ ...p, [rule.key]: !(p[rule.key as keyof typeof p] as boolean) }))
+                        }
+                        className={`relative w-10 h-5 rounded-full transition-all duration-300 border-2 ${
+                          isActive
+                            ? "border-cyan-500 bg-gradient-to-r from-cyan-600 to-cyan-500 shadow-lg shadow-cyan-500/40"
+                            : "border-cyan-500/30 bg-slate-700/60"
+                        }`}
+                      >
+                        <motion.div
+                          animate={{ x: isActive ? 20 : 2 }}
+                          transition={{ type: "spring", stiffness: 600, damping: 25 }}
+                          className={`absolute top-0.5 w-4 h-4 rounded-full transition-colors ${
+                            isActive ? "bg-white shadow-lg shadow-cyan-400/50" : "bg-slate-500"
+                          }`}
+                        />
+                      </motion.button>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* LAUNCH BUTTON */}
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.3 }}
               onClick={() => playGuard.submit(() => handlePlay())}
               disabled={!canCreate || playGuard.isSubmitting || (!isGuest && isCreatePending)}
-              className="w-full py-4 text-lg font-bold rounded-xl shadow-md hover:brightness-110 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed border border-cyan-400/50 bg-gradient-to-b from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-slate-900"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="w-full py-4 mt-4 text-base font-bold rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-cyan-400/60 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-slate-900 shadow-lg shadow-cyan-500/40"
             >
-              {playGuard.isSubmitting || (!isGuest && isCreatePending) ? "Getting ready..." : "Let's Play!"}
-            </button>
+              {playGuard.isSubmitting || (!isGuest && isCreatePending)
+                ? "🔄 LAUNCHING..."
+                : "🚀 LAUNCH BATTLE 🎯"}
+            </motion.button>
+
+            {/* Launch subtext */}
+            <p className="text-center text-cyan-300/70 font-dmSans text-xs mt-2">
+              ⚡ READY TO ENGAGE · ALL SYSTEMS GO
+            </p>
           </div>
         </div>
       </div>

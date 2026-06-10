@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
-import { useAppKit } from "@reown/appkit/react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useConnectWallet } from "@/hooks/useConnectWallet";
+import { usePrivy } from "@/hooks/usePrivy";
 import { X, Wallet, Gamepad2, Dices, Sparkles } from "lucide-react";
 
 const ONBOARDING_STORAGE_KEY = "tycoon_onboarding_done";
@@ -26,14 +26,21 @@ interface OnboardingModalProps {
 export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
   const router = useRouter();
   const { address, isConnected } = useAccount();
-  const { open: openAppKit } = useAppKit();
+  const connectWallet = useConnectWallet();
   const { ready, authenticated, login } = usePrivy();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
+  const [isMiniPay, setIsMiniPay] = useState(false);
 
   useEffect(() => {
     if (hasSeenOnboarding()) return;
     setOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
+    setIsMiniPay(Boolean(eth?.isMiniPay));
   }, []);
 
   const handleDismiss = () => {
@@ -43,10 +50,9 @@ export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
   };
 
   const handleConnect = () => {
-    if (ready && !authenticated) {
+    connectWallet();
+    if (!isMiniPay && ready && !authenticated) {
       login();
-    } else {
-      openAppKit?.();
     }
   };
 
@@ -137,7 +143,7 @@ export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
                     className="w-full py-4 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-[#010F10] font-orbitron font-bold flex items-center justify-center gap-2 hover:opacity-95 transition-opacity"
                   >
                     <Wallet className="w-5 h-5" />
-                    Sign in / Connect wallet
+                    Connect wallet
                   </button>
                 )}
                 {isSignedIn && (

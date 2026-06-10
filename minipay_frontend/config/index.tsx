@@ -1,35 +1,46 @@
-import { cookieStorage, createStorage, http } from '@wagmi/core'
-import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
-import { celo } from '@reown/appkit/networks'
+"use client";
 
-export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID
+import { cookieStorage, createStorage, createConfig } from "wagmi";
+import { celo } from "wagmi/chains";
+import { injected } from "wagmi/connectors";
+import { celoTransportForWagmi } from "@/lib/celoTransportForWagmi";
 
-if (!projectId) {
-  throw new Error('Project ID is not defined')
+export const appChain = "CELO";
+export const defaultNetwork = celo;
+export const chains = [celo] as const;
+
+export function createMiniPayWagmiConfig() {
+  return createConfig({
+    chains,
+    connectors: [injected()],
+    storage: createStorage({
+      storage: cookieStorage,
+    }),
+    ssr: true,
+    transports: {
+      [celo.id]: celoTransportForWagmi(),
+    },
+  });
 }
 
-// Celo only (or Celo/Base in a dedicated frontend)
-export const networks = [celo]
+let injectedConfig: ReturnType<typeof createMiniPayWagmiConfig> | null = null;
+let ssrConfig: ReturnType<typeof createMiniPayWagmiConfig> | null = null;
 
-/** Backend chain name for this deployment. Derived from default network so each site (Polygon/Celo/Base) sends the right chain. */
-function chainIdToBackendChain(chainId: number): 'POLYGON' | 'CELO' | 'BASE' {
-  if (chainId === 137 || chainId === 80001) return 'POLYGON'
-  if (chainId === 42220 || chainId === 44787) return 'CELO'
-  if (chainId === 8453 || chainId === 84531) return 'BASE'
-  return 'CELO'
+/** Wagmi config: injected transport in browser when `window.ethereum` exists; HTTP only for SSR. */
+export function getWagmiConfig() {
+  const hasEth =
+    typeof window !== "undefined" &&
+    !!(window as Window & { ethereum?: unknown }).ethereum;
+
+  if (hasEth) {
+    if (!injectedConfig) {
+      injectedConfig = createMiniPayWagmiConfig();
+    }
+    return injectedConfig;
+  }
+
+  if (!ssrConfig) {
+    ssrConfig = createMiniPayWagmiConfig();
+  }
+  return ssrConfig;
 }
-
-export const defaultNetwork = networks[0]
-export const appChain = chainIdToBackendChain(defaultNetwork?.id ?? 42220)
-
-//Set up the Wagmi Adapter (Config)
-export const wagmiAdapter = new WagmiAdapter({
-  storage: createStorage({
-    storage: cookieStorage
-  }),
-  ssr: true,
-  projectId,
-  networks
-})
-
-export const config = wagmiAdapter.wagmiConfig

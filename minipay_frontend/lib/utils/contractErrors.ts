@@ -47,7 +47,6 @@ const USER_REJECTED_SUBSTRINGS = [
   "canceled by user",
 ];
 
-/** Walk viem/wagmi nested `cause` chain and collect text for matching. */
 function walkErrorChain(error: unknown, maxDepth = 10): string[] {
   const parts: string[] = [];
   const seen = new Set<unknown>();
@@ -103,6 +102,11 @@ function collectErrorText(error: unknown): string {
   return walkErrorChain(error).join(" ").toLowerCase();
 }
 
+/** @internal Exported for MiniPay registration fallback detection */
+export function collectErrorTextForMiniPay(error: unknown): string {
+  return collectErrorText(error);
+}
+
 function hasRejectedCode(error: unknown): boolean {
   for (const part of walkErrorChain(error)) {
     const code = String(part).trim();
@@ -128,7 +132,6 @@ export function isUserRejectedTransaction(error: unknown): boolean {
   return USER_REJECTED_SUBSTRINGS.some((s) => hay.includes(s));
 }
 
-/** Strip viem/wagmi diagnostic tails before showing in a toast. */
 export function sanitizeContractToastMessage(message: string): string {
   let msg = message.trim();
   const docsIdx = msg.indexOf("Docs:");
@@ -167,12 +170,12 @@ export function getContractErrorMessage(
     e?.shortMessage?.includes("insufficient funds") ||
     e?.message?.toLowerCase().includes("insufficient balance")
   ) {
-    return "Not enough funds for gas fees.";
+    return "Not enough funds for network fees.";
   }
 
   // Insufficient balance or allowance for ERC20
   if (e?.message?.toLowerCase().includes("insufficient")) {
-    return "Insufficient balance or gas.";
+    return "Insufficient balance or network fees.";
   }
 
   // Contract revert: AI game specific (wrong network or game type)
@@ -213,6 +216,22 @@ export function getContractErrorMessage(
 
   // Connection / network errors
   const msgLower = (e?.message ?? e?.shortMessage ?? "").toLowerCase();
+  if (msgLower.includes("invalid sender")) {
+    return "MiniPay could not send that transaction. Tap Continue again — we register you without a wallet signature.";
+  }
+  if (
+    msgLower.includes("permission denied") ||
+    msgLower.includes("not authorized") ||
+    msgLower.includes("unauthorized")
+  ) {
+    return "MiniPay could not sign from your wallet. Tap Continue again to finish registration.";
+  }
+  if (
+    msgLower.includes("unknown rpc error") ||
+    msgLower.includes("an unknown rpc error occurred")
+  ) {
+    return "MiniPay could not send the transaction. Ensure you have a little USDC for gas, stay in the MiniPay app, and try again.";
+  }
   if (
     msgLower.includes("network") ||
     msgLower.includes("fetch failed") ||

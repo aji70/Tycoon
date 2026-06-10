@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useChainId } from "wagmi";
-import { useAppKitNetwork } from "@reown/appkit/react";
 import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { resolveChainForBackend } from "@/lib/utils/chain";
@@ -87,8 +86,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
   const wagmiChainId = useChainId();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const redirectTo3D = options?.redirectTo3D ?? false;
-  const { caipNetwork } = useAppKitNetwork();
-  const board3DUrl = redirectTo3D ? (isMobile ? `/board-3d-mobile?gameCode=` : `/board-3d?gameCode=`) : null;
+  const board3DUrl = redirectTo3D ? `/board-3d-mobile?gameCode=` : null;
   const guestAuth = useGuestAuthOptional();
   const isGuest = shouldUseBackendGuestGameFlow(guestAuth?.guestUser ?? null, address, wagmiChainId);
 
@@ -97,15 +95,15 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
   const { agents: registeredAgents, isLoading: agentsLoading, isSupported: registrySupported } =
     useRegisteredAIAgents();
 
-  const isMiniPay = !!caipNetwork?.id && MINIPAY_CHAIN_IDS.includes(Number(caipNetwork.id));
-  const chainName = resolveChainForBackend(wagmiChainId, caipNetwork?.name);
+  const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);
+  const chainName = resolveChainForBackend(wagmiChainId);
 
   const [settings, setSettings] = useState<AIGameSettings>(DEFAULT_SETTINGS);
 
   const gameCode = generateGameCode();
   const totalPlayers = settings.aiCount + 1;
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[
-    caipNetwork?.id as keyof typeof TYCOON_CONTRACT_ADDRESSES
+    wagmiChainId as keyof typeof TYCOON_CONTRACT_ADDRESSES
   ] as Address | undefined;
 
   const { write: createAiGame, isPending: isCreatePending } = useCreateAIGame(
@@ -153,7 +151,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
           isLoading: false,
           autoClose: 5000,
         });
-        router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/ai-play-3d?gameCode=${gameCode}`);
+        router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/board-3d-mobile?gameCode=${gameCode}`);
       } catch (err: any) {
         const msg = err?.response?.data?.message ?? err?.message ?? "Failed to create AI game.";
         toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 8000 });
@@ -232,9 +230,47 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
     }
 
     try {
-      toast.update(toastId, { render: "Creating AI game on-chain..." });
-      const onChainGameId = await createAiGame(usernameNow);
-      if (!onChainGameId) throw new Error("Failed to create game on-chain");
+      toast.update(toastId, { render: "Creating AI game..." });
+      let onChainGameId: string | number | undefined;
+      let usedBackendFallback = false;
+
+      try {
+        onChainGameId = await createAiGame(usernameNow);
+        if (!onChainGameId) throw new Error("Failed to create game on-chain");
+      } catch (onChainErr: any) {
+        const isNoGas =
+          onChainErr?.message?.toLowerCase().includes("insufficient") ||
+          onChainErr?.shortMessage?.toLowerCase().includes("insufficient");
+        if (!isNoGas) throw onChainErr;
+
+        // No gas — use backend-sponsored flow
+        toast.update(toastId, { render: "No gas detected. Creating via backend..." });
+        const fallbackRes = await apiClient.post<any>("/games/create-ai-as-guest", {
+          address,
+          code: gameCode,
+          symbol: settings.symbol,
+          number_of_players: totalPlayers,
+          is_minipay: isMiniPay,
+          chain: chainName,
+          duration: settings.duration,
+          board_id: settings.boardVariantId,
+          ai_difficulty: settings.aiDifficulty,
+          ai_difficulty_mode: settings.aiDifficultyMode,
+          settings: {
+            auction: settings.auction,
+            rent_in_prison: settings.rentInPrison,
+            mortgage: settings.mortgage,
+            even_build: settings.evenBuild,
+            starting_cash: settings.startingCash,
+          },
+        });
+        const fallbackData = (fallbackRes as any)?.data;
+        const fallbackId = fallbackData?.data?.id ?? fallbackData?.id;
+        if (!fallbackId) throw new Error("Backend did not return game ID");
+        toast.update(toastId, { render: "Battle begins! Good luck, Tycoon!", type: "success", isLoading: false, autoClose: 5000 });
+        router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/board-3d-mobile?gameCode=${gameCode}`);
+        return;
+      }
 
       toast.update(toastId, { render: "Saving game to server..." });
 
@@ -306,7 +342,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
         autoClose: 5000,
       });
 
-      router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/ai-play-3d?gameCode=${gameCode}`);
+      router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/board-3d-mobile?gameCode=${gameCode}`);
     } catch (err: any) {
       console.error("handlePlay error:", err);
       const rawMessage = getContractErrorMessage(err, "Something went wrong. Please try again.");

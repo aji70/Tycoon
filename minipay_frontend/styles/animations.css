@@ -1,0 +1,51 @@
+/**
+ * Non-critical animations — loaded after first paint (see DeferredUiStyles).
+ */
+
+.hero-bg-zoom {
+  animation: zoomIn 20s ease-in-out infinite alternate;
+}
+
+@keyframes zoomIn {
+  0% {
+    transform: scale(0.8);
+  }
+  100% {
+    transform: scale(1.2);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+@keyframes game-glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(0, 240, 255, 0.25);
+  }
+}
+
+.game-cta-glow {
+  animation: game-glow-pulse 2.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-bg-zoom,
+  .animate-shimmer,
+  .game-cta-glow {
+    animation: none;
+  }
+}

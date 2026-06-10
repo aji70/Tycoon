@@ -231,7 +231,7 @@ export default function GameWaitingMobile({ redirectToBoard }: GameWaitingMobile
                 <p className="text-yellow-400 text-lg font-bold flex items-center justify-center gap-2 animate-pulse">
                   <FaCoins className="w-6 h-6" />
                   Entry Stake: {Number(stakePerPlayer) / 10 ** USDC_DECIMALS}
-                  USDC
+                  USDT
                 </p>
               ) : (
                 <p className="text-green-400 text-base font-bold">

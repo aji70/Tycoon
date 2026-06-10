@@ -4,22 +4,18 @@ import ScrollToTopBtn from "@/components/shared/scroll-to-top-btn";
 import "@/styles/globals.css";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
-import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
 import ReferralCapture from "@/components/ReferralCapture";
-import AddWalletPromptModal from "@/components/guest/AddWalletPromptModal";
+import MinipayAutoConnect from "@/components/MinipayAutoConnect";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { SocketProvider } from "@/context/SocketContext";
-import { TournamentProvider } from "@/context/TournamentContext";
+import DeferredToasts from "@/components/DeferredToasts";
+import DeferredUiStyles from "@/components/DeferredUiStyles";
 import { Toaster } from "react-hot-toast";
-import FarcasterReady from "@/components/FarcasterReady";
+import FarcasterReady from "@/components/FarcasterReady"; 
 import { minikitConfig } from "../minikit.config";
 import type { Metadata } from "next";
 import Script from "next/script";
 import ClientLayout from "../clients/ClientLayout"; // ← Import the new wrapper
-import QueryProvider from "./QueryProvider";
 import BfcacheReloadGuard from "@/components/BfcacheReloadGuard";
 
 // Run before React: (1) Reload board when restored from bfcache so WebGL is fresh. (2) Disable bfcache on board so back button does full load instead of restore (avoids Context Lost + .style crash).
@@ -40,7 +36,7 @@ const BFCACHE_RELOAD_SCRIPT = `
 
 /** Safe metadataBase — invalid env (missing protocol, spaces) must not 500 the whole site. */
 function resolveMetadataBase(): URL {
-  const fallback = "https://www.tycoonworld.xyz";
+  const fallback = "https://www.playtycoon.xyz";
   const raw = (process.env.NEXT_PUBLIC_URL || process.env.NEXT_PUBLIC_SITE_URL || "")
     .trim()
     .replace(/\/$/, "");
@@ -100,60 +96,29 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="dns-prefetch" href="https://auth.privy.io" />
-        <link rel="dns-prefetch" href="https://api.web3modal.org" />
-        <link rel="dns-prefetch" href="https://pulse.walletconnect.org" />
-        <link rel="dns-prefetch" href="https://fonts.reown.com" />
-        <link rel="preconnect" href="https://fonts.reown.com" crossOrigin="anonymous" />
-      </head>
-      <body className="antialiased bg-[#010F10] w-full">
+      <head />
+
+      <body
+        className={`${dmSans.variable} ${kronaOne.variable} ${orbitron.variable} antialiased bg-[#010F10] w-full`}
+      >
         <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
         <FarcasterReady />
         <ContextProvider cookies={cookies}>
-          <TycoonProvider>
-            <GuestAuthProvider>
+            <TycoonProvider>
+              <GuestAuthProvider>
               <ReferralCapture />
-              <AddWalletPromptModal />
-              <TournamentProvider>
-                <AppKitProviderWrapper>
-                {/* SocketProvider commented out as in your code */}
-                {/* <SocketProvider serverUrl="https://base-monopoly-production.up.railway.app/api"> */}
-                
-                {/* ← Use the client wrapper here—no more useMediaQuery! */}
-                <QueryProvider>
-                <BfcacheReloadGuard />
-                <ClientLayout cookies={cookies}>
-                  {children}
-                </ClientLayout>
-                
-                <ScrollToTopBtn />
-                <ToastContainer
-                  position="top-right"
-                  autoClose={5000}
-                  hideProgressBar={false}
-                  newestOnTop
-                  closeOnClick
-                  rtl={false}
-                  pauseOnFocusLoss
-                  draggable
-                  pauseOnHover
-                  theme="dark"
-                  toastStyle={{
-                    fontFamily: "Orbitron, sans-serif",
-                    background: "#0E1415",
-                    color: "#00F0FF",
-                    border: "1px solid #003B3E",
-                  }}
-                />
-                <Toaster position="top-center" />
-                </QueryProvider>
+              <MinipayAutoConnect />
+              <BfcacheReloadGuard />
+              <ClientLayout cookies={cookies}>
+                {children}
+              </ClientLayout>
 
-                {/* </SocketProvider> */}
-              </AppKitProviderWrapper>
-              </TournamentProvider>
-            </GuestAuthProvider>
-          </TycoonProvider>
+              <ScrollToTopBtn />
+              <DeferredUiStyles />
+              <DeferredToasts />
+              <Toaster position="top-center" />
+              </GuestAuthProvider>
+            </TycoonProvider>
         </ContextProvider>
       </body>
     </html>

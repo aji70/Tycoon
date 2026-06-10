@@ -14,15 +14,13 @@ import {
 } from "@/lib/agentBehaviorProfile";
 import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 import { getInjectedEoaAddress } from "@/lib/utils/erc8004InjectedEoa";
 import { useAgentSettings, TradeBehavior, BuildStyle, BuyStyle } from "@/hooks/useAgentSettings";
 
 function chainIdToBackendChain(chainId: number): string {
-  if (chainId === 137 || chainId === 80001) return "POLYGON";
-  if (chainId === 42220 || chainId === 44787) return "CELO";
-  if (chainId === 8453 || chainId === 84531) return "BASE";
   return "CELO";
 }
 
@@ -899,7 +897,7 @@ export default function AgentsPage({
                 onClick={() => setBuyCreditsOpen(true)}
                 className="text-xs text-cyan-400 hover:underline"
               >
-                Buy credits ($1 USDC or ₦1000)
+                Add credits ($1 digital dollar or ₦1000)
               </button>
             )}
           </div>
@@ -1087,7 +1085,7 @@ export default function AgentsPage({
                         title={
                           a.erc8004_agent_id
                             ? "Mint a new ERC-8004 ID and replace the stored link (confirm)"
-                            : "Register on Celo via your browser wallet. You pay gas."
+                            : "Register on Celo via your browser wallet. A small network fee applies."
                         }
                       >
                         {isRegisteringErc8004 && registeringErc8004Id === a.id ? (
@@ -1415,7 +1413,7 @@ export default function AgentsPage({
                 <div>
                   <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-2">ERC-8004 Agent ID (optional)</label>
                   {!editingId && (
-                    <p className="text-xs text-cyan-400/80 mb-2">Save this agent first, then use <strong>Create on Celo</strong> below to get an on-chain ERC-8004 ID (you pay gas).</p>
+                    <p className="text-xs text-cyan-400/80 mb-2">Save this agent first, then use <strong>Create on Celo</strong> below to get an on-chain ERC-8004 ID (a small network fee applies).</p>
                   )}
                   {erc8004LoadState === "loading" && (
                     <p className="text-xs text-cyan-400/80 mb-2 flex items-center gap-2">
@@ -1424,7 +1422,7 @@ export default function AgentsPage({
                     </p>
                   )}
                   {erc8004LoadState === "has_none" && !formErc8004Id.trim() && (
-                    <p className="text-xs text-amber-400/90 mb-2">You don’t have an ERC-8004 agent on Celo. Use <strong>Create on Celo</strong> to get one (you pay gas).</p>
+                    <p className="text-xs text-amber-400/90 mb-2">You don’t have an ERC-8004 agent on Celo. Use <strong>Create on Celo</strong> to get one (a small network fee applies).</p>
                   )}
                   <div className="flex flex-wrap gap-2">
                     <input
@@ -1441,7 +1439,7 @@ export default function AgentsPage({
                       type="button"
                       onClick={handleCreateOnCeloFromForm}
                       disabled={isRegisteringErc8004 || !editingId || !isCelo}
-                      title={!editingId ? "Save the agent first" : !isCelo ? "Switch to Celo" : "Register on ERC-8004 using your injected browser wallet (EOA); you pay gas"}
+                      title={!editingId ? "Save the agent first" : !isCelo ? "Switch to Celo" : "Register on ERC-8004 using your injected browser wallet ; a small network fee applies"}
                       className="shrink-0 px-4 py-3 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/20 text-emerald-300 font-orbitron font-semibold text-sm hover:bg-emerald-500/30 disabled:opacity-50 flex items-center gap-2"
                     >
                       {isRegisteringErc8004 && registeringErc8004Id === editingId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
@@ -1502,7 +1500,7 @@ export default function AgentsPage({
                   )}
                   <p className="text-xs text-gray-500 mt-1">
                     {erc8004LoadState === "has_none" && !formErc8004Id.trim()
-                      ? "Create on Celo to mint a new ERC-8004 ID (your wallet pays gas)."
+                      ? "Create on Celo to mint a new ERC-8004 ID (a small network fee applies)."
                       : "Create on Celo to mint a new ID, or paste an existing ID and Verify ownership. First-time link earns bonus Arena XP."}
                   </p>
                 </div>
@@ -1539,9 +1537,7 @@ export default function AgentsPage({
 
         {!embeddedInArena && (
         <p className="text-gray-500 text-sm mt-6">
-          <a href="/arena" className="text-cyan-400 hover:underline">Arena</a> — challenge public agents using the agents you create here.
-          {" · "}
-          <a href="/play-ai-3d" className="text-cyan-400 hover:underline">Play vs AI</a> — use one of your agents when creating a game (coming soon).
+          <a href="/play-ai" className="text-cyan-400 hover:underline">Play vs AI</a> — use one of your agents when creating a game (coming soon).
         </p>
         )}
 
@@ -1623,7 +1619,7 @@ export default function AgentsPage({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Max per match (USDC)</p>
+                    <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Max per match (USDT)</p>
                     <input
                       value={permMaxFee}
                       onChange={(e) => setPermMaxFee(e.target.value)}
@@ -1640,14 +1636,12 @@ export default function AgentsPage({
                       className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-cyan-500/25 text-white text-sm focus:border-cyan-400/50 focus:outline-none"
                     >
                       <option value="CELO">CELO</option>
-                      <option value="BASE">BASE</option>
-                      <option value="POLYGON">POLYGON</option>
                     </select>
                   </div>
                 </div>
 
                 <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Daily total cap (USDC, optional)</p>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Daily total cap (USDT, optional)</p>
                   <input
                     value={permDailyCap}
                     onChange={(e) => setPermDailyCap(e.target.value)}
@@ -1700,13 +1694,13 @@ export default function AgentsPage({
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setBuyCreditsOpen(false)}>
             <div className="bg-[#0d1117] rounded-2xl border border-cyan-500/40 p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-xl font-bold text-white mb-4">Buy hosted agent credits</h3>
-              <p className="text-gray-400 text-sm mb-4">100 credits = 100 AI decisions. $1 USDC or ₦1000 NGN.</p>
+              <p className="text-gray-400 text-sm mb-4">100 credits = 100 AI decisions. $1 USDT or ₦1000 NGN.</p>
 
               {hostedCredits.purchase_usdc_available && (
                 <div className="mb-4">
-                  <p className="text-sm text-cyan-400 font-medium mb-2">Pay with USDC (Celo)</p>
+                  <p className="text-sm text-cyan-400 font-medium mb-2">Pay with USDT (Celo)</p>
                   <p className="text-xs text-gray-500 mb-2">
-                    Send $1 USDC to <code className="bg-black/50 px-1 rounded text-cyan-300 truncate block">{hostedCredits.usdc_recipient || "…"}</code> on Celo, then paste the transaction hash:
+                    Send $1 USDT to <code className="bg-black/50 px-1 rounded text-cyan-300 truncate block">{hostedCredits.usdc_recipient || "…"}</code> on Celo, then paste the transaction hash:
                   </p>
                   <div className="flex gap-2">
                     <input
