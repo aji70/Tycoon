@@ -39,14 +39,14 @@ function isTournamentMatchCode(code: string): boolean {
 const MOBILE_BREAKPOINT_PX = 768;
 
 export interface UseWaitingRoomOptions {
-  /** When game is RUNNING, redirect here (default: /board-3d-multi-mobile). */
+  /** When game is RUNNING, redirect here (default: /game-play). e.g. /board-3d-multi for 3D board. */
   redirectToBoard?: string;
   /** On viewports <= 768px, redirect here instead of redirectToBoard (e.g. /board-3d-multi-mobile). */
   redirectToBoardMobile?: string;
 }
 
 export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
-  const { redirectToBoard = "/board-3d-multi-mobile", redirectToBoardMobile } = options;
+  const { redirectToBoard = "/board-3d-multi", redirectToBoardMobile } = options;
 
   const getRedirectBoardUrl = useCallback(() => {
     const base = redirectToBoard;
@@ -502,7 +502,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     }
 
     if (!usdcTokenAddress && stakePerPlayer > 0) {
-      setError("USDT not available on this network.");
+      setError("USDC not available on this network.");
       actionGuardRef.current = false;
       setActionLoading(false);
       toast.dismiss(toastId);
@@ -511,42 +511,21 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
 
     try {
       if (stakePerPlayer > 0) {
-        toast.update(toastId, { render: "Checking USDT approval..." });
+        toast.update(toastId, { render: "Checking USDC approval..." });
         await refetchAllowance();
         const currentAllowance = usdcAllowance
           ? BigInt(usdcAllowance.toString())
           : BigInt(0);
 
         if (currentAllowance < stakePerPlayer) {
-          toast.update(toastId, { render: "Approving USDT spend..." });
+          toast.update(toastId, { render: "Approving USDC spend..." });
           await approveUSDC(usdcTokenAddress!, contractAddress, stakePerPlayer);
           await new Promise((r) => setTimeout(r, 3000));
         }
       }
 
       toast.update(toastId, { render: "Joining game on-chain (sign in wallet)..." });
-      let hash: any;
-      try {
-        hash = await joinGame();
-      } catch (onChainErr: any) {
-        const isNoGas =
-          onChainErr?.message?.toLowerCase().includes("insufficient") ||
-          onChainErr?.shortMessage?.toLowerCase().includes("insufficient");
-        if (!isNoGas) throw onChainErr;
-
-        // No gas — fall back to backend-sponsored join
-        toast.update(toastId, { render: "No gas detected. Joining via backend..." });
-        await apiClient.post("/games/join-as-guest", {
-          address,
-          code: game.code,
-          symbol: playerSymbol.value,
-          joinCode: game.code,
-        });
-        if (mountedRef.current) { setIsJoined(true); setError(null); }
-        actionGuardRef.current = false;
-        setActionLoading(false);
-        return;
-      }
+      const hash = await joinGame();
 
       if (hash && publicClient) {
         toast.update(toastId, { render: "Waiting for confirmation..." });

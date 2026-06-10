@@ -3,6 +3,7 @@
 import { ChevronRight } from "lucide-react";
 import React, { useState } from "react";
 import ChatRoom from "./chat-room";
+import ChatRoomDesktop from "./chat-room-desktop";
 import { PiChatsCircle } from "react-icons/pi";
 import { Game, Player } from "@/types/game";
 
@@ -51,7 +52,7 @@ const GameRoom = ({ game, me, isMobile = false, fillContainer = false }: GameRoo
           </h4>
         </div>
         <div className="flex-1 min-h-0 overflow-hidden">
-          <ChatRoom gameId={gameId} me={me} />
+          <ChatRoomDesktop gameId={gameId} me={me} />
         </div>
       </aside>
     );
@@ -110,7 +111,7 @@ const GameRoom = ({ game, me, isMobile = false, fillContainer = false }: GameRoo
             </div>
 
             <div className="flex-1 min-h-0 overflow-hidden">
-          <ChatRoom gameId={gameId} me={me} />
+              <ChatRoomDesktop gameId={gameId} me={me} />
             </div>
           </div>
         )}

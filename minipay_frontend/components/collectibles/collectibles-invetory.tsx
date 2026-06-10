@@ -330,7 +330,7 @@ export default function CollectibleInventoryBar({
 
     if (currentAllowance < priceBig) {
       setApprovingId(item.tokenId);
-      toast.loading("Approving USDT...", { id: "approve" });
+      toast.loading("Approving USDC...", { id: "approve" });
       writeApprove({
         address: selectedToken!,
         abi: erc20Abi,
@@ -655,7 +655,7 @@ export default function CollectibleInventoryBar({
                 <div className="flex gap-6 text-sm">
                   <div className="flex items-center gap-2">
                     <Wallet className="w-5 h-5 text-[#00F0FF]" />
-                    <span>USDT: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
+                    <span>USDC: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
                   </div>
                 </div>
               </div>

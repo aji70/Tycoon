@@ -1,8 +1,8 @@
 "use client";
-export function ScanlineOverlay() {
+
+export function ScanlineOverlay({ animated = true }: { animated?: boolean }) {
   return (
-    <div className="absolute inset-0 pointer-events-none z-10 hidden md:block">
-      {/* Desktop only: Animated scanlines */}
+    <div className="absolute inset-0 pointer-events-none z-10 hidden md:block overflow-hidden">
       <div
         className="w-full h-full"
         style={{
@@ -13,11 +13,10 @@ export function ScanlineOverlay() {
             transparent 1px,
             transparent 2px
           )`,
-          animation: "scanlines 8s linear infinite",
-          willChange: "transform",
+          animation: animated ? "scanlines 8s linear infinite" : undefined,
+          willChange: animated ? "transform" : undefined,
         }}
       />
-      {/* Grid overlay - static */}
       <div
         className="w-full h-full"
         style={{
@@ -28,7 +27,6 @@ export function ScanlineOverlay() {
           backgroundSize: "50px 50px",
         }}
       />
-      {/* Mobile: static grid only */}
       <div
         className="md:hidden w-full h-full"
         style={{

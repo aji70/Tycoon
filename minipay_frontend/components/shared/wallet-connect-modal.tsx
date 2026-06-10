@@ -20,13 +20,14 @@ export default function WalletConnectModal({
 
   const handleConfirm = async () => {
     try {
-      await open();
-      onClose();
+      await open(); // 🔥 Directly open Reown's wallet connection modal
+      onClose(); // Close your modal afterwards
     } catch (err) {
       console.error("Wallet connection failed:", err);
     }
   };
 
+  // Auto close when connected
   useEffect(() => {
     if (isOpen && isConnected) {
       onClose();
@@ -75,7 +76,7 @@ export default function WalletConnectModal({
           >
             <div className="w-full flex items-center justify-between relative mb-8">
               <h2 className="w-full text-[24px] font-[600] text-[#F0F7F7] text-left font-orbitron">
-                Connect MiniPay
+                Connect Wallet
               </h2>
               <button
                 type="button"
@@ -86,13 +87,14 @@ export default function WalletConnectModal({
               </button>
             </div>
 
+            {/* Just one button */}
             <AnimationWrapper variant="slideUp" delay={0.3}>
               <button
                 type="button"
                 onClick={handleConfirm}
                 className="w-full py-3 rounded-[12px] font-medium transition-colors bg-[#0FF0FC]/80 hover:bg-[#0FF0FC]/40 text-[#0D191B]"
               >
-                Connect wallet
+                Connect
               </button>
             </AnimationWrapper>
           </motion.div>

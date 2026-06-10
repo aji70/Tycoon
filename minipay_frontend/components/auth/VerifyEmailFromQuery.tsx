@@ -5,9 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import toast from "react-hot-toast";
 
-/**
- * Handles legacy /verify-email?token= links by verifying on /profile (or any page that mounts this).
- */
+/** Handles legacy /verify-email?token= links (redirected to /profile). */
 export default function VerifyEmailFromQuery() {
   const searchParams = useSearchParams();
   const router = useRouter();

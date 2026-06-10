@@ -85,14 +85,14 @@ export default function TermsPage() {
           'We do not custody your private keys, seed phrases, or funds. You are fully responsible for wallet security.',
           'All blockchain transactions are irreversible. We are not responsible for lost funds due to user error or network issues.',
           'By interacting with smart contracts shown in the app, you accept their rules and risks.',
-          'Network fees, slippage, and blockchain congestion are outside our control.',
+          'Network fees (gas), slippage, and blockchain congestion are outside our control.',
         ]} />
       </Section>
 
       <Section>
         <S icon={<Ban size={15} />}>4. Not a Gambling Platform</S>
         <p>
-          Tycoon is a <strong className="text-white">skill-based competitive strategy game</strong>. Entry stakes (where applicable) are participation fees that fund the prize pool — similar to a tournament entry fee. Outcomes are determined by player decisions, strategy, and game mechanics. Tycoon does not operate as a casino, bookmaker, or gambling operator. TYC tokens and USDT are game utility instruments, not financial instruments or securities.
+          Tycoon is a <strong className="text-white">skill-based competitive strategy game</strong>. Entry stakes (where applicable) are participation fees that fund the prize pool — similar to a tournament entry fee. Outcomes are determined by player decisions, strategy, and game mechanics. Tycoon does not operate as a casino, bookmaker, or gambling operator. TYC tokens and USDC are game utility instruments, not financial instruments or securities.
         </p>
         <p className="text-[#8AABAE] text-xs">You are solely responsible for understanding and complying with the laws of your jurisdiction regarding online games, token transactions, and prize competitions.</p>
       </Section>
@@ -159,7 +159,7 @@ export default function TermsPage() {
         <S icon={<Gamepad2 size={15} />}>12. Responsible Gaming</S>
         <p>
           While Tycoon is not a gambling platform, we encourage responsible engagement. If you feel you are spending excessive time or money on the platform, please take a break. Contact{' '}
-          <a href="mailto:support@playtycoon.xyz" className="text-[#00F0FF] hover:underline">support@playtycoon.xyz</a>
+          <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">support@tycoonworld.xyz</a>
           {' '}to request a self-exclusion or account suspension.
         </p>
       </Section>
@@ -178,7 +178,7 @@ export default function TermsPage() {
         <S icon={<Phone size={15} />}>15. Contact</S>
         <p>
           For questions or support:{' '}
-          <a href="mailto:support@playtycoon.xyz" className="text-[#00F0FF] hover:underline">support@playtycoon.xyz</a>
+          <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">support@tycoonworld.xyz</a>
           {' '}or our{' '}
           <a href="https://t.me/+xJLEjw9tbyQwMGVk" className="text-[#00F0FF] hover:underline">Telegram community</a>.
         </p>

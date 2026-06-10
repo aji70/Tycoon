@@ -71,11 +71,6 @@ export function WorldStatsBar({
                   <div className="text-sm md:text-lg font-orbitron font-bold text-[#17ffff]">
                     {stat.value}
                   </div>
-                  <div className="absolute -inset-2 rounded opacity-0 group-hover:opacity-100 transition duration-300 blur-lg -z-10"
-                    style={{
-                      background: "linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(15, 240, 252, 0.1))",
-                    }}
-                  />
                 </div>
               </motion.div>
             ))}

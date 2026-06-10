@@ -10,6 +10,7 @@ import { Wallet, User } from "lucide-react";
 const PUBLIC_PATHS = [
   "/",
   "/join-room-3d",
+  "/rooms",
   "/leaderboard",
   "/terms",
   "/privacy",
@@ -19,6 +20,9 @@ const PUBLIC_PATHS = [
 
 function isPublicPath(pathname: string): boolean {
   const path = pathname?.split("?")[0] ?? "";
+  if (path === "/admin" || path.startsWith("/admin/")) {
+    return true;
+  }
   if (path.startsWith("/u/")) {
     return true;
   }

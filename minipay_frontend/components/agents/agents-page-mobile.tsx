@@ -14,13 +14,15 @@ import {
 } from "@/lib/agentBehaviorProfile";
 import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
-import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 import { getInjectedEoaAddress } from "@/lib/utils/erc8004InjectedEoa";
 import { useAgentSettings, TradeBehavior, BuildStyle, BuyStyle } from "@/hooks/useAgentSettings";
 
 function chainIdToBackendChain(chainId: number): string {
+  if (chainId === 137 || chainId === 80001) return "POLYGON";
+  if (chainId === 42220 || chainId === 44787) return "CELO";
+  if (chainId === 8453 || chainId === 84531) return "BASE";
   return "CELO";
 }
 
@@ -626,7 +628,7 @@ export default function AgentsPageMobile({
         toast.error("Registration succeeded but could not read agent ID");
       }
     } catch (err: unknown) {
-      toast.error(getContractErrorMessage(err, "Registration failed"));
+      toast.error((err as Error)?.message ?? "Registration failed");
     } finally {
       setRegisteringErc8004Id(null);
     }
@@ -662,7 +664,7 @@ export default function AgentsPageMobile({
         toast.error("Registration succeeded but could not read agent ID");
       }
     } catch (err: unknown) {
-      toast.error(getContractErrorMessage(err, "Registration failed"));
+      toast.error((err as Error)?.message ?? "Registration failed");
     } finally {
       setRegisteringErc8004Id(null);
     }
@@ -856,6 +858,8 @@ export default function AgentsPageMobile({
                     className="w-full px-2.5 py-2 rounded-xl bg-black/50 border border-cyan-500/25 text-white text-sm"
                   >
                     <option value="CELO">CELO</option>
+                    <option value="BASE">BASE</option>
+                    <option value="POLYGON">POLYGON</option>
                   </select>
                 </div>
               </div>
@@ -1058,7 +1062,7 @@ export default function AgentsPageMobile({
                         onClick={() => handleRegisterOnCelo(a)}
                         disabled={isRegisteringErc8004 && registeringErc8004Id === a.id}
                         className="flex items-center gap-1 px-2 py-1 rounded border border-purple-500/40 text-purple-400 text-xs"
-                        title={a.erc8004_agent_id ? "Re-link: mint new ID (confirm)" : "Register on Celo. A small network fee applies."}
+                        title={a.erc8004_agent_id ? "Re-link: mint new ID (confirm)" : "Register on Celo (EOA). You pay gas."}
                       >
                         {isRegisteringErc8004 && registeringErc8004Id === a.id ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
@@ -1398,7 +1402,7 @@ export default function AgentsPageMobile({
                       type="button"
                       onClick={handleCreateOnCeloFromForm}
                       disabled={isRegisteringErc8004 || !editingId || !isCelo}
-                      title={!editingId ? "Save first" : !isCelo ? "Switch to Celo" : "Create ERC-8004 ID with your browser wallet; a small network fee applies"}
+                      title={!editingId ? "Save first" : !isCelo ? "Switch to Celo" : "Create ERC-8004 ID with your browser wallet (EOA); you pay gas"}
                       className="shrink-0 px-3 py-2.5 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/20 text-emerald-300 font-orbitron font-semibold text-xs flex items-center gap-1"
                     >
                       {isRegisteringErc8004 && registeringErc8004Id === editingId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
@@ -1487,7 +1491,9 @@ export default function AgentsPageMobile({
             )}
             {!embeddedInArena && (
             <p className="text-gray-500 text-xs mt-4">
-              <a href="/play-ai" className="text-cyan-400">Play vs AI</a> — use your agents when creating a game (coming soon).
+              <a href="/arena" className="text-cyan-400">Arena</a> — challenge public agents using agents you create here.
+              {" · "}
+              <a href="/play-ai-3d" className="text-cyan-400">Play vs AI</a> — use your agents when creating a game (coming soon).
             </p>
             )}
           </>

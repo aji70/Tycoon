@@ -47,6 +47,7 @@ const USER_REJECTED_SUBSTRINGS = [
   "canceled by user",
 ];
 
+/** Walk viem/wagmi nested `cause` chain and collect text for matching. */
 function walkErrorChain(error: unknown, maxDepth = 10): string[] {
   const parts: string[] = [];
   const seen = new Set<unknown>();
@@ -98,7 +99,7 @@ function walkErrorChain(error: unknown, maxDepth = 10): string[] {
   return parts;
 }
 
-export function collectErrorText(error: unknown): string {
+function collectErrorText(error: unknown): string {
   return walkErrorChain(error).join(" ").toLowerCase();
 }
 
@@ -127,6 +128,7 @@ export function isUserRejectedTransaction(error: unknown): boolean {
   return USER_REJECTED_SUBSTRINGS.some((s) => hay.includes(s));
 }
 
+/** Strip viem/wagmi diagnostic tails before showing in a toast. */
 export function sanitizeContractToastMessage(message: string): string {
   let msg = message.trim();
   const docsIdx = msg.indexOf("Docs:");
@@ -165,12 +167,12 @@ export function getContractErrorMessage(
     e?.shortMessage?.includes("insufficient funds") ||
     e?.message?.toLowerCase().includes("insufficient balance")
   ) {
-    return "Not enough funds for network fees.";
+    return "Not enough funds for gas fees.";
   }
 
   // Insufficient balance or allowance for ERC20
   if (e?.message?.toLowerCase().includes("insufficient")) {
-    return "Insufficient balance or network fees.";
+    return "Insufficient balance or gas.";
   }
 
   // Contract revert: AI game specific (wrong network or game type)
@@ -211,29 +213,6 @@ export function getContractErrorMessage(
 
   // Connection / network errors
   const msgLower = (e?.message ?? e?.shortMessage ?? "").toLowerCase();
-  const rpcHay = collectErrorText(error);
-  if (msgLower.includes("invalid sender") || rpcHay.includes("invalidsender")) {
-    return "MiniPay wallet address was not ready. Close Tycoon, reopen it from MiniPay, then try Buy again.";
-  }
-  if (
-    msgLower.includes("permission denied") ||
-    msgLower.includes("not authorized") ||
-    rpcHay.includes("permissiondenied")
-  ) {
-    return "MiniPay blocked the transaction. Tap Allow on the wallet prompt, or close Tycoon and reopen it from the MiniPay app.";
-  }
-  if (rpcHay.includes("not for sale")) {
-    return "This perk is not priced in the token you selected. Try again — the shop will use USDT or cUSD automatically.";
-  }
-  if (rpcHay.includes("payment transfer failed")) {
-    return "Payment could not be taken from your wallet. Wait a few seconds after approving USDT/cUSD, then tap Buy again.";
-  }
-  if (rpcHay.includes("out of stock")) {
-    return "This perk is out of stock.";
-  }
-  if (rpcHay.includes("unknownrpcerror") || rpcHay.includes("unknown rpc error")) {
-    return "MiniPay rejected the purchase before it was sent. If you just approved USDT, wait 10 seconds and try again.";
-  }
   if (
     msgLower.includes("network") ||
     msgLower.includes("fetch failed") ||

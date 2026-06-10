@@ -5,6 +5,7 @@ interface WARoomLaunchButtonProps {
   onClick: () => void;
   disabled?: boolean;
   isSubmitting?: boolean;
+  isFreeGame?: boolean;
   approvePending?: boolean;
   approveConfirming?: boolean;
   isCreatePending?: boolean;
@@ -16,6 +17,7 @@ export function WARoomLaunchButton({
   onClick,
   disabled = false,
   isSubmitting = false,
+  isFreeGame = false,
   approvePending = false,
   approveConfirming = false,
   isCreatePending = false,
@@ -26,8 +28,9 @@ export function WARoomLaunchButton({
     isSubmitting || approvePending || approveConfirming || isCreatePending;
 
   return (
-    <motion.div className="flex flex-col items-center justify-center gap-3 mt-2 w-full">
-      <div className="relative w-full">
+    <div className="flex flex-col items-center justify-center gap-3 mt-6">
+      <div className="relative w-full max-w-md">
+        {/* Pulsing glow rings */}
         <motion.div
           animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
           transition={{ repeat: Infinity, duration: 1.5 }}
@@ -40,16 +43,17 @@ export function WARoomLaunchButton({
         />
 
         <button
-          type="button"
           onClick={onClick}
           disabled={disabled || !canCreate || isLoading}
-          className="relative w-full px-6 py-4 text-base font-orbitron font-bold tracking-wider
-                     bg-black border-2 border-cyan-500 rounded-xl
+          className="relative w-full px-8 py-4 text-lg font-orbitron font-bold tracking-wider
+                     bg-black border-3 border-cyan-500 rounded-xl
                      hover:shadow-[0_0_20px_rgba(0,240,255,0.6)]
                      disabled:opacity-50 disabled:cursor-not-allowed
                      transition-all duration-300 overflow-hidden
                      text-cyan-300"
+          title={!canCreate ? "Connect wallet and register to create a game" : undefined}
         >
+          {/* Shine sweep effect */}
           <motion.div
             className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
             initial={{ x: "-100%" }}
@@ -58,6 +62,7 @@ export function WARoomLaunchButton({
             style={{ pointerEvents: "none" }}
           />
 
+          {/* Button text */}
           <span className="relative z-10 flex items-center justify-center gap-2">
             {isLoading ? (
               <>
@@ -67,14 +72,26 @@ export function WARoomLaunchButton({
                 >
                   ⚙️
                 </motion.span>
-                {approvePending || approveConfirming ? "APPROVING…" : "ENTERING…"}
+                {approvePending || approveConfirming
+                  ? "APPROVING…"
+                  : isCreatePending
+                  ? "CREATING…"
+                  : "LAUNCHING…"}
               </>
             ) : (
-              <>⚡ {text}</>
+              <>
+                ⚡ {text}
+              </>
             )}
           </span>
         </button>
       </div>
-    </motion.div>
+
+      {!canCreate && (
+        <p className="text-xs text-slate-500 text-center">
+          Connect your wallet and register to create a game.
+        </p>
+      )}
+    </div>
   );
 }

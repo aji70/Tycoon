@@ -1,8 +1,5 @@
 @import "tailwindcss";
-
-@source "../app/**/*.{js,ts,jsx,tsx,mdx}";
-@source "../components/**/*.{js,ts,jsx,tsx,mdx}";
-@source "../clients/**/*.{js,ts,jsx,tsx,mdx}";
+@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -57,9 +54,6 @@
 }
 
 :root {
-  /* Fixed mobile header: 82px bar + safe area (matches navbar-mobile.tsx) */
-  --mobile-nav-height: 82px;
-  --mobile-nav-offset: calc(var(--mobile-nav-height) + env(safe-area-inset-top, 0px));
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -136,6 +130,103 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+.hero-bg-zoom {
+  animation: zoomIn 20s ease-in-out infinite alternate;
+}
+
+@keyframes zoomIn {
+  0% {
+    transform: scale(0.8);
+  }
+
+  100% {
+    transform: scale(1.2);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+.big-hero-text {
+  background: linear-gradient(180deg, rgba(7, 27, 29, 0.038) 0%, rgba(15, 240, 252, 0) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
+  -webkit-text-stroke-color: #0E282A;
+  -webkit-text-stroke-width: 1px;
+}
+
+/* Gamy hero: frame corners, scanline, glow */
+.hero-game-frame {
+  --hero-cyan: #00F0FF;
+  --hero-dark: #0E282A;
+  box-shadow:
+    inset 0 0 60px rgba(0, 240, 255, 0.03),
+    0 0 40px rgba(0, 240, 255, 0.06);
+}
+
+.hero-game-frame::before {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 1px solid rgba(0, 240, 255, 0.15);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.hero-scanline {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(1, 15, 16, 0.12) 2px,
+    rgba(1, 15, 16, 0.12) 4px
+  );
+  pointer-events: none;
+}
+
+.hero-title-glow {
+  text-shadow:
+    0 0 20px rgba(0, 240, 255, 0.4),
+    0 0 40px rgba(7, 115, 121, 0.3),
+    0 0 60px rgba(0, 240, 255, 0.15);
+}
+
+@keyframes hero-pulse-glow {
+  0%, 100% { opacity: 0.85; filter: brightness(1); }
+  50% { opacity: 1; filter: brightness(1.08); }
+}
+
+.hero-title-pulse {
+  animation: hero-pulse-glow 3s ease-in-out infinite;
+}
+
+.hero-badge {
+  font-family: var(--font-orbitron);
+  font-weight: 700;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  color: #00F0FF;
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  background: rgba(1, 15, 16, 0.7);
+  padding: 4px 10px;
+  border-radius: 2px;
 }
 
 .block-text {
@@ -237,6 +328,45 @@ button {
   position: relative !important;
 }
 
+/* React-toastify: game theme (dark bg, cyan text) */
+.Toastify__toast {
+  background: #0A1A1B !important;
+  color: #E0F7F8 !important;
+  border: 1px solid #003B3E !important;
+  font-family: var(--font-orbitron), Orbitron, sans-serif !important;
+}
+.Toastify__toast--success {
+  background: #0A1A1B !important;
+  color: #00F0FF !important;
+  border-color: rgba(0, 240, 255, 0.4) !important;
+}
+.Toastify__toast--error {
+  background: #0A1A1B !important;
+  color: #FF6B6B !important;
+  border-color: rgba(255, 107, 107, 0.4) !important;
+}
+.Toastify__toast--warning {
+  background: #0A1A1B !important;
+  color: #F1C40F !important;
+  border-color: rgba(241, 196, 15, 0.4) !important;
+}
+.Toastify__toast--info,
+.Toastify__toast--default {
+  background: #0A1A1B !important;
+  color: #00F0FF !important;
+  border-color: #003B3E !important;
+}
+.Toastify__progress-bar {
+  background: #00F0FF !important;
+}
+.Toastify__close-button {
+  color: #869298 !important;
+  opacity: 1;
+}
+.Toastify__close-button:hover {
+  color: #00F0FF !important;
+}
+
 /* ========== Gamified home page UI ========== */
 .game-panel {
   --hero-cyan: #00F0FF;
@@ -278,6 +408,15 @@ button {
   text-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
 }
 
+@keyframes game-glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(0, 240, 255, 0.15); }
+  50% { box-shadow: 0 0 28px rgba(0, 240, 255, 0.25); }
+}
+
+.game-cta-glow {
+  animation: game-glow-pulse 2.5s ease-in-out infinite;
+}
+
 /* Privy login modal – match Tycoon dark + cyan theme */
 body {
   --privy-color-background: #010F10;
@@ -300,59 +439,4 @@ body {
   --privy-border-radius-md: 12px;
   --privy-border-radius-lg: 16px;
   --privy-border-radius-full: 9999px;
-}
-
-/* Content below fixed mobile navbar */
-.pt-below-mobile-nav {
-  padding-top: var(--mobile-nav-offset);
-}
-
-.min-h-below-mobile-nav {
-  min-height: calc(100dvh - var(--mobile-nav-offset));
-}
-
-/* NeonTitle (LCP): static composited glow on text; opacity-only pulse on overlay */
-.neon-title-hero {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: geometricPrecision;
-}
-
-.neon-title-text {
-  position: relative;
-  z-index: 1;
-  display: block;
-  filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.8))
-    drop-shadow(0 0 16px rgba(0, 240, 255, 0.6));
-}
-
-.neon-title-glow-pulse {
-  position: absolute;
-  inset: 0;
-  display: block;
-  color: inherit;
-  pointer-events: none;
-  user-select: none;
-  filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.9))
-    drop-shadow(0 0 20px rgba(15, 240, 252, 0.75));
-  opacity: 0.55;
-  will-change: opacity;
-  animation: neon-title-glow-opacity 3s ease-in-out infinite;
-}
-
-@keyframes neon-title-glow-opacity {
-  0%,
-  100% {
-    opacity: 0.45;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .neon-title-glow-pulse {
-    animation: none;
-    opacity: 0.55;
-  }
 }

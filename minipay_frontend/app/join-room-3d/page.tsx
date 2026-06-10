@@ -1,8 +1,10 @@
 "use client";
 
+import JoinRoom from "@/components/settings/join-room";
 import JoinRoomMobile from "@/components/settings/join-room-mobile";
 import { useMediaQuery } from "@/components/useMediaQuery";
 
+const REDIRECT_BOARD_DESKTOP = "/board-3d-multi";
 const REDIRECT_BOARD_MOBILE = "/board-3d-multi-mobile";
 const REDIRECT_WAITING = "/game-waiting-3d";
 const REDIRECT_CREATE = "/game-settings-3d";
@@ -16,11 +18,19 @@ export default function JoinRoom3DPage() {
 
   return (
     <main className="w-full">
-      <JoinRoomMobile
-        redirectToBoard={REDIRECT_BOARD_MOBILE}
-        redirectToWaiting={REDIRECT_WAITING}
-        redirectCreateNew={REDIRECT_CREATE}
-      />
+      {isMobile ? (
+        <JoinRoomMobile
+          redirectToBoard={REDIRECT_BOARD_MOBILE}
+          redirectToWaiting={REDIRECT_WAITING}
+          redirectCreateNew={REDIRECT_CREATE}
+        />
+      ) : (
+        <JoinRoom
+          redirectToBoard={REDIRECT_BOARD_DESKTOP}
+          redirectToWaiting={REDIRECT_WAITING}
+          redirectCreateNew={REDIRECT_CREATE}
+        />
+      )}
     </main>
   );
 }

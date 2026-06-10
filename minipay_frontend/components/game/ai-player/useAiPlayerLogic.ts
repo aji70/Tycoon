@@ -8,10 +8,10 @@ import { apiClient } from "@/lib/api";
 import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
-import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import { isAIPlayer } from "@/utils/gameUtils";
 import { instantAiRespondWhenTargetIsAi } from "@/lib/game/instantAiTradeResponse";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 
 export interface UseAiPlayerLogicProps {
   game: Game;
@@ -325,7 +325,7 @@ export function useAiPlayerLogic({
           if (game?.id) queryClient.invalidateQueries({ queryKey: ["game_properties", game.id] });
         }
       } catch (error: any) {
-        toast.error(getContractErrorMessage(error, "Failed to develop property"));
+        toast.error(error?.message || "Failed to develop property");
       }
     },
     [isNext, me, game.id, game?.code, queryClient]
@@ -346,7 +346,7 @@ export function useAiPlayerLogic({
           if (game?.id) queryClient.invalidateQueries({ queryKey: ["game_properties", game.id] });
         } else toast.error(res.data?.message ?? "Failed to downgrade property");
       } catch (error: any) {
-        toast.error(getContractErrorMessage(error, "Failed to downgrade property"));
+        toast.error(error?.message || "Failed to downgrade property");
       }
     },
     [isNext, me, game.id, game?.code, queryClient]
@@ -367,7 +367,7 @@ export function useAiPlayerLogic({
           if (game?.id) queryClient.invalidateQueries({ queryKey: ["game_properties", game.id] });
         } else toast.error(res.data?.message ?? "Failed to mortgage property");
       } catch (error: any) {
-        toast.error(getContractErrorMessage(error, "Failed to mortgage property"));
+        toast.error(error?.message || "Failed to mortgage property");
       }
     },
     [isNext, me, game.id, game?.code, queryClient]
@@ -388,7 +388,7 @@ export function useAiPlayerLogic({
           if (game?.id) queryClient.invalidateQueries({ queryKey: ["game_properties", game.id] });
         } else toast.error(res.data?.message ?? "Failed to unmortgage property");
       } catch (error: any) {
-        toast.error(getContractErrorMessage(error, "Failed to unmortgage property"));
+        toast.error(error?.message || "Failed to unmortgage property");
       }
     },
     [isNext, me, game.id, game?.code, queryClient]
@@ -415,7 +415,8 @@ export function useAiPlayerLogic({
       } catch (error: any) {
         const message =
           error.response?.data?.message ||
-          getContractErrorMessage(error, "Failed to transfer property");
+          error.message ||
+          "Failed to transfer property";
         toast.error(message);
         console.error("Property transfer failed:", error);
       }
@@ -433,7 +434,7 @@ export function useAiPlayerLogic({
         if (res?.data?.success) toast.success("Property returned to bank successfully");
         else toast.error(res.data?.message ?? "Failed to return property");
       } catch (error: any) {
-        toast.error(getContractErrorMessage(error, "Failed to return property"));
+        toast.error(error?.message || "Failed to return property");
       }
     },
     [game.id]

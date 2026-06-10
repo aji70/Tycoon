@@ -1,3 +1,4 @@
+// components/AppKitProviderWrapper.tsx
 'use client';
 
 import { wagmiAdapter, projectId, defaultNetwork } from '@/config';
@@ -9,7 +10,7 @@ const siteUrl = (() => {
   const fromEnv = process.env.NEXT_PUBLIC_URL || process.env.NEXT_PUBLIC_SITE_URL;
   if (fromEnv?.trim()) return fromEnv.replace(/\/$/, '');
   if (process.env.NODE_ENV === 'development') return 'http://localhost:3000';
-  return 'https://www.playtycoon.xyz';
+  return 'https://www.tycoonworld.xyz';
 })();
 
 let isInitialized = false;
@@ -47,7 +48,7 @@ export default function AppKitProviderWrapper({
         projectId,
         defaultNetwork,
         themeVariables: {
-          '--w3m-z-index': 10000,
+          '--w3m-z-index': 10000, // Set high z-index for Reown modal
         },
         metadata: {
           name: 'Tycoon',
