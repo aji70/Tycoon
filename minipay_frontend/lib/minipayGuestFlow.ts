@@ -1,3 +1,4 @@
+import { getAddress, type Address } from "viem";
 import { MINIPAY_CHAIN_IDS } from "@/constants/contracts";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
@@ -46,13 +47,22 @@ type EthereumRequestProvider = {
  * so the provider authorizes the active account (avoids "permission denied").
  * @see https://docs.minipay.xyz/getting-started/wallet-connection.html
  */
-export async function ensureMiniPayWalletReady(): Promise<void> {
-  if (!isMiniPayEmbeddedWallet()) return;
+/** Active MiniPay EOA from eth_requestAccounts (source of truth for `from`). */
+export async function getMiniPayActiveAddress(): Promise<Address> {
   const eth = (window as Window & { ethereum?: EthereumRequestProvider }).ethereum;
   if (!eth?.request) {
     throw new Error("Open Tycoon inside the MiniPay app.");
   }
-  await eth.request({ method: "eth_requestAccounts" });
+  const accounts = (await eth.request({ method: "eth_requestAccounts" })) as string[];
+  if (!Array.isArray(accounts) || !accounts[0]) {
+    throw new Error("MiniPay did not return a wallet address.");
+  }
+  return getAddress(accounts[0] as Address);
+}
+
+export async function ensureMiniPayWalletReady(): Promise<Address | undefined> {
+  if (!isMiniPayEmbeddedWallet()) return undefined;
+  return getMiniPayActiveAddress();
 }
 
 /**

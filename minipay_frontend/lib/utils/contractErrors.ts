@@ -212,6 +212,9 @@ export function getContractErrorMessage(
   // Connection / network errors
   const msgLower = (e?.message ?? e?.shortMessage ?? "").toLowerCase();
   const rpcHay = collectErrorText(error);
+  if (msgLower.includes("invalid sender") || rpcHay.includes("invalidsender")) {
+    return "MiniPay wallet address was not ready. Close Tycoon, reopen it from MiniPay, then try Buy again.";
+  }
   if (rpcHay.includes("not for sale")) {
     return "This perk is not priced in the token you selected. Try again — the shop will use USDT or cUSD automatically.";
   }

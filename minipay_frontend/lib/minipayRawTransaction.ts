@@ -2,7 +2,11 @@
 
 import { getAddress, type Address, type Hash } from "viem";
 import { CELO_USDM_FEE_TOKEN } from "@/lib/celoTransportForWagmi";
-import { ensureMiniPayWalletReady, isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
+import {
+  ensureMiniPayWalletReady,
+  getMiniPayActiveAddress,
+  isMiniPayEmbeddedWallet,
+} from "@/lib/minipayGuestFlow";
 import { isUserRejectedTransaction } from "@/lib/utils/contractErrors";
 
 const CELO_CHAIN_ID_HEX = "0xa4ec";
@@ -33,29 +37,30 @@ async function ensureCeloChain(provider: MiniPayProvider): Promise<void> {
 }
 
 /**
- * Send via `window.ethereum.request(eth_sendTransaction)` — same as registration.
- * Wagmi/viem `sendTransaction` can still trigger estimateGas paths that MiniPay mishandles on some contracts.
+ * Send via `window.ethereum.request(eth_sendTransaction)` with explicit `from`.
+ * MiniPay returns "invalid sender address null" when `from` is omitted on some contract calls.
  */
 export async function minipayEthSendTransaction(tx: {
   to: Address;
   data: `0x${string}`;
   feeCurrency?: Address;
+  from?: Address;
 }): Promise<Hash> {
   if (!isMiniPayEmbeddedWallet()) {
     throw new Error("Not running in MiniPay");
   }
 
-  await ensureMiniPayWalletReady();
+  const from = getAddress(tx.from ?? (await ensureMiniPayWalletReady()) ?? (await getMiniPayActiveAddress()));
   const provider = getMiniPayProvider();
   await ensureCeloChain(provider);
 
   const to = getAddress(tx.to);
   const attempts: Array<Record<string, string>> = [
-    { to, data: tx.data },
-    { to, data: tx.data, feeCurrency: CELO_USDM_FEE_TOKEN },
+    { from, to, data: tx.data },
+    { from, to, data: tx.data, feeCurrency: CELO_USDM_FEE_TOKEN },
   ];
   if (tx.feeCurrency) {
-    attempts.unshift({ to, data: tx.data, feeCurrency: tx.feeCurrency });
+    attempts.unshift({ from, to, data: tx.data, feeCurrency: tx.feeCurrency });
   }
 
   let lastError: unknown;

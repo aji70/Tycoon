@@ -41,16 +41,7 @@ import {
   resolveMinipayShopPayment,
   type MinipayStableOption,
 } from '@/lib/shop/preferredStable';
-
-const REWARD_BUY_COLLECTIBLE_ENUM_ABI = [
-  {
-    type: 'function',
-    name: 'buyCollectible',
-    stateMutability: 'nonpayable',
-    inputs: [{ type: 'uint256' }, { type: 'uint8' }],
-    outputs: [],
-  },
-] as const;
+import { getMiniPayActiveAddress, isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
 
 import {
   useRewardBuyCollectible,
@@ -644,7 +635,8 @@ export default function GameShopMobile() {
   // Handlers
   const handleBuy = async (item: typeof shopItems[0]) => {
     // Allow if wallet is connected OR smart wallet is available
-    const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
+    const hasPaymentMethod =
+      (isConnected && address) || smartWalletAddress || isMiniPayEmbeddedWallet();
     if (!hasPaymentMethod) {
       toast.error('Please connect your wallet or register to use your smart wallet');
       return;
@@ -666,16 +658,15 @@ export default function GameShopMobile() {
     const paymentToken = payment.paymentToken;
     const paymentTokenAddress = payment.tokenAddress;
     const paymentLabel = payment.symbol === 'CUSDC' ? 'cUSD' : 'USDT';
+    let walletAddress = address;
+    if (!walletAddress && isMiniPayEmbeddedWallet()) {
+      walletAddress = await getMiniPayActiveAddress();
+    }
+    if (!walletAddress && !(payWith === 'smart_wallet' && smartWalletAddress)) {
+      toast.error('Connect your MiniPay wallet first');
+      return;
+    }
     try {
-      if (publicClient && payerAddress) {
-        await publicClient.simulateContract({
-          address: contractAddress,
-          abi: REWARD_BUY_COLLECTIBLE_ENUM_ABI,
-          functionName: 'buyCollectible',
-          args: [item.tokenId, paymentToken],
-          account: payerAddress,
-        });
-      }
       if (payWith === 'smart_wallet' && smartWalletAddress) {
         const session = readAppSessionToken();
         if (session && payment.symbol === 'USDT') {
@@ -702,12 +693,12 @@ export default function GameShopMobile() {
         }
       } else {
         let tokenAllowance: bigint | undefined;
-        if (publicClient && payerAddress) {
+        if (publicClient && walletAddress) {
           tokenAllowance = await publicClient.readContract({
             address: paymentTokenAddress,
             abi: Erc20Abi,
             functionName: 'allowance',
-            args: [payerAddress, contractAddress],
+            args: [walletAddress, contractAddress],
           });
         }
         const needsApproval = tokenAllowance === undefined || tokenAllowance < price;
@@ -716,12 +707,12 @@ export default function GameShopMobile() {
           const approveHash = await approve(paymentTokenAddress, contractAddress, price);
           if (approveHash) await waitForBundleTx(approveHash);
           toast.success('Approval confirmed');
-          if (publicClient && payerAddress) {
+          if (publicClient && walletAddress) {
             tokenAllowance = await publicClient.readContract({
               address: paymentTokenAddress,
               abi: Erc20Abi,
               functionName: 'allowance',
-              args: [payerAddress, contractAddress],
+              args: [walletAddress, contractAddress],
             });
           }
           await new Promise((r) => setTimeout(r, 2000));

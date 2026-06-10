@@ -6,7 +6,7 @@ import { ensureMiniPayWalletReady, isMiniPayEmbeddedWallet } from "@/lib/minipay
 import { isUserRejectedTransaction } from "@/lib/utils/contractErrors";
 
 /**
- * MiniPay contract calls: raw eth_sendTransaction (registration path), not wagmi writeContract/estimateGas.
+ * MiniPay contract calls: raw eth_sendTransaction with explicit `from` (registration path).
  */
 export async function miniPayWriteOrFallback<T extends Hash>(opts: {
   writeContractAsync: () => Promise<T>;
@@ -19,7 +19,10 @@ export async function miniPayWriteOrFallback<T extends Hash>(opts: {
     return opts.writeContractAsync();
   }
 
-  await ensureMiniPayWalletReady();
+  const from = await ensureMiniPayWalletReady();
+  if (!from) {
+    throw new Error("MiniPay wallet address not available");
+  }
 
   const data = encodeFunctionData({
     abi: opts.abi as Abi,
@@ -28,7 +31,7 @@ export async function miniPayWriteOrFallback<T extends Hash>(opts: {
   });
 
   try {
-    return await minipayEthSendTransaction({ to: opts.to, data });
+    return await minipayEthSendTransaction({ to: opts.to, data, from });
   } catch (err) {
     if (isUserRejectedTransaction(err)) throw err;
     throw err;
