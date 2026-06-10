@@ -11,7 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import styles from "./arena-revamp.module.css";
-import type { DiscoverAgent } from "./map-api-agents";
+import { ARENA_TIER_LADDER, type DiscoverAgent } from "./map-api-agents";
 
 export type ArenaTab = "discover" | "challenges" | "leaderboard" | "tournaments" | "my-agents";
 export type MatchType = "agentVsAi" | "agentVsAgent";
@@ -53,14 +53,14 @@ const TABS: {
 }[] = [
   {
     id: "discover",
-    label: "Play",
-    shortLabel: "Play",
+    label: "New Match",
+    shortLabel: "Match",
     description: "Set up your agent, pick opponents, and start a match.",
     icon: Gamepad2,
   },
   {
     id: "my-agents",
-    label: "My Agents",
+    label: "My Agents (Manage)",
     shortLabel: "Agents",
     description: "Create and manage the agents you compete with.",
     icon: Bot,
@@ -100,6 +100,20 @@ function winRate(wins: number, losses: number): number | null {
   const total = wins + losses;
   if (total === 0) return null;
   return Math.round((wins / total) * 100);
+}
+
+function stepItemClass(stepNum: number, currentStep: number, step1Done: boolean, step2Done: boolean): string {
+  if (stepNum === 1 && step1Done) return styles.stepDone;
+  if (stepNum === 2 && step2Done) return styles.stepDone;
+  if (currentStep === stepNum) return styles.stepCurrent;
+  if (currentStep < stepNum) return styles.stepFuture;
+  return styles.stepDone;
+}
+
+function stepNumContent(stepNum: number, currentStep: number, step1Done: boolean, step2Done: boolean): string {
+  const done =
+    (stepNum === 1 && step1Done) || (stepNum === 2 && step2Done) || currentStep > stepNum;
+  return done ? "✓" : String(stepNum);
 }
 
 export function ArenaRevampPage({
@@ -166,7 +180,6 @@ export function ArenaRevampPage({
 
   const hasAgent = isAuthed && myAgents.length > 0;
   const hasOpponents = selectedOpponentIds.length > 0;
-  const canLaunch = hasAgent && hasOpponents && !isLaunching;
 
   const step1Done = hasAgent;
   const step2Done = hasOpponents;
@@ -203,7 +216,7 @@ export function ArenaRevampPage({
       <div className={styles.page} ref={pageRef}>
         <header className={styles.header}>
           <div className={styles.headerRow}>
-            <h1 className={styles.title}>Agent Arena</h1>
+            <h1 className={styles.title}>Arena — Play with AI Agents</h1>
             {!quickStartOpen ? (
               <button type="button" className={styles.showGuideBtn} onClick={showQuickStart}>
                 New here? Show guide
@@ -211,8 +224,7 @@ export function ArenaRevampPage({
             ) : null}
           </div>
           <p className={styles.subtitle}>
-            AI agents compete in Monopoly-style matches on Celo. Use <strong>Play</strong> to start — create an agent
-            first under <strong>My Agents</strong> if you are new.
+            Set up an AI agent, pick opponents, and start a match. Agents compete in Monopoly-style games on Celo.
           </p>
         </header>
 
@@ -240,7 +252,7 @@ export function ArenaRevampPage({
                 onClick={() => handleTabChange("discover")}
               >
                 <span className={styles.quickCardNum}>2</span>
-                <span className={styles.quickCardTitle}>Play a match</span>
+                <span className={styles.quickCardTitle}>Start a new match</span>
                 <span className={styles.quickCardDesc}>Setup → opponents → Start</span>
               </button>
               <button
@@ -269,6 +281,7 @@ export function ArenaRevampPage({
                   aria-controls={`arena-panel-${t.id}`}
                   id={`arena-tab-${t.id}`}
                   className={activeTab === t.id ? styles.tabActive : styles.tab}
+                  title={t.id === "my-agents" ? "Create and edit your AI agents here." : undefined}
                   onClick={() => handleTabChange(t.id)}
                 >
                   <Icon className={styles.tabIcon} aria-hidden />
@@ -285,7 +298,7 @@ export function ArenaRevampPage({
             </p>
             {activeTab !== "discover" ? (
               <button type="button" className={styles.goPlayBtn} onClick={() => handleTabChange("discover")}>
-                Go to Play
+                Go to New Match
                 <ChevronRight className={styles.goPlayIcon} aria-hidden />
               </button>
             ) : null}
@@ -299,15 +312,15 @@ export function ArenaRevampPage({
                   key={s.id}
                   type="button"
                   className={
-                    currentStep === i + 1
-                      ? styles.playSubNavBtnActive
-                      : currentStep > i + 1
-                        ? styles.playSubNavBtnDone
+                    currentStep > i + 1
+                      ? styles.playSubNavBtnDone
+                      : currentStep === i + 1
+                        ? styles.playSubNavBtnActive
                         : styles.playSubNavBtn
                   }
                   onClick={() => scrollToPlayStep(s.id)}
                 >
-                  {i + 1}. {s.label}
+                  {currentStep > i + 1 ? "✓" : `${i + 1}.`} {s.label}
                 </button>
               ))}
             </div>
@@ -338,7 +351,6 @@ export function ArenaRevampPage({
               step1Done={step1Done}
               step2Done={step2Done}
               currentStep={currentStep}
-              canLaunch={canLaunch}
               isLaunching={isLaunching}
               launchHint={launchHint}
               onLaunch={onLaunch}
@@ -379,7 +391,6 @@ function DiscoverPanel({
   step1Done,
   step2Done,
   currentStep,
-  canLaunch,
   isLaunching,
   launchHint,
   onLaunch,
@@ -403,25 +414,43 @@ function DiscoverPanel({
   step1Done: boolean;
   step2Done: boolean;
   currentStep: number;
-  canLaunch: boolean;
   isLaunching: boolean;
   launchHint: string | null;
   onLaunch: () => void;
 }) {
+  const step2Ref = useRef<HTMLElement>(null);
+  const [step2Shake, setStep2Shake] = useState(false);
+  const [opponentError, setOpponentError] = useState<string | null>(null);
+
+  const handleLaunchClick = () => {
+    if (!hasAgent || isLaunching) return;
+    if (selectedOpponentIds.length === 0) {
+      setOpponentError("Select at least 1 opponent to continue.");
+      setStep2Shake(true);
+      step2Ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.setTimeout(() => setStep2Shake(false), 500);
+      return;
+    }
+    setOpponentError(null);
+    onLaunch();
+  };
+
+  const launchReady = hasAgent && !isLaunching;
+
   return (
     <>
       <ol className={styles.stepper} aria-label="How to start a match">
-        <li className={currentStep >= 1 ? styles.stepDone : currentStep === 1 ? styles.stepCurrent : styles.step}>
-          <span className={styles.stepNum}>1</span>
-          <span className={styles.stepText}>Set up your agent</span>
+        <li className={stepItemClass(1, currentStep, step1Done, step2Done)}>
+          <span className={styles.stepNum}>{stepNumContent(1, currentStep, step1Done, step2Done)}</span>
+          <span className={styles.stepText}>Setup</span>
         </li>
-        <li className={currentStep >= 2 ? styles.stepDone : currentStep === 2 ? styles.stepCurrent : styles.step}>
-          <span className={styles.stepNum}>2</span>
-          <span className={styles.stepText}>Choose opponents</span>
+        <li className={stepItemClass(2, currentStep, step1Done, step2Done)}>
+          <span className={styles.stepNum}>{stepNumContent(2, currentStep, step1Done, step2Done)}</span>
+          <span className={styles.stepText}>Opponents</span>
         </li>
-        <li className={currentStep >= 3 ? styles.stepDone : currentStep === 3 ? styles.stepCurrent : styles.step}>
-          <span className={styles.stepNum}>3</span>
-          <span className={styles.stepText}>Start match</span>
+        <li className={stepItemClass(3, currentStep, step1Done, step2Done)}>
+          <span className={styles.stepNum}>{stepNumContent(3, currentStep, step1Done, step2Done)}</span>
+          <span className={styles.stepText}>Start</span>
         </li>
       </ol>
 
@@ -442,11 +471,11 @@ function DiscoverPanel({
           </div>
         ) : myAgents.length === 0 ? (
           <div className={styles.callout}>
-            <p className={styles.calloutText}>
-              You need an agent before you can play. Create one in <strong>My Agents</strong> — it only takes a minute.
+            <p className={styles.firstTimeCallout} style={{ margin: 0, marginBottom: 12 }}>
+              <strong>First time?</strong> Create an agent under My Agents before you can play.
             </p>
-            <button type="button" className={styles.calloutBtn} onClick={() => onTabChange("my-agents")}>
-              Go to My Agents →
+            <button type="button" className={styles.createAgentCta} onClick={() => onTabChange("my-agents")}>
+              Create your first agent →
             </button>
           </div>
         ) : (
@@ -455,45 +484,73 @@ function DiscoverPanel({
               <label className={styles.fieldLabel} htmlFor="playing-as">
                 Your agent
               </label>
-              <select
-                id="playing-as"
-                className={styles.select}
-                value={challengerAgentId ?? ""}
-                onChange={(e) => onChallengerChange(Number(e.target.value))}
-              >
-                {playingAsOptions.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+              {playingAsOptions.length === 0 ? (
+                <>
+                  <p className={styles.firstTimeCallout}>
+                    <strong>First time?</strong> Create an agent under My Agents before you can play.
+                  </p>
+                  <button type="button" className={styles.createAgentCta} onClick={() => onTabChange("my-agents")}>
+                    Create your first agent →
+                  </button>
+                </>
+              ) : (
+                <select
+                  id="playing-as"
+                  className={styles.select}
+                  value={challengerAgentId ?? ""}
+                  onChange={(e) => onChallengerChange(Number(e.target.value))}
+                >
+                  {playingAsOptions.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div className={styles.matchField}>
               <span className={styles.fieldLabel}>How do you want to play?</span>
-              <div className={styles.modeToggle}>
-                <button
-                  type="button"
-                  className={`${styles.modeBtn} ${matchType === "agentVsAgent" ? styles.modeBtnActive : ""}`}
-                  onClick={() => onMatchTypeChange("agentVsAgent")}
-                >
-                  <span className={styles.modeBtnTitle}>Agent vs Agent</span>
-                  <span className={styles.modeBtnHint}>Your agent plays automatically</span>
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.modeBtn} ${matchType === "agentVsAi" ? styles.modeBtnActive : ""}`}
-                  onClick={() => onMatchTypeChange("agentVsAi")}
-                >
-                  <span className={styles.modeBtnTitle}>You vs Agent</span>
-                  <span className={styles.modeBtnHint}>You roll; opponent is AI</span>
-                </button>
+              <div className={styles.modeOptions}>
+                <div className={styles.modeOption}>
+                  <button
+                    type="button"
+                    className={`${styles.modeBtn} ${matchType === "agentVsAgent" ? styles.modeBtnActive : ""}`}
+                    onClick={() => onMatchTypeChange("agentVsAgent")}
+                  >
+                    Fully Automatic (agents play themselves)
+                  </button>
+                  <p className={styles.modeDesc}>
+                    Your agent and opponents play full turns without you — best for autonomous matches.
+                  </p>
+                </div>
+                <div className={styles.modeOption}>
+                  <button
+                    type="button"
+                    className={`${styles.modeBtn} ${matchType === "agentVsAi" ? styles.modeBtnActive : ""}`}
+                    onClick={() => onMatchTypeChange("agentVsAi")}
+                  >
+                    Manual (you roll, agent responds)
+                  </button>
+                  <p className={styles.modeDesc}>
+                    You control your seat on the board; the opponent agent plays on its own.
+                  </p>
+                </div>
               </div>
             </div>
 
             <div className={styles.matchField}>
               <label className={styles.fieldLabel} htmlFor="usdc-stake">
-                Stake (optional)
+                <span className={styles.labelWithTip}>
+                  Bet USDC (optional)
+                  <span
+                    className={styles.fieldTooltip}
+                    title="Winner takes the pool. Leave at 0 for a free game."
+                    aria-label="Winner takes the pool. Leave at 0 for a free game."
+                  >
+                    ?
+                  </span>
+                </span>
               </label>
               <input
                 id="usdc-stake"
@@ -505,26 +562,39 @@ function DiscoverPanel({
                 value={stakeAmount}
                 onChange={(e) => onStakeChange(e.target.value)}
               />
-              <p className={styles.fieldHelp}>Leave at 0 for a free practice match.</p>
+              <p className={styles.fieldHelp}>Winner takes the pool. Leave at 0 for a free game.</p>
             </div>
           </div>
         )}
-        {step1Done ? <p className={styles.stepComplete}>✓ Setup complete — pick opponents below</p> : null}
+        {step1Done ? (
+          <div className={styles.stepCompleteBanner} role="status">
+            <span aria-hidden>✓</span>
+            <span>Setup complete — pick opponents below</span>
+          </div>
+        ) : null}
       </section>
 
       <section
+        ref={step2Ref}
         id="arena-step-2"
-        className={`${styles.stepSection} ${currentStep === 2 ? styles.stepSectionHighlight : ""}`}
+        className={`${styles.stepSection} ${currentStep === 2 ? styles.stepSectionHighlight : ""} ${step2Shake ? styles.step2Shake : ""}`}
         aria-labelledby="step-2-heading"
       >
         <div className={styles.stepHeadingRow}>
           <h2 id="step-2-heading" className={styles.stepHeading}>
             Step 2 — Choose opponents
           </h2>
-          <span className={styles.pickBadge}>
-            {selectedOpponentIds.length} / {maxOpponentSlots} selected
-          </span>
         </div>
+        <p className={styles.selectionCount}>
+          <strong>
+            {selectedOpponentIds.length} of {maxOpponentSlots} selected
+          </strong>
+        </p>
+        {opponentError ? (
+          <p className={styles.opponentError} role="alert">
+            {opponentError}
+          </p>
+        ) : null}
         <p className={styles.stepIntro}>
           {matchType === "agentVsAi"
             ? "Tap Select on exactly one agent to challenge."
@@ -545,21 +615,30 @@ function DiscoverPanel({
           </div>
         ) : (
           <div className={styles.agentsGrid}>
-            {discoverAgents.map((agent) => (
+            {discoverAgents.map((agent, index) => (
               <AgentCard
                 key={agent.id}
                 agent={agent}
                 selected={selectedOpponentIds.includes(agent.id)}
+                showTierLegend={index === 0}
                 maxReached={
                   selectedOpponentIds.length >= maxOpponentSlots &&
                   !selectedOpponentIds.includes(agent.id)
                 }
-                onSelect={() => onToggleOpponent(agent.id)}
+                onSelect={() => {
+                  setOpponentError(null);
+                  onToggleOpponent(agent.id);
+                }}
               />
             ))}
           </div>
         )}
-        {step2Done ? <p className={styles.stepComplete}>✓ Opponents selected — ready to start</p> : null}
+        {step2Done ? (
+          <div className={styles.stepCompleteBanner} role="status">
+            <span aria-hidden>✓</span>
+            <span>Opponents selected — ready to start</span>
+          </div>
+        ) : null}
       </section>
 
       <div id="arena-launch" className={styles.launchDock} role="region" aria-label="Start match">
@@ -578,8 +657,8 @@ function DiscoverPanel({
           <button
             type="button"
             className={styles.launchBtn}
-            disabled={!canLaunch}
-            onClick={onLaunch}
+            disabled={!launchReady}
+            onClick={handleLaunchClick}
           >
             {isLaunching ? "Starting match…" : "Start match →"}
           </button>
@@ -589,18 +668,64 @@ function DiscoverPanel({
   );
 }
 
+function TierLegendPopover() {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  return (
+    <div className={styles.tierStatWrap} ref={wrapRef}>
+      <button
+        type="button"
+        className={styles.tierHelpBtn}
+        aria-label="What do arena tiers mean?"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+      >
+        ?
+      </button>
+      {open ? (
+        <div className={styles.tierPopover} role="dialog" aria-label="Arena tier ladder">
+          <p className={styles.tierPopoverTitle}>Arena tiers</p>
+          <ul className={styles.tierPopoverList}>
+            {ARENA_TIER_LADDER.map((tier) => (
+              <li key={tier.label} className={styles.tierPopoverItem}>
+                <strong>{tier.label}</strong> — {tier.hint}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function AgentCard({
   agent,
   selected,
+  showTierLegend,
   maxReached,
   onSelect,
 }: {
   agent: DiscoverAgent;
   selected: boolean;
+  showTierLegend?: boolean;
   maxReached: boolean;
   onSelect: () => void;
 }) {
   const wr = winRate(agent.wins, agent.losses);
+  const noMatches = agent.wins === 0 && agent.losses === 0;
 
   return (
     <article className={`${styles.agentCard} ${selected ? styles.agentCardSelected : ""}`}>
@@ -609,10 +734,18 @@ function AgentCard({
           <h3 className={styles.agentName}>{agent.name}</h3>
           <p className={styles.agentCreator}>@{agent.username}</p>
         </div>
-        <span className={styles.tierChip}>{agent.tierLabel}</span>
       </div>
 
       <dl className={styles.agentStats}>
+        <div>
+          <dt>Tier</dt>
+          <dd>
+            <span className={styles.tierChipRow}>
+              <span className={styles.tierChip}>{agent.tierLabel}</span>
+              {showTierLegend ? <TierLegendPopover /> : null}
+            </span>
+          </dd>
+        </div>
         <div>
           <dt>W–L</dt>
           <dd className={styles.mono}>
@@ -625,7 +758,7 @@ function AgentCard({
         </div>
         <div>
           <dt>Win rate</dt>
-          <dd className={styles.mono}>{wr != null ? `${wr}%` : "—"}</dd>
+          <dd className={styles.mono}>{wr != null ? `${wr}%` : noMatches ? "No matches yet" : "—"}</dd>
         </div>
       </dl>
 

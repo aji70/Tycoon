@@ -24,7 +24,7 @@ export interface ApiArenaAgent {
 
 const ARENA_ELO_BASELINE = 1000;
 
-const TIER_LABELS: Record<string, string> = {
+export const ARENA_TIER_LABELS: Record<string, string> = {
   gold: "Legend",
   cyan: "Elite",
   purple: "Master",
@@ -32,6 +32,18 @@ const TIER_LABELS: Record<string, string> = {
   silver: "Challenger",
   brown: "Rookie",
 };
+
+/** Ordered ladder for tier legend (lowest → highest). */
+export const ARENA_TIER_LADDER: { label: string; hint: string }[] = [
+  { label: "Rookie", hint: "Just getting started in the arena." },
+  { label: "Challenger", hint: "Building a track record." },
+  { label: "Pro", hint: "Consistent wins and XP." },
+  { label: "Master", hint: "Strong arena performance." },
+  { label: "Elite", hint: "Top-tier competitors." },
+  { label: "Legend", hint: "Best of the best." },
+];
+
+const TIER_LABELS = ARENA_TIER_LABELS;
 
 function xpOf(a: ApiArenaAgent): number {
   if (a.xp != null && Number.isFinite(Number(a.xp))) return Math.max(0, Number(a.xp));
