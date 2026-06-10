@@ -46,7 +46,6 @@ import {
   shopPaymentLabel,
   type MinipayStableOption,
 } from '@/lib/shop/preferredStable';
-import { connectMiniPayWallet } from '@/lib/connectMiniPayWallet';
 import {
   isMiniPayEmbeddedWallet,
 } from '@/lib/minipayGuestFlow';
@@ -559,22 +558,6 @@ export default function GameShop() {
     const paymentTokenAddress = payment.tokenAddress;
     const paymentToken = payment.paymentToken;
     const paymentLabel = 'USDT';
-    let walletAddress = address;
-    if (isMiniPayEmbeddedWallet()) {
-      if (!walletAddress) {
-        try {
-          await connectMiniPayWallet();
-        } catch {
-          /* wrapper will call getMiniPayActiveAddress */
-        }
-      }
-      // Don't call getMiniPayActiveAddress here; let writeContractWithMiniPay wrapper handle it
-      walletAddress = address;
-    }
-    if (!walletAddress && !(payWith === 'smart_wallet' && smartWalletAddress)) {
-      toast.error('Connect your MiniPay wallet first');
-      return;
-    }
     try {
       if (payWith === 'smart_wallet' && smartWalletAddress) {
         const session = readAppSessionToken();
@@ -595,42 +578,20 @@ export default function GameShop() {
           }
           toast.success('Purchase successful!');
         } else {
-          const swApproveHash = await smartWalletApprove(paymentTokenAddress, contractAddress, price);
-          if (swApproveHash) await waitForBundleTx(swApproveHash);
-          const buyHash = await buyFrom(smartWalletAddress, item.tokenId, paymentToken);
-          if (buyHash) await waitForBundleTx(buyHash);
+          await smartWalletApprove(paymentTokenAddress, contractAddress, price);
+          await buyFrom(smartWalletAddress, item.tokenId, paymentToken);
         }
       } else {
-        let tokenAllowance: bigint | undefined;
-        if (publicClient && walletAddress) {
-          tokenAllowance = await publicClient.readContract({
-            address: paymentTokenAddress,
-            abi: Erc20Abi,
-            functionName: 'allowance',
-            args: [walletAddress, contractAddress],
-          });
+        if (stableAllowance === undefined || stableAllowance === null) {
+          toast.info('Approval required');
+          await approve(paymentTokenAddress, contractAddress, price);
+          toast.success('Approval successful, completing purchase...');
+        } else if (typeof stableAllowance === 'bigint' && stableAllowance < price) {
+          toast.info('Increasing approval...');
+          await approve(paymentTokenAddress, contractAddress, price);
+          toast.success('Approval successful, completing purchase...');
         }
-        const needsApproval = tokenAllowance === undefined || tokenAllowance < price;
-        if (needsApproval) {
-          toast.info(`Approve ${paymentLabel} spend`);
-          const approveHash = await approve(paymentTokenAddress, contractAddress, price);
-          if (approveHash) await waitForBundleTx(approveHash);
-          toast.success('Approval confirmed, completing purchase...');
-          if (publicClient && walletAddress) {
-            tokenAllowance = await publicClient.readContract({
-              address: paymentTokenAddress,
-              abi: Erc20Abi,
-              functionName: 'allowance',
-              args: [walletAddress, contractAddress],
-            });
-          }
-          await new Promise((r) => setTimeout(r, 2000));
-        }
-        if (tokenAllowance !== undefined && tokenAllowance < price) {
-          throw new Error(`${paymentLabel} approval is still pending — wait a few seconds and tap Buy again.`);
-        }
-        const buyHash = await buy(item.tokenId, paymentToken);
-        if (buyHash) await waitForBundleTx(buyHash);
+        await buy(item.tokenId, paymentToken);
       }
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Purchase failed');
