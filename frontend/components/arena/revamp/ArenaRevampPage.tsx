@@ -220,14 +220,6 @@ export function ArenaRevampPage({
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
-  const launchHint = !isAuthed
-    ? "Sign in (top nav) to start a match"
-    : !hasAgent
-      ? "Create an agent in My Agents first"
-      : !hasOpponents
-        ? `Select ${matchType === "agentVsAi" ? "1 opponent" : "at least 1 opponent"} below`
-        : null;
-
   return (
     <div className={[styles.shell, activeTab === "discover" ? styles.shellWithDock : ""].filter(Boolean).join(" ")}>
       <div className={styles.page} ref={pageRef}>
@@ -240,9 +232,6 @@ export function ArenaRevampPage({
               </button>
             ) : null}
           </div>
-          <p className={styles.subtitle}>
-            Set up an AI agent, pick opponents, and start a match. Agents compete in Monopoly-style games on Celo.
-          </p>
         </header>
 
         {quickStartOpen ? (
@@ -383,7 +372,6 @@ export function ArenaRevampPage({
               step2Done={step2Done}
               currentStep={currentStep}
               isLaunching={isLaunching}
-              launchHint={launchHint}
               onLaunch={onLaunch}
             />
           ) : (
@@ -423,7 +411,6 @@ function DiscoverPanel({
   step2Done,
   currentStep,
   isLaunching,
-  launchHint,
   onLaunch,
 }: {
   isAuthed: boolean;
@@ -446,7 +433,6 @@ function DiscoverPanel({
   step2Done: boolean;
   currentStep: number;
   isLaunching: boolean;
-  launchHint: string | null;
   onLaunch: () => void;
 }) {
   const step2Ref = useRef<HTMLElement>(null);
@@ -529,30 +515,20 @@ function DiscoverPanel({
             <div className={styles.matchField}>
               <span className={styles.fieldLabel}>How do you want to play?</span>
               <div className={styles.modeOptions}>
-                <div className={styles.modeOption}>
-                  <button
-                    type="button"
-                    className={`${styles.modeBtn} ${matchType === "agentVsAgent" ? styles.modeBtnActive : ""}`}
-                    onClick={() => onMatchTypeChange("agentVsAgent")}
-                  >
-                    Fully Automatic (agents play themselves)
-                  </button>
-                  <p className={styles.modeDesc}>
-                    Your agent and opponents play full turns without you — best for autonomous matches.
-                  </p>
-                </div>
-                <div className={styles.modeOption}>
-                  <button
-                    type="button"
-                    className={`${styles.modeBtn} ${matchType === "agentVsAi" ? styles.modeBtnActive : ""}`}
-                    onClick={() => onMatchTypeChange("agentVsAi")}
-                  >
-                    Manual (you roll, agent responds)
-                  </button>
-                  <p className={styles.modeDesc}>
-                    You control your seat on the board; the opponent agent plays on its own.
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  className={`${styles.modeBtn} ${matchType === "agentVsAgent" ? styles.modeBtnActive : ""}`}
+                  onClick={() => onMatchTypeChange("agentVsAgent")}
+                >
+                  Auto-play
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.modeBtn} ${matchType === "agentVsAi" ? styles.modeBtnActive : ""}`}
+                  onClick={() => onMatchTypeChange("agentVsAi")}
+                >
+                  You play
+                </button>
               </div>
             </div>
 
@@ -579,16 +555,9 @@ function DiscoverPanel({
                 value={stakeAmount}
                 onChange={(e) => onStakeChange(e.target.value)}
               />
-              <p className={styles.fieldHelp}>Winner takes the pool. Leave at 0 for a free game.</p>
             </div>
           </div>
         )}
-        {step1Done ? (
-          <div className={styles.stepCompleteBanner} role="status">
-            <span aria-hidden>✓</span>
-            <span>Setup complete — pick opponents below</span>
-          </div>
-        ) : null}
       </section>
 
       <section
@@ -598,9 +567,9 @@ function DiscoverPanel({
         aria-labelledby="step-2-heading"
       >
         <h2 id="step-2-heading" className={styles.stepHeading}>
-          Step 2 — Choose Opponents{" "}
+          Opponents{" "}
           <span className={styles.selectionCountInline}>
-            ({selectedOpponentIds.length} / {maxOpponentSlots} selected)
+            ({selectedOpponentIds.length} / {maxOpponentSlots})
           </span>
         </h2>
         {opponentError ? (
@@ -608,11 +577,6 @@ function DiscoverPanel({
             {opponentError}
           </p>
         ) : null}
-        <p className={styles.stepIntro}>
-          {matchType === "agentVsAi"
-            ? "Tap Select on exactly one agent to challenge."
-            : `Select up to ${maxOpponentSlots} agents.`}
-        </p>
 
         {loading ? (
           <p className={styles.emptyState}>Loading agents…</p>
@@ -656,17 +620,6 @@ function DiscoverPanel({
 
       <div id="arena-launch" className={styles.launchDock} role="region" aria-label="Start match">
         <div className={styles.launchDockInner}>
-          <div className={styles.launchDockText}>
-            <span className={styles.launchDockTitle}>Step 3 — Start match</span>
-            {launchHint ? (
-              <span className={styles.launchDockHint}>{launchHint}</span>
-            ) : (
-              <span className={styles.launchDockHint}>
-                {selectedOpponentIds.length} opponent{selectedOpponentIds.length !== 1 ? "s" : ""} ·{" "}
-                {matchType === "agentVsAi" ? "You play" : "Agents play"} on Celo
-              </span>
-            )}
-          </div>
           <button
             type="button"
             className={launchReady ? styles.launchBtn : styles.launchBtnDisabled}
@@ -740,7 +693,6 @@ function AgentCard({
   onSelect: () => void;
 }) {
   const wr = agent.winRatePct;
-  const noMatches = agent.wins === 0 && agent.losses === 0 && agent.draws === 0;
 
   return (
     <article className={`${styles.agentCard} ${selected ? styles.agentCardSelected : ""}`}>
@@ -767,19 +719,17 @@ function AgentCard({
           </span>
         </div>
         <div className={styles.statCell}>
-          <span className={styles.statLabel}>XP</span>
-          <span className={`${styles.statValue} ${styles.mono}`}>{agent.xp.toLocaleString()}</span>
+          <span className={`${styles.statValue} ${styles.statXp} ${styles.mono}`}>
+            <span className={styles.xpIcon} aria-hidden>
+              ⚡
+            </span>
+            {agent.xp.toLocaleString()}
+          </span>
         </div>
         <div className={styles.statCell}>
-          <span className={styles.statLabel}>Win rate</span>
+          <span className={styles.statLabel}>WIN%</span>
           <span className={styles.statValue}>
-            {wr != null ? (
-              `${Number.isInteger(wr) ? wr : wr.toFixed(1)}%`
-            ) : noMatches ? (
-              <span className={styles.statEmpty}>No matches yet</span>
-            ) : (
-              "—"
-            )}
+            {wr != null ? `${Number.isInteger(wr) ? wr : wr.toFixed(1)}%` : "—"}
           </span>
         </div>
       </div>
@@ -793,7 +743,7 @@ function AgentCard({
         disabled={maxReached}
         aria-pressed={selected}
       >
-        {selected ? "✓ Selected" : maxReached ? "Max selected" : "Select opponent"}
+        {selected ? "✓ Selected" : maxReached ? "Max" : "Add"}
       </button>
     </article>
   );
