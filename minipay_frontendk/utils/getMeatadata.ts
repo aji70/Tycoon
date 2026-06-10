@@ -1,20 +1,13 @@
 import type { Metadata } from "next";
+import { resolveSiteUrl, resolveMetadataBase } from "@/lib/siteUrl";
 
-const isProduction = process.env.NODE_ENV === "production";
-const baseUrl = isProduction
-  ? "https://base-monopoly.vercel.app/"
-  : `http://localhost:${process.env.PORT || 3000}`;
+const titleTemplate = "%s | Tycoon";
 
-const titleTemplate = "%s | Decentralized Monopoly Game";
+const defaultDescription =
+  "Tycoon is a Monopoly-style on-chain board game on Celo. Play vs friends or AI, trade properties, build empires, and win real prizes — right in MiniPay.";
 
 /**
  * Generates metadata for a given page.
- *
- * @param {Object} options
- * @param {string} options.title Page title
- * @param {string} options.description Page description
- * @param {string} [options.imageRelativePath="/thumbnail.png"] Relative path to the image for the page
- * @returns {Metadata} The generated metadata
  */
 export const getMetadata = ({
   title,
@@ -24,8 +17,9 @@ export const getMetadata = ({
   title: string;
   description: string;
   imageRelativePath?: string;
-  other: {};
+  other?: Record<string, unknown>;
 }): Metadata => {
+  const baseUrl = resolveSiteUrl();
   const imageUrl = `${baseUrl}${imageRelativePath}`;
 
   return {
@@ -36,20 +30,17 @@ export const getMetadata = ({
       "tycoon",
       "monopoly",
       "onchain game",
-      "starknet",
-      "dojo",
-      "cairo",
-      "zk-rollups",
+      "celo",
+      "minipay",
       "decentralized gaming",
       "blockchain games",
       "digital properties",
-      "trustless gaming experience",
       "buy sell trade properties",
       "onchain monopoly game",
     ],
     creator: "Tycoon Team",
     publisher: "Ajidokwu",
-    metadataBase: new URL(baseUrl),
+    metadataBase: resolveMetadataBase(),
     manifest: `${baseUrl}/manifest.json`,
     alternates: {
       canonical: baseUrl,
@@ -77,80 +68,78 @@ export const getMetadata = ({
         default: title,
         template: titleTemplate,
       },
-      description:
-        "Tycoon is a fully on-chain, decentralized version of the classic Monopoly game, built on Starknet using Dojo. This version leverages ZK-Rollups for scalability and Cairo smart contracts to ensure a seamless, trustless gaming experience. Players can buy, sell, and trade digital properties securely, with game logic enforced entirely on-chain.",
+      description: defaultDescription,
       images: [
         {
           url: imageUrl,
-          alt: "Tycoon - Monopoly Game Onchain",
+          alt: "Tycoon - Monopoly on Celo",
         },
       ],
       type: "website",
       siteName: "Tycoon",
       locale: "en_US",
-      url: "https://base-monopoly.vercel.app/",
+      url: baseUrl,
     },
     twitter: {
-      card: "summary_large_image", // Ensures Twitter uses a large image for the preview
+      card: "summary_large_image",
       title: {
         default: title,
         template: titleTemplate,
       },
-      description:
-        "Tycoon is a fully on-chain, decentralized version of the classic Monopoly game, built on Starknet using Dojo. This version leverages ZK-Rollups for scalability and Cairo smart contracts to ensure a seamless, trustless gaming experience. Players can buy, sell, and trade digital properties securely, with game logic enforced entirely on-chain. #Starknet #Dojo #Tycoon #OnchainGames #Cartridge",
+      description: defaultDescription,
       creator: "@Tycoon",
       images: [
         {
           url: imageUrl,
-          alt: "Tycoon - Monopoly Game Onchain",
+          alt: "Tycoon - Monopoly on Celo",
         },
       ],
     },
     icons: {
       icon: [
         {
-          url: `/metadata/favicon-32x32.png`, // Standard favicon for browsers
+          url: `/metadata/favicon-32x32.png`,
           sizes: "32x32",
           type: "image/png",
         },
         {
-          url: `/metadata/favicon-16x16.png`, // Smaller favicon for some contexts
+          url: `/metadata/favicon-16x16.png`,
           sizes: "16x16",
           type: "image/png",
         },
         {
-          url: `/metadata/android-chrome-192x192.png`, // Icon for mobile devices and apps
+          url: `/metadata/android-chrome-192x192.png`,
           sizes: "192x192",
           type: "image/png",
         },
         {
-          url: `/metadata/android-chrome-512x512.png`, // High-resolution icon for apps/PWAs
+          url: `/metadata/android-chrome-512x512.png`,
           sizes: "512x512",
           type: "image/png",
         },
       ],
       apple: [
         {
-          url: `/metadata/apple-touch-icon.png`, // Apple touch icon for iOS devices
+          url: `/metadata/apple-touch-icon.png`,
           sizes: "180x180",
           type: "image/png",
         },
       ],
       shortcut: [
         {
-          url: `/metadata/favicon.ico`, // ICO format for legacy browsers
+          url: `/metadata/favicon.ico`,
           sizes: "48x48",
           type: "image/x-icon",
         },
       ],
       other: [
         {
-          url: `/metadata/android-chrome-192x192.png`, // Manifest icon for web app manifest
+          url: `/metadata/android-chrome-192x192.png`,
           sizes: "192x192",
           type: "image/png",
         },
         {
-          url: `/metadata/android-chrome-512x512.png`, // Larger manifest icon
+          url: `/metadata/android-chrome-512x512.png`,
           sizes: "512x512",
           type: "image/png",
         },

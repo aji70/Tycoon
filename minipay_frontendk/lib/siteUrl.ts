@@ -11,7 +11,7 @@ export function resolveSiteUrl(override?: string): string {
   return "https://playtycoon.xyz";
 }
 
-/** Hostname without www — used to pick Farcaster accountAssociation. */
+/** Hostname without www — used for domain checks. */
 export function siteHostname(siteUrl: string): string {
   try {
     return new URL(siteUrl).hostname.replace(/^www\./, "");

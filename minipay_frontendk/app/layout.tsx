@@ -51,7 +51,7 @@ export async function generateMetadata(): Promise<Metadata> {
       template: "%s | Tycoon",
     },
     description:
-      "Tycoon is a decentralized on-chain game inspired by the classic Monopoly game, built on Celo. It allows players to buy, sell, and trade digital properties in a trustless gaming environment.",
+      "Tycoon is a Monopoly-style board game on Celo. Buy properties, collect rent, build monopolies, trade with friends or AI, and compete for on-chain prizes — playable in MiniPay.",
     icons: {
       icon: "/favicon.png",
     },
