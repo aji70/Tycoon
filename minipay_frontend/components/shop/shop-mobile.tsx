@@ -39,6 +39,7 @@ import { isShopPerkHidden } from '@/lib/perkShopAssets';
 import {
   pickMinipayPreferredStable,
   resolveMinipayShopPayment,
+  shopPaymentLabel,
   type MinipayStableOption,
 } from '@/lib/shop/preferredStable';
 import {
@@ -46,6 +47,7 @@ import {
   getMiniPayActiveAddress,
   isMiniPayEmbeddedWallet,
 } from '@/lib/minipayGuestFlow';
+import { connectMiniPayWallet } from '@/lib/connectMiniPayWallet';
 
 import {
   useRewardBuyCollectible,
@@ -348,17 +350,16 @@ export default function GameShopMobile() {
 
   const stableOptions = useMemo<StableOption[]>(
     () => [
-      { symbol: 'CUSDC', tokenAddress: cusdcAddress, paymentToken: 2, balance: Number(cusdcBalanceData?.formatted ?? 0) },
       { symbol: 'USDT', tokenAddress: usdtAddress, paymentToken: 3, balance: Number(usdtBalanceData?.formatted ?? 0) },
     ],
-    [usdcTokenAddress, cusdcAddress, usdtAddress, usdcBalanceData?.formatted, cusdcBalanceData?.formatted, usdtBalanceData?.formatted]
+    [usdtAddress, usdtBalanceData?.formatted]
   );
 
   const preferredStable = useMemo<StableOption>(() => pickMinipayPreferredStable(stableOptions), [stableOptions]);
 
-  const activeStableLabel = preferredStable.symbol === 'CUSDC' ? 'cUSD' : preferredStable.symbol;
+  const activeStableLabel = 'USDT';
   const activeStableBalance = Number.isFinite(preferredStable.balance) ? preferredStable.balance : 0;
-  const stableLoading = usdcLoading || cusdcLoading || usdtLoading;
+  const stableLoading = usdtLoading;
 
   const { data: stableAllowance } = useReadContract({
     address: preferredStable.tokenAddress,
@@ -645,26 +646,29 @@ export default function GameShopMobile() {
       toast.error('Please connect your wallet or register to use your smart wallet');
       return;
     }
-    const payment = resolveMinipayShopPayment(
-      { cusdcPrice: item.cusdcPrice, usdtPrice: item.usdtPrice },
-      stableOptions
-    );
+    const payment = resolveMinipayShopPayment({ usdtPrice: item.usdtPrice }, stableOptions);
     if (!payment?.tokenAddress || !contractAddress) {
-      toast.error('This perk is not priced in USDT or cUSD on-chain yet. Try again later.');
+      toast.error('This perk is not priced in USDT on-chain yet. Try again later.');
       return;
     }
     if (payment.balance < payment.priceDisplay) {
-      const label = payment.symbol === 'CUSDC' ? 'cUSD' : 'USDT';
-      toast.error(`Insufficient ${label} balance`);
+      toast.error('Insufficient USDT balance');
       return;
     }
     const price = payment.priceWei;
     const paymentToken = payment.paymentToken;
     const paymentTokenAddress = payment.tokenAddress;
-    const paymentLabel = payment.symbol === 'CUSDC' ? 'cUSD' : 'USDT';
+    const paymentLabel = 'USDT';
     let walletAddress = address;
-    if (!walletAddress && isMiniPayEmbeddedWallet()) {
-      walletAddress = await getMiniPayActiveAddress();
+    if (isMiniPayEmbeddedWallet()) {
+      if (!walletAddress) {
+        try {
+          await connectMiniPayWallet();
+        } catch {
+          /* fall through */
+        }
+      }
+      walletAddress = address ?? (await getMiniPayActiveAddress());
     }
     if (!walletAddress && !(payWith === 'smart_wallet' && smartWalletAddress)) {
       toast.error('Connect your MiniPay wallet first');
@@ -1054,9 +1058,17 @@ export default function GameShopMobile() {
           <div className="flex items-center gap-3">
             <CreditCard className="w-5 h-5 text-[#00F0FF]" />
             <div>
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider">{activeStableLabel} (MiniPay wallet)</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">MiniPay wallet</p>
               <p className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-                {stableLoading ? <Loader2 className="inline animate-spin" size={18} /> : payerAddress ? `${activeStableBalance.toFixed(2)} ${activeStableLabel}` : '—'}
+                {stableLoading ? (
+                  <Loader2 className="inline animate-spin" size={18} />
+                ) : payerAddress ? (
+                  <>
+                    {Number(usdtBalanceData?.formatted ?? 0).toFixed(2)} USDT
+                  </>
+                ) : (
+                  '—'
+                )}
               </p>
             </div>
           </div>
@@ -1073,7 +1085,7 @@ export default function GameShopMobile() {
             className="rounded-xl border border-[#00F0FF]/25 bg-[#00F0FF]/5 px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
           >
             <p className="text-sm text-slate-300">
-              Connect your MiniPay wallet to buy perks and bundles with {activeStableLabel}.
+              Connect your MiniPay wallet. Perks are paid in USDT (0x4806…483D5e).
             </p>
             <button
               type="button"
@@ -1209,6 +1221,11 @@ export default function GameShopMobile() {
         ) : (
           <div className="grid grid-cols-2 gap-x-3 gap-y-5">
             {shopItems.map((item, index) => {
+              const itemPayment = resolveMinipayShopPayment({ usdtPrice: item.usdtPrice }, stableOptions);
+              const itemPayLabel = itemPayment ? shopPaymentLabel(itemPayment.symbol) : activeStableLabel;
+              const itemPrice = itemPayment?.priceDisplay ?? 0;
+              const canAffordItem = !!itemPayment && itemPayment.balance >= itemPayment.priceDisplay;
+
               return (
                 <motion.div
                   key={item.tokenId.toString()}
@@ -1246,7 +1263,7 @@ export default function GameShopMobile() {
                       <div>
                         <p className="text-[10px] text-slate-500 uppercase">Price</p>
                         <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-                          {Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} {activeStableLabel}
+                          {itemPrice.toFixed(2)} {itemPayLabel}
                         </p>
                       </div>
                     </div>
@@ -1261,14 +1278,14 @@ export default function GameShopMobile() {
                           buyFromPending ||
                           buyFromConfirming ||
                           smartWalletApprovePending ||
-                          (hasPaymentMethod && activeStableBalance < Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice))
+                          (hasPaymentMethod && !canAffordItem)
                         }
                         className={`w-full py-3 rounded-xl font-semibold text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]
                           ${item.stock === 0
                             ? 'bg-slate-800/80 text-slate-500'
                             : !hasPaymentMethod
                             ? 'bg-gradient-to-r from-[#00F0FF]/30 to-[#0DD6E0]/25 text-[#00F0FF] border border-[#00F0FF]/40'
-                            : activeStableBalance < Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice)
+                            : !canAffordItem
                             ? 'bg-slate-700/80 text-slate-400'
                             : (buyingPending || buyingConfirming || buyFromPending || buyFromConfirming || smartWalletApprovePending)
                             ? 'bg-amber-600/90 text-black'
@@ -1280,10 +1297,10 @@ export default function GameShopMobile() {
                           'Sold Out'
                         ) : !hasPaymentMethod ? (
                           'Connect MiniPay wallet'
-                        ) : activeStableBalance < Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice) ? (
-                          `Insufficient ${activeStableLabel}`
+                        ) : !canAffordItem ? (
+                          `Insufficient ${itemPayLabel}`
                         ) : (
-                          <> Pay with {activeStableLabel} — {Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)}</>
+                          <> Pay with {itemPayLabel} — {itemPrice.toFixed(2)}</>
                         )}
                       </button>
                     </>
