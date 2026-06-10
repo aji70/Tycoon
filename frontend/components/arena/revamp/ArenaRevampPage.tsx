@@ -96,12 +96,6 @@ const PLAY_STEPS = [
 
 const QUICK_START_KEY = "tycoon-arena-quickstart-dismissed";
 
-function winRate(wins: number, losses: number): number | null {
-  const total = wins + losses;
-  if (total === 0) return null;
-  return Math.round((wins / total) * 100);
-}
-
 function stepItemClass(stepNum: number, currentStep: number, step1Done: boolean, step2Done: boolean): string {
   if (stepNum === 1 && step1Done) return styles.stepDone;
   if (stepNum === 2 && step2Done) return styles.stepDone;
@@ -724,8 +718,8 @@ function AgentCard({
   maxReached: boolean;
   onSelect: () => void;
 }) {
-  const wr = winRate(agent.wins, agent.losses);
-  const noMatches = agent.wins === 0 && agent.losses === 0;
+  const wr = agent.winRatePct;
+  const noMatches = agent.wins === 0 && agent.losses === 0 && agent.draws === 0;
 
   return (
     <article className={`${styles.agentCard} ${selected ? styles.agentCardSelected : ""}`}>
@@ -758,7 +752,9 @@ function AgentCard({
         </div>
         <div>
           <dt>Win rate</dt>
-          <dd className={styles.mono}>{wr != null ? `${wr}%` : noMatches ? "No matches yet" : "—"}</dd>
+          <dd className={styles.mono}>
+            {wr != null ? `${Number.isInteger(wr) ? wr : wr.toFixed(1)}%` : noMatches ? "No matches yet" : "—"}
+          </dd>
         </div>
       </dl>
 

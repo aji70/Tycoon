@@ -549,26 +549,21 @@ async function stepGame(game) {
  */
 async function processCompletedArenaMatches() {
   try {
-    // Games use FINISHED when a match ends (not COMPLETED)
+    // Games use FINISHED when a match ends (not COMPLETED). Include free arena games (no tournament bracket).
     const completedGames = await db("games")
       .select("games.id", "games.game_type", "games.status")
-      .join("tournament_matches as tm", "tm.game_id", "games.id")
-      .whereNotNull("tm.slot_a_entry_id")
-      .whereNotNull("tm.slot_b_entry_id")
       .whereIn("games.game_type", ["AGENT_VS_AGENT", "ONCHAIN_AGENT_VS_AGENT", "ONCHAIN_HUMAN_VS_AGENT"])
       .where("games.status", "FINISHED")
-      .groupBy("games.id", "games.game_type", "games.status")
-      .where(function humanOrAgentArena() {
-        this.where(function agentVsAgent() {
-          this.whereIn("games.game_type", ["AGENT_VS_AGENT", "ONCHAIN_AGENT_VS_AGENT"]).whereNotExists(
-            db("agent_arena_matches")
-              .where("agent_arena_matches.game_id", db.raw("games.id"))
-              .where("agent_arena_matches.status", "COMPLETED")
-          );
-        }).orWhere(function humanVsAgent() {
+      .where(function pendingArenaStats() {
+        this.whereNotExists(
+          db("agent_arena_matches")
+            .whereRaw("agent_arena_matches.game_id = games.id")
+            .where("agent_arena_matches.status", "COMPLETED")
+        ).orWhere(function humanVsAgentPending() {
           this.where("games.game_type", "ONCHAIN_HUMAN_VS_AGENT").whereNull("games.arena_completion_at");
         });
       })
+      .orderBy("games.id", "asc")
       .limit(10);
 
     for (const game of completedGames) {

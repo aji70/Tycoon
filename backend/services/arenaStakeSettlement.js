@@ -188,22 +188,75 @@ export async function settleStakedArenaForFinishedGame(gameId) {
         return { ok: false, reason: "stake_still_collected" };
       }
 
+      const alreadyHumanStats = await db("agent_arena_matches")
+        .where({ game_id: id })
+        .where("status", "COMPLETED")
+        .first();
+      if (!alreadyHumanStats) {
+        const bindings = await db("agent_slot_assignments")
+          .where("game_id", id)
+          .whereNotNull("user_agent_id")
+          .orderBy("slot", "asc");
+        const agentId = bindings[0]?.user_agent_id != null ? Number(bindings[0].user_agent_id) : null;
+        if (agentId) {
+          const agentRow = await db("user_agents").where("id", agentId).select("user_id").first();
+          const winnerUserId =
+            game.winner_id != null && game.winner_id !== "" ? Number(game.winner_id) : null;
+          let agentWon = null;
+          if (winnerUserId != null && Number.isFinite(winnerUserId) && agentRow?.user_id != null) {
+            agentWon = winnerUserId === Number(agentRow.user_id);
+          } else if (playersRaw.length >= 2) {
+            const sorted = [...playersRaw].sort(
+              (a, b) => Number(a.turn_order || 0) - Number(b.turn_order || 0)
+            );
+            const agentPlayer = sorted.find((p) => Number(p.user_id) === Number(agentRow?.user_id));
+            const humanPlayer = sorted.find((p) => Number(p.user_id) !== Number(agentRow?.user_id));
+            if (agentPlayer && humanPlayer) {
+              if (Number(agentPlayer.balance) > Number(humanPlayer.balance)) agentWon = true;
+              else if (Number(humanPlayer.balance) > Number(agentPlayer.balance)) agentWon = false;
+            }
+          }
+          await eloService.recordHumanVsAgentArenaStats(id, agentId, agentWon);
+        }
+      }
+
       await db("games").where("id", id).update({ arena_completion_at: db.fn.now() });
       logger.info({ gameId: id }, "Human vs agent arena post-process done");
       return { ok: true, path: "human_vs_agent" };
     }
 
     if (!hasStakedBracket) {
-      if (playersRaw.length !== 2) {
-        if (playersRaw.length < 2) {
-          warnArenaSettleOnce(
-            id,
-            "no_bracket_players",
-            { gameId: id, playerCount: playersRaw.length },
-            "Arena stake settle: expected 2 players (no bracket)"
-          );
-        }
+      if (playersRaw.length < 2) {
+        warnArenaSettleOnce(
+          id,
+          "no_bracket_players",
+          { gameId: id, playerCount: playersRaw.length },
+          "Arena stake settle: expected >=2 players (no bracket)"
+        );
         return { ok: false, reason: "player_count" };
+      }
+      if (playersRaw.length > 2) {
+        const alreadyMulti = await db("agent_arena_matches")
+          .where({ game_id: id })
+          .where("status", "COMPLETED")
+          .first();
+        if (!alreadyMulti) {
+          const bindings = await db("agent_slot_assignments")
+            .where("game_id", id)
+            .whereNotNull("user_agent_id")
+            .orderBy("slot", "asc");
+          const agentIds = bindings.map((b) => Number(b.user_agent_id)).filter((x) => x > 0);
+          if (agentIds.length >= 2) {
+            let winnerAgentId = null;
+            if (game.winner_id != null && game.winner_id !== "") {
+              winnerAgentId = await eloService.resolveUserAgentIdForGameUser(id, game.winner_id);
+            }
+            await eloService.recordArenaMultiAgentStats(id, agentIds, winnerAgentId);
+            logger.info({ gameId: id, agentCount: agentIds.length, winnerAgentId }, "Recorded multi-agent arena stats");
+          }
+        }
+        await db("games").where("id", id).update({ arena_completion_at: db.fn.now() });
+        return { ok: true, path: "multi_agent_free" };
       }
     }
 
@@ -299,6 +352,12 @@ export async function settleStakedArenaForFinishedGame(gameId) {
       }
     }
 
+    if (winnerAgentIdForElo == null && game.winner_id != null && game.winner_id !== "") {
+      const fromWinnerUser = await eloService.resolveUserAgentIdForGameUser(id, game.winner_id);
+      if (fromWinnerUser === agentA.id || fromWinnerUser === agentB.id) {
+        winnerAgentIdForElo = fromWinnerUser;
+      }
+    }
     if (winnerAgentIdForElo == null) {
       if (playerA && playerB) {
         if (Number(playerA.balance) > Number(playerB.balance)) winnerAgentIdForElo = agentA.id;

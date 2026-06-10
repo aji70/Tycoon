@@ -270,7 +270,7 @@ export function enrichAgentForArenaUi(agent) {
   };
 }
 
-async function resolveUserAgentIdForGameUser(gameId, userId, trxOrDb = db) {
+export async function resolveUserAgentIdForGameUser(gameId, userId, trxOrDb = db) {
   const gp = await trxOrDb("game_players")
     .where({ game_id: Number(gameId), user_id: Number(userId) })
     .select("turn_order")
@@ -285,6 +285,112 @@ async function resolveUserAgentIdForGameUser(gameId, userId, trxOrDb = db) {
     .select("user_agent_id")
     .first();
   return assignment?.user_agent_id ? Number(assignment.user_agent_id) : null;
+}
+
+async function bumpAgentArenaStat(agentId, outcome, trx) {
+  const col =
+    outcome === "win" ? "arena_wins" : outcome === "loss" ? "arena_losses" : "arena_draws";
+  await trx("user_agents")
+    .where("id", agentId)
+    .update({ [col]: trx.raw(`${col} + 1`), updated_at: trx.fn.now() });
+}
+
+/**
+ * Record arena W/L/D for 3+ agents in one game (winner takes the W; others get L).
+ * Idempotent via agent_arena_matches row per game_id (caller should check first).
+ */
+export async function recordArenaMultiAgentStats(gameId, participantAgentIds, winnerAgentId) {
+  const ids = [...new Set((participantAgentIds || []).map((x) => Number(x)).filter((x) => x > 0))];
+  if (ids.length < 2) {
+    throw new Error(`recordArenaMultiAgentStats needs >=2 agents, got ${ids.length}`);
+  }
+
+  const trx = await db.transaction();
+  try {
+    for (const aid of ids) {
+      let outcome;
+      if (winnerAgentId == null) outcome = "draw";
+      else if (aid === Number(winnerAgentId)) outcome = "win";
+      else outcome = "loss";
+      await bumpAgentArenaStat(aid, outcome, trx);
+    }
+
+    const idA = ids[0];
+    const idB = ids[1];
+    const [agentA, agentB] = await Promise.all([
+      trx("user_agents").where("id", idA).first(),
+      trx("user_agents").where("id", idB).first(),
+    ]);
+    if (!agentA || !agentB) throw new Error("Agent not found for multi-agent arena stats");
+
+    const [matchId] = await trx("agent_arena_matches").insert({
+      match_type: "ARENA",
+      game_id: gameId,
+      agent_a_id: idA,
+      agent_b_id: idB,
+      agent_a_user_id: agentA.user_id,
+      agent_b_user_id: agentB.user_id,
+      winner_agent_id: winnerAgentId != null ? Number(winnerAgentId) : null,
+      status: "COMPLETED",
+      elo_change_a: 0,
+      elo_change_b: 0,
+      elo_before_a: agentA.elo_rating,
+      elo_before_b: agentB.elo_rating,
+      started_at: new Date(),
+      completed_at: new Date(),
+    });
+
+    await trx.commit();
+    logger.info({ matchId, gameId, participantCount: ids.length, winnerAgentId }, "Multi-agent arena stats recorded");
+    return matchId;
+  } catch (err) {
+    await trx.rollback();
+    logger.error({ err: err?.message, gameId, participantAgentIds, winnerAgentId }, "Failed multi-agent arena stats");
+    throw err;
+  }
+}
+
+/**
+ * Record W/L/D for the agent side of a human-vs-agent arena game.
+ * Uses agent_a_id === agent_b_id as an internal marker (no head-to-head Elo).
+ */
+export async function recordHumanVsAgentArenaStats(gameId, agentId, agentWon) {
+  const aid = Number(agentId);
+  if (!aid) throw new Error("recordHumanVsAgentArenaStats: bad agentId");
+
+  const trx = await db.transaction();
+  try {
+    const agent = await trx("user_agents").where("id", aid).first();
+    if (!agent) throw new Error(`Agent not found: ${aid}`);
+
+    const outcome = agentWon === true ? "win" : agentWon === false ? "loss" : "draw";
+    await bumpAgentArenaStat(aid, outcome, trx);
+
+    const [matchId] = await trx("agent_arena_matches").insert({
+      match_type: "ARENA",
+      game_id: gameId,
+      agent_a_id: aid,
+      agent_b_id: aid,
+      agent_a_user_id: agent.user_id,
+      agent_b_user_id: agent.user_id,
+      winner_agent_id: agentWon === true ? aid : null,
+      status: "COMPLETED",
+      elo_change_a: 0,
+      elo_change_b: 0,
+      elo_before_a: agent.elo_rating,
+      elo_before_b: agent.elo_rating,
+      started_at: new Date(),
+      completed_at: new Date(),
+    });
+
+    await trx.commit();
+    logger.info({ matchId, gameId, agentId: aid, agentWon }, "Human vs agent arena stats recorded");
+    return matchId;
+  } catch (err) {
+    await trx.rollback();
+    logger.error({ err: err?.message, gameId, agentId, agentWon }, "Failed human vs agent arena stats");
+    throw err;
+  }
 }
 
 export async function awardActivityXpByAgentId(userAgentId, points, reason = "activity", trxOrDb = db) {
