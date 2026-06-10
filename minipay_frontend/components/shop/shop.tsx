@@ -40,7 +40,21 @@ import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from '@/lib/constants/ngnPayments';
 import { shopPerkRow } from '@/lib/shopPerkRow';
 import { isShopPerkHidden } from '@/lib/perkShopAssets';
-import { pickMinipayPreferredStable, type MinipayStableOption } from '@/lib/shop/preferredStable';
+import {
+  pickMinipayPreferredStable,
+  resolveMinipayShopPayment,
+  type MinipayStableOption,
+} from '@/lib/shop/preferredStable';
+
+const REWARD_BUY_COLLECTIBLE_ENUM_ABI = [
+  {
+    type: 'function',
+    name: 'buyCollectible',
+    stateMutability: 'nonpayable',
+    inputs: [{ type: 'uint256' }, { type: 'uint8' }],
+    outputs: [],
+  },
+] as const;
 
 import {
   useRewardBuyCollectible,
@@ -272,7 +286,7 @@ export default function GameShop() {
   const activeStableBalance = Number.isFinite(preferredStable.balance) ? preferredStable.balance : 0;
   const stableLoading = usdcLoading || cusdcLoading || usdtLoading;
 
-  const { data: stableAllowance, refetch: refetchStableAllowance } = useReadContract({
+  const { data: stableAllowance } = useReadContract({
     address: preferredStable.tokenAddress,
     abi: Erc20Abi,
     functionName: 'allowance',
@@ -537,28 +551,36 @@ export default function GameShop() {
       toast.error('Please connect your wallet or register to use your smart wallet');
       return;
     }
-    const selectedPriceRaw =
-      preferredStable.symbol === 'CUSDC'
-        ? item.cusdcPrice
-        : preferredStable.symbol === 'USDT'
-          ? item.usdtPrice
-          : item.usdcPrice;
-    const priceNum = Number(selectedPriceRaw || 0);
-    if (activeStableBalance < priceNum) {
-      toast.error(`Insufficient ${activeStableLabel} balance`);
+    const payment = resolveMinipayShopPayment(
+      { cusdcPrice: item.cusdcPrice, usdtPrice: item.usdtPrice },
+      stableOptions
+    );
+    if (!payment?.tokenAddress || !contractAddress) {
+      toast.error('This perk is not priced in USDT or cUSD on-chain yet. Try again later.');
       return;
     }
-    const price = BigInt(Math.round(priceNum * 1e6));
-    const paymentTokenAddress = preferredStable.tokenAddress;
-    const paymentToken = preferredStable.paymentToken;
-    if (!paymentTokenAddress || !contractAddress) {
-      toast.error(`${activeStableLabel} not supported on this network`);
+    if (payment.balance < payment.priceDisplay) {
+      const label = payment.symbol === 'CUSDC' ? 'cUSD' : 'USDT';
+      toast.error(`Insufficient ${label} balance`);
       return;
     }
+    const price = payment.priceWei;
+    const paymentTokenAddress = payment.tokenAddress;
+    const paymentToken = payment.paymentToken;
+    const paymentLabel = payment.symbol === 'CUSDC' ? 'cUSD' : 'USDT';
     try {
+      if (publicClient && payerAddress) {
+        await publicClient.simulateContract({
+          address: contractAddress,
+          abi: REWARD_BUY_COLLECTIBLE_ENUM_ABI,
+          functionName: 'buyCollectible',
+          args: [item.tokenId, paymentToken],
+          account: payerAddress,
+        });
+      }
       if (payWith === 'smart_wallet' && smartWalletAddress) {
         const session = readAppSessionToken();
-        if (session && preferredStable.symbol === 'USDT') {
+        if (session && payment.symbol === 'USDT') {
           const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to pay from your smart wallet')?.trim() : '';
           if (!pin) {
             toast.error('PIN is required');
@@ -581,24 +603,33 @@ export default function GameShop() {
           if (buyHash) await waitForBundleTx(buyHash);
         }
       } else {
-        let neededApproval =
-          stableAllowance === undefined ||
-          stableAllowance === null ||
-          (typeof stableAllowance === 'bigint' && stableAllowance < price);
-        if (stableAllowance === undefined || stableAllowance === null) {
-          toast.info('Approval required');
-          const approveHash = await approve(paymentTokenAddress, contractAddress, price);
-          if (approveHash) await waitForBundleTx(approveHash);
-          toast.success('Approval confirmed, completing purchase...');
-        } else if (typeof stableAllowance === 'bigint' && stableAllowance < price) {
-          toast.info('Increasing approval...');
-          const approveHash = await approve(paymentTokenAddress, contractAddress, price);
-          if (approveHash) await waitForBundleTx(approveHash);
-          toast.success('Approval confirmed, completing purchase...');
+        let tokenAllowance: bigint | undefined;
+        if (publicClient && payerAddress) {
+          tokenAllowance = await publicClient.readContract({
+            address: paymentTokenAddress,
+            abi: Erc20Abi,
+            functionName: 'allowance',
+            args: [payerAddress, contractAddress],
+          });
         }
-        if (neededApproval) {
-          await refetchStableAllowance();
+        const needsApproval = tokenAllowance === undefined || tokenAllowance < price;
+        if (needsApproval) {
+          toast.info(`Approve ${paymentLabel} spend`);
+          const approveHash = await approve(paymentTokenAddress, contractAddress, price);
+          if (approveHash) await waitForBundleTx(approveHash);
+          toast.success('Approval confirmed, completing purchase...');
+          if (publicClient && payerAddress) {
+            tokenAllowance = await publicClient.readContract({
+              address: paymentTokenAddress,
+              abi: Erc20Abi,
+              functionName: 'allowance',
+              args: [payerAddress, contractAddress],
+            });
+          }
           await new Promise((r) => setTimeout(r, 2000));
+        }
+        if (tokenAllowance !== undefined && tokenAllowance < price) {
+          throw new Error(`${paymentLabel} approval is still pending — wait a few seconds and tap Buy again.`);
         }
         const buyHash = await buy(item.tokenId, paymentToken);
         if (buyHash) await waitForBundleTx(buyHash);

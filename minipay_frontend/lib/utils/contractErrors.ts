@@ -212,8 +212,17 @@ export function getContractErrorMessage(
   // Connection / network errors
   const msgLower = (e?.message ?? e?.shortMessage ?? "").toLowerCase();
   const rpcHay = collectErrorText(error);
+  if (rpcHay.includes("not for sale")) {
+    return "This perk is not priced in the token you selected. Try again — the shop will use USDT or cUSD automatically.";
+  }
+  if (rpcHay.includes("payment transfer failed")) {
+    return "Payment could not be taken from your wallet. Wait a few seconds after approving USDT/cUSD, then tap Buy again.";
+  }
+  if (rpcHay.includes("out of stock")) {
+    return "This perk is out of stock.";
+  }
   if (rpcHay.includes("unknownrpcerror") || rpcHay.includes("unknown rpc error")) {
-    return "MiniPay could not send this transaction (wallet RPC glitch — not your balance). Close Tycoon, reopen it from MiniPay, wait a few seconds after approving USDT, then try Buy again.";
+    return "MiniPay rejected the purchase before it was sent. If you just approved USDT, wait 10 seconds and try again.";
   }
   if (
     msgLower.includes("network") ||
