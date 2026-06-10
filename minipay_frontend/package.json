@@ -20,6 +20,7 @@
     "@radix-ui/react-switch": "^1.2.5",
     "@reown/appkit": "1.8.2",
     "@reown/appkit-adapter-wagmi": "1.8.2",
+    "@wagmi/connectors": "5.9.9",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "8.18.0",
     "@sentry/nextjs": "^8.0.0",
@@ -60,6 +61,11 @@
     "development": [
       "last 1 chrome version"
     ]
+  },
+  "overrides": {
+    "@reown/appkit-adapter-wagmi": {
+      "@wagmi/connectors": "$@wagmi/connectors"
+    }
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
