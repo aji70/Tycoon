@@ -3,8 +3,7 @@
 import { useEffect } from "react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { X } from "lucide-react";
-import { useAccount, useConnect } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
 import AnimationWrapper from "@/animation/animation-wrapper";
 
 interface WalletConnectModalProps {
@@ -16,11 +15,16 @@ export default function WalletConnectModal({
   isOpen,
   onClose,
 }: WalletConnectModalProps) {
-  const { isConnected } = useAccount();
-  const { connect, isPending } = useConnect();
+  const { open } = useAppKit();
+  const { isConnected } = useAppKitAccount();
 
-  const handleConfirm = () => {
-    connect({ connector: injected() });
+  const handleConfirm = async () => {
+    try {
+      await open();
+      onClose();
+    } catch (err) {
+      console.error("Wallet connection failed:", err);
+    }
   };
 
   useEffect(() => {
@@ -82,18 +86,13 @@ export default function WalletConnectModal({
               </button>
             </div>
 
-            <p className="text-sm text-[#869298] text-center mb-6 font-dmSans">
-              Open in the MiniPay app to connect your wallet automatically.
-            </p>
-
             <AnimationWrapper variant="slideUp" delay={0.3}>
               <button
                 type="button"
                 onClick={handleConfirm}
-                disabled={isPending}
-                className="w-full py-3 rounded-[12px] font-medium transition-colors bg-[#0FF0FC]/80 hover:bg-[#0FF0FC]/40 text-[#0D191B] disabled:opacity-60"
+                className="w-full py-3 rounded-[12px] font-medium transition-colors bg-[#0FF0FC]/80 hover:bg-[#0FF0FC]/40 text-[#0D191B]"
               >
-                {isPending ? "Connecting…" : "Connect wallet"}
+                Connect wallet
               </button>
             </AnimationWrapper>
           </motion.div>
