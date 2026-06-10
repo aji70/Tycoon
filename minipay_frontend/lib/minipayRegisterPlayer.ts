@@ -8,7 +8,7 @@ import { CELO_USDM_FEE_TOKEN } from "@/lib/celoTransportForWagmi";
 import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { apiClient } from "@/lib/api";
 import {
-  collectErrorTextForMiniPay,
+  collectErrorText,
   isUserRejectedTransaction,
 } from "@/lib/utils/contractErrors";
 
@@ -143,7 +143,7 @@ export async function registerViaBackendNoGas(
 }
 
 function isMiniPayWalletBlockedError(error: unknown): boolean {
-  const hay = collectErrorTextForMiniPay(error);
+  const hay = collectErrorText(error);
   return (
     hay.includes("permission denied") ||
     hay.includes("not authorized") ||
@@ -181,8 +181,8 @@ export async function completeMiniPayOnChainRegistration(
       return "wallet";
     } catch (walletErr) {
       if (isUserRejectedTransaction(walletErr)) throw walletErr;
-      const backendMsg = collectErrorTextForMiniPay(backendErr);
-      const walletMsg = collectErrorTextForMiniPay(walletErr);
+      const backendMsg = collectErrorText(backendErr);
+      const walletMsg = collectErrorText(walletErr);
       throw new Error(
         walletMsg.includes("invalid sender") || backendMsg.includes("invalid sender")
           ? "Registration failed. Try a shorter username (letters/numbers only) or try again in a minute."

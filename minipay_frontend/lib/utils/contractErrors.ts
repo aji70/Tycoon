@@ -98,7 +98,7 @@ function walkErrorChain(error: unknown, maxDepth = 10): string[] {
   return parts;
 }
 
-function collectErrorText(error: unknown): string {
+export function collectErrorText(error: unknown): string {
   return walkErrorChain(error).join(" ").toLowerCase();
 }
 
