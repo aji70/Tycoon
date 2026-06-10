@@ -4,6 +4,7 @@ import ScrollToTopBtn from "@/components/shared/scroll-to-top-btn";
 import "@/styles/globals.css";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
+import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
 import ReferralCapture from "@/components/ReferralCapture";
 import MinipayAutoConnect from "@/components/MinipayAutoConnect";
 import { TycoonProvider } from "@/context/ContractProvider";
@@ -96,7 +97,12 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <head />
+      <head>
+        <link rel="dns-prefetch" href="https://api.web3modal.org" />
+        <link rel="dns-prefetch" href="https://pulse.walletconnect.org" />
+        <link rel="dns-prefetch" href="https://fonts.reown.com" />
+        <link rel="preconnect" href="https://fonts.reown.com" crossOrigin="anonymous" />
+      </head>
 
       <body
         className={`${dmSans.variable} ${kronaOne.variable} ${orbitron.variable} antialiased bg-[#010F10] w-full`}
@@ -107,6 +113,7 @@ export default async function RootLayout({
             <TycoonProvider>
               <GuestAuthProvider>
               <ReferralCapture />
+              <AppKitProviderWrapper>
               <MinipayAutoConnect />
               <BfcacheReloadGuard />
               <ClientLayout cookies={cookies}>
@@ -117,6 +124,7 @@ export default async function RootLayout({
               <DeferredUiStyles />
               <DeferredToasts />
               <Toaster position="top-center" />
+              </AppKitProviderWrapper>
               </GuestAuthProvider>
             </TycoonProvider>
         </ContextProvider>

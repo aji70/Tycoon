@@ -1,16 +1,18 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { useAccount, useBalance, usePublicClient, useReadContract, useReadContracts } from 'wagmi';
+import { useAccount, useBalance, useReadContract, useReadContracts } from 'wagmi';
 import { formatUnits, parseUnits, isAddress, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
+import { getContractErrorMessage } from '@/lib/utils/contractErrors';
+import { toastContractError, toastTransactionOutcome } from '@/lib/utils/contractErrorToast';
 import { ApiError } from '@/lib/api';
 import {
   getNairaEligibility,
   nairaBlockedMessage,
+  nairaButtonLabel,
 } from '@/lib/shop/nairaPayment';
-import { toastContractError, toastTransactionOutcome } from '@/lib/utils/contractErrorToast';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -40,7 +42,6 @@ import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from '@/lib/constants/ngnPayments';
 import { shopPerkRow } from '@/lib/shopPerkRow';
 import { isShopPerkHidden } from '@/lib/perkShopAssets';
-import { pickMinipayPreferredStable, type MinipayStableOption } from '@/lib/shop/preferredStable';
 
 import {
   useRewardBuyCollectible,
@@ -58,7 +59,7 @@ import {
 } from '@/context/ContractProvider';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { apiClient } from '@/lib/api';
-import { useConnectWallet } from '@/hooks/useConnectWallet';
+import { useAppKit, useAppKitAccount } from '@reown/appkit/react';
 import { SkeletonPerkGrid } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
 import {
@@ -81,7 +82,8 @@ const isCollectibleToken = (tokenId: bigint): boolean =>
 
 // Tiered perks: show "Tier N" badge
 const TIERED_PERKS = new Set([5, 8, 9]);
-type StableOption = MinipayStableOption;
+type StableSymbol = 'USDC' | 'CUSDC' | 'USDT';
+type StableOption = { symbol: StableSymbol; tokenAddress?: Address; paymentToken: number; balance: number };
 const REWARD_COLLECTIBLE_INFO_EXTENDED_ABI = [
   {
     type: 'function',
@@ -185,11 +187,14 @@ const isValidWallet = (a: string | undefined): a is Address =>
 export default function GameShop() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const connectWallet = useConnectWallet();
-  const { address: wagmiAddress, isConnected } = useAccount();
+  const { open: openWallet } = useAppKit();
+  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
+  const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount();
   const address = useMemo((): Address | undefined => {
-    return wagmiAddress && isAddress(wagmiAddress) ? (wagmiAddress as Address) : undefined;
-  }, [wagmiAddress]);
+    const a = appKitAddress ?? wagmiAddress;
+    return a && isAddress(a) ? (a as Address) : undefined;
+  }, [appKitAddress, wagmiAddress]);
+  const isConnected = Boolean(appKitConnected || wagmiConnected);
   const chainId = useReadChainIdOrCelo();
   const auth = useGuestAuthOptional();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
@@ -197,6 +202,7 @@ export default function GameShop() {
 
   const { usdcAddress: usdcTokenAddress, cusdcAddress, usdtAddress } = useRewardTokenAddresses();
   const guestUser = auth?.guestUser ?? null;
+
   const registryOwnerAddress = useMemo(
     () => shopRegistryOwnerAddress({ guestUser, connectedAddress: address }),
     [guestUser, address]
@@ -224,6 +230,15 @@ export default function GameShop() {
     () => getNairaEligibility(guestUser, readAppSessionToken(), address),
     [guestUser, auth?.isLoading, address]
   );
+  const nairaBlockReason = nairaEligibility.ok ? null : nairaEligibility.reason;
+
+  const ensureNairaPayment = useCallback((): boolean => {
+    const eligibility = getNairaEligibility(guestUser, readAppSessionToken(), address);
+    if (eligibility.ok) return true;
+    toast.info(nairaBlockedMessage(eligibility.reason));
+    router.push('/profile');
+    return false;
+  }, [guestUser, router, address]);
 
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
   const [shopTab, setShopTab] = useState<'perks' | 'bundles'>('perks');
@@ -241,9 +256,14 @@ export default function GameShop() {
 
   const USDC_TO_NGN_RATE = 1600; // approximate; min charge matches MIN_FLUTTERWAVE_CHECKOUT_NGN
 
-  const payerAddress = address ?? undefined;
+  const payerAddress = payWith === 'smart_wallet' && smartWalletAddress ? smartWalletAddress : address ?? undefined;
 
-  // Minipay in-app purchases: USDT (default) from the connected MiniPay wallet.
+  // Guest / app session with smart wallet but no wagmi connection: pay from smart wallet and show its USDC.
+  useEffect(() => {
+    if (smartWalletAddress && !isConnected) {
+      setPayWith('smart_wallet');
+    }
+  }, [smartWalletAddress, isConnected]);
 
   const { data: usdcBalanceData, isLoading: usdcLoading, refetch: refetchUsdc } = useBalance({
     address: payerAddress,
@@ -262,12 +282,17 @@ export default function GameShop() {
   });
   const stableOptions = useMemo<StableOption[]>(
     () => [
+      { symbol: 'USDC', tokenAddress: usdcTokenAddress, paymentToken: 1, balance: Number(usdcBalanceData?.formatted ?? 0) },
       { symbol: 'CUSDC', tokenAddress: cusdcAddress, paymentToken: 2, balance: Number(cusdcBalanceData?.formatted ?? 0) },
       { symbol: 'USDT', tokenAddress: usdtAddress, paymentToken: 3, balance: Number(usdtBalanceData?.formatted ?? 0) },
     ],
     [usdcTokenAddress, cusdcAddress, usdtAddress, usdcBalanceData?.formatted, cusdcBalanceData?.formatted, usdtBalanceData?.formatted]
   );
-  const preferredStable = useMemo<StableOption>(() => pickMinipayPreferredStable(stableOptions), [stableOptions]);
+  const preferredStable = useMemo<StableOption>(() => {
+    const available = stableOptions.filter((s) => !!s.tokenAddress);
+    if (available.length === 0) return { symbol: 'USDC', tokenAddress: undefined, paymentToken: 1, balance: 0 };
+    return [...available].sort((a, b) => b.balance - a.balance)[0];
+  }, [stableOptions]);
   const activeStableLabel = preferredStable.symbol === 'CUSDC' ? 'cUSD' : preferredStable.symbol;
   const activeStableBalance = Number.isFinite(preferredStable.balance) ? preferredStable.balance : 0;
   const stableLoading = usdcLoading || cusdcLoading || usdtLoading;
@@ -291,10 +316,8 @@ export default function GameShop() {
     reset: resetBuy,
   } = useRewardBuyCollectible();
   const { buyFrom, isPending: buyFromPending, isConfirming: buyFromConfirming, isSuccess: buyFromSuccess, error: buyFromError, reset: resetBuyFrom } = useRewardBuyCollectibleFrom();
-  const publicClient = usePublicClient();
-  const { buyBundle, isPending: buyBundlePending, isConfirming: buyBundleConfirming, reset: resetBuyBundle } = useRewardBuyBundle();
-  const { buyBundleFrom, isPending: buyBundleFromPending, isConfirming: buyBundleFromConfirming, reset: resetBuyBundleFrom } = useRewardBuyBundleFrom();
-  const bundleTxBusy = buyBundlePending || buyBundleConfirming || buyBundleFromPending || buyBundleFromConfirming;
+  const { buyBundle, isPending: buyBundlePending, isConfirming: buyBundleConfirming, isSuccess: buyBundleSuccess, error: buyBundleError, reset: resetBuyBundle } = useRewardBuyBundle();
+  const { buyBundleFrom, isPending: buyBundleFromPending, isConfirming: buyBundleFromConfirming, isSuccess: buyBundleFromSuccess, error: buyBundleFromError, reset: resetBuyBundleFrom } = useRewardBuyBundleFrom();
   const {
     approveERC20: smartWalletApprove,
     isPending: smartWalletApprovePending,
@@ -354,7 +377,7 @@ export default function GameShop() {
 
   useEffect(() => {
     resetShopWrites();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- clear stale wagmi errors on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clear stale wagmi errors once on shop mount
   }, []);
 
   const payFromSmartWalletUnsupported = payWith === 'smart_wallet' && !smartWalletAddress;
@@ -558,10 +581,10 @@ export default function GameShop() {
     try {
       if (payWith === 'smart_wallet' && smartWalletAddress) {
         const session = readAppSessionToken();
-        if (session && preferredStable.symbol === 'USDT') {
+        if (session && preferredStable.symbol === 'USDC') {
           const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to pay from your smart wallet')?.trim() : '';
           if (!pin) {
-            toast.error('PIN is required');
+            toast.info('Purchase cancelled');
             return;
           }
           const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-collectible', {
@@ -598,10 +621,7 @@ export default function GameShop() {
 
   const handlePayPerkWithNaira = async (item: (typeof shopItems)[0]) => {
     if (ngnLoadingTokenId != null) return;
-    if (!nairaEligibility.ok) {
-      toast.info(nairaBlockedMessage(nairaEligibility.reason));
-      return;
-    }
+    if (!ensureNairaPayment()) return;
     const tokenIdStr = item.tokenId.toString();
     setNgnLoadingTokenId(tokenIdStr);
     try {
@@ -627,6 +647,7 @@ export default function GameShop() {
       if (status === 401) {
         auth?.refetchGuest?.();
         toast.info(nairaBlockedMessage('session_expired'));
+        router.push('/profile');
       } else {
         toastContractError(e, 'Failed to start Naira payment');
       }
@@ -659,37 +680,15 @@ export default function GameShop() {
     return true;
   };
 
-  const waitForBundleTx = async (hash: `0x${string}`) => {
-    if (!publicClient) throw new Error('Network client not ready. Try again.');
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-    if (receipt.status === 'reverted') throw new Error('Bundle purchase transaction reverted');
-  };
-
-  const ensureBundleStableAllowance = async (amount: bigint) => {
-    const token = preferredStable.tokenAddress;
-    if (!token || !contractAddress || !payerAddress) {
-      throw new Error(`${activeStableLabel} not supported on this network`);
-    }
-    const allowance =
-      stableAllowance === undefined || stableAllowance === null
-        ? undefined
-        : typeof stableAllowance === 'bigint'
-          ? stableAllowance
-          : BigInt(stableAllowance.toString());
-    if (allowance === undefined || allowance < amount) {
-      const approveHash = await approve(token, contractAddress, amount);
-      if (approveHash) await waitForBundleTx(approveHash);
-    }
-  };
-
   const handleBuyBundleWithUsdc = async (bundleName: string) => {
+    // Allow if wallet is connected OR smart wallet is available
     const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
     if (!hasPaymentMethod) {
       toast.error('Please connect your wallet or register to use your smart wallet');
       return;
     }
-    if (!contractAddress || !preferredStable.tokenAddress) {
-      toast.error(`${activeStableLabel} not supported on this network`);
+    if (!contractAddress || !usdcTokenAddress) {
+      toast.error('USDC not supported on this network');
       return;
     }
     const bundleEntry = bundles.find((b) => b.name === bundleName);
@@ -702,13 +701,9 @@ export default function GameShop() {
       toast.error('Bundle items are not currently in stock');
       return;
     }
-    if (bundleBuyingName || bundleTxBusy) return;
+    if (bundleBuyingName) return;
 
-    const priceWei = BigInt(Math.round(Number(bundleEntry.price_usdc) * 1e6));
     setBundleBuyingName(def.name);
-    resetBuyBundle();
-    resetBuyBundleFrom();
-
     try {
       if (payWith === 'smart_wallet') {
         if (!smartWalletAddress) {
@@ -722,38 +717,25 @@ export default function GameShop() {
             toast.info('Purchase cancelled');
             return;
           }
+          const usdcPrice = BigInt(Math.round(Number(bundleEntry.price_usdc) * 1e6));
           const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-bundle', {
             bundleId: String(bundleEntry.id),
             useUsdc: true,
-            maxPrice: priceWei.toString(),
+            maxPrice: usdcPrice.toString(),
             pin,
           });
           if (!res?.success && !res?.data?.success) {
             throw new Error(res?.data?.message || 'Bundle purchase failed');
           }
-          toast.success('Bundle purchase successful!');
-          refetchUsdc();
-          refetchCusdc();
-          refetchUsdt();
-          return;
+        } else {
+          await buyBundleFrom(smartWalletAddress, BigInt(bundleEntry.id), true);
         }
-        const swApproveHash = await smartWalletApprove(preferredStable.tokenAddress!, contractAddress, priceWei);
-        if (swApproveHash) await waitForBundleTx(swApproveHash);
-        const fromHash = await buyBundleFrom(smartWalletAddress, BigInt(bundleEntry.id), true);
-        await waitForBundleTx(fromHash);
       } else {
-        await ensureBundleStableAllowance(priceWei);
-        const hash = await buyBundle(BigInt(bundleEntry.id), true);
-        await waitForBundleTx(hash);
+        await buyBundle(BigInt(bundleEntry.id), true); // true = useUsdc
       }
-      toast.success('Bundle purchase successful!');
-      refetchUsdc();
-      refetchCusdc();
-      refetchUsdt();
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Bundle purchase failed');
-      resetBuyBundle();
-      resetBuyBundleFrom();
+      resetShopWrites();
     } finally {
       setBundleBuyingName(null);
     }
@@ -761,7 +743,7 @@ export default function GameShop() {
 
   const handleRedeemVoucher = async (tokenId: bigint, voucherOwner: Address) => {
     if (!isConnected || !address) {
-      connectWallet();
+      openWallet();
       toast.info('Connect your wallet to redeem');
       return;
     }
@@ -844,6 +826,22 @@ export default function GameShop() {
   }, [buyFromSuccess, refetchUsdc, refetchCusdc, refetchUsdt, resetBuyFrom]);
 
   useEffect(() => {
+    if (buyBundleSuccess) {
+      toast.success('Bundle purchase successful!');
+      refetchUsdc();
+      resetBuyBundle();
+    }
+  }, [buyBundleSuccess, refetchUsdc, resetBuyBundle]);
+
+  useEffect(() => {
+    if (buyBundleFromSuccess) {
+      toast.success('Bundle purchase successful!');
+      refetchUsdc();
+      resetBuyBundleFrom();
+    }
+  }, [buyBundleFromSuccess, refetchUsdc, resetBuyBundleFrom]);
+
+  useEffect(() => {
     if (redeemSuccess) {
       toast.success('Voucher redeemed successfully!');
       resetRedeem();
@@ -857,12 +855,22 @@ export default function GameShop() {
     }
   }, [redeemForSuccess, resetRedeemFor]);
 
+  // Wagmi may set `error` without throwing; one toast for shared write state across buy/approve hooks.
   useEffect(() => {
-    const txError = buyError ?? buyFromError ?? approveError;
+    const txError =
+      buyError ?? buyFromError ?? approveError ?? buyBundleError ?? buyBundleFromError;
     if (!txError) return;
     notifyShopTxOutcome(txError, 'Purchase failed');
     resetShopWrites();
-  }, [buyError, buyFromError, approveError, notifyShopTxOutcome, resetShopWrites]);
+  }, [
+    buyError,
+    buyFromError,
+    approveError,
+    buyBundleError,
+    buyBundleFromError,
+    notifyShopTxOutcome,
+    resetShopWrites,
+  ]);
 
   const handleBack = () => {
     const returnTo = searchParams.get('returnTo');
@@ -933,7 +941,7 @@ export default function GameShop() {
     }).catch(() => {});
   }, [computedBundles]);
 
-  // Legacy Flutterwave return (Naira removed from Minipay shop — dedupe toasts if user lands with ?reference=)
+  // Handle return from Flutterwave payment (redirect with ?reference= or ?tx_ref=)
   useEffect(() => {
     const ref = searchParams.get('reference') ?? searchParams.get('tx_ref');
     if (!ref) return;
@@ -967,16 +975,14 @@ export default function GameShop() {
         router.replace('/game-shop', { scroll: false });
       })
       .catch(() => {
+        toast.error('Could not verify payment status. Check your inventory or try again.');
         router.replace('/game-shop', { scroll: false });
       });
   }, [searchParams, router]);
 
   const handlePayWithNgn = async (bundleId: number) => {
     if (!bundleId || ngnLoadingBundleId != null) return;
-    if (!nairaEligibility.ok) {
-      toast.info(nairaBlockedMessage(nairaEligibility.reason));
-      return;
-    }
+    if (!ensureNairaPayment()) return;
     setNgnLoadingBundleId(bundleId);
     try {
       const base = typeof window !== 'undefined' ? window.location.origin : '';
@@ -996,6 +1002,7 @@ export default function GameShop() {
       if (status === 401) {
         auth?.refetchGuest?.();
         toast.info(nairaBlockedMessage('session_expired'));
+        router.push('/profile');
       } else {
         toastContractError(e, 'Failed to initialize NGN payment');
       }
@@ -1049,6 +1056,43 @@ export default function GameShop() {
           </button>
         </div>
 
+        {/* Pay from: Connected wallet | Smart wallet (show if either exists — guests may have smart wallet only) */}
+        {(isConnected || smartWalletAddress) && (
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+            <span className="text-xs text-slate-500 uppercase tracking-wider mr-1">Pay from:</span>
+            <button
+              type="button"
+              onClick={() => setPayWith('connected')}
+              disabled={!isConnected || !address}
+              title={!isConnected || !address ? 'Connect a wallet to pay from it' : undefined}
+              className={`min-h-[36px] px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                payWith === 'connected'
+                  ? 'bg-[#00F0FF]/15 border-[#00F0FF]/50 text-[#00F0FF]'
+                  : 'bg-[#0E1415]/60 border-[#003B3E] text-slate-400 hover:text-slate-300'
+              } ${!isConnected || !address ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <Wallet className="w-4 h-4 inline mr-2 align-middle" />
+              Connected wallet
+            </button>
+            <button
+              type="button"
+              onClick={() => setPayWith('smart_wallet')}
+              disabled={!smartWalletAddress}
+              title={!smartWalletAddress ? 'Create a profile to get a smart wallet' : 'Show smart wallet balance'}
+              className={`min-h-[36px] px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                payWith === 'smart_wallet'
+                  ? 'bg-amber-500/15 border-amber-400/50 text-amber-200'
+                  : !smartWalletAddress
+                  ? 'bg-slate-800/60 border-slate-700 text-slate-500 cursor-not-allowed'
+                  : 'bg-[#0E1415]/60 border-[#003B3E] text-slate-400 hover:text-slate-300'
+              }`}
+            >
+              <Smartphone className="w-4 h-4 inline mr-2 align-middle" />
+              Smart wallet
+            </button>
+          </div>
+        )}
+
         {/* Balance */}
         <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
           <motion.div
@@ -1058,10 +1102,15 @@ export default function GameShop() {
           >
             <CreditCard className="w-5 h-5 text-[#00F0FF] shrink-0" />
             <div className="text-left">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider">{activeStableLabel} (MiniPay wallet)</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">{activeStableLabel} (auto)</p>
               <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-                {stableLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : payerAddress ? `${activeStableBalance.toFixed(2)} ${activeStableLabel}` : '—'}
+                {stableLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : payerAddress ? `$${activeStableBalance.toFixed(2)}` : '—'}
               </p>
+              {payerAddress && (
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  {payWith === 'smart_wallet' ? 'Smart wallet' : 'Connected wallet'}
+                </p>
+              )}
             </div>
             <button onClick={() => { refetchUsdc(); refetchCusdc(); refetchUsdt(); }} className="p-1 rounded text-slate-500 hover:text-[#00F0FF]">
               <RefreshCw className="w-4 h-4" />
@@ -1070,9 +1119,9 @@ export default function GameShop() {
 
         </div>
 
-        {!isConnected && (
+        {payFromSmartWalletUnsupported && (
           <p className="text-center text-amber-200/90 text-sm mb-4">
-            Connect your MiniPay wallet to pay with {activeStableLabel}.
+            No smart wallet to pay from. Select Connected wallet to pay with USDC or Naira, or create/link one in Profile.
           </p>
         )}
 
@@ -1137,15 +1186,21 @@ export default function GameShop() {
                       <h3 className="font-bold text-lg text-white mb-2">{b.name}</h3>
                       <p className="text-slate-400 text-sm leading-relaxed mb-4 flex-1">{b.description || ''}</p>
                       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)] mb-4">
-                        <span className="text-lg font-bold">{(typeof b.price_usdc === 'string' ? Number(b.price_usdc) : b.price_usdc).toFixed(2)} {activeStableLabel}</span>
+                        <span className="text-lg font-bold">${(typeof b.price_usdc === 'string' ? Number(b.price_usdc) : b.price_usdc).toFixed(2)} USDC</span>
+                        {b.price_ngn != null && b.price_ngn > 0 && (
+                          <>
+                            <span className="text-slate-500">or</span>
+                            <span className="text-lg font-bold">₦{Number(b.price_ngn).toLocaleString()} NGN</span>
+                          </>
+                        )}
                       </div>
                       <button
                         onClick={() => handleBuyBundleWithUsdc(b.name)}
-                        disabled={bundleBuyingName != null || bundleTxBusy || !isConnected || !address || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)}
+                        disabled={bundleBuyingName != null || payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)}
                         className={`w-full py-3 rounded-xl font-semibold border transition-all ${
                           bundleBuyingName === b.name
                             ? 'bg-slate-700/80 text-slate-400 cursor-wait border-slate-600/50'
-                            : !isConnected || !address || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)
+                            : payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)
                             ? 'bg-slate-800/80 text-slate-500 border-slate-700/80 cursor-not-allowed'
                             : 'bg-[#00F0FF]/10 text-[#00F0FF] border-[#00F0FF]/40 hover:bg-[#00F0FF]/20'
                         }`}
@@ -1153,9 +1208,28 @@ export default function GameShop() {
                         {bundleBuyingName === b.name ? (
                           <><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Buying bundle...</>
                         ) : (
-                          <><CreditCard className="w-4 h-4 inline mr-2" /> Pay with {activeStableLabel}</>
+                          <><CreditCard className="w-4 h-4 inline mr-2" /> Pay with digital dollars</>
                         )}
                       </button>
+                      {b.price_ngn != null && b.price_ngn > 0 && (
+                        <button
+                          onClick={() => typeof b.id === 'number' && handlePayWithNgn(b.id)}
+                          disabled={!ngnAvailable || ngnLoadingBundleId != null}
+                          className="w-full mt-2 py-3 rounded-xl font-semibold border border-amber-400/50 bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {ngnLoadingBundleId === b.id ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting to payment...</>
+                          ) : (
+                            <>
+                              <Banknote className="w-4 h-4" />
+                              {nairaButtonLabel(
+                                nairaBlockReason,
+                                `Buy with Naira — ₦${Number(b.price_ngn).toLocaleString()}`
+                              )}
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 ))}
@@ -1237,15 +1311,18 @@ export default function GameShop() {
                       <div className="flex flex-col gap-1">
                         <p className="text-xs text-slate-500 uppercase tracking-wider">Price</p>
                         <p className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-                          {Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} {activeStableLabel}
+                          ${Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} {activeStableLabel}
                         </p>
+                        {ngnAvailable && (
+                          <p className="text-sm text-amber-200">₦{Number(item.ngnPrice).toLocaleString()} NGN</p>
+                        )}
                       </div>
                     </div>
 
                     <>
                         <button
                           onClick={() => handleBuy(item)}
-                          disabled={item.stock === 0 || isProcessing || !isConnected || !address || activeStableBalance < Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice)}
+                          disabled={item.stock === 0 || isProcessing || activeStableBalance < Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice) || payFromSmartWalletUnsupported}
                           className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415] ${
                             item.stock === 0
                               ? 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
@@ -1262,10 +1339,27 @@ export default function GameShop() {
                             'Sold Out'
                           ) : activeStableBalance < Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice) ? (
                             `Insufficient ${activeStableLabel}`
-                          ) : !isConnected || !address ? (
-                            <>Connect MiniPay wallet</>
+                          ) : payFromSmartWalletUnsupported ? (
+                            <>Use Connected wallet to pay</>
                           ) : (
-                            <> <CreditCard className="w-5 h-5" /> Pay with {activeStableLabel} — {Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)}</>
+                            <> <CreditCard className="w-5 h-5" /> Pay with digital dollars — ${Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handlePayPerkWithNaira(item)}
+                          disabled={item.stock === 0 || ngnLoadingTokenId === item.tokenId.toString() || !ngnAvailable}
+                          className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-amber-500/20 border border-amber-400/50 text-amber-200 hover:bg-amber-500/30 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {ngnLoadingTokenId === item.tokenId.toString() ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
+                          ) : (
+                            <>
+                              <Banknote className="w-4 h-4" />
+                              {nairaButtonLabel(
+                                nairaBlockReason,
+                                `Buy with Naira — ₦${Number(item.ngnPrice).toLocaleString()}`
+                              )}
+                            </>
                           )}
                         </button>
                     </>
