@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { usePrivy } from "@/hooks/usePrivy";
+import { usePrivy } from "@privy-io/react-auth";
 import { useTournament } from "@/context/TournamentContext";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { appChain } from "@/config";
@@ -30,6 +30,9 @@ function isPowerOfTwo(n: number): boolean {
 }
 
 function chainIdToBackendChain(chainId: number): string {
+  if (chainId === 137 || chainId === 80001) return "POLYGON";
+  if (chainId === 42220 || chainId === 44787) return "CELO";
+  if (chainId === 8453 || chainId === 84531) return "BASE";
   return "CELO";
 }
 
@@ -40,7 +43,7 @@ const PRIZE_SOURCES: { value: PrizeSource; label: string; description: string }[
     value: "CREATOR_FUNDED",
     label: "Creator funded",
     description:
-      "Set the pool amount below; after create we prompt your wallet to deposit USDT into escrow (same amount). Payouts use this amount for winner splits.",
+      "Set the pool amount below; after create we prompt your wallet to deposit USDC into escrow (same amount). Payouts use this amount for winner splits.",
   },
 ];
 
@@ -306,7 +309,7 @@ export function CreateTournamentClient({
       if (prizeSource === "CREATOR_FUNDED") {
         const poolUsd = parseFloat(prizePoolUsd);
         if (Number.isNaN(poolUsd) || poolUsd <= 0) {
-          setError("Creator-funded tournaments require a prize pool amount (USDT).");
+          setError("Creator-funded tournaments require a prize pool amount (USDC).");
           setStep("idle");
           return;
         }
@@ -372,6 +375,10 @@ export function CreateTournamentClient({
   };
 
   function txExplorerUrl(chainName: string, txHash: string): string {
+    const chain = String(chainName).toUpperCase();
+    if (chain === "POLYGON") return `https://polygonscan.com/tx/${txHash}`;
+    if (chain === "BASE") return `https://basescan.org/tx/${txHash}`;
+    if (chain === "CELO") return `https://celoscan.io/tx/${txHash}`;
     return `https://celoscan.io/tx/${txHash}`;
   }
 
@@ -852,7 +859,7 @@ export function CreateTournamentClient({
               {prizeSource === "ENTRY_FEE_POOL" && (
                 <div className="mt-4 pt-4 border-t border-white/5">
                   <label htmlFor="entry_fee" className="block text-sm font-medium text-white/90 mb-1.5">
-                    Entry fee (USDT)
+                    Entry fee (USDC)
                   </label>
                   <input
                     id="entry_fee"
@@ -869,7 +876,7 @@ export function CreateTournamentClient({
               {prizeSource === "CREATOR_FUNDED" && (
                 <div className="mt-4 pt-4 border-t border-white/5">
                   <label htmlFor="prize_pool" className="block text-sm font-medium text-white/90 mb-1.5">
-                    Planned prize pool (USDT)
+                    Planned prize pool (USDC)
                   </label>
                   <input
                     id="prize_pool"
@@ -882,7 +889,7 @@ export function CreateTournamentClient({
                     className="w-full px-4 py-3 rounded-xl bg-[#010a0b]/80 border border-[#0E282A] text-white placeholder-white/35 focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:ring-offset-0 transition"
                   />
                   <p className="text-xs text-white/50 mt-2 leading-relaxed">
-                    Default winner split: 50% / 30% / 15% / 5% for 1st–4th. USDT is sent to winners&apos; smart wallets when the tournament completes.
+                    Default winner split: 50% / 30% / 15% / 5% for 1st–4th. USDC is sent to winners&apos; smart wallets when the tournament completes.
                   </p>
                 </div>
               )}

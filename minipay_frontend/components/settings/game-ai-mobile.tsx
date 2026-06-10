@@ -18,7 +18,9 @@ import { useRouter } from "next/navigation";
 import { GamePieces } from "@/lib/constants/games";
 import { ShieldCheck } from "lucide-react";
 import { useAIGameCreate } from "@/hooks/useAIGameCreate";
-import { BoardVariantPicker } from "@/components/game-setup/BoardVariantPicker";
+import { motion } from "framer-motion";
+import { ParticleBackground } from "@/components/hero/ParticleBackground";
+import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
 
 export default function PlayWithAIMobile() {
   const router = useRouter();
@@ -46,27 +48,36 @@ export default function PlayWithAIMobile() {
   }
 
   return (
-    <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col pt-[70px]">
-      <div className="px-5 pt-6 pb-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0a1f20] to-[#010F10] flex flex-col pt-[70px] relative overflow-hidden">
+      <ParticleBackground />
+      <ScanlineOverlay />
+      <div className="px-5 pt-6 pb-4 relative z-10">
         <div className="max-w-md mx-auto flex justify-between items-center">
           <button
             onClick={() => router.push("/")}
-            className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition group"
+            className="flex items-center gap-2 text-[#00F0FF] hover:text-[#0FF0FC] transition group"
           >
             <House className="w-5 h-5 group-hover:-translate-x-1 transition" />
             <span className="font-bold text-sm">BACK</span>
           </button>
-          <h1 className="text-2xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+          <h1 className="text-2xl font-orbitron font-extrabold bg-gradient-to-r from-[#00F0FF] to-[#0FF0FC] bg-clip-text text-transparent drop-shadow-lg">
             AI DUEL
           </h1>
-          <div className="w-16" aria-hidden />
+          <a href="/agents" className="text-[#00F0FF] hover:text-[#0FF0FC] text-xs font-medium">
+            Agents
+          </a>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-10">
+      <div className="flex-1 overflow-y-auto px-5 pb-10 relative z-10">
         <div className="max-w-md mx-auto space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 rounded-xl p-4 border border-cyan-500/30">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.05 }}
+              className="bg-gradient-to-br from-cyan-900/50 to-blue-900/40 rounded-xl p-4 border-2 border-cyan-500/50 backdrop-blur-sm">
+            <div>
               <div className="flex items-center gap-2 mb-2">
                 <FaUser className="w-4 h-4 text-cyan-400" />
                 <h3 className="text-sm font-bold text-cyan-300">Your Piece</h3>
@@ -82,8 +93,14 @@ export default function PlayWithAIMobile() {
                 </SelectContent>
               </Select>
             </div>
+            </motion.div>
 
-            <div className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 rounded-xl p-4 border border-purple-500/30">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+              className="bg-gradient-to-br from-purple-900/50 to-pink-900/40 rounded-xl p-4 border-2 border-purple-500/50 backdrop-blur-sm">
+            <div>
               <div className="flex items-center gap-2 mb-2">
                 <FaRobot className="w-4 h-4 text-purple-400" />
                 <h3 className="text-sm font-bold text-purple-300">AI Opponents</h3>
@@ -108,10 +125,16 @@ export default function PlayWithAIMobile() {
                 </p>
               )}
             </div>
+            </motion.div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-xl p-4 border border-amber-500/30">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.15 }}
+              className="bg-gradient-to-br from-amber-900/50 to-orange-900/40 rounded-xl p-4 border-2 border-amber-500/50 backdrop-blur-sm">
+            <div>
               <div className="flex items-center gap-2 mb-2">
                 <FaCoins className="w-4 h-4 text-amber-400" />
                 <h3 className="text-sm font-bold text-amber-300">Starting Cash</h3>
@@ -131,8 +154,14 @@ export default function PlayWithAIMobile() {
                 </SelectContent>
               </Select>
             </div>
+            </motion.div>
 
-            <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 rounded-xl p-4 border border-indigo-500/30">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+              className="bg-gradient-to-br from-indigo-900/50 to-purple-900/40 rounded-xl p-4 border-2 border-indigo-500/50 backdrop-blur-sm">
+            <div>
               <div className="flex items-center gap-2 mb-2">
                 <FaBrain className="w-4 h-4 text-indigo-400" />
                 <h3 className="text-sm font-bold text-indigo-300">Duration</h3>
@@ -153,9 +182,15 @@ export default function PlayWithAIMobile() {
                 </SelectContent>
               </Select>
             </div>
+            </motion.div>
           </div>
 
-          <div className="bg-gradient-to-br from-red-900/40 to-orange-900/40 rounded-xl p-4 border border-red-500/30">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.25 }}
+            className="bg-gradient-to-br from-red-900/50 to-orange-900/40 rounded-xl p-4 border-2 border-red-500/50 backdrop-blur-sm">
+          <div>
             <div className="flex items-center gap-2 mb-2">
               <FaBrain className="w-4 h-4 text-red-400" />
               <h3 className="text-sm font-bold text-red-300">AI Difficulty</h3>
@@ -186,9 +221,15 @@ export default function PlayWithAIMobile() {
               </div>
             )}
           </div>
+          </motion.div>
 
           {registrySupported && registeredAgents.length > 0 && !agentsLoading && (
-            <div className="bg-gradient-to-br from-emerald-900/40 to-teal-900/40 rounded-xl p-4 border border-emerald-500/30">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.3 }}
+              className="bg-gradient-to-br from-emerald-900/50 to-teal-900/40 rounded-xl p-4 border-2 border-emerald-500/50 backdrop-blur-sm">
+            <div>
               <div className="flex items-center gap-2 mb-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
                 <h3 className="text-sm font-bold text-emerald-300">Verified AI</h3>
@@ -202,17 +243,16 @@ export default function PlayWithAIMobile() {
                 ))}
               </ul>
             </div>
+            </motion.div>
           )}
 
-          <div className="rounded-xl border border-cyan-500/30 bg-black/40 p-4">
-            <BoardVariantPicker
-              value={settings.boardVariantId}
-              onChange={(id) => setSettings((p) => ({ ...p, boardVariantId: id }))}
-            />
-          </div>
-
-          <div className="bg-black/60 rounded-xl p-4 border border-cyan-500/30">
-            <h3 className="text-base font-bold text-cyan-400 mb-3 text-center">House Rules</h3>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.35 }}
+            className="bg-gradient-to-br from-black/70 to-cyan-900/30 rounded-xl p-4 border-2 border-cyan-500/50 backdrop-blur-sm">
+          <div>
+            <h3 className="text-base font-bold text-[#00F0FF] mb-3 text-center">House Rules</h3>
             <div className="space-y-2">
                 {[
                   { icon: RiAuctionFill, label: "Auction Unsold", key: "auction" },
@@ -222,7 +262,7 @@ export default function PlayWithAIMobile() {
                 ].map((item) => (
                 <div key={item.key} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <item.icon className="w-4 h-4 text-cyan-400" />
+                    <item.icon className="w-4 h-4 text-[#00F0FF]" />
                     <span className="text-gray-300 text-sm">{item.label}</span>
                   </div>
                   <Switch
@@ -232,22 +272,27 @@ export default function PlayWithAIMobile() {
                 </div>
               ))}
             </div>
-          </div>
+            </div>
+          </motion.div>
 
-          <div className="pt-4 pb-4">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.4 }}
+            className="pt-4 pb-4">
             <button
               onClick={handlePlay}
               disabled={!canCreate || (!isGuest && isCreatePending)}
               className="w-full py-4 text-lg font-orbitron font-bold tracking-wide
-                       bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10]
+                       bg-gradient-to-br from-[#00F0FF] to-[#0FF0FC] hover:from-[#0FF0FC] hover:to-[#00F0FF] text-[#010F10]
                        hover:brightness-110 active:scale-[0.98]
-                       rounded-xl shadow-lg transition-all duration-300
+                       rounded-xl shadow-lg shadow-cyan-500/40 transition-all duration-300
                        disabled:opacity-50 disabled:cursor-not-allowed
-                       border-2 border-[#00F0FF]/40"
+                       border-2 border-[#00F0FF]/60"
             >
               {!isGuest && isCreatePending ? "SUMMONING..." : "START BATTLE"}
             </button>
-          </div>
+            </motion.div>
         </div>
       </div>
     </div>

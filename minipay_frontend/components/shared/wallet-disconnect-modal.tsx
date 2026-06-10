@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { X } from "lucide-react";
-import { useDisconnect } from "wagmi";
+import { useDisconnect } from "@reown/appkit/react";
 import AnimationWrapper from "@/animation/animation-wrapper";
 
 interface WalletDisconnectModalProps {

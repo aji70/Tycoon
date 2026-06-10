@@ -283,6 +283,7 @@ export default function MobileGamePlayers({
             winner={winner}
             me={me}
             myPosition={myPosition}
+            gameCode={game.code}
             onGoHome={() => handleFinalizeAndLeave(true)}
           />
         )}

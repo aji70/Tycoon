@@ -15,6 +15,7 @@ import { useAiPlayerLogic } from "../useAiPlayerLogic";
 import { isAIPlayer } from "@/utils/gameUtils";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useChainId } from "wagmi";
+import { useAppKit } from "@reown/appkit/react";
 import { showWrongNetworkClaimToast } from "@/lib/utils/wrongNetworkClaimToast";
 
 interface GamePlayersProps {
@@ -107,6 +108,7 @@ export default function MobileGamePlayers({
   } = logic;
 
   const chainId = useChainId();
+  const { open: openAppKit } = useAppKit();
   const CELO_CHAIN_ID = 42220;
 
   const totalActiveTrades = openTrades.length + tradeRequests.length;

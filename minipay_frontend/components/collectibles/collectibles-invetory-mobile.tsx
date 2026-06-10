@@ -13,7 +13,6 @@ import {
 import { formatUnits, type Address, type Abi, erc20Abi } from "viem";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
-import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import Image from "next/image";
 
 import {
@@ -176,7 +175,7 @@ export default function CollectibleInventoryBar({
     strength?: number;
   } | null>(null);
 
-  // Naira conversion (1 USDT = 1400 NGN)
+  // Naira conversion (1 USDC = 1400 NGN)
   const USDC_TO_NGN_RATE = 1400;
   const MIN_NGN_PURCHASE = 1000;
 
@@ -477,13 +476,13 @@ export default function CollectibleInventoryBar({
     const price = BigInt(Math.round(Number(item.usdcPrice) * 1e6));
 
     if (!usdcToken) {
-      toast.error("USDT not supported on this network");
+      toast.error("USDC not supported on this network");
       return;
     }
 
     // Check balance
     if (Number(usdcBal?.formatted ?? 0) < Number(item.usdcPrice)) {
-      toast.error("Insufficient USDT balance");
+      toast.error("Insufficient USDC balance");
       return;
     }
 
@@ -519,13 +518,13 @@ export default function CollectibleInventoryBar({
           // Fallback: direct smartWalletApprove + buyFrom for unregistered smart wallets
           await smartWalletApprove(usdcToken, contractAddress, price);
           setApprovingId(item.tokenId);
-          toast.loading("Approving USDT from smart wallet...", { id: "approve-sw" });
+          toast.loading("Approving USDC from smart wallet...", { id: "approve-sw" });
         }
       } else {
         // Connected wallet payment
         if (currentAllowance < price) {
           setApprovingId(item.tokenId);
-          toast.loading("Approving USDT...", { id: "approve" });
+          toast.loading("Approving USDC...", { id: "approve" });
           await approve(usdcToken, contractAddress, price);
         } else {
           // Approval already sufficient, proceed to buy
@@ -560,7 +559,7 @@ export default function CollectibleInventoryBar({
         Math.ceil(Number(item.usdcPrice) * USDC_TO_NGN_RATE)
       );
       const base = typeof window !== "undefined" ? window.location.origin : "";
-      const callbackUrl = `${base}/board-3d-multi-mobile`;
+      const callbackUrl = `${base}/profile`;
 
       const res = await apiClient.post<{
         success?: boolean;
@@ -586,7 +585,7 @@ export default function CollectibleInventoryBar({
       if (status === 401) {
         toast.error(nairaBlockedMessage("session_expired"));
       } else {
-        toast.error(getContractErrorMessage(e, "Failed to start Naira payment"));
+        toast.error((e as Error)?.message ?? "Failed to start Naira payment");
       }
     } finally {
       setNgnLoadingTokenId(null);
@@ -963,7 +962,7 @@ export default function CollectibleInventoryBar({
               <div className="p-5 space-y-3 border-b border-cyan-900/30">
                 <div className="flex items-center gap-2 bg-gray-800/50 px-3 py-2 rounded-lg text-sm">
                   <Wallet className="w-4 h-4 text-cyan-400" />
-                  <span className="text-white">USDT: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
+                  <span className="text-white">USDC: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
                 </div>
 
                 {(isConnected || smartWalletAddress) && (
@@ -1004,7 +1003,7 @@ export default function CollectibleInventoryBar({
                         : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
                     }`}
                   >
-                    USDT
+                    USDC
                   </button>
                   <button
                     onClick={() => setUseUsdc(false)}

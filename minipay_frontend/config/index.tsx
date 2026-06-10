@@ -22,7 +22,7 @@ function chainIdToBackendChain(chainId: number): 'POLYGON' | 'CELO' | 'BASE' {
 export const defaultNetwork = networks[0]
 export const appChain = chainIdToBackendChain(defaultNetwork?.id ?? 42220)
 
-//Set up the Wagmi Adapter (Config) — same as frontend (works in MiniPay in-app browser)
+//Set up the Wagmi Adapter (Config)
 export const wagmiAdapter = new WagmiAdapter({
   storage: createStorage({
     storage: cookieStorage
@@ -33,8 +33,3 @@ export const wagmiAdapter = new WagmiAdapter({
 })
 
 export const config = wagmiAdapter.wagmiConfig
-
-/** Used by legacy MiniPay connect helpers outside the shop. */
-export function getWagmiConfig() {
-  return wagmiAdapter.wagmiConfig
-}

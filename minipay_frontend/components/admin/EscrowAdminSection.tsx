@@ -330,7 +330,7 @@ export default function EscrowAdminSection() {
                     className="flex-1 min-w-[80px] px-3 py-2 rounded-lg bg-gray-800 border border-gray-600/50 text-white text-sm"
                   />
                   <input
-                    placeholder="Entry fee (USDT wei)"
+                    placeholder="Entry fee (USDC wei)"
                     value={writeParams.createEntryFee ?? ""}
                     onChange={(e) => setWriteParams((p) => ({ ...p, createEntryFee: e.target.value }))}
                     className="flex-1 min-w-[100px] px-3 py-2 rounded-lg bg-gray-800 border border-gray-600/50 text-white text-sm"
@@ -433,7 +433,7 @@ export default function EscrowAdminSection() {
                     className="w-28 px-3 py-2 rounded-lg bg-gray-800 border border-gray-600/50 text-white text-sm"
                   />
                   <input
-                    placeholder="Amount (USDT wei)"
+                    placeholder="Amount (USDC wei)"
                     value={writeParams.fundAmount ?? ""}
                     onChange={(e) => setWriteParams((p) => ({ ...p, fundAmount: e.target.value }))}
                     className="w-36 px-3 py-2 rounded-lg bg-gray-800 border border-gray-600/50 text-white text-sm"
@@ -530,10 +530,10 @@ export default function EscrowAdminSection() {
           <div className="rounded-2xl border border-emerald-700/40 bg-emerald-950/20 p-6">
             <h4 className="flex items-center gap-2 text-sm font-semibold text-emerald-300 mb-2">
               <Wallet className="w-4 h-4" />
-              Owner · house cut &amp; stuck USDT
+              Owner · house cut &amp; stuck USDC
             </h4>
             <p className="text-xs text-gray-500 mb-4">
-              After <code className="text-gray-400">finalizeTournament</code>, the escrow records leftover USDT in{" "}
+              After <code className="text-gray-400">finalizeTournament</code>, the escrow records leftover USDC in{" "}
               <code className="text-gray-400">pendingResidualUSDC</code>. Sweep it to the reward contract, then withdraw from{" "}
               <code className="text-gray-400">/rewards</code>. Use recover only for truly stuck balances (e.g. wrong-token recovery after you understand escrow state).
             </p>
@@ -580,7 +580,7 @@ export default function EscrowAdminSection() {
                     className="flex-1 min-w-[160px] px-3 py-2 rounded-lg bg-gray-800 border border-gray-600/50 text-white text-sm font-mono"
                   />
                   <input
-                    placeholder="Amount (USDT wei)"
+                    placeholder="Amount (USDC wei)"
                     value={writeParams.recoverStrandedAmount ?? ""}
                     onChange={(e) => setWriteParams((p) => ({ ...p, recoverStrandedAmount: e.target.value }))}
                     className="w-36 px-3 py-2 rounded-lg bg-gray-800 border border-gray-600/50 text-white text-sm"

@@ -7,8 +7,9 @@ import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { House, Volume2, VolumeOff, Globe, Menu, X, ShoppingBag, Trophy, BookOpen, FileText, Shield, LifeBuoy, ChevronRight } from 'lucide-react';
-import { useAccount, useChainId, useConnect } from 'wagmi';
+import { House, Volume2, VolumeOff, Globe, Menu, X, ShoppingBag, Trophy, BookOpen, Bot, MessageCircle, FileText, Shield, LifeBuoy, ChevronRight } from 'lucide-react';
+import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
+import { useConnect } from 'wagmi';
 import { injected } from 'wagmi/connectors';
 import Image from 'next/image';
 import avatar from '@/public/avatar.jpg';
@@ -20,12 +21,18 @@ import NetworkSwitcherModal from './network-switcher-modal';
 import { useGetUsername } from '@/context/ContractProvider';
 import { useProfileAvatar } from '@/context/ProfileContext';
 import { isAddress } from 'viem';
-import { usePrivy } from '@/hooks/usePrivy';
+import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 
 const SCROLL_TOP_THRESHOLD = 40;
 const SCROLL_SENSITIVITY = 8;
+
+/** Form/setup pages: keep header visible — auto-hide on scroll feels broken on long config UIs. */
+function isSetupScrollPage(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return pathname === "/play-ai-3d" || pathname === "/play-ai" || pathname.startsWith("/game-waiting");
+}
 
 interface NavBarMobileProps {
   minimal?: boolean;
@@ -34,6 +41,10 @@ interface NavBarMobileProps {
 const PREFETCH_ROUTES = [
   '/game-shop',
   '/leaderboard',
+  '/arena',
+  '/rooms',
+  '/tournaments',
+  '/agent-tournaments',
 ] as const;
 
 const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
@@ -43,6 +54,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
   const { scrollY, scrollYProgress } = useScroll();
 
   const isGamePage = pathname?.includes('/board') || pathname?.includes('game-play') || pathname?.includes('ai-play');
+  const setupPage = isSetupScrollPage(pathname);
   const shopHref = isGamePage && pathname
     ? `/game-shop?returnTo=${encodeURIComponent(pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : ''))}`
     : '/game-shop';
@@ -54,14 +66,18 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
 
   useEffect(() => {
     if (minimal) return;
+    if (setupPage) {
+      setNavVisible(true);
+      return;
+    }
     const y = typeof window !== 'undefined' ? window.scrollY ?? 0 : 0;
     lastScrollY.current = y;
     setNavVisible(y < SCROLL_TOP_THRESHOLD);
     hasScrolled.current = y > 0;
-  }, [minimal]);
+  }, [minimal, setupPage]);
 
   useEffect(() => {
-    if (minimal) return;
+    if (minimal || setupPage) return;
     const unsubscribe = scrollY.on('change', (latest) => {
       const diff = latest - lastScrollY.current;
       if (latest < SCROLL_TOP_THRESHOLD) {
@@ -76,10 +92,10 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
     return () => unsubscribe();
   }, [scrollY, minimal]);
 
-  const { address, isConnected } = useAccount();
-  const chainId = useChainId();
+  const { address, isConnected } = useAppKitAccount();
+  const { caipNetwork, chainId } = useAppKitNetwork();
   const { connect } = useConnect();
-  const { ready, authenticated, login, logout } = usePrivy();
+  const { ready, authenticated, login, logout, user } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
@@ -89,7 +105,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
     if (isPrivyAuthed) void logout();
   };
 
-  const networkDisplay = chainId === 42220 ? 'Celo' : chainId ? `Chain ${chainId}` : '—';
+  const networkDisplay = caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : '—');
 
   const [isSoundPlaying, setIsSoundPlaying] = useState(false);
   const [themeSoundMounted, setThemeSoundMounted] = useState(false);
@@ -122,31 +138,22 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
     return mergeProfilesFromGuestUser(guestUser)?.avatar ?? null;
   }, [guestUser, pathname, storedProfileTick]);
 
-  // Fetch backend username — same as hero section
-  const [backendUsername, setBackendUsername] = useState<string | null>(null);
-  useEffect(() => {
-    if (!address) { setBackendUsername(null); return; }
-    let active = true;
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? ''}/api/users/by-address/${address}?chain=Celo`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (active && data?.data?.username) setBackendUsername(data.data.username); })
-      .catch(() => {});
-    return () => { active = false; };
-  }, [address]);
-
-  // Exact same priority as hero section: guestUser.username > backend user.username > fetchedUsername (on-chain) > "Player"
+  // Resolve display name: on-chain username > guest username > email > truncated address
   const displayName = useMemo(() => {
-    if (guestUser?.username) return guestUser.username;
-    if (backendUsername) return backendUsername;
     if (fetchedUsername) return fetchedUsername;
-    return 'Player';
-  }, [guestUser, backendUsername, fetchedUsername]);
+    if (guestUser?.username) return guestUser.username;
+    const email = typeof user?.email === 'string' ? user.email : (user?.email as { address?: string })?.address;
+    if (email) return email.length > 20 ? email.slice(0, 18) + '…' : email;
+    if (address) return `${address.slice(0, 6)}…${address.slice(-4)}`;
+    return 'Profile';
+  }, [fetchedUsername, guestUser, user, address]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.ethereum?.isMiniPay) {
       setIsMiniPay(true);
+      if (!isConnected) connect({ connector: injected() });
     }
-  }, []);
+  }, [connect, isConnected]);
 
   const toggleSound = () => {
     if (isSoundPlaying) {
@@ -293,6 +300,10 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
                 {navItem('/how-to-play', <BookOpen size={18} />, 'How to Play')}
 
                 {hasGameSession && navItem(shopHref, <ShoppingBag size={18} />, 'Perk Shop', 'text-emerald-400/90')}
+                {hasGameSession && navItem('/tournaments', <Trophy size={18} />, 'Tournaments')}
+                {hasGameSession && navItem('/agent-tournaments', <Bot size={18} />, 'Agent Tournaments')}
+                {hasGameSession && navItem('/arena', <Bot size={18} />, 'Agents')}
+                {hasGameSession && navItem('/rooms', <MessageCircle size={18} />, 'Rooms')}
               </nav>
 
               {/* Legal & support — smaller, grouped */}
@@ -348,7 +359,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
                       onClick={() => { signOutGuestAndPrivy(); closeMobileMenu(); }}
                       className="w-full py-3.5 rounded-xl bg-[#011112]/80 hover:bg-[#022a2c]/80 border border-[#003B3E]/60 text-[#00F0FF] font-orbitron font-medium transition-all duration-200"
                     >
-                      {displayName} · Log out
+                      {typeof user?.email === 'string' ? user.email : (user?.email as { address?: string })?.address ?? 'Signed in'} · Log out
                     </button>
                   ) : (
                     <button

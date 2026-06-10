@@ -4,6 +4,7 @@ node_modules/
 # Local project folder - do not push to GitHub
 backend2/
 frontend2/
+minipay_frontend_alpha/
 PokerBot-main/
 pokerbot-main/
 payCrypt_v2-master/

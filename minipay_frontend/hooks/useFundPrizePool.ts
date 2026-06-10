@@ -49,7 +49,7 @@ export function useFundPrizePool(smartWalletAddress?: Address | null) {
         );
       }
       if (amountWei <= BigInt(0)) throw new Error("Amount must be greater than zero");
-      if (!usdcAddress) throw new Error("USDT not configured for this network");
+      if (!usdcAddress) throw new Error("USDC not configured for this network");
 
       if (fromSmartWallet && smartWalletAddress) {
         const approveHash = await smartWalletApprove(usdcAddress, escrowAddress, amountWei);

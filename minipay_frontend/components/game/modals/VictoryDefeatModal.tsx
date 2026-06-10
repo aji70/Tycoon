@@ -4,6 +4,7 @@ import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, Sparkles, HeartHandshake } from "lucide-react";
 import { Player } from "@/types/game";
+import { VictorySocialShare, DEFAULT_JOIN_3D } from "./VictorySocialShare";
 
 interface VictoryDefeatModalProps {
   winner: Player | null;
@@ -12,6 +13,10 @@ interface VictoryDefeatModalProps {
   myPosition?: number;
   /** Called when "Go home" is clicked. Can be async (e.g. finalize/claim). Then we redirect to /. */
   onGoHome?: () => void | Promise<void>;
+  /** Room code — enables winner share row (join link with `gameCode`). */
+  gameCode?: string | null;
+  /** Join page path for post-match share links. */
+  joinPagePath?: string;
 }
 
 /**
@@ -30,10 +35,13 @@ export const VictoryDefeatModal: React.FC<VictoryDefeatModalProps> = ({
   me,
   myPosition,
   onGoHome,
+  gameCode,
+  joinPagePath = DEFAULT_JOIN_3D,
 }) => {
   if (!winner) return null;
 
   const isWinner = winner.user_id === me?.user_id;
+  const shareCode = (gameCode ?? "").trim();
 
   const handleGoHome = async () => {
     await onGoHome?.();
@@ -99,6 +107,14 @@ export const VictoryDefeatModal: React.FC<VictoryDefeatModalProps> = ({
               >
                 Well played — you earned this one.
               </motion.p>
+              {shareCode ? (
+                <VictorySocialShare
+                  gameCode={shareCode}
+                  winnerUsername={me?.username ?? winner.username}
+                  joinPagePath={joinPagePath}
+                  className="mb-5"
+                />
+              ) : null}
               <motion.button
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -166,6 +182,16 @@ export const VictoryDefeatModal: React.FC<VictoryDefeatModalProps> = ({
                 <HeartHandshake className="w-12 h-12 text-cyan-400/80" />
                 <p className="text-slate-300">Better luck next time — you played well!</p>
               </motion.div>
+              {shareCode ? (
+                <VictorySocialShare
+                  variant="loss"
+                  gameCode={shareCode}
+                  winnerUsername={winner.username}
+                  loserUsername={me?.username ?? undefined}
+                  joinPagePath={joinPagePath}
+                  className="mb-5 text-left"
+                />
+              ) : null}
               <motion.button
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}

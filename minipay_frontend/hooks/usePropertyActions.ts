@@ -1,8 +1,7 @@
 import { useCallback } from "react";
 import { toast } from "react-hot-toast";
-import { apiClient } from "@/lib/api";
-import { ApiResponse } from "@/types/api";
-import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { apiClient } from "@/lib/api"; // Assuming this is the correct import path
+import { ApiResponse } from "@/types/api"; // Assuming this is the correct import path
 
 export const usePropertyActions = (gameId: number, userId: number | undefined, isMyTurn: boolean) => {
   const handleDevelopment = useCallback(async (id: number) => {
@@ -15,7 +14,7 @@ export const usePropertyActions = (gameId: number, userId: number | undefined, i
       });
       if (res?.data?.success) toast.success("Property developed successfully");
     } catch (error: any) {
-      toast.error(getContractErrorMessage(error, "Failed to develop property"));
+      toast.error(error?.message || "Failed to develop property");
     }
   }, [gameId, userId, isMyTurn]);
 
@@ -30,7 +29,7 @@ export const usePropertyActions = (gameId: number, userId: number | undefined, i
       if (res?.data?.success) toast.success("Property downgraded successfully");
       else toast.error(res.data?.message ?? "Failed to downgrade property");
     } catch (error: any) {
-      toast.error(getContractErrorMessage(error, "Failed to downgrade property"));
+      toast.error(error?.message || "Failed to downgrade property");
     }
   }, [gameId, userId, isMyTurn]);
 
@@ -45,7 +44,7 @@ export const usePropertyActions = (gameId: number, userId: number | undefined, i
       if (res?.data?.success) toast.success("Property mortgaged successfully");
       else toast.error(res.data?.message ?? "Failed to mortgage property");
     } catch (error: any) {
-      toast.error(getContractErrorMessage(error, "Failed to mortgage property"));
+      toast.error(error?.message || "Failed to mortgage property");
     }
   }, [gameId, userId, isMyTurn]);
 
@@ -60,7 +59,7 @@ export const usePropertyActions = (gameId: number, userId: number | undefined, i
       if (res?.data?.success) toast.success("Property unmortgaged successfully");
       else toast.error(res.data?.message ?? "Failed to unmortgage property");
     } catch (error: any) {
-      toast.error(getContractErrorMessage(error, "Failed to unmortgage property"));
+      toast.error(error?.message || "Failed to unmortgage property");
     }
   }, [gameId, userId, isMyTurn]);
 

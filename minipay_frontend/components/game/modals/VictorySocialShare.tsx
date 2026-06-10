@@ -240,4 +240,4 @@ export function VictorySocialShare({
   );
 }
 
-export { DEFAULT_JOIN_2D, DEFAULT_JOIN_3D, INVITE_2D, INVITE_3D };
+export { DEFAULT_JOIN_3D, INVITE_3D };

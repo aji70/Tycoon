@@ -78,7 +78,7 @@ export default function AiPlay3DPage() {
   useEffect(() => {
     if (!game || !gameCode) return;
     if (game.is_ai === false || game.is_ai === undefined) {
-      router.replace(`/board-3d-multi-mobile?gameCode=${encodeURIComponent(gameCode)}`);
+      router.replace(`/board-3d-multi?gameCode=${encodeURIComponent(gameCode)}`);
     }
   }, [game, gameCode, router]);
 

@@ -16,9 +16,12 @@ import { GiPrisoner, GiBank } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
 import { useRouter } from "next/navigation";
 import { GamePieces } from "@/lib/constants/games";
+import { BoardVariantPicker } from "@/components/game-setup/BoardVariantPicker";
 import { ShieldCheck } from "lucide-react";
 import { useAIGameCreate } from "@/hooks/useAIGameCreate";
-import { BoardVariantPicker } from "@/components/game-setup/BoardVariantPicker";
+import { motion } from "framer-motion";
+import { ParticleBackground } from "@/components/hero/ParticleBackground";
+import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
 
 export interface PlayWithAIProps {
   /** When true, after creating a game redirect to 3D board (ai-play-3d). */
@@ -54,20 +57,22 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
 
   const is3D = theme === "3d";
   const wrapperClass = is3D
-    ? "min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/30 flex items-center justify-center p-6"
-    : "min-h-screen bg-settings bg-cover bg-fixed flex items-center justify-center p-6";
+    ? "min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/30 flex items-center justify-center p-6 relative"
+    : "min-h-screen bg-gradient-to-br from-[#010F10] via-[#0a1f20] to-[#010F10] flex items-center justify-center p-6 relative overflow-hidden";
   const cardClass = is3D
     ? "w-full max-w-5xl bg-slate-900/95 backdrop-blur-xl rounded-2xl border-2 border-amber-500/40 shadow-2xl shadow-amber-900/20 p-8 md:p-12"
-    : "w-full max-w-5xl bg-black/80 backdrop-blur-3xl rounded-3xl border border-cyan-500/30 shadow-2xl p-8 md:p-12";
+    : "w-full max-w-5xl bg-black/85 backdrop-blur-3xl rounded-3xl border-2 border-cyan-500/30 shadow-2xl shadow-cyan-900/20 p-8 md:p-12 relative z-10";
   const titleClass = is3D
     ? "text-5xl font-orbitron font-extrabold bg-gradient-to-r from-amber-400 via-amber-300 to-cyan-400 bg-clip-text text-transparent drop-shadow-lg"
-    : "text-5xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent";
+    : "text-5xl font-orbitron font-extrabold bg-gradient-to-r from-[#00F0FF] to-[#0FF0FC] bg-clip-text text-transparent drop-shadow-lg";
   const backClass = is3D
     ? "flex items-center gap-3 text-amber-400 hover:text-amber-300 transition group"
-    : "flex items-center gap-3 text-cyan-400 hover:text-cyan-300 transition group";
+    : "flex items-center gap-3 text-[#00F0FF] hover:text-[#0FF0FC] transition group";
 
   return (
     <div className={wrapperClass}>
+      {!is3D && <ParticleBackground />}
+      {!is3D && <ScanlineOverlay />}
       <div className={cardClass}>
         {/* Header */}
         <div className="flex justify-between items-center mb-12">
@@ -83,7 +88,7 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
           </h1>
           <div className="w-24 flex justify-end">
             <a
-              href="/profile"
+              href="/agents"
               className={is3D ? "text-amber-400 hover:text-amber-300 text-sm font-medium" : "text-cyan-400 hover:text-cyan-300 text-sm font-medium"}
             >
               Manage agents
@@ -95,7 +100,12 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
         <div className="grid lg:grid-cols-3 gap-8 mb-10">
           {/* Column 1 */}
           <div className="space-y-6">
-            <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 rounded-2xl p-6 border border-cyan-500/30">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="bg-gradient-to-br from-cyan-900/50 to-blue-900/40 rounded-2xl p-6 border-2 border-cyan-500/50 backdrop-blur-sm hover:border-cyan-400/70 transition-all">
+            <div>
               <div className="flex items-center gap-3 mb-4">
                 <FaUser className="w-7 h-7 text-cyan-400" />
                 <h3 className="text-xl font-bold text-cyan-300">Your Piece</h3>
@@ -110,9 +120,21 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
                   ))}
                 </SelectContent>
               </Select>
+              <div className="mt-4">
+                <BoardVariantPicker
+                  value={settings.boardVariantId}
+                  onChange={(id) => setSettings((p) => ({ ...p, boardVariantId: id }))}
+                />
+              </div>
             </div>
+            </motion.div>
 
-            <div className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 rounded-2xl p-6 border border-purple-500/30">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.15 }}
+              className="bg-gradient-to-br from-purple-900/50 to-pink-900/40 rounded-2xl p-6 border-2 border-purple-500/50 backdrop-blur-sm hover:border-purple-400/70 transition-all">
+            <div>
               <div className="flex items-center gap-3 mb-4">
                 <FaRobot className="w-7 h-7 text-purple-400" />
                 <h3 className="text-xl font-bold text-purple-300">AI Opponents</h3>
@@ -137,8 +159,14 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
                 </p>
               )}
             </div>
+            </motion.div>
 
-            <div className="bg-gradient-to-br from-red-900/40 to-orange-900/40 rounded-2xl p-6 border border-red-500/30">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="bg-gradient-to-br from-red-900/50 to-orange-900/40 rounded-2xl p-6 border-2 border-red-500/50 backdrop-blur-sm hover:border-red-400/70 transition-all">
+            <div>
               <div className="flex items-center gap-3 mb-4">
                 <FaBrain className="w-7 h-7 text-red-400" />
                 <h3 className="text-xl font-bold text-red-300">AI Difficulty</h3>
@@ -169,10 +197,16 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
                 </div>
               )}
             </div>
+            </motion.div>
           </div>
 
           {/* Column 2 */}
-          <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-2xl p-6 border border-amber-500/30">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.25 }}
+            className="bg-gradient-to-br from-amber-900/50 to-orange-900/40 rounded-2xl p-6 border-2 border-amber-500/50 backdrop-blur-sm hover:border-amber-400/70 transition-all">
+          <div>
             <div className="flex items-center gap-3 mb-4">
               <FaCoins className="w-7 h-7 text-amber-400" />
               <h3 className="text-xl font-bold text-amber-300">Starting Cash</h3>
@@ -212,18 +246,18 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
                 </SelectContent>
               </Select>
             </div>
-            <div className="mt-8">
-              <BoardVariantPicker
-                value={settings.boardVariantId}
-                onChange={(id) => setSettings((p) => ({ ...p, boardVariantId: id }))}
-              />
-            </div>
           </div>
+          </motion.div>
 
           {/* Column 3 */}
           <div className="space-y-6">
             {registrySupported && registeredAgents.length > 0 && !agentsLoading && (
-              <div className="bg-gradient-to-br from-emerald-900/40 to-teal-900/40 rounded-2xl p-6 border border-emerald-500/30">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="bg-gradient-to-br from-emerald-900/50 to-teal-900/40 rounded-2xl p-6 border-2 border-emerald-500/50 backdrop-blur-sm hover:border-emerald-400/70 transition-all">
+              <div>
                 <div className="flex items-center gap-3 mb-3">
                   <ShieldCheck className="w-6 h-6 text-emerald-400" />
                   <h3 className="text-lg font-bold text-emerald-300">Registered AI Agents</h3>
@@ -237,8 +271,14 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
                   ))}
                 </ul>
               </div>
+              </motion.div>
             )}
-            <div className="bg-black/60 rounded-2xl p-6 border border-cyan-500/30 h-full">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.35 }}
+              className="bg-gradient-to-br from-black/70 to-cyan-900/30 rounded-2xl p-6 border-2 border-cyan-500/50 backdrop-blur-sm hover:border-cyan-400/70 transition-all h-full">
+            <div>
               <h3 className="text-xl font-bold text-cyan-400 mb-5 text-center">House Rules</h3>
               <div className="space-y-4">
                 {[
@@ -260,24 +300,29 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
                 ))}
               </div>
             </div>
+            </motion.div>
           </div>
         </div>
 
-        <div className="flex justify-center mt-12">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="flex justify-center mt-12">
           <button
             onClick={handlePlay}
             disabled={!canCreate || (!isGuest && isCreatePending)}
             className={
               is3D
-                ? "relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest rounded-2xl shadow-2xl transform hover:scale-105 active:scale-100 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-amber-400/60 bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-900"
-                : "relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10] rounded-2xl shadow-2xl transform hover:scale-105 active:scale-100 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border-4 border-[#00F0FF]/40"
+                ? "relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest rounded-2xl shadow-2xl shadow-amber-900/50 transform hover:scale-105 active:scale-100 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-amber-400/60 bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-900"
+                : "relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest bg-gradient-to-br from-[#00F0FF] to-[#0FF0FC] hover:from-[#0FF0FC] hover:to-[#00F0FF] text-[#010F10] rounded-2xl shadow-2xl shadow-cyan-500/40 transform hover:scale-105 active:scale-100 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border-3 border-[#00F0FF]/60"
             }
           >
             <span className="relative z-10 drop-shadow-lg">
               {isCreatePending ? "SUMMONING..." : is3D ? "LAUNCH 3D BATTLE" : "START BATTLE"}
             </span>
           </button>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

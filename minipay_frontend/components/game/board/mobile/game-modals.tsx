@@ -111,6 +111,7 @@ const GameModals: React.FC<GameModalsProps> = ({
           winner={winner}
           me={me}
           myPosition={myPosition}
+          gameCode={currentGame.code}
         />
       )}
 

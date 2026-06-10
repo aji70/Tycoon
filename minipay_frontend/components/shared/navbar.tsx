@@ -7,9 +7,8 @@ import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Wallet, BookOpen, MoreVertical, FileText, Shield, LifeBuoy } from 'lucide-react';
-import { useAccount, useChainId } from 'wagmi';
-import { useConnectWallet } from '@/hooks/useConnectWallet';
+import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet, BookOpen, Bot, MoreVertical, FileText, Shield, LifeBuoy } from 'lucide-react';
+import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { PiUserCircle } from 'react-icons/pi';
 import Image from 'next/image';
 import avatar from '@/public/avatar.jpg';
@@ -20,12 +19,12 @@ const WalletDisconnectModal = dynamic(() => import('./wallet-disconnect-modal'),
 import NetworkSwitcherModal from './network-switcher-modal';
 import { useProfileAvatar } from '@/context/ProfileContext';
 import { useOnlineUsers } from '@/hooks/useOnlineUsers';
-import { usePrivy } from '@/hooks/usePrivy';
+import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 
 /** Skip /profile here — prefetching it on the home shell pulls a large unused chunk (Lighthouse). Hover still prefetches profile. */
-const PREFETCH_ROUTES = ['/game-shop', '/leaderboard'] as const;
+const PREFETCH_ROUTES = ['/game-shop', '/arena', '/leaderboard'] as const;
 
 const NavBar = () => {
   const pathname = usePathname();
@@ -43,9 +42,9 @@ const NavBar = () => {
     restDelta: 0.001,
   });
 
-  const connectWallet = useConnectWallet();
-  const { address, isConnected } = useAccount();
-  const chainId = useChainId();
+  const { open } = useAppKit();
+  const { address, isConnected } = useAppKitAccount();
+  const { caipNetwork, chainId } = useAppKitNetwork();
   const { onlineCount, onlineUsers } = useOnlineUsers(isConnected ? address : undefined);
   const [onlineDropdownOpen, setOnlineDropdownOpen] = useState(false);
   const onlineDropdownRef = useRef<HTMLDivElement>(null);
@@ -66,7 +65,7 @@ const NavBar = () => {
   }, []);
 
   // Prioritize shortName if available (e.g., "Ethereum"), fall back to name, then chain ID
-  const networkDisplay = chainId === 42220 ? 'Celo' : chainId ? `Chain ${chainId}` : 'Network';
+  const networkDisplay =  caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : 'Network');
 
   const [isSoundPlaying, setIsSoundPlaying] = useState(false);
   const [themeSoundMounted, setThemeSoundMounted] = useState(false);
@@ -163,6 +162,18 @@ const NavBar = () => {
             </div>
           )}
 
+          {/* Agents → Agent Arena */}
+          {isSignedIn && (
+            <Link
+              href="/arena"
+              onMouseEnter={() => router.prefetch('/arena')}
+              className="w-[90px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
+            >
+              <Bot className="w-[16px] h-[16px]" />
+              <span className="text-[12px] font-[400] font-dmSans">Agents</span>
+            </Link>
+          )}
+
           {/* Perk Shop button */}
           {isSignedIn && (
             <Link
@@ -220,6 +231,53 @@ const NavBar = () => {
             </button>
             {moreMenuOpen && (
               <div className="absolute right-0 mt-2 w-48 rounded-lg border border-[#0E282A] bg-[#011112] shadow-xl z-50 py-2">
+                {/* Arena */}
+                {isSignedIn && (
+                  <Link
+                    href="/arena"
+                    className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
+                    onClick={() => setMoreMenuOpen(false)}
+                  >
+                    <Swords className="w-[16px] h-[16px]" />
+                    <span className="font-dmSans">⚔️ Agent Arena</span>
+                  </Link>
+                )}
+
+                {/* Tournaments */}
+                {isSignedIn && (
+                  <Link
+                    href="/tournaments"
+                    className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
+                    onClick={() => setMoreMenuOpen(false)}
+                  >
+                    <Trophy className="w-[16px] h-[16px]" />
+                    <span className="font-dmSans">Tournaments</span>
+                  </Link>
+                )}
+
+                {isSignedIn && (
+                  <Link
+                    href="/agent-tournaments"
+                    className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
+                    onClick={() => setMoreMenuOpen(false)}
+                  >
+                    <Bot className="w-[16px] h-[16px]" />
+                    <span className="font-dmSans">Agent tournaments</span>
+                  </Link>
+                )}
+
+                {/* Rooms */}
+                {isSignedIn && (
+                  <Link
+                    href="/rooms"
+                    className="px-4 py-2.5 flex items-center gap-2 text-[#00F0FF] hover:bg-[#0E282A] text-sm transition"
+                    onClick={() => setMoreMenuOpen(false)}
+                  >
+                    <MessageCircle className="w-[16px] h-[16px]" />
+                    <span className="font-dmSans">Rooms</span>
+                  </Link>
+                )}
+
                 {/* How to Play */}
                 <Link
                   href="/how-to-play"
@@ -324,7 +382,7 @@ const NavBar = () => {
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={connectWallet}
+                onClick={() => open()}
                 className="hidden md:flex px-4 py-2 rounded-[12px] border border-[#003B3E] bg-[#0E1415] text-[#00F0FF] font-orbitron text-sm font-medium hover:border-[#00F0FF]/50 transition-all items-center gap-2"
               >
                 <Wallet className="w-4 h-4" />
@@ -352,7 +410,7 @@ const NavBar = () => {
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={connectWallet}
+                onClick={() => open()}
                 className="hidden md:flex px-4 py-2 rounded-[12px] border border-[#003B3E] bg-[#0E1415] text-[#00F0FF] font-orbitron text-sm font-medium hover:border-[#00F0FF]/50 transition-all items-center gap-2"
               >
                 <Wallet className="w-4 h-4" />
@@ -377,7 +435,7 @@ const NavBar = () => {
               </button>
               <button
                 type="button"
-                onClick={connectWallet}
+                onClick={() => open()}
                 className="hidden md:flex px-4 py-2 rounded-[12px] border border-[#003B3E] bg-[#0E1415] text-[#00F0FF] font-orbitron text-sm font-medium hover:border-[#00F0FF]/50 transition-all items-center gap-2"
               >
                 <Wallet className="w-4 h-4" />

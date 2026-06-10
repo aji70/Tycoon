@@ -1,7 +1,7 @@
 "use client";
 
-import { useConnectWallet } from "@/hooks/useConnectWallet";
-import { usePrivy } from "@/hooks/usePrivy";
+import { useAppKit } from "@reown/appkit/react";
+import { usePrivy } from "@privy-io/react-auth";
 import { Wallet, LogIn, X } from "lucide-react";
 
 type StickyBarProps = {
@@ -11,7 +11,7 @@ type StickyBarProps = {
 
 /** Shown at top of join flow when visitor has no wallet session and no guest JWT. */
 export function JoinRoomAuthStickyBar({ canAct, authLoading }: StickyBarProps) {
-  const connectWallet = useConnectWallet();
+  const { open } = useAppKit();
   const { ready, login } = usePrivy();
 
   if (authLoading || canAct) return null;
@@ -25,7 +25,7 @@ export function JoinRoomAuthStickyBar({ canAct, authLoading }: StickyBarProps) {
       <div className="flex flex-col sm:flex-row gap-2 sm:justify-center sm:items-center">
         <button
           type="button"
-          onClick={connectWallet}
+          onClick={() => open()}
           className="inline-flex items-center justify-center gap-2 min-h-[44px] rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] px-4 py-2.5 font-orbitron font-bold text-black hover:opacity-95 transition-opacity"
         >
           <Wallet className="w-4 h-4 shrink-0" />
@@ -52,7 +52,7 @@ type ModalProps = {
 };
 
 export function JoinRoomAuthModal({ open, hint, onDismiss }: ModalProps) {
-  const connectWallet = useConnectWallet();
+  const { open: openWallet } = useAppKit();
   const { ready, login } = usePrivy();
 
   if (!open) return null;
@@ -80,7 +80,7 @@ export function JoinRoomAuthModal({ open, hint, onDismiss }: ModalProps) {
         <div className="flex flex-col sm:flex-row gap-2">
           <button
             type="button"
-            onClick={connectWallet}
+            onClick={() => openWallet()}
             className="inline-flex flex-1 items-center justify-center gap-2 min-h-[44px] rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] px-4 py-2.5 font-orbitron font-bold text-black"
           >
             <Wallet className="w-4 h-4" />
