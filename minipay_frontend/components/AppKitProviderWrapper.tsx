@@ -4,14 +4,10 @@
 import { wagmiAdapter, projectId, defaultNetwork } from '@/config';
 import { ReactNode, useEffect } from 'react';
 import { createAppKit } from '@reown/appkit/react';
+import { resolveSiteUrl } from '@/lib/siteUrl';
 
-/** Canonical app origin for wallet metadata (Reown). Set `NEXT_PUBLIC_URL` on Vercel to your canonical origin (www vs apex). */
-const siteUrl = (() => {
-  const fromEnv = process.env.NEXT_PUBLIC_URL || process.env.NEXT_PUBLIC_SITE_URL;
-  if (fromEnv?.trim()) return fromEnv.replace(/\/$/, '');
-  if (process.env.NODE_ENV === 'development') return 'http://localhost:3000';
-  return 'https://www.tycoonworld.xyz';
-})();
+/** Canonical app origin for wallet metadata (Reown). Set `NEXT_PUBLIC_URL` on Vercel (e.g. https://playtycoon.xyz). */
+const siteUrl = resolveSiteUrl();
 
 let isInitialized = false;
 

@@ -8,6 +8,7 @@ import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
 import PrivyProviderWrapper from "@/components/PrivyProviderWrapper";
 import PrivyBackendSync from "@/components/PrivyBackendSync";
 import ReferralCapture from "@/components/ReferralCapture";
+import MinipayAutoConnect from "@/components/MinipayAutoConnect";
 import AddWalletPromptModal from "@/components/guest/AddWalletPromptModal";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
@@ -17,7 +18,8 @@ import { SocketProvider } from "@/context/SocketContext";
 import { TournamentProvider } from "@/context/TournamentContext";
 import { Toaster } from "react-hot-toast";
 import FarcasterReady from "@/components/FarcasterReady"; 
-import { minikitConfig } from "../minikit.config";
+import { getMinikitConfig } from "../minikit.config";
+import { resolveMetadataBase } from "@/lib/siteUrl";
 import type { Metadata } from "next";
 import Script from "next/script";
 import ClientLayout from "../clients/ClientLayout"; // ← Import the new wrapper
@@ -40,24 +42,8 @@ const BFCACHE_RELOAD_SCRIPT = `
 
 // Remove the duplicate 'cookies' global variable—it's not needed
 
-/** Safe metadataBase — invalid env (missing protocol, spaces) must not 500 the whole site. */
-function resolveMetadataBase(): URL {
-  const fallback = "https://www.tycoonworld.xyz";
-  const raw = (process.env.NEXT_PUBLIC_URL || process.env.NEXT_PUBLIC_SITE_URL || "")
-    .trim()
-    .replace(/\/$/, "");
-  const candidate = raw || fallback;
-  try {
-    if (/^https?:\/\//i.test(candidate)) {
-      return new URL(candidate);
-    }
-    return new URL(`https://${candidate}`);
-  } catch {
-    return new URL(fallback);
-  }
-}
-
 export async function generateMetadata(): Promise<Metadata> {
+  const minikitConfig = getMinikitConfig();
   return {
     metadataBase: resolveMetadataBase(),
     title: {
@@ -121,10 +107,7 @@ export default async function RootLayout({
               <AddWalletPromptModal />
               <TournamentProvider>
               <AppKitProviderWrapper>
-                {/* SocketProvider commented out as in your code */}
-                {/* <SocketProvider serverUrl="https://base-monopoly-production.up.railway.app/api"> */}
-                
-                {/* ← Use the client wrapper here—no more useMediaQuery! */}
+                <MinipayAutoConnect />
                 <QueryProvider>
                 <BfcacheReloadGuard />
                 <ClientLayout cookies={cookies}>
