@@ -49,6 +49,7 @@ import {
 import {
   isMiniPayEmbeddedWallet,
 } from '@/lib/minipayGuestFlow';
+import { minipayContractWriteOverrides } from '@/lib/celoTransportForWagmi';
 
 import {
   useRewardBuyCollectible,
