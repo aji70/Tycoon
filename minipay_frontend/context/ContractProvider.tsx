@@ -25,7 +25,6 @@ import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
 import { getCeloRpcUrlForChainId, registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
 import { minipaySendTransactionAttempts } from '@/lib/celoTransportForWagmi';
 import { ensureMiniPayWalletReady, isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
-import { miniPayWriteOrFallback } from '@/lib/minipaySendContract';
 import { isUserRejectedTransaction } from '@/lib/utils/contractErrors';
 import { API_BASE_URL } from '@/lib/api';
 
@@ -1560,64 +1559,27 @@ export function useRewardBuyCollectible() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { sendTransactionAsync } = useSendTransaction();
-  const [localHash, setLocalHash] = useState<Hash | undefined>();
-  const effectiveHash = txHash ?? localHash;
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: effectiveHash });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   const buy = useCallback(async (tokenId: bigint, paymentToken: number | boolean = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    setLocalHash(undefined);
     if (typeof paymentToken === 'boolean') {
-      const hash = await miniPayWriteOrFallback({
-        sendTransactionAsync,
-        writeContractAsync: () =>
-          writeContractAsync({
-            address: contractAddress,
-            abi: RewardABI,
-            functionName: 'buyCollectible',
-            args: [tokenId, paymentToken],
-          }),
-        to: contractAddress,
+      return await writeContractAsync({
+        address: contractAddress,
         abi: RewardABI,
         functionName: 'buyCollectible',
         args: [tokenId, paymentToken],
       });
-      if (hash) setLocalHash(hash as Hash);
-      return hash;
     }
-    const hash = await miniPayWriteOrFallback({
-      sendTransactionAsync,
-      writeContractAsync: () =>
-        writeContractAsync({
-          address: contractAddress,
-          abi: REWARD_BUY_COLLECTIBLE_ENUM_ABI,
-          functionName: 'buyCollectible',
-          args: [tokenId, paymentToken],
-        }),
-      to: contractAddress,
+    return await writeContractAsync({
+      address: contractAddress,
       abi: REWARD_BUY_COLLECTIBLE_ENUM_ABI,
       functionName: 'buyCollectible',
       args: [tokenId, paymentToken],
     });
-    if (hash) setLocalHash(hash as Hash);
-    return hash;
-  }, [writeContractAsync, sendTransactionAsync, contractAddress]);
+  }, [writeContractAsync, contractAddress]);
 
-  const resetAll = useCallback(() => {
-    reset();
-    setLocalHash(undefined);
-  }, [reset]);
-
-  return {
-    buy,
-    isPending: isPending || isConfirming,
-    isSuccess,
-    isConfirming,
-    error: writeError,
-    txHash: effectiveHash,
-    reset: resetAll,
-  };
+  return { buy, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
 /** Buy a collectible with USDC (or TYC) from a given payer address (e.g. smart wallet). Callable by the connected EOA when it is the owner of the payer contract. */
@@ -1625,64 +1587,27 @@ export function useRewardBuyCollectibleFrom() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { sendTransactionAsync } = useSendTransaction();
-  const [localHash, setLocalHash] = useState<Hash | undefined>();
-  const effectiveHash = txHash ?? localHash;
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: effectiveHash });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   const buyFrom = useCallback(async (payer: Address, tokenId: bigint, paymentToken: number | boolean = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    setLocalHash(undefined);
     if (typeof paymentToken === 'boolean') {
-      const hash = await miniPayWriteOrFallback({
-        sendTransactionAsync,
-        writeContractAsync: () =>
-          writeContractAsync({
-            address: contractAddress,
-            abi: RewardABI,
-            functionName: 'buyCollectibleFrom',
-            args: [payer, tokenId, paymentToken],
-          }),
-        to: contractAddress,
+      return await writeContractAsync({
+        address: contractAddress,
         abi: RewardABI,
         functionName: 'buyCollectibleFrom',
         args: [payer, tokenId, paymentToken],
       });
-      if (hash) setLocalHash(hash as Hash);
-      return hash;
     }
-    const hash = await miniPayWriteOrFallback({
-      sendTransactionAsync,
-      writeContractAsync: () =>
-        writeContractAsync({
-          address: contractAddress,
-          abi: REWARD_BUY_COLLECTIBLE_FROM_ENUM_ABI,
-          functionName: 'buyCollectibleFrom',
-          args: [payer, tokenId, paymentToken],
-        }),
-      to: contractAddress,
+    return await writeContractAsync({
+      address: contractAddress,
       abi: REWARD_BUY_COLLECTIBLE_FROM_ENUM_ABI,
       functionName: 'buyCollectibleFrom',
       args: [payer, tokenId, paymentToken],
     });
-    if (hash) setLocalHash(hash as Hash);
-    return hash;
-  }, [writeContractAsync, sendTransactionAsync, contractAddress]);
+  }, [writeContractAsync, contractAddress]);
 
-  const resetAll = useCallback(() => {
-    reset();
-    setLocalHash(undefined);
-  }, [reset]);
-
-  return {
-    buyFrom,
-    isPending: isPending || isConfirming,
-    isSuccess,
-    isConfirming,
-    error: writeError,
-    txHash: effectiveHash,
-    reset: resetAll,
-  };
+  return { buyFrom, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
 /** Buy a bundle (multiple perks at once) with USDC or TYC. */
@@ -1690,46 +1615,19 @@ export function useRewardBuyBundle() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { sendTransactionAsync } = useSendTransaction();
-  const [localHash, setLocalHash] = useState<Hash | undefined>();
-  const effectiveHash = txHash ?? localHash;
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: effectiveHash });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   const buyBundle = useCallback(async (bundleId: bigint, useUsdc = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    setLocalHash(undefined);
-    const hash = await miniPayWriteOrFallback({
-      sendTransactionAsync,
-      writeContractAsync: () =>
-        writeContractAsync({
-          address: contractAddress,
-          abi: RewardABI,
-          functionName: 'buyBundle',
-          args: [bundleId, useUsdc],
-        }),
-      to: contractAddress,
+    return await writeContractAsync({
+      address: contractAddress,
       abi: RewardABI,
       functionName: 'buyBundle',
       args: [bundleId, useUsdc],
     });
-    if (hash) setLocalHash(hash as Hash);
-    return hash;
-  }, [writeContractAsync, sendTransactionAsync, contractAddress]);
+  }, [writeContractAsync, contractAddress]);
 
-  const resetAll = useCallback(() => {
-    reset();
-    setLocalHash(undefined);
-  }, [reset]);
-
-  return {
-    buyBundle,
-    isPending: isPending || isConfirming,
-    isSuccess,
-    isConfirming,
-    error: writeError,
-    txHash: effectiveHash,
-    reset: resetAll,
-  };
+  return { buyBundle, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
 /** Buy a bundle with USDC or TYC from a given payer (e.g. smart wallet). Callable by the payer or by the owner of the payer if payer is a contract with owner(). */
@@ -1737,46 +1635,19 @@ export function useRewardBuyBundleFrom() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { sendTransactionAsync } = useSendTransaction();
-  const [localHash, setLocalHash] = useState<Hash | undefined>();
-  const effectiveHash = txHash ?? localHash;
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: effectiveHash });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   const buyBundleFrom = useCallback(async (payer: Address, bundleId: bigint, useUsdc = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    setLocalHash(undefined);
-    const hash = await miniPayWriteOrFallback({
-      sendTransactionAsync,
-      writeContractAsync: () =>
-        writeContractAsync({
-          address: contractAddress,
-          abi: RewardABI,
-          functionName: 'buyBundleFrom',
-          args: [payer, bundleId, useUsdc],
-        }),
-      to: contractAddress,
+    return await writeContractAsync({
+      address: contractAddress,
       abi: RewardABI,
       functionName: 'buyBundleFrom',
       args: [payer, bundleId, useUsdc],
     });
-    if (hash) setLocalHash(hash as Hash);
-    return hash;
-  }, [writeContractAsync, sendTransactionAsync, contractAddress]);
+  }, [writeContractAsync, contractAddress]);
 
-  const resetAll = useCallback(() => {
-    reset();
-    setLocalHash(undefined);
-  }, [reset]);
-
-  return {
-    buyBundleFrom,
-    isPending: isPending || isConfirming,
-    isSuccess,
-    isConfirming,
-    error: writeError,
-    txHash: effectiveHash,
-    reset: resetAll,
-  };
+  return { buyBundleFrom, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
 /** Approve ERC20 spend from a user wallet contract (e.g. smart wallet). Callable only by the wallet owner (connected EOA). */
@@ -1803,46 +1674,27 @@ export function useUserWalletApproveERC20(walletAddress: Address | undefined) {
 export function useApprove() {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } =
     useWriteContract();
-  const { sendTransactionAsync } = useSendTransaction();
-  const [localHash, setLocalHash] = useState<Hash | undefined>();
-  const effectiveHash = txHash ?? localHash;
 
   const { isLoading: isConfirming, isSuccess } =
-    useWaitForTransactionReceipt({ hash: effectiveHash });
+    useWaitForTransactionReceipt({ hash: txHash });
 
   const approve = useCallback(
     async (
-      tokenAddress: Address,
+      contractAddress: Address,
       spender: Address,
       amount: bigint
     ) => {
-      if (!tokenAddress) throw new Error('Token address required');
-      setLocalHash(undefined);
+      if (!contractAddress) throw new Error('Reward contract not deployed');
 
-      const hash = await miniPayWriteOrFallback({
-        sendTransactionAsync,
-        writeContractAsync: () =>
-          writeContractAsync({
-            address: tokenAddress,
-            abi: Erc20Abi,
-            functionName: 'approve',
-            args: [spender, amount],
-          }),
-        to: tokenAddress,
+      return await writeContractAsync({
+        address: contractAddress,
         abi: Erc20Abi,
         functionName: 'approve',
         args: [spender, amount],
       });
-      if (hash) setLocalHash(hash as Hash);
-      return hash;
     },
-    [writeContractAsync, sendTransactionAsync]
+    [writeContractAsync]
   );
-
-  const resetAll = useCallback(() => {
-    reset();
-    setLocalHash(undefined);
-  }, [reset]);
 
   return {
     approve,
@@ -1850,8 +1702,8 @@ export function useApprove() {
     isConfirming,
     isSuccess,
     error: writeError,
-    txHash: effectiveHash,
-    reset: resetAll,
+    txHash,
+    reset,
   };
 }
 
