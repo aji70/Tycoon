@@ -1564,14 +1564,13 @@ export function useRewardBuyCollectible() {
 
   const buy = useCallback(async (tokenId: bigint, paymentToken: number | boolean = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    return writeContractWithMiniPay((extras) => {
+    return writeContractWithMiniPay(() => {
       if (typeof paymentToken === 'boolean') {
         return writeContractAsync({
           address: contractAddress,
           abi: RewardABI,
           functionName: 'buyCollectible',
           args: [tokenId, paymentToken],
-          ...extras,
         });
       }
       return writeContractAsync({
@@ -1579,7 +1578,6 @@ export function useRewardBuyCollectible() {
         abi: REWARD_BUY_COLLECTIBLE_ENUM_ABI,
         functionName: 'buyCollectible',
         args: [tokenId, paymentToken],
-        ...extras,
       });
     });
   }, [writeContractAsync, contractAddress]);
@@ -1596,14 +1594,13 @@ export function useRewardBuyCollectibleFrom() {
 
   const buyFrom = useCallback(async (payer: Address, tokenId: bigint, paymentToken: number | boolean = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    return writeContractWithMiniPay((extras) => {
+    return writeContractWithMiniPay(() => {
       if (typeof paymentToken === 'boolean') {
         return writeContractAsync({
           address: contractAddress,
           abi: RewardABI,
           functionName: 'buyCollectibleFrom',
           args: [payer, tokenId, paymentToken],
-          ...extras,
         });
       }
       return writeContractAsync({
@@ -1611,7 +1608,6 @@ export function useRewardBuyCollectibleFrom() {
         abi: REWARD_BUY_COLLECTIBLE_FROM_ENUM_ABI,
         functionName: 'buyCollectibleFrom',
         args: [payer, tokenId, paymentToken],
-        ...extras,
       });
     });
   }, [writeContractAsync, contractAddress]);
@@ -1628,13 +1624,12 @@ export function useRewardBuyBundle() {
 
   const buyBundle = useCallback(async (bundleId: bigint, useUsdc = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    return writeContractWithMiniPay((extras) =>
+    return writeContractWithMiniPay(() =>
       writeContractAsync({
         address: contractAddress,
         abi: RewardABI,
         functionName: 'buyBundle',
         args: [bundleId, useUsdc],
-        ...extras,
       })
     );
   }, [writeContractAsync, contractAddress]);
@@ -1651,13 +1646,12 @@ export function useRewardBuyBundleFrom() {
 
   const buyBundleFrom = useCallback(async (payer: Address, bundleId: bigint, useUsdc = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    return writeContractWithMiniPay((extras) =>
+    return writeContractWithMiniPay(() =>
       writeContractAsync({
         address: contractAddress,
         abi: RewardABI,
         functionName: 'buyBundleFrom',
         args: [payer, bundleId, useUsdc],
-        ...extras,
       })
     );
   }, [writeContractAsync, contractAddress]);
@@ -1701,13 +1695,12 @@ export function useApprove() {
     ) => {
       if (!tokenAddress) throw new Error('Token address required');
 
-      return writeContractWithMiniPay((extras) =>
+      return writeContractWithMiniPay(() =>
         writeContractAsync({
           address: tokenAddress,
           abi: Erc20Abi,
           functionName: 'approve',
           args: [spender, amount],
-          ...extras,
         })
       );
     },
