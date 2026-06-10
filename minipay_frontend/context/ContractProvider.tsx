@@ -25,7 +25,7 @@ import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
 import { getCeloRpcUrlForChainId, registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
 import { minipaySendTransactionAttempts } from '@/lib/celoTransportForWagmi';
 import { ensureMiniPayWalletReady, isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
-import { miniPayWriteOrFallback, MINIPAY_SHOP_BUY_GAS } from '@/lib/minipaySendContract';
+import { miniPayWriteOrFallback } from '@/lib/minipaySendContract';
 import { isUserRejectedTransaction } from '@/lib/utils/contractErrors';
 import { API_BASE_URL } from '@/lib/api';
 
@@ -1560,59 +1560,34 @@ export function useRewardBuyCollectible() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { sendTransactionAsync, isPending: sendPending, data: sendTxHash, reset: resetSend } = useSendTransaction();
-  const effectiveHash = txHash ?? sendTxHash;
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: effectiveHash });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   const buy = useCallback(async (tokenId: bigint, paymentToken: number | boolean = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
     if (typeof paymentToken === 'boolean') {
-      return miniPayWriteOrFallback({
-        sendTransactionAsync,
-        writeContractAsync: () =>
-          writeContractAsync({
-            address: contractAddress,
-            abi: RewardABI,
-            functionName: 'buyCollectible',
-            args: [tokenId, paymentToken],
-          }),
-        to: contractAddress,
+      return writeContractAsync({
+        address: contractAddress,
         abi: RewardABI,
         functionName: 'buyCollectible',
         args: [tokenId, paymentToken],
-        gas: MINIPAY_SHOP_BUY_GAS,
       });
     }
-    return miniPayWriteOrFallback({
-      sendTransactionAsync,
-      writeContractAsync: () =>
-        writeContractAsync({
-          address: contractAddress,
-          abi: REWARD_BUY_COLLECTIBLE_ENUM_ABI,
-          functionName: 'buyCollectible',
-          args: [tokenId, paymentToken],
-        }),
-      to: contractAddress,
+    return writeContractAsync({
+      address: contractAddress,
       abi: REWARD_BUY_COLLECTIBLE_ENUM_ABI,
       functionName: 'buyCollectible',
       args: [tokenId, paymentToken],
-      gas: MINIPAY_SHOP_BUY_GAS,
     });
-  }, [writeContractAsync, sendTransactionAsync, contractAddress]);
-
-  const resetAll = useCallback(() => {
-    reset();
-    resetSend();
-  }, [reset, resetSend]);
+  }, [writeContractAsync, contractAddress]);
 
   return {
     buy,
-    isPending: isPending || sendPending || isConfirming,
+    isPending: isPending || isConfirming,
     isSuccess,
     isConfirming,
     error: writeError,
-    txHash: effectiveHash,
-    reset: resetAll,
+    txHash,
+    reset,
   };
 }
 
@@ -1621,59 +1596,34 @@ export function useRewardBuyCollectibleFrom() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { sendTransactionAsync, isPending: sendPending, data: sendTxHash, reset: resetSend } = useSendTransaction();
-  const effectiveHash = txHash ?? sendTxHash;
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: effectiveHash });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   const buyFrom = useCallback(async (payer: Address, tokenId: bigint, paymentToken: number | boolean = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
     if (typeof paymentToken === 'boolean') {
-      return miniPayWriteOrFallback({
-        sendTransactionAsync,
-        writeContractAsync: () =>
-          writeContractAsync({
-            address: contractAddress,
-            abi: RewardABI,
-            functionName: 'buyCollectibleFrom',
-            args: [payer, tokenId, paymentToken],
-          }),
-        to: contractAddress,
+      return writeContractAsync({
+        address: contractAddress,
         abi: RewardABI,
         functionName: 'buyCollectibleFrom',
         args: [payer, tokenId, paymentToken],
-        gas: MINIPAY_SHOP_BUY_GAS,
       });
     }
-    return miniPayWriteOrFallback({
-      sendTransactionAsync,
-      writeContractAsync: () =>
-        writeContractAsync({
-          address: contractAddress,
-          abi: REWARD_BUY_COLLECTIBLE_FROM_ENUM_ABI,
-          functionName: 'buyCollectibleFrom',
-          args: [payer, tokenId, paymentToken],
-        }),
-      to: contractAddress,
+    return writeContractAsync({
+      address: contractAddress,
       abi: REWARD_BUY_COLLECTIBLE_FROM_ENUM_ABI,
       functionName: 'buyCollectibleFrom',
       args: [payer, tokenId, paymentToken],
-      gas: MINIPAY_SHOP_BUY_GAS,
     });
-  }, [writeContractAsync, sendTransactionAsync, contractAddress]);
-
-  const resetAll = useCallback(() => {
-    reset();
-    resetSend();
-  }, [reset, resetSend]);
+  }, [writeContractAsync, contractAddress]);
 
   return {
     buyFrom,
-    isPending: isPending || sendPending || isConfirming,
+    isPending: isPending || isConfirming,
     isSuccess,
     isConfirming,
     error: writeError,
-    txHash: effectiveHash,
-    reset: resetAll,
+    txHash,
+    reset,
   };
 }
 
@@ -1682,41 +1632,26 @@ export function useRewardBuyBundle() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { sendTransactionAsync, isPending: sendPending, data: sendTxHash, reset: resetSend } = useSendTransaction();
-  const effectiveHash = txHash ?? sendTxHash;
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: effectiveHash });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   const buyBundle = useCallback(async (bundleId: bigint, useUsdc = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    return miniPayWriteOrFallback({
-      sendTransactionAsync,
-      writeContractAsync: () =>
-        writeContractAsync({
-          address: contractAddress,
-          abi: RewardABI,
-          functionName: 'buyBundle',
-          args: [bundleId, useUsdc],
-        }),
-      to: contractAddress,
+    return writeContractAsync({
+      address: contractAddress,
       abi: RewardABI,
       functionName: 'buyBundle',
       args: [bundleId, useUsdc],
     });
-  }, [writeContractAsync, sendTransactionAsync, contractAddress]);
-
-  const resetAll = useCallback(() => {
-    reset();
-    resetSend();
-  }, [reset, resetSend]);
+  }, [writeContractAsync, contractAddress]);
 
   return {
     buyBundle,
-    isPending: isPending || sendPending || isConfirming,
+    isPending: isPending || isConfirming,
     isSuccess,
     isConfirming,
     error: writeError,
-    txHash: effectiveHash,
-    reset: resetAll,
+    txHash,
+    reset,
   };
 }
 
@@ -1725,41 +1660,26 @@ export function useRewardBuyBundleFrom() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { sendTransactionAsync, isPending: sendPending, data: sendTxHash, reset: resetSend } = useSendTransaction();
-  const effectiveHash = txHash ?? sendTxHash;
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: effectiveHash });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   const buyBundleFrom = useCallback(async (payer: Address, bundleId: bigint, useUsdc = false) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    return miniPayWriteOrFallback({
-      sendTransactionAsync,
-      writeContractAsync: () =>
-        writeContractAsync({
-          address: contractAddress,
-          abi: RewardABI,
-          functionName: 'buyBundleFrom',
-          args: [payer, bundleId, useUsdc],
-        }),
-      to: contractAddress,
+    return writeContractAsync({
+      address: contractAddress,
       abi: RewardABI,
       functionName: 'buyBundleFrom',
       args: [payer, bundleId, useUsdc],
     });
-  }, [writeContractAsync, sendTransactionAsync, contractAddress]);
-
-  const resetAll = useCallback(() => {
-    reset();
-    resetSend();
-  }, [reset, resetSend]);
+  }, [writeContractAsync, contractAddress]);
 
   return {
     buyBundleFrom,
-    isPending: isPending || sendPending || isConfirming,
+    isPending: isPending || isConfirming,
     isSuccess,
     isConfirming,
     error: writeError,
-    txHash: effectiveHash,
-    reset: resetAll,
+    txHash,
+    reset,
   };
 }
 
