@@ -102,11 +102,6 @@ function collectErrorText(error: unknown): string {
   return walkErrorChain(error).join(" ").toLowerCase();
 }
 
-/** @internal Exported for MiniPay registration fallback detection */
-export function collectErrorTextForMiniPay(error: unknown): string {
-  return collectErrorText(error);
-}
-
 function hasRejectedCode(error: unknown): boolean {
   for (const part of walkErrorChain(error)) {
     const code = String(part).trim();
@@ -210,68 +205,12 @@ export function getContractErrorMessage(
     }
   }
 
-  if (httpStatus === 401) {
-    const m =
-      e?.response?.data?.message ??
-      e?.data?.message ??
-      e?.response?.data?.error ??
-      e?.data?.error;
-    if (typeof m === "string" && m.trim()) return m.slice(0, 140);
-    return "Session expired. Sign in again from the home page.";
-  }
-
-  if (httpStatus === 403) {
-    const m = e?.response?.data?.message ?? e?.data?.message ?? e?.response?.data?.error ?? e?.data?.error;
-    if (typeof m === "string" && m.trim()) return m.slice(0, 140);
-    return "You don't have permission for this action.";
-  }
-
   if (e?.response?.status === 429) {
     return "Too many requests — please wait a moment before trying again.";
   }
 
-  // Prefer backend / viem detail before generic MiniPay buckets (avoids masking real errors).
-  const backendMsgEarly =
-    e?.response?.data?.message ?? e?.response?.data?.error ?? e?.data?.message ?? e?.data?.error;
-  if (backendMsgEarly && typeof backendMsgEarly === "string" && !httpStatus) {
-    const slice = backendMsgEarly.slice(0, 140);
-    if (!isBenignTurnOrderError({ message: slice })) return slice;
-  }
-
-  const rawShort = e?.shortMessage ?? "";
-  if (rawShort && typeof rawShort === "string" && !httpStatus) {
-    const trimmed = sanitizeContractToastMessage(rawShort).slice(0, 140);
-    if (trimmed && !isBenignTurnOrderError({ message: trimmed })) {
-      if (!isUserRejectedTransaction({ message: trimmed, shortMessage: trimmed })) {
-        return trimmed;
-      }
-    }
-  }
-
-  // Connection / wallet RPC errors (not HTTP API failures)
+  // Connection / network errors
   const msgLower = (e?.message ?? e?.shortMessage ?? "").toLowerCase();
-  const isHttpError = typeof httpStatus === "number" && httpStatus >= 400;
-
-  if (!isHttpError && msgLower.includes("invalid sender")) {
-    return "MiniPay could not send that transaction. Try again in a moment.";
-  }
-  if (
-    !isHttpError &&
-    (msgLower.includes("permission denied") ||
-      msgLower.includes("not authorized") ||
-      msgLower.includes("unauthorized"))
-  ) {
-    if (msgLower.includes("register") || msgLower.includes("not registered")) {
-      return "Complete registration on the home page, then try again.";
-    }
-    return "MiniPay blocked the transaction. Approve the wallet prompt if shown, then try again.";
-  }
-  if (
-    msgLower.includes("unknown rpc error") ||
-    msgLower.includes("an unknown rpc error occurred")
-  ) {
-    return "MiniPay could not send the transaction. Ensure you have a little USDC for gas, stay in the MiniPay app, and try again.";
-  }
   if (
     msgLower.includes("network") ||
     msgLower.includes("fetch failed") ||
