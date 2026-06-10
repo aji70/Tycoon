@@ -11,7 +11,16 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import styles from "./arena-revamp.module.css";
-import { ARENA_TIER_LADDER, type DiscoverAgent } from "./map-api-agents";
+import { ARENA_TIER_LADDER, type ArenaTierKey, type DiscoverAgent } from "./map-api-agents";
+
+const TIER_BADGE_CLASS: Record<ArenaTierKey, string> = {
+  rookie: styles.tierRookie,
+  challenger: styles.tierChallenger,
+  pro: styles.tierPro,
+  master: styles.tierMaster,
+  elite: styles.tierElite,
+  legend: styles.tierLegend,
+};
 
 export type ArenaTab = "discover" | "challenges" | "leaderboard" | "tournaments" | "my-agents";
 export type MatchType = "agentVsAi" | "agentVsAgent";
@@ -96,18 +105,32 @@ const PLAY_STEPS = [
 
 const QUICK_START_KEY = "tycoon-arena-quickstart-dismissed";
 
-function stepItemClass(stepNum: number, currentStep: number, step1Done: boolean, step2Done: boolean): string {
-  if (stepNum === 1 && step1Done) return styles.stepDone;
-  if (stepNum === 2 && step2Done) return styles.stepDone;
-  if (currentStep === stepNum) return styles.stepCurrent;
-  if (currentStep < stepNum) return styles.stepFuture;
-  return styles.stepDone;
+function playStepState(
+  stepNum: number,
+  currentStep: number,
+  step1Done: boolean,
+  step2Done: boolean
+): "done" | "active" | "locked" | "upcoming" {
+  if (stepNum === 1) {
+    if (step1Done && currentStep > 1) return "done";
+    if (currentStep === 1) return "active";
+    return "upcoming";
+  }
+  if (stepNum === 2) {
+    if (!step1Done) return "locked";
+    if (step2Done && currentStep > 2) return "done";
+    if (currentStep === 2) return "active";
+    return "upcoming";
+  }
+  if (!step2Done) return "locked";
+  if (currentStep === 3) return "active";
+  return "upcoming";
 }
 
-function stepNumContent(stepNum: number, currentStep: number, step1Done: boolean, step2Done: boolean): string {
-  const done =
-    (stepNum === 1 && step1Done) || (stepNum === 2 && step2Done) || currentStep > stepNum;
-  return done ? "✓" : String(stepNum);
+function playStepMarker(state: "done" | "active" | "locked" | "upcoming"): string {
+  if (state === "done") return "✓";
+  if (state === "active") return "●";
+  return "○";
 }
 
 export function ArenaRevampPage({
@@ -286,38 +309,52 @@ export function ArenaRevampPage({
             })}
           </div>
 
-          <div className={styles.navMeta}>
-            <p className={styles.tabDescription}>
-              <span className={styles.youAreHere}>You are here:</span> {activeTabMeta.description}
-            </p>
-            {activeTab !== "discover" ? (
+          {activeTab !== "discover" ? (
+            <div className={styles.navMeta}>
+              <p className={styles.tabDescription}>{activeTabMeta.description}</p>
               <button type="button" className={styles.goPlayBtn} onClick={() => handleTabChange("discover")}>
                 Go to New Match
                 <ChevronRight className={styles.goPlayIcon} aria-hidden />
               </button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
 
           {activeTab === "discover" ? (
-            <div className={styles.playSubNav} role="navigation" aria-label="Play steps">
-              <span className={styles.playSubNavLabel}>Jump to</span>
-              {PLAY_STEPS.map((s, i) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={
-                    currentStep > i + 1
-                      ? styles.playSubNavBtnDone
-                      : currentStep === i + 1
-                        ? styles.playSubNavBtnActive
-                        : styles.playSubNavBtn
-                  }
-                  onClick={() => scrollToPlayStep(s.id)}
-                >
-                  {currentStep > i + 1 ? "✓" : `${i + 1}.`} {s.label}
-                </button>
-              ))}
-            </div>
+            <nav className={styles.unifiedStepper} aria-label="Match setup steps">
+              {PLAY_STEPS.map((s, i) => {
+                const stepNum = i + 1;
+                const state = playStepState(stepNum, currentStep, step1Done, step2Done);
+                const stepClass =
+                  state === "done"
+                    ? styles.unifiedStepDone
+                    : state === "active"
+                      ? styles.unifiedStepActive
+                      : state === "locked"
+                        ? styles.unifiedStepLocked
+                        : styles.unifiedStepUpcoming;
+                return (
+                  <span key={s.id} className={styles.unifiedStepWrap}>
+                    {i > 0 ? (
+                      <span className={styles.unifiedStepArrow} aria-hidden>
+                        →
+                      </span>
+                    ) : null}
+                    <button
+                      type="button"
+                      className={`${styles.unifiedStepBtn} ${stepClass}`}
+                      disabled={state === "locked"}
+                      aria-current={state === "active" ? "step" : undefined}
+                      onClick={() => scrollToPlayStep(s.id)}
+                    >
+                      <span className={styles.unifiedStepMarker} aria-hidden>
+                        {playStepMarker(state)}
+                      </span>
+                      {s.label}
+                    </button>
+                  </span>
+                );
+              })}
+            </nav>
           ) : null}
         </nav>
 
@@ -429,25 +466,11 @@ function DiscoverPanel({
     onLaunch();
   };
 
-  const launchReady = hasAgent && !isLaunching;
+  const launchReady = hasAgent && !isLaunching && selectedOpponentIds.length > 0;
+  const launchDisabledNoOpponents = hasAgent && !isLaunching && selectedOpponentIds.length === 0;
 
   return (
     <>
-      <ol className={styles.stepper} aria-label="How to start a match">
-        <li className={stepItemClass(1, currentStep, step1Done, step2Done)}>
-          <span className={styles.stepNum}>{stepNumContent(1, currentStep, step1Done, step2Done)}</span>
-          <span className={styles.stepText}>Setup</span>
-        </li>
-        <li className={stepItemClass(2, currentStep, step1Done, step2Done)}>
-          <span className={styles.stepNum}>{stepNumContent(2, currentStep, step1Done, step2Done)}</span>
-          <span className={styles.stepText}>Opponents</span>
-        </li>
-        <li className={stepItemClass(3, currentStep, step1Done, step2Done)}>
-          <span className={styles.stepNum}>{stepNumContent(3, currentStep, step1Done, step2Done)}</span>
-          <span className={styles.stepText}>Start</span>
-        </li>
-      </ol>
-
       <section
         id="arena-step-1"
         className={`${styles.stepSection} ${currentStep === 1 ? styles.stepSectionHighlight : ""}`}
@@ -574,16 +597,12 @@ function DiscoverPanel({
         className={`${styles.stepSection} ${currentStep === 2 ? styles.stepSectionHighlight : ""} ${step2Shake ? styles.step2Shake : ""}`}
         aria-labelledby="step-2-heading"
       >
-        <div className={styles.stepHeadingRow}>
-          <h2 id="step-2-heading" className={styles.stepHeading}>
-            Step 2 — Choose opponents
-          </h2>
-        </div>
-        <p className={styles.selectionCount}>
-          <strong>
-            {selectedOpponentIds.length} of {maxOpponentSlots} selected
-          </strong>
-        </p>
+        <h2 id="step-2-heading" className={styles.stepHeading}>
+          Step 2 — Choose Opponents{" "}
+          <span className={styles.selectionCountInline}>
+            ({selectedOpponentIds.length} / {maxOpponentSlots} selected)
+          </span>
+        </h2>
         {opponentError ? (
           <p className={styles.opponentError} role="alert">
             {opponentError}
@@ -592,7 +611,7 @@ function DiscoverPanel({
         <p className={styles.stepIntro}>
           {matchType === "agentVsAi"
             ? "Tap Select on exactly one agent to challenge."
-            : `Select up to ${maxOpponentSlots} agents. Selected cards are highlighted.`}
+            : `Select up to ${maxOpponentSlots} agents.`}
         </p>
 
         {loading ? (
@@ -650,8 +669,9 @@ function DiscoverPanel({
           </div>
           <button
             type="button"
-            className={styles.launchBtn}
-            disabled={!launchReady}
+            className={launchReady ? styles.launchBtn : styles.launchBtnDisabled}
+            disabled={!hasAgent || isLaunching || selectedOpponentIds.length === 0}
+            title={launchDisabledNoOpponents ? "Select at least 1 opponent to start" : undefined}
             onClick={handleLaunchClick}
           >
             {isLaunching ? "Starting match…" : "Start match →"}
@@ -695,7 +715,8 @@ function TierLegendPopover() {
           <ul className={styles.tierPopoverList}>
             {ARENA_TIER_LADDER.map((tier) => (
               <li key={tier.label} className={styles.tierPopoverItem}>
-                <strong>{tier.label}</strong> — {tier.hint}
+                <span className={`${styles.tierBadge} ${TIER_BADGE_CLASS[tier.key]}`}>{tier.label}</span>
+                <span>{tier.hint}</span>
               </li>
             ))}
           </ul>
@@ -730,33 +751,38 @@ function AgentCard({
         </div>
       </div>
 
-      <dl className={styles.agentStats}>
-        <div>
-          <dt>Tier</dt>
-          <dd>
-            <span className={styles.tierChipRow}>
-              <span className={styles.tierChip}>{agent.tierLabel}</span>
-              {showTierLegend ? <TierLegendPopover /> : null}
+      <div className={styles.agentStatsGrid}>
+        <div className={styles.statCell}>
+          <span className={styles.tierBadgeRow}>
+            <span className={`${styles.tierBadge} ${TIER_BADGE_CLASS[agent.tierKey]}`}>
+              {agent.tierLabel}
             </span>
-          </dd>
+            {showTierLegend ? <TierLegendPopover /> : null}
+          </span>
         </div>
-        <div>
-          <dt>W–L</dt>
-          <dd className={styles.mono}>
+        <div className={styles.statCell}>
+          <span className={styles.statLabel}>W-L</span>
+          <span className={styles.statValue}>
             {agent.wins}–{agent.losses}
-          </dd>
+          </span>
         </div>
-        <div>
-          <dt>XP</dt>
-          <dd className={styles.mono}>{agent.xp.toLocaleString()}</dd>
+        <div className={styles.statCell}>
+          <span className={styles.statLabel}>XP</span>
+          <span className={`${styles.statValue} ${styles.mono}`}>{agent.xp.toLocaleString()}</span>
         </div>
-        <div>
-          <dt>Win rate</dt>
-          <dd className={styles.mono}>
-            {wr != null ? `${Number.isInteger(wr) ? wr : wr.toFixed(1)}%` : noMatches ? "No matches yet" : "—"}
-          </dd>
+        <div className={styles.statCell}>
+          <span className={styles.statLabel}>Win rate</span>
+          <span className={styles.statValue}>
+            {wr != null ? (
+              `${Number.isInteger(wr) ? wr : wr.toFixed(1)}%`
+            ) : noMatches ? (
+              <span className={styles.statEmpty}>No matches yet</span>
+            ) : (
+              "—"
+            )}
+          </span>
         </div>
-      </dl>
+      </div>
 
       {agent.erc8004 ? <span className={styles.ercTag}>On-chain identity</span> : null}
 
@@ -767,7 +793,7 @@ function AgentCard({
         disabled={maxReached}
         aria-pressed={selected}
       >
-        {selected ? "Selected ✓" : maxReached ? "Max selected" : "Select opponent"}
+        {selected ? "✓ Selected" : maxReached ? "Max selected" : "Select opponent"}
       </button>
     </article>
   );
