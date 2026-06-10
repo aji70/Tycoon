@@ -224,7 +224,10 @@ export function getContractErrorMessage(
     msgLower.includes("not authorized") ||
     msgLower.includes("unauthorized")
   ) {
-    return "MiniPay could not sign from your wallet. Tap Continue again to finish registration.";
+    if (msgLower.includes("register") || msgLower.includes("not registered")) {
+      return "Complete registration on the home page, then try again.";
+    }
+    return "MiniPay could not authorize this transaction. Stay in the MiniPay app, approve the wallet prompt if shown, then try again.";
   }
   if (
     msgLower.includes("unknown rpc error") ||
