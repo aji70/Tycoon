@@ -211,6 +211,10 @@ export function getContractErrorMessage(
 
   // Connection / network errors
   const msgLower = (e?.message ?? e?.shortMessage ?? "").toLowerCase();
+  const rpcHay = collectErrorText(error);
+  if (rpcHay.includes("unknownrpcerror") || rpcHay.includes("unknown rpc error")) {
+    return "MiniPay could not send the transaction. Keep a little USDT or cUSD for gas, approve the wallet prompt, and try again.";
+  }
   if (
     msgLower.includes("network") ||
     msgLower.includes("fetch failed") ||
