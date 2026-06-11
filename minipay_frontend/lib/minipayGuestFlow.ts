@@ -45,20 +45,39 @@ function isInjectedConnector(connector: { id?: string; type?: string } | undefin
   return connector.id === 'injected' || connector.type === 'injected';
 }
 
+type WagmiConnectorLike = {
+  getProvider?: () => Promise<unknown>;
+};
+
+async function providerFromConnector(
+  connector: WagmiConnectorLike | undefined,
+): Promise<MiniPayEthereumProvider | null> {
+  if (!connector?.getProvider) return null;
+  const provider = (await connector.getProvider()) as MiniPayEthereumProvider | undefined;
+  if (provider?.request) return provider;
+  return null;
+}
+
 /**
  * Same provider wagmi's injected connector uses — authorize and send must share this object.
+ * Note: injected() is a factory; call injected()(config) to get a connector with getProvider.
  */
 export async function getInjectedEthereumProvider(): Promise<MiniPayEthereumProvider> {
   if (typeof window === 'undefined') {
     throw new Error('Open Tycoon inside the MiniPay app.');
   }
 
-  const connector = injected();
-  const provider = (await connector.getProvider()) as MiniPayEthereumProvider | undefined;
-  if (provider?.request) return provider;
+  const config = getWagmiConfig();
+  const account = getAccount(config);
 
-  const eth = (window as Window & { ethereum?: MiniPayEthereumProvider }).ethereum;
-  if (eth?.request) return eth;
+  const fromConnected = await providerFromConnector(account.connector);
+  if (fromConnected) return fromConnected;
+
+  const fromInjected = await providerFromConnector(injected()(config));
+  if (fromInjected) return fromInjected;
+
+  const fromWindow = getMiniPayEthereumProvider();
+  if (fromWindow) return fromWindow;
 
   throw new Error('Open Tycoon inside the MiniPay app.');
 }
