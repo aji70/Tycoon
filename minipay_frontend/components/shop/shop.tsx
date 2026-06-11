@@ -36,6 +36,17 @@ import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import { shopPerkRow } from '@/lib/shopPerkRow';
 import { isShopPerkHidden } from '@/lib/perkShopAssets';
 import { useMiniPayShop, isMiniPayBrowser } from '@/hooks/useMiniPayShop';
+import { encodeFunctionData } from 'viem';
+
+const BUY_COLLECTIBLE_ABI = [
+  {
+    type: 'function',
+    name: 'buyCollectible',
+    stateMutability: 'nonpayable',
+    inputs: [{ type: 'uint256' }, { type: 'uint8' }],
+    outputs: [],
+  },
+] as const;
 
 import {
   useRewardBuyCollectible,
@@ -413,13 +424,30 @@ export default function GameShop() {
       return;
     }
     try {
-      // For MiniPay: use raw transaction for approval (avoids viem's EIP-1559 gas estimation)
+      // For MiniPay: use custom viem client (avoids wagmi's EIP-1559 issues)
       if (isMiniPayBrowser()) {
         toast.info('Approving...');
         await miniPayShop.sendRawApproval(paymentTokenAddress, contractAddress, price);
         toast.success('Approval successful, completing purchase...');
+
+        toast.info('Processing purchase...');
+        // Encode the buyCollectible call
+        const buyData = encodeFunctionData({
+          abi: BUY_COLLECTIBLE_ABI,
+          functionName: 'buyCollectible',
+          args: [item.tokenId, BigInt(paymentToken)],
+        });
+
+        // Call the contract directly using viem's wallet client
+        await miniPayShop.sendContractCall(contractAddress, buyData, paymentTokenAddress);
+
+        // Refetch balances
+        refetchUsdc();
+        refetchCusdc();
+        refetchUsdt();
+        toast.success('Purchase successful!');
       } else {
-        // For non-MiniPay: use normal wagmi approval flow
+        // For non-MiniPay: use normal wagmi approval + buy flow
         if (stableAllowance === undefined || stableAllowance === null) {
           toast.info('Approval required');
           await approve(paymentTokenAddress, contractAddress, price);
@@ -429,9 +457,8 @@ export default function GameShop() {
           await approve(paymentTokenAddress, contractAddress, price);
           toast.success('Approval successful, completing purchase...');
         }
+        await buy(item.tokenId, paymentToken);
       }
-      // Call buy for both MiniPay and non-MiniPay (wagmi will use approved allowance)
-      await buy(item.tokenId, paymentToken);
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Purchase failed');
       resetShopWrites();
