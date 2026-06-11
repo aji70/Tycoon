@@ -438,8 +438,8 @@ export default function GameShop() {
           args: [item.tokenId, BigInt(paymentToken)],
         });
 
-        // Call the contract directly using viem's wallet client
-        await miniPayShop.sendContractCall(contractAddress, buyData, paymentTokenAddress);
+        // Use raw eth_sendTransaction for buy call (legacy tx, no gas estimation)
+        await miniPayShop.sendContractCallRaw(contractAddress, buyData);
 
         // Refetch balances
         refetchUsdc();

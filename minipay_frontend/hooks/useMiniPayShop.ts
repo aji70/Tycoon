@@ -84,11 +84,10 @@ export function useMiniPayShop() {
     [address, publicClient]
   )
 
-  const sendContractCall = useCallback(
+  const sendContractCallRaw = useCallback(
     async (
       contractAddress: Address,
-      functionData: string, // Pre-encoded function call from encodeFunctionData
-      feeCurrency?: Address
+      functionData: string // Pre-encoded function call
     ): Promise<string> => {
       if (!address || isPayingRef.current) throw new Error('Not ready to pay')
       isPayingRef.current = true
@@ -96,16 +95,20 @@ export function useMiniPayShop() {
       setError(null)
 
       try {
-        const walletClient = createWalletClient({
-          chain: celo,
-          transport: custom(window.ethereum!),
+        // Use raw eth_sendTransaction like your friend's solution
+        // This bypasses viem entirely and uses legacy transaction format
+        const accounts: string[] = await (window.ethereum as any).request({
+          method: 'eth_accounts',
         })
 
-        const txHash = await walletClient.sendTransaction({
-          account: address,
-          to: contractAddress,
-          data: functionData as `0x${string}`,
-          feeCurrency, // Pass fee currency for MiniPay fee abstraction
+        const txHash = await (window.ethereum as any).request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: accounts[0],
+            to: contractAddress,
+            data: functionData,
+            gas: '0x493E0', // 300,000 gas — sufficient for contract calls
+          }],
         })
 
         if (!txHash) throw new Error('Contract call failed')
@@ -134,6 +137,6 @@ export function useMiniPayShop() {
     isPaying,
     error,
     sendRawApproval,
-    sendContractCall,
+    sendContractCallRaw,
   }
 }
