@@ -1,3 +1,5 @@
+import { getInjectedEthereumProvider } from "@/lib/utils/erc8004InjectedEoa";
+
 const ZERO = "0x0000000000000000000000000000000000000000";
 
 function isValidUserWalletAddress(a: string | null | undefined): a is string {
@@ -31,8 +33,24 @@ export function getGuestUserPlayAddress(guestUser: {
 /** True when running inside Celo MiniPay (injected provider). */
 export function isMiniPayEmbeddedWallet(): boolean {
   if (typeof window === "undefined") return false;
-  const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
-  return Boolean(eth?.isMiniPay);
+
+  const eth = (window as Window & { ethereum?: { isMiniPay?: boolean; providers?: { isMiniPay?: boolean }[] } })
+    .ethereum;
+  if (eth?.isMiniPay) return true;
+
+  const providers = eth?.providers;
+  if (Array.isArray(providers) && providers.some((p) => p?.isMiniPay)) return true;
+
+  const injected = getInjectedEthereumProvider();
+  return Boolean((injected as { isMiniPay?: boolean } | null)?.isMiniPay);
+}
+
+/**
+ * MiniPay Mini App: never route writes through wagmi/viem prepareTransactionRequest.
+ * True when the injected provider is MiniPay (flag on root or in providers[]).
+ */
+export function shouldBypassViemForTx(): boolean {
+  return isMiniPayEmbeddedWallet();
 }
 
 type EthereumRequestProvider = {
@@ -40,16 +58,17 @@ type EthereumRequestProvider = {
 };
 
 /**
- * MiniPay docs: auto-connect on load; call eth_requestAccounts before sending txs
- * so the provider authorizes the active account (avoids EIP-1193 4100 "permission denied").
- * Use the returned accounts for `from` — eth_accounts alone may be empty or unauthorized.
+ * Authorize MiniPay account before eth_sendTransaction (avoids EIP-1193 4100).
+ * Always use eth_requestAccounts — never eth_accounts alone.
  * @see https://docs.minipay.xyz/getting-started/wallet-connection.html
  */
 export async function ensureMiniPayWalletReady(): Promise<readonly string[]> {
-  if (!isMiniPayEmbeddedWallet()) return [];
-  const eth = (window as Window & { ethereum?: EthereumRequestProvider }).ethereum;
+  const eth = getInjectedEthereumProvider() as EthereumRequestProvider | null;
   if (!eth?.request) {
-    throw new Error("Open Tycoon inside the MiniPay app.");
+    if (shouldBypassViemForTx()) {
+      throw new Error("Open Tycoon inside the MiniPay app.");
+    }
+    return [];
   }
 
   let accounts = (await eth.request({ method: "eth_requestAccounts" })) as string[];
@@ -60,7 +79,7 @@ export async function ensureMiniPayWalletReady(): Promise<readonly string[]> {
       await connectMiniPayWallet();
       accounts = (await eth.request({ method: "eth_requestAccounts" })) as string[];
     } catch {
-      // fall through to error below
+      // fall through
     }
   }
 

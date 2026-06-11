@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useAccount, useChainId, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, useBalance } from "wagmi";
+import { useAccount, useChainId, useReadContract, useReadContracts, useBalance } from "wagmi";
 import { formatUnits, type Address, type Abi, erc20Abi } from "viem";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -16,7 +16,7 @@ import { useFocusTrap } from "@/hooks/useFocusTrap";
 import RewardABI from "@/context/abi/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 import { Game, GameProperty } from "@/types/game";
-import { useRewardBurnCollectible } from "@/context/ContractProvider";
+import { useApprove, useRewardBuyCollectible, useRewardBurnCollectible } from "@/context/ContractProvider";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import {
@@ -113,11 +113,19 @@ export default function CollectibleInventoryBar({
   const selectedToken = usdcToken;
   const selectedDecimals = 6;
 
-  const { writeContract: writeBuy, data: buyHash, isPending: buyingPending } = useWriteContract();
-  const { writeContract: writeApprove, data: approveHash, isPending: approving } = useWriteContract();
-
-  const { isLoading: confirmingBuy } = useWaitForTransactionReceipt({ hash: buyHash });
-  const { isLoading: confirmingApprove, isSuccess: approveSuccess } = useWaitForTransactionReceipt({ hash: approveHash });
+  const {
+    buy,
+    isPending: buyingPending,
+    isConfirming: confirmingBuy,
+    isSuccess: buySuccess,
+    reset: resetBuy,
+  } = useRewardBuyCollectible();
+  const {
+    approve,
+    isPending: approving,
+    isConfirming: confirmingApprove,
+    reset: resetApprove,
+  } = useApprove();
 
   const { data: usdcBal } = useBalance({ address, token: usdcToken });
 
@@ -320,7 +328,7 @@ export default function CollectibleInventoryBar({
 
   // === BUY & APPROVE LOGIC ===
   const handleBuy = async (item: typeof shopItems[number]) => {
-    if (!contractAddress || !address) {
+    if (!contractAddress || !address || !selectedToken) {
       toast.error("Wallet not connected");
       return;
     }
@@ -328,44 +336,39 @@ export default function CollectibleInventoryBar({
     const priceStr = useUsdc ? item.usdcPrice : item.tycPrice;
     const priceBig = BigInt(Math.round(parseFloat(priceStr) * 10 ** selectedDecimals));
 
-    if (currentAllowance < priceBig) {
-      setApprovingId(item.tokenId);
-      toast.loading("Approving USDT...", { id: "approve" });
-      writeApprove({
-        address: selectedToken!,
-        abi: erc20Abi,
-        functionName: "approve",
-        args: [contractAddress, priceBig],
-      });
-      return;
-    }
+    try {
+      if (currentAllowance < priceBig) {
+        setApprovingId(item.tokenId);
+        toast.loading("Approving USDT...", { id: "approve" });
+        await approve(selectedToken, contractAddress, priceBig);
+        toast.dismiss("approve");
+        toast.success("Approved! Completing purchase...");
+        resetApprove();
+      }
 
-    setBuyingId(item.tokenId);
-    toast.loading("Purchasing...", { id: "buy" });
-    writeBuy({
-      address: contractAddress,
-      abi: RewardABI,
-      functionName: "buyCollectible",
-      args: [item.tokenId, useUsdc],
-    });
+      setBuyingId(item.tokenId);
+      toast.loading("Purchasing...", { id: "buy" });
+      await buy(item.tokenId, 3);
+      toast.dismiss("buy");
+      toast.success("Purchase complete! 🎉");
+      setBuyingId(null);
+      resetBuy();
+    } catch (err: unknown) {
+      toast.dismiss("approve");
+      toast.dismiss("buy");
+      const msg = err instanceof Error ? err.message : "Transaction failed";
+      toast.error(msg);
+      setApprovingId(null);
+      setBuyingId(null);
+    }
   };
 
   useEffect(() => {
-    if (approveSuccess && approvingId !== null) {
-      toast.dismiss("approve");
-      toast.success("Approved! Completing purchase...");
-      const item = shopItems.find(i => i.tokenId === approvingId);
-      if (item) handleBuy(item);
-      setApprovingId(null);
-    }
-  }, [approveSuccess, approvingId, shopItems]);
-
-  useEffect(() => {
-    if (buyHash && !buyingPending && !confirmingBuy) {
-      toast.success("Purchase complete! 🎉");
+    if (buySuccess && buyingId !== null) {
       setBuyingId(null);
+      resetBuy();
     }
-  }, [buyHash, buyingPending, confirmingBuy]);
+  }, [buySuccess, buyingId, resetBuy]);
 
   // === PERK ACTIVATION ===
   const handleUsePerk = (

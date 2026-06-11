@@ -432,8 +432,8 @@ export function useCreateGame(
   const write = useCallback(async () => {
     if (!contractAddress) throw new Error('Contract not deployed');
 
-    return writeContractAsync({
-      address: contractAddress,
+    return sendMinipayAwareContractTx({
+      to: contractAddress,
       abi: TycoonABI,
       functionName: 'createGame',
       args: [
@@ -445,6 +445,7 @@ export function useCreateGame(
         startingCash,
         stake,
       ],
+      writeContractAsync,
     });
   }, [
     writeContractAsync,
@@ -496,8 +497,8 @@ export function useCreateAIGame(
     const username = (usernameOverride ?? creatorUsername).trim();
     if (!username) throw new Error('Username required (contract: validateUsername reverts "Username empty")');
 
-    return writeContractAsync({
-      address: contractAddress,
+    return sendMinipayAwareContractTx({
+      to: contractAddress,
       abi: TycoonABI,
       functionName: 'createAIGame',
       args: [
@@ -508,6 +509,7 @@ export function useCreateAIGame(
         code,
         startingCash,
       ],
+      writeContractAsync,
     });
   }, [
     writeContractAsync,
@@ -581,13 +583,13 @@ export function useJoinGame(gameId: bigint, username: string, playerSymbol: stri
 
   const write = useCallback(async () => {
     if (!contractAddress) throw new Error('Contract not deployed');
-    const hash = await writeContractAsync({
-      address: contractAddress,
+    return sendMinipayAwareContractTx({
+      to: contractAddress,
       abi: TycoonABI,
       functionName: 'joinGame',
       args: [gameId, username, playerSymbol, code],
+      writeContractAsync,
     });
-    return hash;
   }, [writeContractAsync, contractAddress, gameId, username, playerSymbol, code]);
 
   return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
@@ -2247,14 +2249,15 @@ export const TycoonProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   }, [writeContractAsync, chainId]);
 
-  const buyCollectible = useCallback(async (tokenId: bigint, useUsdc = false) => {
+  const buyCollectible = useCallback(async (tokenId: bigint, paymentToken = 3) => {
     const addr = REWARD_CONTRACT_ADDRESSES[chainId];
     if (!addr) throw new Error('Reward contract not deployed');
-    return await writeContractAsync({
-      address: addr,
-      abi: RewardABI,
+    return sendMinipayAwareContractTx({
+      to: addr,
+      abi: REWARD_BUY_COLLECTIBLE_ENUM_ABI,
       functionName: 'buyCollectible',
-      args: [tokenId, useUsdc],
+      args: [tokenId, paymentToken],
+      writeContractAsync,
     });
   }, [writeContractAsync, chainId]);
 
