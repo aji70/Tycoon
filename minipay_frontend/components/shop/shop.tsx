@@ -413,11 +413,13 @@ export default function GameShop() {
       return;
     }
     try {
-      // For MiniPay: skip approval, try buy directly
+      // For MiniPay: use raw transaction for approval (avoids viem's EIP-1559 gas estimation)
       if (isMiniPayBrowser()) {
-        await buy(item.tokenId, paymentToken);
+        toast.info('Approving...');
+        await miniPayShop.sendRawApproval(paymentTokenAddress, contractAddress, price);
+        toast.success('Approval successful, completing purchase...');
       } else {
-        // For non-MiniPay: use normal approval flow
+        // For non-MiniPay: use normal wagmi approval flow
         if (stableAllowance === undefined || stableAllowance === null) {
           toast.info('Approval required');
           await approve(paymentTokenAddress, contractAddress, price);
@@ -427,8 +429,9 @@ export default function GameShop() {
           await approve(paymentTokenAddress, contractAddress, price);
           toast.success('Approval successful, completing purchase...');
         }
-        await buy(item.tokenId, paymentToken);
       }
+      // Call buy for both MiniPay and non-MiniPay (wagmi will use approved allowance)
+      await buy(item.tokenId, paymentToken);
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Purchase failed');
       resetShopWrites();
