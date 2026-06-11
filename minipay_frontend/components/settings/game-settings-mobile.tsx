@@ -26,7 +26,7 @@ import {
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
-import { shouldUseBackendGuestGameFlow, getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import { shouldUseBackendGuestGameFlow, ensureMiniPayWalletReady } from "@/lib/minipayGuestFlow";
 import { Address, parseUnits } from "viem";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
@@ -162,6 +162,15 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
     setCreateError(null);
     const toastId = toast.loading("Creating game...");
 
+    try {
+      await ensureMiniPayWalletReady();
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message ?? "Connect your wallet in MiniPay, then try again.";
+      toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 8000 });
+      setIsStarting(false);
+      return;
+    }
+
     if (isGuest) {
       try {
         toast.update(toastId, { render: "Creating game (guest)..." });
@@ -206,11 +215,13 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
       return;
     }
 
-    const playAddress =
-      address ?? getGuestUserPlayAddress(guestAuth?.guestUser ?? null) ?? undefined;
-
-    if (!playAddress || !username || !isUserRegistered) {
-      toast.update(toastId, { render: "Connect wallet and register first", type: "error", isLoading: false });
+    if (!address || !username || !isUserRegistered) {
+      toast.update(toastId, {
+        render: "Connect your wallet and complete on-chain registration on the home page, then try again.",
+        type: "error",
+        isLoading: false,
+        autoClose: 8000,
+      });
       setIsStarting(false);
       return;
     }
@@ -240,7 +251,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
         }
       }
 
-      toast.update(toastId, { render: "Creating game on-chain..." });
+      toast.update(toastId, { render: "Creating game on-chain (sign in wallet)..." });
       const txHash = await createGame();
       if (!txHash) throw new Error("Failed to create game on-chain");
 
@@ -249,7 +260,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
       const saveRes = await apiClient.post<GameCreateResponse>("/games", {
         code: gameCode,
         mode: gameType,
-        address: playAddress,
+        address,
         symbol: settings.symbol,
         number_of_players: settings.maxPlayers,
         stake: finalStake,

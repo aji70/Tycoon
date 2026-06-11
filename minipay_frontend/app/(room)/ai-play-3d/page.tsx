@@ -30,7 +30,7 @@ export default function AiPlay3DPage() {
   const { address } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
-  const isGuest = !!guestUser;
+  const isGuest = !!(guestUser && !address);
   const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
 
   useEffect(() => {

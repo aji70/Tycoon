@@ -17,7 +17,7 @@ import {
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { TYCOON_CONTRACT_ADDRESSES, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
-import { shouldUseBackendGuestGameFlow } from "@/lib/minipayGuestFlow";
+import { shouldUseBackendGuestGameFlow, ensureMiniPayWalletReady } from "@/lib/minipayGuestFlow";
 import type { Address } from "viem";
 
 export const AI_ADDRESSES = [
@@ -120,6 +120,14 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
       `Summoning ${settings.aiCount} AI opponent${settings.aiCount > 1 ? "s" : ""}...`
     );
 
+    try {
+      await ensureMiniPayWalletReady();
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message ?? "Connect your wallet in MiniPay, then try again.";
+      toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 8000 });
+      return;
+    }
+
     if (isGuest) {
       try {
         toast.update(toastId, { render: "Creating AI game (guest)..." });
@@ -183,13 +191,11 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
       return;
     }
     if (registeredNow !== true) {
-      // Try backend "register on-chain" (no wallet signature; backend signs as game controller)
       try {
         toast.update(toastId, { render: "Registering you on-chain (one moment)…", isLoading: true });
-        const chainParam = chainName;
         const res = await apiClient.post<{ success?: boolean; alreadyRegistered?: boolean; message?: string }>(
           "/auth/register-on-chain",
-          { chain: chainParam }
+          { chain: chainName }
         );
         const data = res?.data as { success?: boolean; alreadyRegistered?: boolean; message?: string } | undefined;
         if (data?.success) {
@@ -230,47 +236,9 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
     }
 
     try {
-      toast.update(toastId, { render: "Creating AI game..." });
-      let onChainGameId: string | number | undefined;
-      let usedBackendFallback = false;
-
-      try {
-        onChainGameId = await createAiGame(usernameNow);
-        if (!onChainGameId) throw new Error("Failed to create game on-chain");
-      } catch (onChainErr: any) {
-        const isNoGas =
-          onChainErr?.message?.toLowerCase().includes("insufficient") ||
-          onChainErr?.shortMessage?.toLowerCase().includes("insufficient");
-        if (!isNoGas) throw onChainErr;
-
-        // No gas — use backend-sponsored flow
-        toast.update(toastId, { render: "No gas detected. Creating via backend..." });
-        const fallbackRes = await apiClient.post<any>("/games/create-ai-as-guest", {
-          address,
-          code: gameCode,
-          symbol: settings.symbol,
-          number_of_players: totalPlayers,
-          is_minipay: isMiniPay,
-          chain: chainName,
-          duration: settings.duration,
-          board_id: settings.boardVariantId,
-          ai_difficulty: settings.aiDifficulty,
-          ai_difficulty_mode: settings.aiDifficultyMode,
-          settings: {
-            auction: settings.auction,
-            rent_in_prison: settings.rentInPrison,
-            mortgage: settings.mortgage,
-            even_build: settings.evenBuild,
-            starting_cash: settings.startingCash,
-          },
-        });
-        const fallbackData = (fallbackRes as any)?.data;
-        const fallbackId = fallbackData?.data?.id ?? fallbackData?.id;
-        if (!fallbackId) throw new Error("Backend did not return game ID");
-        toast.update(toastId, { render: "Battle begins! Good luck, Tycoon!", type: "success", isLoading: false, autoClose: 5000 });
-        router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/board-3d-mobile?gameCode=${gameCode}`);
-        return;
-      }
+      toast.update(toastId, { render: "Creating AI game (sign in wallet)..." });
+      const onChainGameId = await createAiGame(usernameNow);
+      if (!onChainGameId) throw new Error("Failed to create game on-chain");
 
       toast.update(toastId, { render: "Saving game to server..." });
 

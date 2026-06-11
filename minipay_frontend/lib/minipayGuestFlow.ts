@@ -1,5 +1,3 @@
-import { MINIPAY_CHAIN_IDS } from "@/constants/contracts";
-
 const ZERO = "0x0000000000000000000000000000000000000000";
 
 function isValidUserWalletAddress(a: string | null | undefined): a is string {
@@ -56,10 +54,9 @@ export async function ensureMiniPayWalletReady(): Promise<void> {
 }
 
 /**
- * Use backend-signed guest create/join when:
- * - JWT guest with no wagmi address, or
- * - MiniPay (embedded wallet or Celo mainnet id 42220) while the injected address is not the account play address
- *   (linked / smart / primary), so the user should not pay gas from the local MiniPay wallet for Tycoon contract txs.
+ * Use backend-signed guest create/join only when there is no connected wallet
+ * and the user is not in the MiniPay app (MiniPay always has an injected wallet).
+ * When a wallet is connected, create/join always goes on-chain (user signs).
  */
 export function shouldUseBackendGuestGameFlow(
   guestUser: {
@@ -68,13 +65,9 @@ export function shouldUseBackendGuestGameFlow(
     address?: string;
   } | null | undefined,
   wagmiAddress: string | undefined,
-  wagmiChainId: number
+  _wagmiChainId: number
 ): boolean {
-  if (!guestUser) return false;
-  if (!wagmiAddress) return true;
-  const inMiniPay = isMiniPayEmbeddedWallet() || MINIPAY_CHAIN_IDS.includes(wagmiChainId);
-  if (!inMiniPay) return false;
-  const play = getGuestUserPlayAddress(guestUser);
-  if (!play) return true;
-  return play.toLowerCase() !== wagmiAddress.toLowerCase();
+  if (wagmiAddress) return false;
+  if (isMiniPayEmbeddedWallet()) return false;
+  return !!guestUser;
 }

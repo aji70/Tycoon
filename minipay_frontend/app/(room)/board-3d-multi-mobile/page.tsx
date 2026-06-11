@@ -192,7 +192,7 @@ function Board3DMobilePageContent() {
   const { address } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
-  const isGuest = !!guestUser;
+  const isGuest = !!(guestUser && !address);
 
   const { data: game, isLoading: gameLoading, isError: gameError, error: gameQueryError, refetch: refetchGame } = useQuery<Game>({
     queryKey: ["game", gameCode ?? ""],

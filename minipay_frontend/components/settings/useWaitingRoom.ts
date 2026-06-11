@@ -20,7 +20,11 @@ import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { socketService } from "@/lib/socket";
-import { shouldUseBackendGuestGameFlow, getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import {
+  shouldUseBackendGuestGameFlow,
+  getGuestUserPlayAddress,
+  ensureMiniPayWalletReady,
+} from "@/lib/minipayGuestFlow";
 
 const POLL_INTERVAL = 2000;
 const SOCKET_URL =
@@ -438,7 +442,18 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     setError(null);
     const toastId = toast.loading("Joining the game...");
 
-    // Backend guest join: no wallet, or MiniPay local address ≠ account play address (backend pays contract gas)
+    try {
+      await ensureMiniPayWalletReady();
+    } catch (err: unknown) {
+      const message = (err as Error)?.message ?? "Connect your wallet in MiniPay, then try again.";
+      setError(message);
+      toast.update(toastId, { render: message, type: "error", isLoading: false, autoClose: 8000 });
+      actionGuardRef.current = false;
+      setActionLoading(false);
+      return;
+    }
+
+    // Backend guest join: JWT guest with no connected wallet (not in MiniPay)
     if (guestUser && backendGuestGameFlow) {
       if (stakePerPlayer > BigInt(0) && !address) {
         setError("Guests cannot join staked games. Connect a wallet to join this game.");
@@ -525,28 +540,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
       }
 
       toast.update(toastId, { render: "Joining game on-chain (sign in wallet)..." });
-      let hash: any;
-      try {
-        hash = await joinGame();
-      } catch (onChainErr: any) {
-        const isNoGas =
-          onChainErr?.message?.toLowerCase().includes("insufficient") ||
-          onChainErr?.shortMessage?.toLowerCase().includes("insufficient");
-        if (!isNoGas) throw onChainErr;
-
-        // No gas — fall back to backend-sponsored join
-        toast.update(toastId, { render: "No gas detected. Joining via backend..." });
-        await apiClient.post("/games/join-as-guest", {
-          address,
-          code: game.code,
-          symbol: playerSymbol.value,
-          joinCode: game.code,
-        });
-        if (mountedRef.current) { setIsJoined(true); setError(null); }
-        actionGuardRef.current = false;
-        setActionLoading(false);
-        return;
-      }
+      const hash = await joinGame();
 
       if (hash && publicClient) {
         toast.update(toastId, { render: "Waiting for confirmation..." });
