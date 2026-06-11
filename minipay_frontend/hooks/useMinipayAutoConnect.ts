@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { connect as wagmiConnect, disconnect, getAccount } from "@wagmi/core";
+import { injected } from "wagmi/connectors";
 import { useAccount, useConnect, useConnectors } from "wagmi";
-import { authorizeMiniPayWallet, isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
+import { getWagmiConfig } from "@/config";
+import {
+  authorizeMiniPayWallet,
+  ensureInjectedMiniPayConnection,
+  isMiniPayEmbeddedWallet,
+} from "@/lib/minipayGuestFlow";
 
 /**
  * MiniPay requires auto-connect on page load — never rely on a manual connect button.
@@ -11,11 +18,29 @@ import { authorizeMiniPayWallet, isMiniPayEmbeddedWallet } from "@/lib/minipayGu
  */
 export function useMinipayAutoConnect(): void {
   const connectors = useConnectors();
-  const { address, isConnecting } = useAccount();
+  const { address, isConnecting, connector } = useAccount();
   const { connect } = useConnect();
   const [hasAttempted, setHasAttempted] = useState(false);
 
-  // Authorize MiniPay provider on load so eth_accounts is populated before any payment.
+  // Drop persisted WalletConnect sessions — they cause permission denied on raw sends.
+  useEffect(() => {
+    if (!isMiniPayEmbeddedWallet()) return;
+
+    const config = getWagmiConfig();
+    const account = getAccount(config);
+    if (account.isConnected && account.connector?.id !== "injected") {
+      void (async () => {
+        try {
+          await disconnect(config);
+          await wagmiConnect(config, { connector: injected() });
+          await authorizeMiniPayWallet();
+        } catch (err) {
+          console.warn("MiniPay connector switch:", err);
+        }
+      })();
+    }
+  }, [connector?.id]);
+
   useEffect(() => {
     if (!isMiniPayEmbeddedWallet()) return;
     void authorizeMiniPayWallet().catch((err) => {
@@ -29,20 +54,18 @@ export function useMinipayAutoConnect(): void {
 
     const attemptConnect = async () => {
       try {
-        const injected =
+        if (isMiniPayEmbeddedWallet()) {
+          await ensureInjectedMiniPayConnection();
+          await authorizeMiniPayWallet();
+          return;
+        }
+
+        const injectedConnector =
           connectors.find((c) => c.id === "injected") ??
           connectors.find((c) => c.type === "injected") ??
           connectors.find((c) => c.name?.toLowerCase().includes("injected"));
 
-        // In MiniPay never auto-connect WalletConnect — it causes "unknown RPC error" on writes.
-        const connector =
-          isMiniPayEmbeddedWallet() && injected ? injected : injected ?? connectors[0];
-
-        await connect({ connector });
-        // Authorize session once so payment sends can use eth_accounts (friend's revive pattern).
-        if (isMiniPayEmbeddedWallet()) {
-          await authorizeMiniPayWallet();
-        }
+        await connect({ connector: injectedConnector ?? connectors[0] });
       } catch (err) {
         console.error("MiniPay auto-connect failed:", err);
       } finally {
