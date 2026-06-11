@@ -1,8 +1,43 @@
 // components/AppKitProviderWrapper.tsx
 'use client';
 
+import { wagmiAdapter, projectId, defaultNetwork } from '@/config';
 import { ReactNode, useEffect } from 'react';
-import { scheduleLazyAppKitInit } from '@/lib/lazyAppKit';
+import { createAppKit } from '@reown/appkit/react';
+
+/** Canonical app origin for wallet metadata (Reown). Set `NEXT_PUBLIC_URL` on Vercel to your canonical origin (www vs apex). */
+const siteUrl = (() => {
+  const fromEnv = process.env.NEXT_PUBLIC_URL || process.env.NEXT_PUBLIC_SITE_URL;
+  if (fromEnv?.trim()) return fromEnv.replace(/\/$/, '');
+  if (process.env.NODE_ENV === 'development') return 'http://localhost:3000';
+  return 'https://www.playtycoon.xyz';
+})();
+
+let isInitialized = false;
+
+function ensureAppKitInitialized() {
+  if (isInitialized || typeof window === 'undefined') return;
+  createAppKit({
+    adapters: [wagmiAdapter],
+    networks: [defaultNetwork],
+    projectId,
+    defaultNetwork,
+    themeVariables: {
+      '--w3m-z-index': 10000,
+      '--w3m-font-family': 'inherit',
+    },
+    metadata: {
+      name: 'Tycoon',
+      description: 'Play Monopoly onchain',
+      url: siteUrl,
+      icons: [`${siteUrl}/logo.png`],
+    },
+    features: {
+      analytics: false,
+    },
+  });
+  isInitialized = true;
+}
 
 /** Reown injects #wcm-modal without aria-label; set one for screen readers / Lighthouse. */
 function useWcmModalAccessibleName() {
@@ -27,11 +62,8 @@ export default function AppKitProviderWrapper({
 }: {
   children: ReactNode;
 }) {
+  ensureAppKitInitialized();
   useWcmModalAccessibleName();
-
-  useEffect(() => {
-    scheduleLazyAppKitInit();
-  }, []);
 
   return <>{children}</>;
 }

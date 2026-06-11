@@ -494,8 +494,8 @@ const HeroSection: React.FC = () => {
       <motion.div
         className="w-full h-full overflow-hidden absolute inset-0"
         animate={{
-          x: window.innerWidth < 768 ? 0 : mousePosition.x * 10,
-          y: window.innerWidth < 768 ? 0 : mousePosition.y * 10,
+          x: 0,
+          y: 0,
         }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
@@ -692,7 +692,13 @@ const HeroSection: React.FC = () => {
           </p>
         </motion.div>
 
-        <div className="z-1 w-full flex min-h-[152px] flex-col justify-center items-center mt-6 gap-4">
+        <div className="z-1 w-full flex h-[152px] min-h-[152px] flex-col justify-center items-center mt-6 gap-4">
+          {(isConnecting || isRegisteredLoading) && !loading && (
+            <div
+              className="h-[52px] w-[min(260px,80%)] rounded-[12px] border border-[#003B3E]/50 bg-[#0E1415]/60"
+              aria-hidden
+            />
+          )}
           {/* EOA mandatory Privy: wallet connected but not signed in with Privy — must sign in with Privy to continue */}
           {address && !walletSessionReady && !loading && (
             <div className="w-[85%] max-w-xs flex flex-col gap-4 items-center">

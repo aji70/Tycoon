@@ -25,6 +25,7 @@ import ClientLayout from "../clients/ClientLayout";
 import QueryProvider from "./QueryProvider";
 import BfcacheReloadGuard from "@/components/BfcacheReloadGuard";
 import MinipaySiteRedirect from "@/components/MinipaySiteRedirect";
+import MinipayAutoConnect from "@/components/MinipayAutoConnect";
 import { buildMinipaySiteRedirectScript } from "@/lib/minipaySiteRedirect";
 
 // Run before React: (1) Reload board when restored from bfcache so WebGL is fresh. (2) Disable bfcache on board so back button does full load instead of restore (avoids Context Lost + .style crash).
@@ -108,7 +109,12 @@ export default async function RootLayout({
       <head>
         <link rel="preconnect" href="https://api.web3modal.org" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://pulse.walletconnect.org" crossOrigin="anonymous" />
-        <link rel="preconnect" href="https://fonts.reown.com" crossOrigin="anonymous" />
+        <link
+          rel="preload"
+          as="image"
+          href="/howItWorksBg1.png"
+          fetchPriority="high"
+        />
         <style id="critical-hero-css" dangerouslySetInnerHTML={{ __html: CRITICAL_HERO_CSS }} />
       </head>
 
@@ -118,13 +124,14 @@ export default async function RootLayout({
         <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
         <Script
           id="minipay-site-redirect"
-          strategy="afterInteractive"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: buildMinipaySiteRedirectScript() }}
         />
         <MinipaySiteRedirect />
         <FarcasterReady />
         <ContextProvider cookies={cookies}>
-            <TycoonProvider>
+          <MinipayAutoConnect />
+          <TycoonProvider>
               <GuestAuthProvider>
               <ReferralCapture />
               <AppKitProviderWrapper>

@@ -6,9 +6,11 @@ import { useMediaQuery } from "@/components/useMediaQuery";
 
 /** Hero pulls wagmi + contracts — separate chunk; SSR LCP shell covers first paint. */
 const HeroSection = dynamic(() => import("@/components/guest/HeroSection"), {
+  ssr: false,
   loading: () => null,
 });
 const HeroSectionMobile = dynamic(() => import("@/components/guest/HeroSection-mobile"), {
+  ssr: false,
   loading: () => null,
 });
 

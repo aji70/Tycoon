@@ -52,11 +52,11 @@ const HowItWorks = () => {
             src={HOW_IT_WORKS_BACKGROUNDS[idx]}
             alt=""
             fill
-            className={`object-cover object-center transition-opacity duration-700 ease-in-out ${
-              idx === currentSlide ? 'opacity-100' : 'opacity-0'
-            }`}
+            className={idx === currentSlide ? 'object-cover object-center opacity-100' : 'object-cover object-center opacity-0'}
             sizes={HOW_IT_WORKS_IMAGE_SIZES}
-            quality={60}
+            quality={75}
+            priority={idx === 0}
+            fetchPriority={idx === 0 ? 'high' : 'auto'}
             loading={idx === currentSlide ? 'eager' : 'lazy'}
             aria-hidden
           />

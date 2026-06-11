@@ -1,12 +1,7 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useEffect } from "react";
-
-const ToastContainer = dynamic(
-  () => import("react-toastify").then((m) => m.ToastContainer),
-  { ssr: false }
-);
+import { ToastContainer } from "react-toastify";
 
 const toastProps = {
   position: "top-right" as const,
@@ -27,7 +22,7 @@ const toastProps = {
   },
 };
 
-/** Loads Toastify CSS after hydration — not a render-blocking layout import. */
+/** Toastify CSS after hydration; container mounts immediately so button toasts never race dynamic import. */
 export default function DeferredToasts() {
   useEffect(() => {
     void import("react-toastify/dist/ReactToastify.css");
