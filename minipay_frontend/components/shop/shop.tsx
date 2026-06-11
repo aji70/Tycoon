@@ -48,6 +48,18 @@ const BUY_COLLECTIBLE_ABI = [
   },
 ] as const;
 
+// Fee currency mapping: USDT/USDC use adapters, USDm uses token address directly
+const getFeeCurrencyAddress = (tokenAddress: Address): Address => {
+  const USDT_ADDRESS = '0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e' as Address;
+  const USDC_ADDRESS = '0xcebA9300f2b948710d2653dD7B07f33A8B32118C' as Address;
+  const USDT_ADAPTER = (process.env.NEXT_PUBLIC_USDT_ADAPTER as Address) || '0x0e2a3e05bc9a16f5292a6170456a710cb89c6f72' as Address;
+  const USDC_ADAPTER = (process.env.NEXT_PUBLIC_USDC_ADAPTER as Address) || '0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B' as Address;
+
+  if (tokenAddress?.toLowerCase() === USDT_ADDRESS.toLowerCase()) return USDT_ADAPTER;
+  if (tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase()) return USDC_ADAPTER;
+  return tokenAddress; // USDm and others use token address directly
+};
+
 import {
   useRewardBuyCollectible,
   useRewardRedeemVoucher,
@@ -437,8 +449,9 @@ export default function GameShop() {
           functionName: 'buyCollectible',
           args: [item.tokenId, BigInt(paymentToken)],
         });
-        // Use viem with feeCurrency for MiniPay fee abstraction
-        await miniPayShop.sendContractCallWithFee(contractAddress, buyData, paymentTokenAddress);
+        // Use viem with feeCurrency adapter for MiniPay fee abstraction
+        const feeCurrencyAddress = getFeeCurrencyAddress(paymentTokenAddress);
+        await miniPayShop.sendContractCallWithFee(contractAddress, buyData, feeCurrencyAddress);
 
         refetchUsdc();
         refetchCusdc();
