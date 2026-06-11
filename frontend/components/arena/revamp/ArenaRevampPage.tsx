@@ -11,16 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import styles from "./arena-revamp.module.css";
-import { ARENA_TIER_LADDER, type ArenaTierKey, type DiscoverAgent } from "./map-api-agents";
-
-const TIER_BADGE_CLASS: Record<ArenaTierKey, string> = {
-  rookie: styles.tierRookie,
-  challenger: styles.tierChallenger,
-  pro: styles.tierPro,
-  master: styles.tierMaster,
-  elite: styles.tierElite,
-  legend: styles.tierLegend,
-};
+import type { DiscoverAgent } from "./map-api-agents";
 
 export type ArenaTab = "discover" | "challenges" | "leaderboard" | "tournaments" | "my-agents";
 export type MatchType = "agentVsAi" | "agentVsAgent";
@@ -62,14 +53,14 @@ const TABS: {
 }[] = [
   {
     id: "discover",
-    label: "New Match",
-    shortLabel: "Match",
+    label: "Play",
+    shortLabel: "Play",
     description: "Set up your agent, pick opponents, and start a match.",
     icon: Gamepad2,
   },
   {
     id: "my-agents",
-    label: "My Agents (Manage)",
+    label: "My Agents",
     shortLabel: "Agents",
     description: "Create and manage the agents you compete with.",
     icon: Bot,
@@ -105,32 +96,10 @@ const PLAY_STEPS = [
 
 const QUICK_START_KEY = "tycoon-arena-quickstart-dismissed";
 
-function playStepState(
-  stepNum: number,
-  currentStep: number,
-  step1Done: boolean,
-  step2Done: boolean
-): "done" | "active" | "locked" | "upcoming" {
-  if (stepNum === 1) {
-    if (step1Done && currentStep > 1) return "done";
-    if (currentStep === 1) return "active";
-    return "upcoming";
-  }
-  if (stepNum === 2) {
-    if (!step1Done) return "locked";
-    if (step2Done && currentStep > 2) return "done";
-    if (currentStep === 2) return "active";
-    return "upcoming";
-  }
-  if (!step2Done) return "locked";
-  if (currentStep === 3) return "active";
-  return "upcoming";
-}
-
-function playStepMarker(state: "done" | "active" | "locked" | "upcoming"): string {
-  if (state === "done") return "✓";
-  if (state === "active") return "●";
-  return "○";
+function winRate(wins: number, losses: number): number | null {
+  const total = wins + losses;
+  if (total === 0) return null;
+  return Math.round((wins / total) * 100);
 }
 
 export function ArenaRevampPage({
@@ -197,6 +166,7 @@ export function ArenaRevampPage({
 
   const hasAgent = isAuthed && myAgents.length > 0;
   const hasOpponents = selectedOpponentIds.length > 0;
+  const canLaunch = hasAgent && hasOpponents && !isLaunching;
 
   const step1Done = hasAgent;
   const step2Done = hasOpponents;
@@ -220,18 +190,30 @@ export function ArenaRevampPage({
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
+  const launchHint = !isAuthed
+    ? "Sign in (top nav) to start a match"
+    : !hasAgent
+      ? "Create an agent in My Agents first"
+      : !hasOpponents
+        ? `Select ${matchType === "agentVsAi" ? "1 opponent" : "at least 1 opponent"} below`
+        : null;
+
   return (
     <div className={[styles.shell, activeTab === "discover" ? styles.shellWithDock : ""].filter(Boolean).join(" ")}>
       <div className={styles.page} ref={pageRef}>
         <header className={styles.header}>
           <div className={styles.headerRow}>
-            <h1 className={styles.title}>Arena — Play with AI Agents</h1>
+            <h1 className={styles.title}>Agent Arena</h1>
             {!quickStartOpen ? (
               <button type="button" className={styles.showGuideBtn} onClick={showQuickStart}>
                 New here? Show guide
               </button>
             ) : null}
           </div>
+          <p className={styles.subtitle}>
+            AI agents compete in Monopoly-style matches on Celo. Use <strong>Play</strong> to start — create an agent
+            first under <strong>My Agents</strong> if you are new.
+          </p>
         </header>
 
         {quickStartOpen ? (
@@ -258,7 +240,7 @@ export function ArenaRevampPage({
                 onClick={() => handleTabChange("discover")}
               >
                 <span className={styles.quickCardNum}>2</span>
-                <span className={styles.quickCardTitle}>Start a new match</span>
+                <span className={styles.quickCardTitle}>Play a match</span>
                 <span className={styles.quickCardDesc}>Setup → opponents → Start</span>
               </button>
               <button
@@ -287,7 +269,6 @@ export function ArenaRevampPage({
                   aria-controls={`arena-panel-${t.id}`}
                   id={`arena-tab-${t.id}`}
                   className={activeTab === t.id ? styles.tabActive : styles.tab}
-                  title={t.id === "my-agents" ? "Create and edit your AI agents here." : undefined}
                   onClick={() => handleTabChange(t.id)}
                 >
                   <Icon className={styles.tabIcon} aria-hidden />
@@ -298,52 +279,38 @@ export function ArenaRevampPage({
             })}
           </div>
 
-          {activeTab !== "discover" ? (
-            <div className={styles.navMeta}>
-              <p className={styles.tabDescription}>{activeTabMeta.description}</p>
+          <div className={styles.navMeta}>
+            <p className={styles.tabDescription}>
+              <span className={styles.youAreHere}>You are here:</span> {activeTabMeta.description}
+            </p>
+            {activeTab !== "discover" ? (
               <button type="button" className={styles.goPlayBtn} onClick={() => handleTabChange("discover")}>
-                Go to New Match
+                Go to Play
                 <ChevronRight className={styles.goPlayIcon} aria-hidden />
               </button>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
 
           {activeTab === "discover" ? (
-            <nav className={styles.unifiedStepper} aria-label="Match setup steps">
-              {PLAY_STEPS.map((s, i) => {
-                const stepNum = i + 1;
-                const state = playStepState(stepNum, currentStep, step1Done, step2Done);
-                const stepClass =
-                  state === "done"
-                    ? styles.unifiedStepDone
-                    : state === "active"
-                      ? styles.unifiedStepActive
-                      : state === "locked"
-                        ? styles.unifiedStepLocked
-                        : styles.unifiedStepUpcoming;
-                return (
-                  <span key={s.id} className={styles.unifiedStepWrap}>
-                    {i > 0 ? (
-                      <span className={styles.unifiedStepArrow} aria-hidden>
-                        →
-                      </span>
-                    ) : null}
-                    <button
-                      type="button"
-                      className={`${styles.unifiedStepBtn} ${stepClass}`}
-                      disabled={state === "locked"}
-                      aria-current={state === "active" ? "step" : undefined}
-                      onClick={() => scrollToPlayStep(s.id)}
-                    >
-                      <span className={styles.unifiedStepMarker} aria-hidden>
-                        {playStepMarker(state)}
-                      </span>
-                      {s.label}
-                    </button>
-                  </span>
-                );
-              })}
-            </nav>
+            <div className={styles.playSubNav} role="navigation" aria-label="Play steps">
+              <span className={styles.playSubNavLabel}>Jump to</span>
+              {PLAY_STEPS.map((s, i) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={
+                    currentStep === i + 1
+                      ? styles.playSubNavBtnActive
+                      : currentStep > i + 1
+                        ? styles.playSubNavBtnDone
+                        : styles.playSubNavBtn
+                  }
+                  onClick={() => scrollToPlayStep(s.id)}
+                >
+                  {i + 1}. {s.label}
+                </button>
+              ))}
+            </div>
           ) : null}
         </nav>
 
@@ -371,7 +338,9 @@ export function ArenaRevampPage({
               step1Done={step1Done}
               step2Done={step2Done}
               currentStep={currentStep}
+              canLaunch={canLaunch}
               isLaunching={isLaunching}
+              launchHint={launchHint}
               onLaunch={onLaunch}
             />
           ) : (
@@ -410,7 +379,9 @@ function DiscoverPanel({
   step1Done,
   step2Done,
   currentStep,
+  canLaunch,
   isLaunching,
+  launchHint,
   onLaunch,
 }: {
   isAuthed: boolean;
@@ -432,31 +403,28 @@ function DiscoverPanel({
   step1Done: boolean;
   step2Done: boolean;
   currentStep: number;
+  canLaunch: boolean;
   isLaunching: boolean;
+  launchHint: string | null;
   onLaunch: () => void;
 }) {
-  const step2Ref = useRef<HTMLElement>(null);
-  const [step2Shake, setStep2Shake] = useState(false);
-  const [opponentError, setOpponentError] = useState<string | null>(null);
-
-  const handleLaunchClick = () => {
-    if (!hasAgent || isLaunching) return;
-    if (selectedOpponentIds.length === 0) {
-      setOpponentError("Select at least 1 opponent to continue.");
-      setStep2Shake(true);
-      step2Ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      window.setTimeout(() => setStep2Shake(false), 500);
-      return;
-    }
-    setOpponentError(null);
-    onLaunch();
-  };
-
-  const launchReady = hasAgent && !isLaunching && selectedOpponentIds.length > 0;
-  const launchDisabledNoOpponents = hasAgent && !isLaunching && selectedOpponentIds.length === 0;
-
   return (
     <>
+      <ol className={styles.stepper} aria-label="How to start a match">
+        <li className={currentStep >= 1 ? styles.stepDone : currentStep === 1 ? styles.stepCurrent : styles.step}>
+          <span className={styles.stepNum}>1</span>
+          <span className={styles.stepText}>Set up your agent</span>
+        </li>
+        <li className={currentStep >= 2 ? styles.stepDone : currentStep === 2 ? styles.stepCurrent : styles.step}>
+          <span className={styles.stepNum}>2</span>
+          <span className={styles.stepText}>Choose opponents</span>
+        </li>
+        <li className={currentStep >= 3 ? styles.stepDone : currentStep === 3 ? styles.stepCurrent : styles.step}>
+          <span className={styles.stepNum}>3</span>
+          <span className={styles.stepText}>Start match</span>
+        </li>
+      </ol>
+
       <section
         id="arena-step-1"
         className={`${styles.stepSection} ${currentStep === 1 ? styles.stepSectionHighlight : ""}`}
@@ -474,11 +442,11 @@ function DiscoverPanel({
           </div>
         ) : myAgents.length === 0 ? (
           <div className={styles.callout}>
-            <p className={styles.firstTimeCallout} style={{ margin: 0, marginBottom: 12 }}>
-              <strong>First time?</strong> Create an agent under My Agents before you can play.
+            <p className={styles.calloutText}>
+              You need an agent before you can play. Create one in <strong>My Agents</strong> — it only takes a minute.
             </p>
-            <button type="button" className={styles.createAgentCta} onClick={() => onTabChange("my-agents")}>
-              Create your first agent →
+            <button type="button" className={styles.calloutBtn} onClick={() => onTabChange("my-agents")}>
+              Go to My Agents →
             </button>
           </div>
         ) : (
@@ -487,63 +455,45 @@ function DiscoverPanel({
               <label className={styles.fieldLabel} htmlFor="playing-as">
                 Your agent
               </label>
-              {playingAsOptions.length === 0 ? (
-                <>
-                  <p className={styles.firstTimeCallout}>
-                    <strong>First time?</strong> Create an agent under My Agents before you can play.
-                  </p>
-                  <button type="button" className={styles.createAgentCta} onClick={() => onTabChange("my-agents")}>
-                    Create your first agent →
-                  </button>
-                </>
-              ) : (
-                <select
-                  id="playing-as"
-                  className={styles.select}
-                  value={challengerAgentId ?? ""}
-                  onChange={(e) => onChallengerChange(Number(e.target.value))}
-                >
-                  {playingAsOptions.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <select
+                id="playing-as"
+                className={styles.select}
+                value={challengerAgentId ?? ""}
+                onChange={(e) => onChallengerChange(Number(e.target.value))}
+              >
+                {playingAsOptions.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className={styles.matchField}>
               <span className={styles.fieldLabel}>How do you want to play?</span>
-              <div className={styles.modeOptions}>
+              <div className={styles.modeToggle}>
                 <button
                   type="button"
                   className={`${styles.modeBtn} ${matchType === "agentVsAgent" ? styles.modeBtnActive : ""}`}
                   onClick={() => onMatchTypeChange("agentVsAgent")}
                 >
-                  Auto-play
+                  <span className={styles.modeBtnTitle}>Agent vs Agent</span>
+                  <span className={styles.modeBtnHint}>Your agent plays automatically</span>
                 </button>
                 <button
                   type="button"
                   className={`${styles.modeBtn} ${matchType === "agentVsAi" ? styles.modeBtnActive : ""}`}
                   onClick={() => onMatchTypeChange("agentVsAi")}
                 >
-                  You play
+                  <span className={styles.modeBtnTitle}>You vs Agent</span>
+                  <span className={styles.modeBtnHint}>You roll; opponent is AI</span>
                 </button>
               </div>
             </div>
 
             <div className={styles.matchField}>
               <label className={styles.fieldLabel} htmlFor="usdc-stake">
-                <span className={styles.labelWithTip}>
-                  Bet USDC (optional)
-                  <span
-                    className={styles.fieldTooltip}
-                    title="Winner takes the pool. Leave at 0 for a free game."
-                    aria-label="Winner takes the pool. Leave at 0 for a free game."
-                  >
-                    ?
-                  </span>
-                </span>
+                Stake (optional)
               </label>
               <input
                 id="usdc-stake"
@@ -555,28 +505,31 @@ function DiscoverPanel({
                 value={stakeAmount}
                 onChange={(e) => onStakeChange(e.target.value)}
               />
+              <p className={styles.fieldHelp}>Leave at 0 for a free practice match.</p>
             </div>
           </div>
         )}
+        {step1Done ? <p className={styles.stepComplete}>✓ Setup complete — pick opponents below</p> : null}
       </section>
 
       <section
-        ref={step2Ref}
         id="arena-step-2"
-        className={`${styles.stepSection} ${currentStep === 2 ? styles.stepSectionHighlight : ""} ${step2Shake ? styles.step2Shake : ""}`}
+        className={`${styles.stepSection} ${currentStep === 2 ? styles.stepSectionHighlight : ""}`}
         aria-labelledby="step-2-heading"
       >
-        <h2 id="step-2-heading" className={styles.stepHeading}>
-          Opponents{" "}
-          <span className={styles.selectionCountInline}>
-            ({selectedOpponentIds.length} / {maxOpponentSlots})
+        <div className={styles.stepHeadingRow}>
+          <h2 id="step-2-heading" className={styles.stepHeading}>
+            Step 2 — Choose opponents
+          </h2>
+          <span className={styles.pickBadge}>
+            {selectedOpponentIds.length} / {maxOpponentSlots} selected
           </span>
-        </h2>
-        {opponentError ? (
-          <p className={styles.opponentError} role="alert">
-            {opponentError}
-          </p>
-        ) : null}
+        </div>
+        <p className={styles.stepIntro}>
+          {matchType === "agentVsAi"
+            ? "Tap Select on exactly one agent to challenge."
+            : `Select up to ${maxOpponentSlots} agents. Selected cards are highlighted.`}
+        </p>
 
         {loading ? (
           <p className={styles.emptyState}>Loading agents…</p>
@@ -592,40 +545,41 @@ function DiscoverPanel({
           </div>
         ) : (
           <div className={styles.agentsGrid}>
-            {discoverAgents.map((agent, index) => (
+            {discoverAgents.map((agent) => (
               <AgentCard
                 key={agent.id}
                 agent={agent}
                 selected={selectedOpponentIds.includes(agent.id)}
-                showTierLegend={index === 0}
                 maxReached={
                   selectedOpponentIds.length >= maxOpponentSlots &&
                   !selectedOpponentIds.includes(agent.id)
                 }
-                onSelect={() => {
-                  setOpponentError(null);
-                  onToggleOpponent(agent.id);
-                }}
+                onSelect={() => onToggleOpponent(agent.id)}
               />
             ))}
           </div>
         )}
-        {step2Done ? (
-          <div className={styles.stepCompleteBanner} role="status">
-            <span aria-hidden>✓</span>
-            <span>Opponents selected — ready to start</span>
-          </div>
-        ) : null}
+        {step2Done ? <p className={styles.stepComplete}>✓ Opponents selected — ready to start</p> : null}
       </section>
 
       <div id="arena-launch" className={styles.launchDock} role="region" aria-label="Start match">
         <div className={styles.launchDockInner}>
+          <div className={styles.launchDockText}>
+            <span className={styles.launchDockTitle}>Step 3 — Start match</span>
+            {launchHint ? (
+              <span className={styles.launchDockHint}>{launchHint}</span>
+            ) : (
+              <span className={styles.launchDockHint}>
+                {selectedOpponentIds.length} opponent{selectedOpponentIds.length !== 1 ? "s" : ""} ·{" "}
+                {matchType === "agentVsAi" ? "You play" : "Agents play"} on Celo
+              </span>
+            )}
+          </div>
           <button
             type="button"
-            className={launchReady ? styles.launchBtn : styles.launchBtnDisabled}
-            disabled={!hasAgent || isLaunching || selectedOpponentIds.length === 0}
-            title={launchDisabledNoOpponents ? "Select at least 1 opponent to start" : undefined}
-            onClick={handleLaunchClick}
+            className={styles.launchBtn}
+            disabled={!canLaunch}
+            onClick={onLaunch}
           >
             {isLaunching ? "Starting match…" : "Start match →"}
           </button>
@@ -635,64 +589,18 @@ function DiscoverPanel({
   );
 }
 
-function TierLegendPopover() {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
-
-  return (
-    <div className={styles.tierStatWrap} ref={wrapRef}>
-      <button
-        type="button"
-        className={styles.tierHelpBtn}
-        aria-label="What do arena tiers mean?"
-        aria-expanded={open}
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((v) => !v);
-        }}
-      >
-        ?
-      </button>
-      {open ? (
-        <div className={styles.tierPopover} role="dialog" aria-label="Arena tier ladder">
-          <p className={styles.tierPopoverTitle}>Arena tiers</p>
-          <ul className={styles.tierPopoverList}>
-            {ARENA_TIER_LADDER.map((tier) => (
-              <li key={tier.label} className={styles.tierPopoverItem}>
-                <span className={`${styles.tierBadge} ${TIER_BADGE_CLASS[tier.key]}`}>{tier.label}</span>
-                <span>{tier.hint}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function AgentCard({
   agent,
   selected,
-  showTierLegend,
   maxReached,
   onSelect,
 }: {
   agent: DiscoverAgent;
   selected: boolean;
-  showTierLegend?: boolean;
   maxReached: boolean;
   onSelect: () => void;
 }) {
-  const wr = agent.winRatePct;
+  const wr = winRate(agent.wins, agent.losses);
 
   return (
     <article className={`${styles.agentCard} ${selected ? styles.agentCardSelected : ""}`}>
@@ -701,38 +609,25 @@ function AgentCard({
           <h3 className={styles.agentName}>{agent.name}</h3>
           <p className={styles.agentCreator}>@{agent.username}</p>
         </div>
+        <span className={styles.tierChip}>{agent.tierLabel}</span>
       </div>
 
-      <div className={styles.agentStatsGrid}>
-        <div className={styles.statCell}>
-          <span className={styles.tierBadgeRow}>
-            <span className={`${styles.tierBadge} ${TIER_BADGE_CLASS[agent.tierKey]}`}>
-              {agent.tierLabel}
-            </span>
-            {showTierLegend ? <TierLegendPopover /> : null}
-          </span>
-        </div>
-        <div className={styles.statCell}>
-          <span className={styles.statLabel}>W-L</span>
-          <span className={styles.statValue}>
+      <dl className={styles.agentStats}>
+        <div>
+          <dt>W–L</dt>
+          <dd className={styles.mono}>
             {agent.wins}–{agent.losses}
-          </span>
+          </dd>
         </div>
-        <div className={styles.statCell}>
-          <span className={`${styles.statValue} ${styles.statXp} ${styles.mono}`}>
-            <span className={styles.xpIcon} aria-hidden>
-              ⚡
-            </span>
-            {agent.xp.toLocaleString()}
-          </span>
+        <div>
+          <dt>XP</dt>
+          <dd className={styles.mono}>{agent.xp.toLocaleString()}</dd>
         </div>
-        <div className={styles.statCell}>
-          <span className={styles.statLabel}>WIN%</span>
-          <span className={styles.statValue}>
-            {wr != null ? `${Number.isInteger(wr) ? wr : wr.toFixed(1)}%` : "—"}
-          </span>
+        <div>
+          <dt>Win rate</dt>
+          <dd className={styles.mono}>{wr != null ? `${wr}%` : "—"}</dd>
         </div>
-      </div>
+      </dl>
 
       {agent.erc8004 ? <span className={styles.ercTag}>On-chain identity</span> : null}
 
@@ -743,7 +638,7 @@ function AgentCard({
         disabled={maxReached}
         aria-pressed={selected}
       >
-        {selected ? "✓ Selected" : maxReached ? "Max" : "Add"}
+        {selected ? "Selected ✓" : maxReached ? "Max selected" : "Select opponent"}
       </button>
     </article>
   );

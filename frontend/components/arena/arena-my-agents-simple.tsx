@@ -81,8 +81,8 @@ export function ArenaMyAgentsSimple({
   return (
     <div className={styles.wrap}>
       <p className={styles.intro}>
-        You only need a name. Tycoon runs the AI for you — no API keys required.         When you are done, go to{" "}
-        <strong>New Match</strong> to find opponents.
+        You only need a name. Tycoon runs the AI for you — no API keys required. When you are done, go to{" "}
+        <strong>Play</strong> to find opponents.
       </p>
 
       {(showAddForm || myAgents.length === 0) && (

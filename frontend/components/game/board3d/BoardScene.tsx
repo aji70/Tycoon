@@ -5,7 +5,7 @@ import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { OrbitControls, Html } from "@react-three/drei";
 import ActionLog from "@/components/game/ai-board/action-log";
 import type { Game } from "@/types/game";
-import * as THREE from "@/node_modules/@types/three";
+import * as THREE from "three";
 import { getPosition3D, getPosition3DFromGrid } from "./positions";
 import { getSquareName } from "./squareNames";
 import { getPlayerSymbol } from "@/lib/types/symbol";
