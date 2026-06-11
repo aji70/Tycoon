@@ -35,6 +35,18 @@ import Erc20Abi from '@/context/abi/ERC20abi.json';
 import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import { shopPerkRow } from '@/lib/shopPerkRow';
 import { isShopPerkHidden } from '@/lib/perkShopAssets';
+import { isMiniPayBrowser, useMiniPayShop } from '@/hooks/useMiniPayShop';
+import { encodeFunctionData } from 'viem';
+
+const BUY_COLLECTIBLE_ABI = [
+  {
+    type: 'function',
+    name: 'buyCollectible',
+    stateMutability: 'nonpayable',
+    inputs: [{ type: 'uint256' }, { type: 'uint8' }],
+    outputs: [],
+  },
+] as const;
 
 import {
   useRewardBuyCollectible,
@@ -117,6 +129,7 @@ export default function GameShop() {
   const { open: openWallet } = useAppKit();
   const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
   const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount();
+  const miniPayShop = useMiniPayShop();
   const address = useMemo((): Address | undefined => {
     const a = appKitAddress ?? wagmiAddress;
     return a && isAddress(a) ? (a as Address) : undefined;
@@ -411,17 +424,38 @@ export default function GameShop() {
       return;
     }
     try {
-      // Use normal wagmi approval + buy flow (works for whitelisted MiniPay)
-      if (stableAllowance === undefined || stableAllowance === null) {
-        toast.info('Approval required');
-        await approve(paymentTokenAddress, contractAddress, price);
-        toast.success('Approval successful, completing purchase...');
-      } else if (typeof stableAllowance === 'bigint' && stableAllowance < price) {
-        toast.info('Increasing approval...');
-        await approve(paymentTokenAddress, contractAddress, price);
-        toast.success('Approval successful, completing purchase...');
+      // MiniPay: MUST use raw eth_sendTransaction to avoid viem's eth_estimateGas calls
+      // which MiniPay rejects in production (even when whitelisted)
+      if (isMiniPayBrowser()) {
+        toast.info('Approving...');
+        await miniPayShop.sendRawApproval(paymentTokenAddress, contractAddress, price);
+        toast.success('Approval successful, processing purchase...');
+
+        toast.info('Processing purchase...');
+        const buyData = encodeFunctionData({
+          abi: BUY_COLLECTIBLE_ABI,
+          functionName: 'buyCollectible',
+          args: [item.tokenId, BigInt(paymentToken)],
+        });
+        await miniPayShop.sendContractCallRaw(contractAddress, buyData);
+
+        refetchUsdc();
+        refetchCusdc();
+        refetchUsdt();
+        toast.success('Purchase successful!');
+      } else {
+        // Non-MiniPay: use normal wagmi approval + buy flow
+        if (stableAllowance === undefined || stableAllowance === null) {
+          toast.info('Approval required');
+          await approve(paymentTokenAddress, contractAddress, price);
+          toast.success('Approval successful, completing purchase...');
+        } else if (typeof stableAllowance === 'bigint' && stableAllowance < price) {
+          toast.info('Increasing approval...');
+          await approve(paymentTokenAddress, contractAddress, price);
+          toast.success('Approval successful, completing purchase...');
+        }
+        await buy(item.tokenId, paymentToken);
       }
-      await buy(item.tokenId, paymentToken);
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Purchase failed');
       resetShopWrites();
