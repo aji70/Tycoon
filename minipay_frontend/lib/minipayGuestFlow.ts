@@ -41,16 +41,36 @@ type EthereumRequestProvider = {
 
 /**
  * MiniPay docs: auto-connect on load; call eth_requestAccounts before sending txs
- * so the provider authorizes the active account (avoids "permission denied").
+ * so the provider authorizes the active account (avoids EIP-1193 4100 "permission denied").
+ * Use the returned accounts for `from` — eth_accounts alone may be empty or unauthorized.
  * @see https://docs.minipay.xyz/getting-started/wallet-connection.html
  */
-export async function ensureMiniPayWalletReady(): Promise<void> {
-  if (!isMiniPayEmbeddedWallet()) return;
+export async function ensureMiniPayWalletReady(): Promise<readonly string[]> {
+  if (!isMiniPayEmbeddedWallet()) return [];
   const eth = (window as Window & { ethereum?: EthereumRequestProvider }).ethereum;
   if (!eth?.request) {
     throw new Error("Open Tycoon inside the MiniPay app.");
   }
-  await eth.request({ method: "eth_requestAccounts" });
+
+  let accounts = (await eth.request({ method: "eth_requestAccounts" })) as string[];
+
+  if (!accounts?.length) {
+    try {
+      const { connectMiniPayWallet } = await import("@/lib/connectMiniPayWallet");
+      await connectMiniPayWallet();
+      accounts = (await eth.request({ method: "eth_requestAccounts" })) as string[];
+    } catch {
+      // fall through to error below
+    }
+  }
+
+  if (!accounts?.length) {
+    throw new Error(
+      "MiniPay wallet not connected. Open this app from MiniPay and try again."
+    );
+  }
+
+  return accounts;
 }
 
 /**

@@ -30,13 +30,15 @@ export async function minipayRawSendTransaction(
   data: Hex,
   gasHex: string = MINIPAY_CONTRACT_GAS_HEX,
 ): Promise<Hash> {
-  await ensureMiniPayWalletReady();
   const eth = getEthereum();
   if (!eth?.request) throw new Error('Open Tycoon inside the MiniPay app.');
 
-  const accounts = (await eth.request({ method: 'eth_accounts' })) as string[];
+  // Must use eth_requestAccounts (not eth_accounts) — unauthorized `from` → 4100 permission denied.
+  const accounts = await ensureMiniPayWalletReady();
   const from = accounts[0];
-  if (!from) throw new Error('MiniPay wallet not connected');
+  if (!from) {
+    throw new Error('MiniPay wallet not connected. Open this app from MiniPay and try again.');
+  }
 
   const txHash = (await eth.request({
     method: 'eth_sendTransaction',

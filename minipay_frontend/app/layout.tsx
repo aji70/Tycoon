@@ -19,6 +19,7 @@ import ClientLayout from "../clients/ClientLayout";
 import QueryProvider from "./QueryProvider";
 import BfcacheReloadGuard from "@/components/BfcacheReloadGuard";
 import MinipaySiteRedirect from "@/components/MinipaySiteRedirect";
+import MinipayAutoConnect from "@/components/MinipayAutoConnect";
 import { buildMinipaySiteRedirectScript } from "@/lib/minipaySiteRedirect";
 
 // Run before React: (1) Reload board when restored from bfcache so WebGL is fresh. (2) Disable bfcache on board so back button does full load instead of restore (avoids Context Lost + .style crash).
@@ -123,6 +124,7 @@ export default async function RootLayout({
               <ReferralCapture />
               <AppKitProviderWrapper>
                 <QueryProvider>
+                <MinipayAutoConnect />
                 <BfcacheReloadGuard />
                 <ClientLayout cookies={cookies}>
                   {children}
