@@ -18,7 +18,7 @@ import {
   useRegisterPlayer,
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import toast from "react-hot-toast";
+import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { apiClient } from "@/lib/api";
 import { getGuestUserPlayAddress, isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
@@ -289,13 +289,13 @@ const HeroSection: React.FC = () => {
     }
 
     if (!finalUsername) {
-      toast("Please enter a username");
+      toast.info("Please enter a username");
       return;
     }
 
     setLoading(true);
     const toastId = toast.loading(
-      user ? "Syncing your account…" : "Setting up your account…"
+      user ? "Sign to finish on-chain registration…" : "Sign in your wallet to register…"
     );
 
     try {
@@ -337,7 +337,7 @@ const HeroSection: React.FC = () => {
         e?.message?.includes("User rejected") ||
         e?.message?.includes("User denied")
       ) {
-        toast("Transaction cancelled");
+        toast.info("Transaction cancelled");
         return;
       }
 
@@ -363,7 +363,7 @@ const HeroSection: React.FC = () => {
       }
 
       if (isAlreadyExists && isUserRegistered !== true) {
-        toast("Sign the registration transaction in your wallet to finish on-chain setup.");
+        toast.info("Sign the registration transaction in your wallet to finish on-chain setup.");
         return;
       }
 
@@ -385,11 +385,11 @@ const HeroSection: React.FC = () => {
     const playUsername =
       (guestUser?.username ?? user?.username ?? inputUsername.trim()) || "";
     if (!playUsername) {
-      toast("Enter a username first");
+      toast.info("Enter a username first");
       return;
     }
     setRegisterOnChainLoading(true);
-    const toastId = toast.loading("Register on-chain…");
+    const toastId = toast.loading("Sign in your wallet to register on-chain…");
     try {
       if (isMiniPayEmbeddedWallet()) {
         await completeMiniPayOnChainRegistration(playUsername, address);
@@ -803,7 +803,7 @@ const HeroSection: React.FC = () => {
           )}
           {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
             <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
-              {user ? "Finish syncing your account" : "Creates your game account & smart wallet"}
+              {user ? "Sign the registration transaction in your wallet" : "Sign in your wallet to register on-chain"}
             </p>
           )}
 

@@ -143,38 +143,28 @@ export async function registerViaBackendNoGas(
 }
 
 /**
- * MiniPay on-chain registration.
- * 1) Backend-sponsored (reliable, no fee-abstraction quirks).
- * 2) Wallet `registerPlayerWithoutWallet` if backend fails.
+ * MiniPay hero registration — user signs `registerPlayerWithoutWallet` in MiniPay.
+ * Backend-sponsored registration is available separately via `registerViaBackendNoGas`.
  */
 export async function completeMiniPayOnChainRegistration(
   username: string,
-  address: Address
-): Promise<"wallet" | "backend"> {
+  _address: Address
+): Promise<void> {
   if (!isMiniPayEmbeddedWallet()) {
     throw new Error("Not running in MiniPay");
   }
 
-  const checksummed = getAddress(address);
   contractSafeUsername(username);
 
   try {
-    await registerViaBackendNoGas(checksummed);
-    return "backend";
-  } catch (backendErr) {
-    if (isUserRejectedTransaction(backendErr)) throw backendErr;
-    try {
-      await registerViaMiniPayProvider(username);
-      return "wallet";
-    } catch (walletErr) {
-      if (isUserRejectedTransaction(walletErr)) throw walletErr;
-      const backendMsg = collectErrorTextForMiniPay(backendErr);
-      const walletMsg = collectErrorTextForMiniPay(walletErr);
-      throw new Error(
-        walletMsg.includes("invalid sender") || backendMsg.includes("invalid sender")
-          ? "Registration failed. Try a shorter username (letters/numbers only) or try again in a minute."
-          : backendMsg || walletMsg || "Registration failed"
-      );
-    }
+    await registerViaMiniPayProvider(username);
+  } catch (walletErr) {
+    if (isUserRejectedTransaction(walletErr)) throw walletErr;
+    const walletMsg = collectErrorTextForMiniPay(walletErr);
+    throw new Error(
+      walletMsg.includes("invalid sender")
+        ? "Registration failed. Try a shorter username (letters/numbers only) or try again in a minute."
+        : walletMsg || "Registration failed"
+    );
   }
 }
