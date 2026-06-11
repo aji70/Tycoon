@@ -32,6 +32,8 @@ import Erc20Abi from '@/context/abi/ERC20abi.json';
 import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import { shopPerkRow } from '@/lib/shopPerkRow';
 import { isShopPerkHidden } from '@/lib/perkShopAssets';
+import { isMiniPayBrowser, useMiniPayShop } from '@/hooks/useMiniPayShop';
+import { encodeFunctionData } from 'viem';
 
 import {
   useRewardBuyCollectible,
@@ -108,12 +110,34 @@ const perkMetadata = [
   shopPerkRow(14, "Land on Free Parking to collect $500.", <MapPin />),
 ];
 
+const BUY_COLLECTIBLE_ABI = [
+  {
+    type: 'function',
+    name: 'buyCollectible',
+    stateMutability: 'nonpayable',
+    inputs: [{ type: 'uint256' }, { type: 'uint8' }],
+    outputs: [],
+  },
+] as const;
+
+const getFeeCurrencyAddress = (tokenAddress: Address): Address => {
+  const USDT_ADDRESS = '0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e' as Address;
+  const USDC_ADDRESS = '0xcebA9300f2b948710d2653dD7B07f33A8B32118C' as Address;
+  const USDT_ADAPTER = (process.env.NEXT_PUBLIC_USDT_ADAPTER as Address) || '0x0e2a3e05bc9a16f5292a6170456a710cb89c6f72' as Address;
+  const USDC_ADAPTER = (process.env.NEXT_PUBLIC_USDC_ADAPTER as Address) || '0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B' as Address;
+
+  if (tokenAddress?.toLowerCase() === USDT_ADDRESS.toLowerCase()) return USDT_ADAPTER;
+  if (tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase()) return USDC_ADAPTER;
+  return tokenAddress;
+};
+
 export default function GameShopMobile() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { open: openWallet } = useAppKit();
   const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
   const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount();
+  const miniPayShop = useMiniPayShop();
   const address = useMemo((): Address | undefined => {
     const a = appKitAddress ?? wagmiAddress;
     return a && isAddress(a) ? (a as Address) : undefined;
@@ -402,16 +426,37 @@ export default function GameShopMobile() {
       return;
     }
     try {
-      if (stableAllowance === undefined || stableAllowance === null) {
-        toast.info('Approval required');
-        await approve(paymentTokenAddress, contractAddress, price);
-        toast.success('Approval successful');
-      } else if (typeof stableAllowance === 'bigint' && stableAllowance < price) {
-        toast.info('Increasing approval...');
-        await approve(paymentTokenAddress, contractAddress, price);
-        toast.success('Approval updated');
+      if (isMiniPayBrowser()) {
+        const feeCurrencyAddress = getFeeCurrencyAddress(paymentTokenAddress);
+
+        if (stableAllowance === undefined || stableAllowance === null) {
+          toast.info('Approval required');
+          await miniPayShop.sendRawApproval(paymentTokenAddress, contractAddress, price);
+          toast.success('Approval successful');
+        } else if (typeof stableAllowance === 'bigint' && stableAllowance < price) {
+          toast.info('Increasing approval...');
+          await miniPayShop.sendRawApproval(paymentTokenAddress, contractAddress, price);
+          toast.success('Approval updated');
+        }
+
+        const buyData = encodeFunctionData({
+          abi: BUY_COLLECTIBLE_ABI,
+          functionName: 'buyCollectible',
+          args: [item.tokenId, paymentToken],
+        });
+        await miniPayShop.sendContractCallRaw(contractAddress, buyData, feeCurrencyAddress);
+      } else {
+        if (stableAllowance === undefined || stableAllowance === null) {
+          toast.info('Approval required');
+          await approve(paymentTokenAddress, contractAddress, price);
+          toast.success('Approval successful');
+        } else if (typeof stableAllowance === 'bigint' && stableAllowance < price) {
+          toast.info('Increasing approval...');
+          await approve(paymentTokenAddress, contractAddress, price);
+          toast.success('Approval updated');
+        }
+        await buy(item.tokenId, paymentToken);
       }
-      await buy(item.tokenId, paymentToken);
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Purchase failed');
       resetShopWrites();
