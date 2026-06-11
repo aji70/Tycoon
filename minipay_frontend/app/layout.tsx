@@ -18,6 +18,8 @@ import Script from "next/script";
 import ClientLayout from "../clients/ClientLayout";
 import QueryProvider from "./QueryProvider";
 import BfcacheReloadGuard from "@/components/BfcacheReloadGuard";
+import MinipaySiteRedirect from "@/components/MinipaySiteRedirect";
+import { buildMinipaySiteRedirectScript } from "@/lib/minipaySiteRedirect";
 
 // Run before React: (1) Reload board when restored from bfcache so WebGL is fresh. (2) Disable bfcache on board so back button does full load instead of restore (avoids Context Lost + .style crash).
 const BFCACHE_RELOAD_SCRIPT = `
@@ -108,6 +110,12 @@ export default async function RootLayout({
         className={`${dmSans.variable} ${kronaOne.variable} ${orbitron.variable} antialiased bg-[#010F10] w-full`}
       >
         <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
+        <Script
+          id="minipay-site-redirect"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: buildMinipaySiteRedirectScript() }}
+        />
+        <MinipaySiteRedirect />
         <FarcasterReady />
         <ContextProvider cookies={cookies}>
             <TycoonProvider>
