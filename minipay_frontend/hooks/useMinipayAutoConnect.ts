@@ -15,10 +15,12 @@ export function useMinipayAutoConnect(): void {
   const { connect } = useConnect();
   const [hasAttempted, setHasAttempted] = useState(false);
 
-  // Authorize injected provider on load so eth_accounts works for payment sends.
+  // Authorize MiniPay provider on load so eth_accounts is populated before any payment.
   useEffect(() => {
     if (!isMiniPayEmbeddedWallet()) return;
-    void authorizeMiniPayWallet().catch(() => {});
+    void authorizeMiniPayWallet().catch((err) => {
+      console.warn("MiniPay authorize on load:", err);
+    });
   }, []);
 
   useEffect(() => {

@@ -7,11 +7,10 @@ import {
   MINIPAY_REGISTER_GAS,
 } from '@/lib/celoTransportForWagmi';
 import {
-  authorizeMiniPayWallet,
   getMiniPayAccountsForTx,
+  getMiniPayEthereumProvider,
   shouldBypassViemForTx,
 } from '@/lib/minipayGuestFlow';
-import { getInjectedEthereumProvider } from '@/lib/utils/erc8004InjectedEoa';
 import { isUserRejectedTransaction } from '@/lib/utils/contractErrors';
 
 /** 300_000 — ERC-20 approve / transfer */
@@ -22,77 +21,76 @@ export const MINIPAY_CONTRACT_GAS_HEX = `0x${MINIPAY_CONTRACT_GAS.toString(16)}`
 export const MINIPAY_REGISTER_GAS_HEX = `0x${MINIPAY_REGISTER_GAS.toString(16)}` as const;
 
 type TxParam = {
-  from: string;
+  from?: string;
   to: Address;
   data: Hex;
   gas: string;
   feeCurrency?: Address;
 };
 
-function isPermissionDenied(err: unknown): boolean {
-  const e = err as { code?: number; message?: string; shortMessage?: string };
+function isPermissionError(err: unknown): boolean {
+  const e = err as { code?: number; message?: string; shortMessage?: string; data?: { message?: string } };
   if (e?.code === 4100 || e?.code === -32002) return true;
-  const m = `${e?.message ?? ''} ${e?.shortMessage ?? ''}`.toLowerCase();
-  return m.includes('permission denied') || m.includes('unauthorized') || m.includes('not authorized');
+  const m = `${e?.message ?? ''} ${e?.shortMessage ?? ''} ${e?.data?.message ?? ''}`.toLowerCase();
+  return (
+    m.includes('permission denied') ||
+    m.includes('permission null') ||
+    m.includes('sender permission') ||
+    m.includes('unauthorized') ||
+    m.includes('not authorized')
+  );
 }
 
 /**
- * MiniPay payment send — friend's pattern:
- * bypass viem entirely; eth_accounts + eth_sendTransaction with explicit gas.
- * Auto-connect must call authorizeMiniPayWallet() first so eth_accounts is populated.
+ * MiniPay: bypass viem — raw eth_sendTransaction with explicit gas on window.ethereum.
+ * Tries eth_accounts sender first (friend's pattern), then without `from`, then feeCurrency.
  */
 export async function minipayRawSendTransaction(
   to: Address,
   data: Hex,
   gasHex: string = MINIPAY_CONTRACT_GAS_HEX,
 ): Promise<Hash> {
-  const eth = getInjectedEthereumProvider();
+  const eth = getMiniPayEthereumProvider();
   if (!eth?.request) {
     throw new Error('Open Tycoon inside the MiniPay app.');
   }
 
-  const sendWithFrom = async (from: string): Promise<Hash> => {
-    const txHash = (await eth.request({
-      method: 'eth_sendTransaction',
-      params: [{ from, to, data, gas: gasHex }],
-    })) as Hash | null;
+  const accounts = await getMiniPayAccountsForTx();
+  const from = accounts[0];
 
-    if (!txHash) {
-      throw new Error('Transaction hash unavailable — purchase may not have gone through');
-    }
-    return txHash;
-  };
+  const attempts: TxParam[] = [
+    // Friend's pattern: eth_accounts + from
+    ...(from ? [{ from, to, data, gas: gasHex }] : []),
+    // MiniPay sometimes rejects explicit from — let wallet pick active account
+    { to, data, gas: gasHex },
+    ...(from
+      ? [
+          { from, to, data, gas: gasHex, feeCurrency: CELO_USDM_FEE_TOKEN },
+          { to, data, gas: gasHex, feeCurrency: CELO_USDM_FEE_TOKEN },
+        ]
+      : [{ to, data, gas: gasHex, feeCurrency: CELO_USDM_FEE_TOKEN }]),
+  ];
 
-  let accounts = await getMiniPayAccountsForTx();
-  let from = accounts[0];
-  if (!from) {
-    throw new Error('MiniPay wallet not connected. Open this app from MiniPay and try again.');
-  }
-
-  try {
-    return await sendWithFrom(from);
-  } catch (err) {
-    if (isUserRejectedTransaction(err)) throw err;
-    if (!isPermissionDenied(err)) throw err;
-
-    // eth_accounts was empty/stale — re-authorize once, then retry (friend's flow + safety net)
-    accounts = await authorizeMiniPayWallet();
-    from = accounts[0];
-    if (!from) throw err;
-
+  let lastError: unknown;
+  for (const tx of attempts) {
     try {
-      return await sendWithFrom(from);
-    } catch (retryErr) {
-      if (isUserRejectedTransaction(retryErr)) throw retryErr;
-      // Last resort: USDm feeCurrency (Celo fee abstraction)
       const txHash = (await eth.request({
         method: 'eth_sendTransaction',
-        params: [{ from, to, data, gas: gasHex, feeCurrency: CELO_USDM_FEE_TOKEN }],
+        params: [tx],
       })) as Hash | null;
-      if (!txHash) throw retryErr;
+
+      if (!txHash) {
+        throw new Error('Transaction hash unavailable — purchase may not have gone through');
+      }
       return txHash;
+    } catch (err) {
+      lastError = err;
+      if (isUserRejectedTransaction(err)) throw err;
+      if (!isPermissionError(err)) throw err;
     }
   }
+
+  throw lastError ?? new Error('MiniPay transaction failed: permission denied');
 }
 
 export type WriteContractAsyncFn = (args: {
@@ -111,7 +109,7 @@ export type MinipayContractWriteOptions = {
   writeContractAsync: WriteContractAsyncFn;
 };
 
-/** Encode with viem; on MiniPay send via raw eth_accounts + eth_sendTransaction (never wagmi/viem prepare). */
+/** Encode with viem; on MiniPay send via raw provider RPC (never wagmi/viem prepare). */
 export async function sendMinipayAwareContractTx(
   options: MinipayContractWriteOptions,
 ): Promise<Hash> {
@@ -139,7 +137,6 @@ export async function sendMinipayAwareContractTx(
 
 export type WalletSendFn = (args: { to: Address; data: Hex }) => Promise<Hash>;
 
-/** Pre-encoded calldata (e.g. ERC-20 transfer). MiniPay → eth_accounts + raw send. */
 export async function sendMinipayAwareEncodedTx(options: {
   to: Address;
   data: Hex;
