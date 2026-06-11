@@ -360,7 +360,8 @@ export function useRegisterPlayer() {
   const write = useCallback(
     async (username: string) => {
       if (!contractAddress) throw new Error('Contract not deployed on this chain');
-      if (!username.trim()) throw new Error('Username cannot be empty');
+      const trimmed = username.trim();
+      if (!trimmed) throw new Error('Username cannot be empty');
 
       await ensureMiniPayWalletReady();
 
@@ -368,7 +369,7 @@ export function useRegisterPlayer() {
       const data = encodeFunctionData({
         abi: TycoonABI,
         functionName: fn,
-        args: [username.trim()],
+        args: [trimmed],
       });
 
       // MiniPay docs: encodeFunctionData + sendTransaction({ to, data, feeCurrency })

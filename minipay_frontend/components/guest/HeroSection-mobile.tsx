@@ -21,8 +21,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { apiClient } from "@/lib/api";
-import { getGuestUserPlayAddress, isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
-import { completeMiniPayOnChainRegistration } from "@/lib/minipayRegisterPlayer";
+import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
@@ -309,10 +308,9 @@ const HeroSection: React.FC = () => {
       }
 
       if (isUserRegistered !== true) {
-        if (isMiniPayEmbeddedWallet()) {
-          await completeMiniPayOnChainRegistration(finalUsername, address);
-        } else {
-          await registerPlayer(finalUsername);
+        const txHash = await registerPlayer(finalUsername);
+        if (txHash && publicClient) {
+          await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
         }
       }
 
@@ -391,10 +389,9 @@ const HeroSection: React.FC = () => {
     setRegisterOnChainLoading(true);
     const toastId = toast.loading("Sign in your wallet to register on-chain…");
     try {
-      if (isMiniPayEmbeddedWallet()) {
-        await completeMiniPayOnChainRegistration(playUsername, address);
-      } else {
-        await registerPlayer(playUsername);
+      const txHash = await registerPlayer(playUsername);
+      if (txHash && publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
       }
       void Promise.allSettled([refetchIsRegistered?.(), refetchUsername?.()]);
       if (guestAuth?.refetchGuest) await guestAuth.refetchGuest();
