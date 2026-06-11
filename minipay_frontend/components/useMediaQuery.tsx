@@ -1,18 +1,10 @@
+// hooks/useMediaQuery.ts
 "use client";
 
 import { useEffect, useState } from "react";
 
-function readMatches(query: string): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.matchMedia(query).matches;
-  } catch {
-    return false;
-  }
-}
-
 export function useMediaQuery(query: string) {
-  const [matches, setMatches] = useState(() => readMatches(query));
+  const [matches, setMatches] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

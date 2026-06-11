@@ -48,8 +48,7 @@ export default function AuthGuard({ children }: AuthGuardProps): React.ReactElem
     return <>{children}</>;
   }
 
-  // MiniPay: connected wallet is enough — don't block the page while guest JWT loads.
-  if (authLoading && !address) {
+  if (authLoading) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-4">
         <div className="w-10 h-10 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />

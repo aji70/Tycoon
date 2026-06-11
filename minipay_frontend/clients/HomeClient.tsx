@@ -1,53 +1,36 @@
-// clients/HomeClient.tsx
+// components/HomeClient.tsx
 "use client";
 
 import dynamic from "next/dynamic";
 import { useMediaQuery } from "@/components/useMediaQuery";
+import WhatIsTycoon from "@/components/guest/WhatIsTycoon";
+import JoinOurCommunity from "@/components/guest/JoinOurCommunity";
+import Footer from "@/components/shared/Footer";
 
-/** Hero pulls wagmi + contracts — separate chunk; SSR LCP shell covers first paint. */
+/** Hero pulls wagmi + Privy + contracts — own chunk so the home entry bundle parses less upfront. */
 const HeroSection = dynamic(() => import("@/components/guest/HeroSection"), {
-  ssr: false,
-  loading: () => null,
+  loading: () => (
+    <div
+      className="min-h-screen w-full bg-[#010F10]"
+      aria-busy="true"
+      aria-label="Loading"
+    />
+  ),
 });
 const HeroSectionMobile = dynamic(() => import("@/components/guest/HeroSection-mobile"), {
-  ssr: false,
-  loading: () => null,
+  loading: () => (
+    <div
+      className="min-h-[100dvh] w-full bg-[#010F10]"
+      aria-busy="true"
+      aria-label="Loading"
+    />
+  ),
 });
 
 const HowItWorks = dynamic(() => import("@/components/guest/HowItWorks"), {
   loading: () => (
-    <section
-      className="relative h-[856px] min-h-[856px] w-full overflow-hidden bg-[#010F10]"
-      aria-hidden
-    >
-      {/* Matches layout.tsx preload URL — paints LCP before the HowItWorks chunk loads */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/howItWorksBg1.png"
-        alt=""
-        width={2000}
-        height={1500}
-        fetchPriority="high"
-        decoding="async"
-        sizes="(max-width: 640px) 480px, (max-width: 1024px) 768px, 100vw"
-        className="absolute inset-0 h-full w-full object-cover object-center"
-      />
-    </section>
+    <div className="min-h-[856px] w-full bg-[#010F10]" aria-hidden />
   ),
-});
-
-const WhatIsTycoon = dynamic(() => import("@/components/guest/WhatIsTycoon"), {
-  loading: () => <div className="min-h-[320px] w-full bg-[#010F10]" aria-hidden />,
-});
-
-const JoinOurCommunity = dynamic(() => import("@/components/guest/JoinOurCommunity"), {
-  ssr: false,
-  loading: () => <div className="min-h-[280px] w-full bg-[#010F10]" aria-hidden />,
-});
-
-const Footer = dynamic(() => import("@/components/shared/Footer"), {
-  ssr: false,
-  loading: () => <div className="min-h-[120px] w-full bg-[#010F10]" aria-hidden />,
 });
 
 export default function HomeClient() {

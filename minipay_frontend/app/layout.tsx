@@ -1,35 +1,24 @@
 import { dmSans, kronaOne, orbitron } from "@/components/shared/fonts";
+import NavBar from "@/components/shared/navbar"; // Remove if not used elsewhere
+import ScrollToTopBtn from "@/components/shared/scroll-to-top-btn";
 import "@/styles/globals.css";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
 import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
+import ReferralCapture from "@/components/ReferralCapture";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
-import DeferredToasts from "@/components/DeferredToasts";
-import DeferredHotToaster from "@/components/DeferredHotToaster";
-import DeferredUiStyles from "@/components/DeferredUiStyles";
-import dynamic from "next/dynamic";
-
-const ReferralCapture = dynamic(() => import("@/components/ReferralCapture"), {
-  ssr: false,
-});
-const ScrollToTopBtn = dynamic(() => import("@/components/shared/scroll-to-top-btn"), {
-  ssr: false,
-});
-const FarcasterReady = dynamic(() => import("@/components/FarcasterReady"), {
-  ssr: false,
-});
-const BfcacheReloadGuard = dynamic(() => import("@/components/BfcacheReloadGuard"), {
-  ssr: false,
-});
-import { CRITICAL_HERO_CSS } from "@/lib/criticalHeroCss";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { Toaster } from "react-hot-toast";
+import FarcasterReady from "@/components/FarcasterReady"; 
 import { minikitConfig } from "../minikit.config";
 import type { Metadata } from "next";
 import Script from "next/script";
 import ClientLayout from "../clients/ClientLayout";
 import QueryProvider from "./QueryProvider";
+import BfcacheReloadGuard from "@/components/BfcacheReloadGuard";
 import MinipaySiteRedirect from "@/components/MinipaySiteRedirect";
-import MinipayAutoConnect from "@/components/MinipayAutoConnect";
 import { buildMinipaySiteRedirectScript } from "@/lib/minipaySiteRedirect";
 
 // Run before React: (1) Reload board when restored from bfcache so WebGL is fresh. (2) Disable bfcache on board so back button does full load instead of restore (avoids Context Lost + .style crash).
@@ -111,16 +100,10 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Wallet API hints — crossOrigin required; before scripts/CSS so connections start early */}
-        <link rel="preconnect" href="https://api.web3modal.org" crossOrigin="anonymous" />
-        <link rel="preconnect" href="https://pulse.walletconnect.org" crossOrigin="anonymous" />
-        <link
-          rel="preload"
-          as="image"
-          href="/howItWorksBg1.png"
-          fetchPriority="high"
-        />
-        <style id="critical-hero-css" dangerouslySetInnerHTML={{ __html: CRITICAL_HERO_CSS }} />
+        <link rel="dns-prefetch" href="https://api.web3modal.org" />
+        <link rel="dns-prefetch" href="https://pulse.walletconnect.org" />
+        <link rel="dns-prefetch" href="https://fonts.reown.com" />
+        <link rel="preconnect" href="https://fonts.reown.com" crossOrigin="anonymous" />
       </head>
 
       <body
@@ -135,21 +118,36 @@ export default async function RootLayout({
         <MinipaySiteRedirect />
         <FarcasterReady />
         <ContextProvider cookies={cookies}>
-          <MinipayAutoConnect />
-          <TycoonProvider>
+            <TycoonProvider>
               <GuestAuthProvider>
               <ReferralCapture />
               <AppKitProviderWrapper>
                 <QueryProvider>
-                <DeferredUiStyles />
                 <BfcacheReloadGuard />
                 <ClientLayout cookies={cookies}>
                   {children}
                 </ClientLayout>
 
                 <ScrollToTopBtn />
-                <DeferredToasts />
-                <DeferredHotToaster />
+                <ToastContainer
+                  position="top-right"
+                  autoClose={5000}
+                  hideProgressBar={false}
+                  newestOnTop
+                  closeOnClick
+                  rtl={false}
+                  pauseOnFocusLoss
+                  draggable
+                  pauseOnHover
+                  theme="dark"
+                  toastStyle={{
+                    fontFamily: "Orbitron, sans-serif",
+                    background: "#0E1415",
+                    color: "#00F0FF",
+                    border: "1px solid #003B3E",
+                  }}
+                />
+                <Toaster position="top-center" />
                 </QueryProvider>
               </AppKitProviderWrapper>
               </GuestAuthProvider>

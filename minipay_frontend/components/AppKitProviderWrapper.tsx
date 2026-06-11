@@ -15,30 +15,6 @@ const siteUrl = (() => {
 
 let isInitialized = false;
 
-function ensureAppKitInitialized() {
-  if (isInitialized || typeof window === 'undefined') return;
-  createAppKit({
-    adapters: [wagmiAdapter],
-    networks: [defaultNetwork],
-    projectId,
-    defaultNetwork,
-    themeVariables: {
-      '--w3m-z-index': 10000,
-      '--w3m-font-family': 'inherit',
-    },
-    metadata: {
-      name: 'Tycoon',
-      description: 'Play Monopoly onchain',
-      url: siteUrl,
-      icons: [`${siteUrl}/logo.png`],
-    },
-    features: {
-      analytics: false,
-    },
-  });
-  isInitialized = true;
-}
-
 /** Reown injects #wcm-modal without aria-label; set one for screen readers / Lighthouse. */
 function useWcmModalAccessibleName() {
   useEffect(() => {
@@ -62,8 +38,31 @@ export default function AppKitProviderWrapper({
 }: {
   children: ReactNode;
 }) {
-  ensureAppKitInitialized();
   useWcmModalAccessibleName();
+
+  useEffect(() => {
+    if (!isInitialized) {
+      createAppKit({
+        adapters: [wagmiAdapter],
+        networks: [defaultNetwork],
+        projectId,
+        defaultNetwork,
+        themeVariables: {
+          '--w3m-z-index': 10000, // Set high z-index for Reown modal
+        },
+        metadata: {
+          name: 'Tycoon',
+          description: 'Play Monopoly onchain',
+          url: siteUrl,
+          icons: [`${siteUrl}/logo.png`],
+        },
+        features: {
+          analytics: true,
+        },
+      });
+      isInitialized = true;
+    }
+  }, []);
 
   return <>{children}</>;
 }

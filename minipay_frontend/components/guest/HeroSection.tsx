@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import herobg from "@/public/heroBg.png";
 import Image from "next/image";
 import { Dices, Gamepad2 } from "lucide-react";
-import dynamic from "next/dynamic";
+import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAccount, useChainId, useConnect, useSignMessage, usePublicClient, useSwitchChain } from "wagmi";
@@ -25,25 +25,10 @@ import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
+import { ParticleBackground } from "@/components/hero/ParticleBackground";
+import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
 import { NeonTitle } from "@/components/hero/NeonTitle";
-import { HeroShellDismiss } from "@/components/hero/HeroShellDismiss";
-
-const TypeAnimation = dynamic(
-  () => import("react-type-animation").then((m) => m.TypeAnimation),
-  { ssr: false }
-);
-const ParticleBackground = dynamic(
-  () => import("@/components/hero/ParticleBackground").then((m) => m.ParticleBackground),
-  { ssr: false }
-);
-const ScanlineOverlay = dynamic(
-  () => import("@/components/hero/ScanlineOverlay").then((m) => m.ScanlineOverlay),
-  { ssr: false }
-);
-const WorldStatsBar = dynamic(
-  () => import("@/components/hero/WorldStatsBar").then((m) => m.WorldStatsBar),
-  { ssr: false }
-);
+import { WorldStatsBar } from "@/components/hero/WorldStatsBar";
 
 function chainIdToBackendChain(chainId: number): string {
   return "CELO";
@@ -489,13 +474,12 @@ const HeroSection: React.FC = () => {
       ref={parallaxRef}
       className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-hidden bg-[#010F10]"
     >
-      <HeroShellDismiss />
       {/* Background with parallax - disabled on mobile */}
       <motion.div
         className="w-full h-full overflow-hidden absolute inset-0"
         animate={{
-          x: mousePosition.x * 10,
-          y: mousePosition.y * 10,
+          x: window.innerWidth < 768 ? 0 : mousePosition.x * 10,
+          y: window.innerWidth < 768 ? 0 : mousePosition.y * 10,
         }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
@@ -656,13 +640,7 @@ const HeroSection: React.FC = () => {
           </p>
         </div>
 
-        <div className="z-1 w-full flex h-[152px] min-h-[152px] flex-col justify-center items-center mt-6 gap-4">
-          {(isConnecting || isRegisteredLoading) && !loading && (
-            <div
-              className="h-[52px] w-[min(260px,80%)] rounded-[12px] border border-[#003B3E]/50 bg-[#0E1415]/60"
-              aria-hidden
-            />
-          )}
+        <div className="z-1 w-full flex min-h-[152px] flex-col justify-center items-center mt-6 gap-4">
           {/* EOA mandatory Privy: wallet connected but not signed in with Privy — must sign in with Privy to continue */}
           {address && !walletSessionReady && !loading && (
             <div className="w-[80%] md:w-[400px] flex flex-col gap-4 items-center">
