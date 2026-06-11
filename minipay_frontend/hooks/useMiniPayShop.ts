@@ -2,7 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePublicClient, useWalletClient, useAccount } from 'wagmi'
 import { encodeFunctionData, type Address } from 'viem'
 
-const ERC20_TRANSFER_ABI = [
+const ERC20_ABI = [
+  {
+    name: 'approve',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ type: 'bool' }],
+  },
   {
     name: 'transfer',
     type: 'function',
@@ -23,6 +33,23 @@ export function isMiniPayBrowser(): boolean {
   }
 }
 
+async function sendRawTransaction(tokenAddress: Address, data: string, gas: string = '0x493E0'): Promise<string> {
+  const accounts: string[] = await (window.ethereum as any).request({
+    method: 'eth_accounts',
+  })
+  const txHash = await (window.ethereum as any).request({
+    method: 'eth_sendTransaction',
+    params: [{
+      from: accounts[0],
+      to: tokenAddress,
+      data,
+      gas,
+    }],
+  })
+  if (!txHash) throw new Error('Transaction hash unavailable')
+  return txHash
+}
+
 export function useMiniPayShop() {
   const { address } = useAccount()
   const publicClient = usePublicClient()
@@ -34,53 +61,63 @@ export function useMiniPayShop() {
   const [error, setError] = useState<string | null>(null)
   const isPayingRef = useRef(false)
 
-  const sendERC20Transfer = useCallback(
-    async (tokenAddress: Address, recipientAddress: Address, amount: bigint): Promise<string> => {
+  const approveAndTransfer = useCallback(
+    async (tokenAddress: Address, spenderAddress: Address, amount: bigint): Promise<string> => {
       if (!address || isPayingRef.current) throw new Error('Not ready to pay')
       isPayingRef.current = true
       setIsPaying(true)
       setError(null)
 
       try {
-        const data = encodeFunctionData({
-          abi: ERC20_TRANSFER_ABI,
-          functionName: 'transfer',
-          args: [recipientAddress, amount],
-        })
-
-        let txHash: string | undefined
-
         if (isMiniPayBrowser()) {
-          // Bypass viem for MiniPay — raw eth_accounts + eth_sendTransaction with explicit gas
-          // MiniPay's injected provider rejects viem's prepareTransactionRequest with Celo-specific params
-          const accounts: string[] = await (window.ethereum as any).request({
-            method: 'eth_accounts',
+          // Step 1: Approve the spender to use the tokens
+          const approveData = encodeFunctionData({
+            abi: ERC20_ABI,
+            functionName: 'approve',
+            args: [spenderAddress, amount],
           })
-          txHash = await (window.ethereum as any).request({
-            method: 'eth_sendTransaction',
-            params: [{
-              from: accounts[0],
-              to: tokenAddress,
-              data,
-              gas: '0x493E0', // 300,000 — sufficient for ERC-20 transfer
-            }],
+          const approveTx = await sendRawTransaction(tokenAddress, approveData)
+
+          // Wait for approval to be confirmed
+          if (publicClient) {
+            await publicClient.waitForTransactionReceipt({ hash: approveTx as `0x${string}` })
+          }
+
+          // Step 2: Transfer the tokens
+          const transferData = encodeFunctionData({
+            abi: ERC20_ABI,
+            functionName: 'transfer',
+            args: [spenderAddress, amount],
           })
+          const txHash = await sendRawTransaction(tokenAddress, transferData)
+
+          if (publicClient) {
+            await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` })
+          }
+
+          return txHash
         } else {
           if (!walletRef.current) throw new Error('Wallet not connected')
-          txHash = await walletRef.current.sendTransaction({
-            to: tokenAddress,
-            data,
+
+          // For non-MiniPay, just do a transfer
+          const transferData = encodeFunctionData({
+            abi: ERC20_ABI,
+            functionName: 'transfer',
+            args: [spenderAddress, amount],
           })
+          const txHash = await walletRef.current.sendTransaction({
+            to: tokenAddress,
+            data: transferData,
+          })
+
+          if (!txHash) throw new Error('Transaction hash unavailable')
+
+          if (publicClient) {
+            await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` })
+          }
+
+          return txHash
         }
-
-        if (!txHash) throw new Error('Transaction hash unavailable')
-
-        // Wait for receipt before returning so on-chain state is confirmed
-        if (publicClient) {
-          await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` })
-        }
-
-        return txHash
       } catch (err: any) {
         const msg =
           err?.message ||
@@ -99,6 +136,6 @@ export function useMiniPayShop() {
   return {
     isPaying,
     error,
-    sendERC20Transfer,
+    approveAndTransfer,
   }
 }

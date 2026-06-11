@@ -413,32 +413,22 @@ export default function GameShop() {
       return;
     }
     try {
-      // MiniPay: bypass viem and use raw eth_sendTransaction
-      if (isMiniPayBrowser() && isConnected && address) {
-        const txHash = await miniPayShop.sendERC20Transfer(
-          paymentTokenAddress,
-          contractAddress,
-          price
-        );
-        if (!txHash) throw new Error('Transaction failed');
-        // Refetch balance after successful on-chain transfer
-        refetchUsdc();
-        refetchCusdc();
-        refetchUsdt();
-        toast.success('Purchase successful!');
-        return;
+      // For MiniPay: skip approval, try buy directly
+      if (isMiniPayBrowser()) {
+        await buy(item.tokenId, paymentToken);
+      } else {
+        // For non-MiniPay: use normal approval flow
+        if (stableAllowance === undefined || stableAllowance === null) {
+          toast.info('Approval required');
+          await approve(paymentTokenAddress, contractAddress, price);
+          toast.success('Approval successful, completing purchase...');
+        } else if (typeof stableAllowance === 'bigint' && stableAllowance < price) {
+          toast.info('Increasing approval...');
+          await approve(paymentTokenAddress, contractAddress, price);
+          toast.success('Approval successful, completing purchase...');
+        }
+        await buy(item.tokenId, paymentToken);
       }
-
-      if (stableAllowance === undefined || stableAllowance === null) {
-        toast.info('Approval required');
-        await approve(paymentTokenAddress, contractAddress, price);
-        toast.success('Approval successful, completing purchase...');
-      } else if (typeof stableAllowance === 'bigint' && stableAllowance < price) {
-        toast.info('Increasing approval...');
-        await approve(paymentTokenAddress, contractAddress, price);
-        toast.success('Approval successful, completing purchase...');
-      }
-      await buy(item.tokenId, paymentToken);
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Purchase failed');
       resetShopWrites();
