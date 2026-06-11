@@ -437,7 +437,8 @@ export default function GameShop() {
           functionName: 'buyCollectible',
           args: [item.tokenId, BigInt(paymentToken)],
         });
-        await miniPayShop.sendContractCallRaw(contractAddress, buyData);
+        // Use viem with feeCurrency for MiniPay fee abstraction
+        await miniPayShop.sendContractCallWithFee(contractAddress, buyData, paymentTokenAddress);
 
         refetchUsdc();
         refetchCusdc();
