@@ -217,26 +217,6 @@ button {
   cursor: pointer;
 }
 
-.w3m-modal {
-  z-index: 10000 !important;
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-}
-
-/* Force Coinbase/AppKit modal above everything */
-#walletconnect-wrapper,
-.coinbase-wallet-sdk,
-.coinbase-wallet-modal,
-.walletconnect-modal,
-.appkit-modal,
-[class*="appkit-modal"] {
-  z-index: 999999 !important;
-  position: relative !important;
-}
-
 /* ========== Gamified home page UI ========== */
 .game-panel {
   --hero-cyan: #00F0FF;
@@ -276,30 +256,6 @@ button {
   letter-spacing: 0.05em;
   color: #F0F7F7;
   text-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
-}
-
-/* Privy login modal – match Tycoon dark + cyan theme */
-body {
-  --privy-color-background: #010F10;
-  --privy-color-background-2: #0E1415;
-  --privy-color-background-3: #0E282A;
-  --privy-color-foreground: #F0F7F7;
-  --privy-color-foreground-2: #AFBAC0;
-  --privy-color-foreground-3: #869298;
-  --privy-color-foreground-4: #6B7A80;
-  --privy-color-foreground-accent: #00F0FF;
-  --privy-color-accent: #00F0FF;
-  --privy-color-accent-light: #00D4E6;
-  --privy-color-accent-lightest: rgba(0, 240, 255, 0.15);
-  --privy-color-accent-dark: #003B3E;
-  --privy-color-accent-darkest: #0E282A;
-  --privy-color-success: #22c55e;
-  --privy-color-error: #ef4444;
-  --privy-color-error-light: rgba(239, 68, 68, 0.15);
-  --privy-border-radius-sm: 8px;
-  --privy-border-radius-md: 12px;
-  --privy-border-radius-lg: 16px;
-  --privy-border-radius-full: 9999px;
 }
 
 /* Content below fixed mobile navbar */

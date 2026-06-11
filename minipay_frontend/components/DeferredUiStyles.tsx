@@ -13,6 +13,7 @@ export default function DeferredUiStyles() {
     const id = ric(() => {
       void import("@/styles/deferred-ui.css");
       void import("@/styles/animations.css");
+      void import("@/styles/wallet-modal-deferred.css");
     }, { timeout: 3000 });
     return () => cancel(id as number);
   }, []);

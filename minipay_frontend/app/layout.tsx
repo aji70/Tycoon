@@ -3,7 +3,6 @@ import "@/styles/globals.css";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
 import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
-import ReferralCapture from "@/components/ReferralCapture";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
 import DeferredToasts from "@/components/DeferredToasts";
@@ -11,10 +10,16 @@ import DeferredHotToaster from "@/components/DeferredHotToaster";
 import DeferredUiStyles from "@/components/DeferredUiStyles";
 import dynamic from "next/dynamic";
 
+const ReferralCapture = dynamic(() => import("@/components/ReferralCapture"), {
+  ssr: false,
+});
 const ScrollToTopBtn = dynamic(() => import("@/components/shared/scroll-to-top-btn"), {
   ssr: false,
 });
 const FarcasterReady = dynamic(() => import("@/components/FarcasterReady"), {
+  ssr: false,
+});
+const BfcacheReloadGuard = dynamic(() => import("@/components/BfcacheReloadGuard"), {
   ssr: false,
 });
 import { CRITICAL_HERO_CSS } from "@/lib/criticalHeroCss";
@@ -23,7 +28,6 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import ClientLayout from "../clients/ClientLayout";
 import QueryProvider from "./QueryProvider";
-import BfcacheReloadGuard from "@/components/BfcacheReloadGuard";
 import MinipaySiteRedirect from "@/components/MinipaySiteRedirect";
 import MinipayAutoConnect from "@/components/MinipayAutoConnect";
 import { buildMinipaySiteRedirectScript } from "@/lib/minipaySiteRedirect";
@@ -107,6 +111,7 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Wallet API hints — crossOrigin required; before scripts/CSS so connections start early */}
         <link rel="preconnect" href="https://api.web3modal.org" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://pulse.walletconnect.org" crossOrigin="anonymous" />
         <link
