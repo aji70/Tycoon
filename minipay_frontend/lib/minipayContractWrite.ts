@@ -1,15 +1,16 @@
 'use client';
 
-import { encodeFunctionData, type Abi, type Address, type Hash, type Hex } from 'viem';
+import { encodeFunctionData, getAddress, type Abi, type Address, type Hash, type Hex } from 'viem';
 import {
   CELO_USDC_FEE_ADAPTER,
   CELO_USDM_FEE_TOKEN,
   MINIPAY_CONTRACT_GAS,
+  MINIPAY_FEE_CURRENCY,
   MINIPAY_REGISTER_GAS,
 } from '@/lib/celoTransportForWagmi';
 import {
   ensureInjectedMiniPayConnection,
-  getInjectedEthereumProvider,
+  getEthereumProvider,
   resolveMiniPaySender,
   shouldBypassViemForTx,
 } from '@/lib/minipayGuestFlow';
@@ -30,11 +31,17 @@ type TxParam = {
   feeCurrency?: Address;
 };
 
-function isFeeCurrencyRetryError(err: unknown): boolean {
+function isRetryableSendError(err: unknown): boolean {
   const e = err as { code?: number; message?: string; shortMessage?: string; data?: { message?: string } };
-  if (e?.code === 4100 || e?.code === -32002) return false;
+  if (e?.code === 4100 || e?.code === -32002) return true;
   const m = `${e?.message ?? ''} ${e?.shortMessage ?? ''} ${e?.data?.message ?? ''}`.toLowerCase();
   return (
+    m.includes('permission denied') ||
+    m.includes('permission null') ||
+    m.includes('sender permission') ||
+    m.includes('invalid sender') ||
+    m.includes('sender address null') ||
+    m.includes('unauthorized') ||
     m.includes('fee currency') ||
     m.includes('feecurrency') ||
     m.includes('insufficient funds') ||
@@ -44,18 +51,19 @@ function isFeeCurrencyRetryError(err: unknown): boolean {
 }
 
 /**
- * MiniPay raw send — friend's revive pattern on the injected provider wagmi uses:
- * eth_accounts → eth_sendTransaction with explicit from + gas (no feeCurrency on first attempt).
+ * Celopedia MiniPay send pattern on window.ethereum:
+ * encodeFunctionData + eth_sendTransaction with explicit gas + feeCurrency (USDC adapter).
+ * @see https://docs.minipay.xyz/getting-started/examples.html
  */
 export async function minipayRawSendTransaction(
   to: Address,
   data: Hex,
   gasHex: string = MINIPAY_CONTRACT_GAS_HEX,
 ): Promise<Hash> {
-  const sendOnce = async (from: string, feeCurrency?: Address): Promise<Hash> => {
-    await ensureInjectedMiniPayConnection();
-    const eth = await getInjectedEthereumProvider();
+  await ensureInjectedMiniPayConnection();
+  const eth = getEthereumProvider();
 
+  const sendOnce = async (from: string, feeCurrency?: Address): Promise<Hash> => {
     const tx: TxParam = { from, to, data, gas: gasHex, ...(feeCurrency ? { feeCurrency } : {}) };
     const txHash = (await eth.request({
       method: 'eth_sendTransaction',
@@ -68,33 +76,48 @@ export async function minipayRawSendTransaction(
     return txHash;
   };
 
-  const from = await resolveMiniPaySender();
+  const refreshSender = async (): Promise<string> => {
+    const accounts = (await eth.request({ method: 'eth_requestAccounts' })) as string[];
+    const raw = accounts?.[0];
+    if (!raw) return resolveMiniPaySender();
+    return getAddress(raw as `0x${string}`);
+  };
 
-  try {
-    return await sendOnce(from);
-  } catch (err) {
-    if (isUserRejectedTransaction(err)) throw err;
+  const feeAttempts: Array<Address | undefined> = [
+    MINIPAY_FEE_CURRENCY,
+    CELO_USDC_FEE_ADAPTER,
+    CELO_USDM_FEE_TOKEN,
+    undefined,
+  ];
 
-    const e = err as { code?: number; message?: string };
-    const msg = `${e?.message ?? ''}`.toLowerCase();
-    if (e?.code === 4100 || msg.includes('permission denied') || msg.includes('unauthorized')) {
-      throw new Error(
-        'MiniPay could not sign this transaction. Close the app, reopen Tycoon from MiniPay, and try again.',
-      );
-    }
+  const seen = new Set<string>();
+  const uniqueFeeAttempts = feeAttempts.filter((fc) => {
+    const key = fc ?? 'default';
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
-    if (isFeeCurrencyRetryError(err)) {
-      for (const feeCurrency of [CELO_USDC_FEE_ADAPTER, CELO_USDM_FEE_TOKEN]) {
-        try {
-          return await sendOnce(from, feeCurrency);
-        } catch (retryErr) {
-          if (isUserRejectedTransaction(retryErr)) throw retryErr;
-        }
+  let from = await resolveMiniPaySender();
+  let lastError: unknown;
+
+  for (let round = 0; round < 2; round++) {
+    for (const feeCurrency of uniqueFeeAttempts) {
+      try {
+        return await sendOnce(from, feeCurrency);
+      } catch (err) {
+        lastError = err;
+        if (isUserRejectedTransaction(err)) throw err;
+        if (!isRetryableSendError(err)) throw err;
       }
     }
 
-    throw err;
+    if (round === 0) {
+      from = await refreshSender();
+    }
   }
+
+  throw lastError ?? new Error('MiniPay transaction failed');
 }
 
 export type WriteContractAsyncFn = (args: {

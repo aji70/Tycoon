@@ -10,8 +10,16 @@ import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
  */
 export function celoTransportForWagmi(): Transport {
   if (typeof window !== "undefined") {
-    const eth = (window as Window & { ethereum?: object }).ethereum;
-    if (eth) return custom(eth);
+    const w = window as Window & {
+      ethereum?: { isMiniPay?: boolean; providers?: { isMiniPay?: boolean; request?: unknown }[]; request?: unknown };
+    };
+    const eth = w.ethereum;
+    if (eth && typeof eth.request === "function") {
+      if (eth.isMiniPay) return custom(eth);
+      const nested = eth.providers?.find((p) => p?.isMiniPay && typeof p.request === "function");
+      if (nested) return custom(nested);
+      if (!eth.providers?.length) return custom(eth);
+    }
   }
   return http(getCeloRpcUrlForChainId(celo.id));
 }

@@ -40,50 +40,7 @@ export type MiniPayEthereumProvider = {
   providers?: MiniPayEthereumProvider[];
 };
 
-function isInjectedConnector(connector: { id?: string; type?: string } | undefined): boolean {
-  if (!connector) return false;
-  return connector.id === 'injected' || connector.type === 'injected';
-}
-
-type WagmiConnectorLike = {
-  getProvider?: () => Promise<unknown>;
-};
-
-async function providerFromConnector(
-  connector: WagmiConnectorLike | undefined,
-): Promise<MiniPayEthereumProvider | null> {
-  if (!connector?.getProvider) return null;
-  const provider = (await connector.getProvider()) as MiniPayEthereumProvider | undefined;
-  if (provider?.request) return provider;
-  return null;
-}
-
-/**
- * Same provider wagmi's injected connector uses — authorize and send must share this object.
- * Note: injected() is a factory; call injected()(config) to get a connector with getProvider.
- */
-export async function getInjectedEthereumProvider(): Promise<MiniPayEthereumProvider> {
-  if (typeof window === 'undefined') {
-    throw new Error('Open Tycoon inside the MiniPay app.');
-  }
-
-  const config = getWagmiConfig();
-  const account = getAccount(config);
-
-  const fromConnected = await providerFromConnector(account.connector);
-  if (fromConnected) return fromConnected;
-
-  const fromInjected = await providerFromConnector(injected()(config));
-  if (fromInjected) return fromInjected;
-
-  const fromWindow = getMiniPayEthereumProvider();
-  if (fromWindow) return fromWindow;
-
-  throw new Error('Open Tycoon inside the MiniPay app.');
-}
-
-/** @deprecated Use getInjectedEthereumProvider() — kept for callers that expect sync null. */
-export function getMiniPayEthereumProvider(): MiniPayEthereumProvider | null {
+function resolveWindowEthereum(): MiniPayEthereumProvider | null {
   if (typeof window === 'undefined') return null;
 
   const eth = (window as Window & { ethereum?: MiniPayEthereumProvider }).ethereum;
@@ -99,6 +56,28 @@ export function getMiniPayEthereumProvider(): MiniPayEthereumProvider | null {
   return eth;
 }
 
+/**
+ * Celopedia / MiniPay project setup: same window.ethereum for authorize, transport, and send.
+ * @see https://docs.minipay.xyz/getting-started/project-setup.html
+ */
+export function getEthereumProvider(): MiniPayEthereumProvider {
+  const eth = resolveWindowEthereum();
+  if (!eth) {
+    throw new Error('window.ethereum is required. Run this app inside MiniPay.');
+  }
+  return eth;
+}
+
+/** @deprecated Use getEthereumProvider() */
+export function getMiniPayEthereumProvider(): MiniPayEthereumProvider | null {
+  return resolveWindowEthereum();
+}
+
+/** @deprecated Use getEthereumProvider() */
+export async function getInjectedEthereumProvider(): Promise<MiniPayEthereumProvider> {
+  return getEthereumProvider();
+}
+
 export function isMiniPayEmbeddedWallet(): boolean {
   if (typeof window === 'undefined') return false;
   const eth = (window as Window & { ethereum?: { isMiniPay?: boolean; providers?: { isMiniPay?: boolean }[] } })
@@ -106,7 +85,6 @@ export function isMiniPayEmbeddedWallet(): boolean {
   if (!eth) return false;
   if (eth.isMiniPay) return true;
   if (Array.isArray(eth.providers) && eth.providers.some((p) => p?.isMiniPay)) return true;
-  // MiniPay-only deployment: only MiniPay webview users remain (others redirect away).
   if (isMinipayOnlyHost(window.location.hostname.toLowerCase())) return true;
   return false;
 }
@@ -119,8 +97,13 @@ export function shouldBypassViemForTx(): boolean {
   return isMiniPayEmbeddedWallet();
 }
 
+function isInjectedConnector(connector: { id?: string; type?: string } | undefined): boolean {
+  if (!connector) return false;
+  return connector.id === 'injected' || connector.type === 'injected';
+}
+
 /**
- * Ensure wagmi uses the injected MiniPay provider, not a persisted WalletConnect session.
+ * Keep wagmi on injected() so UI address matches window.ethereum — drop WalletConnect sessions.
  */
 export async function ensureInjectedMiniPayConnection(): Promise<void> {
   const config = getWagmiConfig();
@@ -137,16 +120,16 @@ export async function ensureInjectedMiniPayConnection(): Promise<void> {
 }
 
 /**
- * Friend's revive pattern: eth_accounts first (authorized at connect), then eth_requestAccounts.
+ * Authorize on window.ethereum (Celopedia: auto-connect on load, requestAccounts before send).
  */
 export async function resolveMiniPaySender(): Promise<string> {
   await ensureInjectedMiniPayConnection();
-  const eth = await getInjectedEthereumProvider();
+  const eth = getEthereumProvider();
 
-  let accounts = (await eth.request({ method: 'eth_accounts' })) as string[];
+  let accounts = (await eth.request({ method: 'eth_requestAccounts' })) as string[];
 
   if (!accounts?.[0]) {
-    accounts = (await eth.request({ method: 'eth_requestAccounts' })) as string[];
+    accounts = (await eth.request({ method: 'eth_accounts' })) as string[];
   }
 
   const raw = accounts?.[0];
