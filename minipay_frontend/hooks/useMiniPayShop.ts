@@ -107,7 +107,7 @@ export function useMiniPayShop() {
             from: accounts[0],
             to: contractAddress,
             data: functionData,
-            gas: '0x927C0', // 600,000 gas — sufficient for complex contract calls
+            // Let MiniPay calculate gas automatically (don't set explicit gas)
           }],
         })
 
