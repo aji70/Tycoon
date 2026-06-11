@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAccount, useConnect, useConnectors } from "wagmi";
-import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
+import { authorizeMiniPayWallet, isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 
 /**
  * MiniPay requires auto-connect on page load — never rely on a manual connect button.
@@ -14,6 +14,12 @@ export function useMinipayAutoConnect(): void {
   const { address, isConnecting } = useAccount();
   const { connect } = useConnect();
   const [hasAttempted, setHasAttempted] = useState(false);
+
+  // Authorize injected provider on load so eth_accounts works for payment sends.
+  useEffect(() => {
+    if (!isMiniPayEmbeddedWallet()) return;
+    void authorizeMiniPayWallet().catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.ethereum) return;
@@ -31,6 +37,10 @@ export function useMinipayAutoConnect(): void {
           isMiniPayEmbeddedWallet() && injected ? injected : injected ?? connectors[0];
 
         await connect({ connector });
+        // Authorize session once so payment sends can use eth_accounts (friend's revive pattern).
+        if (isMiniPayEmbeddedWallet()) {
+          await authorizeMiniPayWallet();
+        }
       } catch (err) {
         console.error("MiniPay auto-connect failed:", err);
       } finally {

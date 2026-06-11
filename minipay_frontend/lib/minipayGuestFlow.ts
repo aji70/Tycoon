@@ -45,9 +45,13 @@ export function isMiniPayEmbeddedWallet(): boolean {
   return Boolean((injected as { isMiniPay?: boolean } | null)?.isMiniPay);
 }
 
+/** Alias matching common MiniPay Mini App code (`isMiniPay()`). */
+export function isMiniPay(): boolean {
+  return isMiniPayEmbeddedWallet();
+}
+
 /**
  * MiniPay Mini App: never route writes through wagmi/viem prepareTransactionRequest.
- * True when the injected provider is MiniPay (flag on root or in providers[]).
  */
 export function shouldBypassViemForTx(): boolean {
   return isMiniPayEmbeddedWallet();
@@ -57,13 +61,16 @@ type EthereumRequestProvider = {
   request: (args: { method: string; params?: readonly unknown[] }) => Promise<unknown>;
 };
 
+function getMiniPayProvider(): EthereumRequestProvider | null {
+  return getInjectedEthereumProvider() as EthereumRequestProvider | null;
+}
+
 /**
- * Authorize MiniPay account before eth_sendTransaction (avoids EIP-1193 4100).
- * Always use eth_requestAccounts — never eth_accounts alone.
- * @see https://docs.minipay.xyz/getting-started/wallet-connection.html
+ * One-time session authorization on app load (auto-connect).
+ * After this succeeds, payment sends can use eth_accounts.
  */
-export async function ensureMiniPayWalletReady(): Promise<readonly string[]> {
-  const eth = getInjectedEthereumProvider() as EthereumRequestProvider | null;
+export async function authorizeMiniPayWallet(): Promise<readonly string[]> {
+  const eth = getMiniPayProvider();
   if (!eth?.request) {
     if (shouldBypassViemForTx()) {
       throw new Error("Open Tycoon inside the MiniPay app.");
@@ -93,9 +100,32 @@ export async function ensureMiniPayWalletReady(): Promise<readonly string[]> {
 }
 
 /**
+ * Accounts for eth_sendTransaction — friend's pattern:
+ * eth_accounts first (after auto-connect authorized the session), eth_requestAccounts only if empty.
+ */
+export async function getMiniPayAccountsForTx(): Promise<readonly string[]> {
+  const eth = getMiniPayProvider();
+  if (!eth?.request) {
+    if (shouldBypassViemForTx()) {
+      throw new Error("Open Tycoon inside the MiniPay app.");
+    }
+    return [];
+  }
+
+  const accounts = (await eth.request({ method: "eth_accounts" })) as string[];
+  if (accounts?.length) return accounts;
+
+  return authorizeMiniPayWallet();
+}
+
+/** @deprecated Use authorizeMiniPayWallet (connect) or getMiniPayAccountsForTx (send). */
+export async function ensureMiniPayWalletReady(): Promise<readonly string[]> {
+  return getMiniPayAccountsForTx();
+}
+
+/**
  * Use backend-signed guest create/join only when there is no connected wallet
  * and the user is not in the MiniPay app (MiniPay always has an injected wallet).
- * When a wallet is connected, create/join always goes on-chain (user signs).
  */
 export function shouldUseBackendGuestGameFlow(
   guestUser: {
