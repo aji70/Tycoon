@@ -531,7 +531,7 @@ export default function CollectibleInventoryBar({
           // Approval already sufficient, proceed to buy
           setBuyingId(item.tokenId);
           toast.loading("Purchasing...", { id: "buy" });
-          await buy(item.tokenId, true);
+          await buy(item.tokenId, 3);
         }
       }
     } catch (err: unknown) {
@@ -613,9 +613,9 @@ export default function CollectibleInventoryBar({
         toast.loading("Purchasing...", { id: "buy" });
         try {
           if (payWith === 'smart_wallet' && smartWalletAddress) {
-            buyFrom(smartWalletAddress, item.tokenId, true);
+            buyFrom(smartWalletAddress, item.tokenId, 3);
           } else {
-            buy(item.tokenId, true);
+            buy(item.tokenId, 3);
           }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : "Transaction failed";

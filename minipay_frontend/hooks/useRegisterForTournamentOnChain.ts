@@ -14,6 +14,7 @@ import {
 } from "@/constants/contracts";
 import TycoonTournamentEscrowAbi from "@/context/abi/TycoonTournamentEscrow.json";
 import { useApprove } from "@/context/ContractProvider";
+import { sendMinipayAwareContractTx } from "@/lib/minipayContractWrite";
 
 /**
  * Hook to register for a tournament on-chain (TycoonTournamentEscrow.registerForTournament).
@@ -62,11 +63,12 @@ export function useRegisterForTournamentOnChain() {
         }
       }
 
-      const hash = await writeContractAsync({
-        address: escrowAddress,
+      const hash = await sendMinipayAwareContractTx({
+        to: escrowAddress,
         abi: TycoonTournamentEscrowAbi as never,
         functionName: "registerForTournament",
         args: [BigInt(validTournamentId)],
+        writeContractAsync,
       });
 
       return hash ?? null;

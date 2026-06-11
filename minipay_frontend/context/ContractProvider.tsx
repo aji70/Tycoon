@@ -5,7 +5,6 @@ import {
   useReadContract,
   useReadContracts,
   useWriteContract,
-  useSendTransaction,
   useAccount,
   useWaitForTransactionReceipt,
   useChainId,
@@ -23,9 +22,12 @@ import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
 import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
 import { getCeloRpcUrlForChainId, registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
-import { minipaySendTransactionAttempts } from '@/lib/celoTransportForWagmi';
-import { ensureMiniPayWalletReady, isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
-import { isUserRejectedTransaction } from '@/lib/utils/contractErrors';
+import {
+  MINIPAY_ERC20_GAS_HEX,
+  MINIPAY_REGISTER_GAS_HEX,
+  sendMinipayAwareContractTx,
+} from '@/lib/minipayContractWrite';
+import { isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
 import { API_BASE_URL } from '@/lib/api';
 
 const REWARD_TOKEN_READ_ABI = [
@@ -353,8 +355,8 @@ export function usePreviousGameCode(address?: Address) {
 export function useRegisterPlayer() {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
-  const { sendTransactionAsync, isPending, error: writeError, data: txHash, reset } =
-    useSendTransaction();
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } =
+    useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   const write = useCallback(
@@ -363,35 +365,17 @@ export function useRegisterPlayer() {
       const trimmed = username.trim();
       if (!trimmed) throw new Error('Username cannot be empty');
 
-      await ensureMiniPayWalletReady();
-
       const fn = isMiniPayEmbeddedWallet() ? 'registerPlayerWithoutWallet' : 'registerPlayer';
-      const data = encodeFunctionData({
+      return sendMinipayAwareContractTx({
+        to: contractAddress,
         abi: TycoonABI,
         functionName: fn,
         args: [trimmed],
+        gasHex: MINIPAY_REGISTER_GAS_HEX,
+        writeContractAsync,
       });
-
-      // MiniPay docs: encodeFunctionData + sendTransaction({ to, data, feeCurrency })
-      // https://docs.minipay.xyz/getting-started/examples.html
-      const attempts = isMiniPayEmbeddedWallet() ? minipaySendTransactionAttempts() : [{}];
-
-      let lastError: unknown;
-      for (const attempt of attempts) {
-        try {
-          return await sendTransactionAsync({
-            to: contractAddress,
-            data,
-            ...attempt,
-          });
-        } catch (err) {
-          lastError = err;
-          if (isUserRejectedTransaction(err)) throw err;
-        }
-      }
-      throw lastError ?? new Error('Registration failed');
     },
-    [sendTransactionAsync, contractAddress]
+    [writeContractAsync, contractAddress]
   );
 
   return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
@@ -1562,13 +1546,14 @@ export function useRewardBuyCollectible() {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const buy = useCallback(async (tokenId: bigint, useUsdc = false) => {
+  const buy = useCallback(async (tokenId: bigint, paymentToken: number) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    return await writeContractAsync({
-      address: contractAddress,
-      abi: RewardABI,
+    return sendMinipayAwareContractTx({
+      to: contractAddress,
+      abi: REWARD_BUY_COLLECTIBLE_ENUM_ABI,
       functionName: 'buyCollectible',
-      args: [tokenId, useUsdc],
+      args: [tokenId, paymentToken],
+      writeContractAsync,
     });
   }, [writeContractAsync, contractAddress]);
 
@@ -1582,13 +1567,14 @@ export function useRewardBuyCollectibleFrom() {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const buyFrom = useCallback(async (payer: Address, tokenId: bigint, useUsdc = false) => {
+  const buyFrom = useCallback(async (payer: Address, tokenId: bigint, paymentToken: number) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    return await writeContractAsync({
-      address: contractAddress,
-      abi: RewardABI,
+    return sendMinipayAwareContractTx({
+      to: contractAddress,
+      abi: REWARD_BUY_COLLECTIBLE_FROM_ENUM_ABI,
       functionName: 'buyCollectibleFrom',
-      args: [payer, tokenId, useUsdc],
+      args: [payer, tokenId, paymentToken],
+      writeContractAsync,
     });
   }, [writeContractAsync, contractAddress]);
 
@@ -1669,13 +1655,15 @@ export function useApprove() {
       spender: Address,
       amount: bigint
     ) => {
-      if (!contractAddress) throw new Error('Reward contract not deployed');
+      if (!contractAddress) throw new Error('Token contract not deployed');
 
-      return await writeContractAsync({
-        address: contractAddress,
+      return sendMinipayAwareContractTx({
+        to: contractAddress,
         abi: Erc20Abi,
         functionName: 'approve',
         args: [spender, amount],
+        gasHex: MINIPAY_ERC20_GAS_HEX,
+        writeContractAsync,
       });
     },
     [writeContractAsync]

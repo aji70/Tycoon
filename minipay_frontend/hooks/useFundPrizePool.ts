@@ -13,6 +13,7 @@ import { TOURNAMENT_ESCROW_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/con
 import TycoonTournamentEscrowAbi from "@/context/abi/TycoonTournamentEscrow.json";
 import UserWalletAbi from "@/context/abi/tycoon-user-wallet-abi.json";
 import { useApprove, useUserWalletApproveERC20 } from "@/context/ContractProvider";
+import { sendMinipayAwareContractTx } from "@/lib/minipayContractWrite";
 
 /**
  * Creator funds tournament prize pool on-chain (USDC).
@@ -79,11 +80,12 @@ export function useFundPrizePool(smartWalletAddress?: Address | null) {
         await publicClient.waitForTransactionReceipt({ hash: approveHash as `0x${string}` });
       }
 
-      const hash = await writeContractAsync({
-        address: escrowAddress,
+      const hash = await sendMinipayAwareContractTx({
+        to: escrowAddress,
         abi: TycoonTournamentEscrowAbi as never,
         functionName: "fundPrizePool",
         args: [BigInt(Math.floor(Number(tournamentId))), amountWei],
+        writeContractAsync,
       });
 
       return hash ?? null;
