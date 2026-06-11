@@ -1,36 +1,31 @@
-// components/HomeClient.tsx
+// clients/HomeClient.tsx
 "use client";
 
 import dynamic from "next/dynamic";
 import { useMediaQuery } from "@/components/useMediaQuery";
-import WhatIsTycoon from "@/components/guest/WhatIsTycoon";
-import JoinOurCommunity from "@/components/guest/JoinOurCommunity";
-import Footer from "@/components/shared/Footer";
 
-/** Hero pulls wagmi + Privy + contracts — own chunk so the home entry bundle parses less upfront. */
+/** Hero pulls wagmi + contracts — separate chunk; SSR LCP shell covers first paint. */
 const HeroSection = dynamic(() => import("@/components/guest/HeroSection"), {
-  loading: () => (
-    <div
-      className="min-h-screen w-full bg-[#010F10]"
-      aria-busy="true"
-      aria-label="Loading"
-    />
-  ),
+  loading: () => null,
 });
 const HeroSectionMobile = dynamic(() => import("@/components/guest/HeroSection-mobile"), {
-  loading: () => (
-    <div
-      className="min-h-[100dvh] w-full bg-[#010F10]"
-      aria-busy="true"
-      aria-label="Loading"
-    />
-  ),
+  loading: () => null,
 });
 
 const HowItWorks = dynamic(() => import("@/components/guest/HowItWorks"), {
-  loading: () => (
-    <div className="min-h-[856px] w-full bg-[#010F10]" aria-hidden />
-  ),
+  loading: () => <div className="min-h-[856px] w-full bg-[#010F10]" aria-hidden />,
+});
+
+const WhatIsTycoon = dynamic(() => import("@/components/guest/WhatIsTycoon"), {
+  loading: () => <div className="min-h-[320px] w-full bg-[#010F10]" aria-hidden />,
+});
+
+const JoinOurCommunity = dynamic(() => import("@/components/guest/JoinOurCommunity"), {
+  loading: () => <div className="min-h-[280px] w-full bg-[#010F10]" aria-hidden />,
+});
+
+const Footer = dynamic(() => import("@/components/shared/Footer"), {
+  loading: () => <div className="min-h-[120px] w-full bg-[#010F10]" aria-hidden />,
 });
 
 export default function HomeClient() {

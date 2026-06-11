@@ -27,11 +27,11 @@ export default function ClientLayout({ children, cookies }: ClientLayoutProps) {
     setIsClient(true);
   }, []);
 
-  // Suppress hydration warning by rendering nothing until client is ready
+  // Home: paint page content immediately (SSR LCP shell); defer navbar until hydrated.
   if (!isClient) {
     return (
       <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
-        {children}
+        {isHome ? children : null}
       </div>
     );
   }

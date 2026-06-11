@@ -1,6 +1,4 @@
 import { dmSans, kronaOne, orbitron } from "@/components/shared/fonts";
-import NavBar from "@/components/shared/navbar"; // Remove if not used elsewhere
-import ScrollToTopBtn from "@/components/shared/scroll-to-top-btn";
 import "@/styles/globals.css";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
@@ -8,10 +6,18 @@ import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
 import ReferralCapture from "@/components/ReferralCapture";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { Toaster } from "react-hot-toast";
-import FarcasterReady from "@/components/FarcasterReady"; 
+import DeferredToasts from "@/components/DeferredToasts";
+import DeferredHotToaster from "@/components/DeferredHotToaster";
+import DeferredUiStyles from "@/components/DeferredUiStyles";
+import dynamic from "next/dynamic";
+
+const ScrollToTopBtn = dynamic(() => import("@/components/shared/scroll-to-top-btn"), {
+  ssr: false,
+});
+const FarcasterReady = dynamic(() => import("@/components/FarcasterReady"), {
+  ssr: false,
+});
+import { CRITICAL_HERO_CSS } from "@/lib/criticalHeroCss";
 import { minikitConfig } from "../minikit.config";
 import type { Metadata } from "next";
 import Script from "next/script";
@@ -100,10 +106,10 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="dns-prefetch" href="https://api.web3modal.org" />
-        <link rel="dns-prefetch" href="https://pulse.walletconnect.org" />
-        <link rel="dns-prefetch" href="https://fonts.reown.com" />
+        <link rel="preconnect" href="https://api.web3modal.org" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://pulse.walletconnect.org" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://fonts.reown.com" crossOrigin="anonymous" />
+        <style id="critical-hero-css" dangerouslySetInnerHTML={{ __html: CRITICAL_HERO_CSS }} />
       </head>
 
       <body
@@ -112,7 +118,7 @@ export default async function RootLayout({
         <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
         <Script
           id="minipay-site-redirect"
-          strategy="beforeInteractive"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: buildMinipaySiteRedirectScript() }}
         />
         <MinipaySiteRedirect />
@@ -123,31 +129,15 @@ export default async function RootLayout({
               <ReferralCapture />
               <AppKitProviderWrapper>
                 <QueryProvider>
+                <DeferredUiStyles />
                 <BfcacheReloadGuard />
                 <ClientLayout cookies={cookies}>
                   {children}
                 </ClientLayout>
 
                 <ScrollToTopBtn />
-                <ToastContainer
-                  position="top-right"
-                  autoClose={5000}
-                  hideProgressBar={false}
-                  newestOnTop
-                  closeOnClick
-                  rtl={false}
-                  pauseOnFocusLoss
-                  draggable
-                  pauseOnHover
-                  theme="dark"
-                  toastStyle={{
-                    fontFamily: "Orbitron, sans-serif",
-                    background: "#0E1415",
-                    color: "#00F0FF",
-                    border: "1px solid #003B3E",
-                  }}
-                />
-                <Toaster position="top-center" />
+                <DeferredToasts />
+                <DeferredHotToaster />
                 </QueryProvider>
               </AppKitProviderWrapper>
               </GuestAuthProvider>

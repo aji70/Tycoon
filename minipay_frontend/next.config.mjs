@@ -58,6 +58,10 @@ const nextConfig = {
       "@tanstack/react-query",
       "wagmi",
       "viem",
+      "framer-motion",
+      "react-type-animation",
+      "@reown/appkit",
+      "@reown/appkit-adapter-wagmi",
     ],
   },
   async redirects() {

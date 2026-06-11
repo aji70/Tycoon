@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import herobg from "@/public/heroBg.png";
 import Image from "next/image";
 import { Dices, Gamepad2 } from "lucide-react";
-import { TypeAnimation } from "react-type-animation";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAccount, useChainId, useConnect, useSignMessage, usePublicClient, useSwitchChain } from "wagmi";
@@ -25,10 +25,25 @@ import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
-import { ParticleBackground } from "@/components/hero/ParticleBackground";
-import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
 import { NeonTitle } from "@/components/hero/NeonTitle";
-import { WorldStatsBar } from "@/components/hero/WorldStatsBar";
+import { HeroShellDismiss } from "@/components/hero/HeroShellDismiss";
+
+const TypeAnimation = dynamic(
+  () => import("react-type-animation").then((m) => m.TypeAnimation),
+  { ssr: false }
+);
+const ParticleBackground = dynamic(
+  () => import("@/components/hero/ParticleBackground").then((m) => m.ParticleBackground),
+  { ssr: false }
+);
+const ScanlineOverlay = dynamic(
+  () => import("@/components/hero/ScanlineOverlay").then((m) => m.ScanlineOverlay),
+  { ssr: false }
+);
+const WorldStatsBar = dynamic(
+  () => import("@/components/hero/WorldStatsBar").then((m) => m.WorldStatsBar),
+  { ssr: false }
+);
 
 function chainIdToBackendChain(chainId: number): string {
   return "CELO";
@@ -474,6 +489,7 @@ const HeroSection: React.FC = () => {
       ref={parallaxRef}
       className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-hidden bg-[#010F10]"
     >
+      <HeroShellDismiss />
       {/* Background with parallax - disabled on mobile */}
       <motion.div
         className="w-full h-full overflow-hidden absolute inset-0"
