@@ -6,7 +6,6 @@ import TycoonABI from "@/context/abi/tycoonabi.json";
 import { TYCOON_CONTRACT_ADDRESSES } from "@/constants/contracts";
 import { CELO_USDM_FEE_TOKEN } from "@/lib/celoTransportForWagmi";
 import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
-import { apiClient } from "@/lib/api";
 import {
   collectErrorTextForMiniPay,
   isUserRejectedTransaction,
@@ -123,71 +122,28 @@ async function registerViaMiniPayProvider(displayUsername: string): Promise<Hash
   throw lastError ?? new Error("MiniPay could not send registration transaction");
 }
 
-/** Backend-sponsored on-chain registration (no wallet sign). User must exist in DB. */
-export async function registerViaBackendNoGas(
-  address: Address,
-  chain = "Celo"
-): Promise<{ alreadyRegistered?: boolean }> {
-  const checksummed = getAddress(address);
-  const res = await apiClient.post<{
-    success?: boolean;
-    alreadyRegistered?: boolean;
-    message?: string;
-  }>("/users/register-on-chain", { address: checksummed, chain });
-
-  const body = res.data;
-  if (!body?.success) {
-    throw new Error(body?.message || "Backend registration failed");
-  }
-  return { alreadyRegistered: body.alreadyRegistered };
-}
-
-function isMiniPayWalletBlockedError(error: unknown): boolean {
-  const hay = collectErrorTextForMiniPay(error);
-  return (
-    hay.includes("permission denied") ||
-    hay.includes("not authorized") ||
-    hay.includes("unauthorized") ||
-    hay.includes("unknown rpc error") ||
-    hay.includes("an unknown rpc error occurred") ||
-    hay.includes("invalid sender") ||
-    hay.includes("invalidsender")
-  );
-}
-
 /**
- * MiniPay on-chain registration.
- * 1) Backend-sponsored (reliable, no fee-abstraction quirks).
- * 2) Wallet `registerPlayerWithoutWallet` if backend fails.
+ * MiniPay on-chain registration — user signs `registerPlayerWithoutWallet` in MiniPay.
  */
 export async function completeMiniPayOnChainRegistration(
   username: string,
-  address: Address
-): Promise<"wallet" | "backend"> {
+  _address: Address
+): Promise<void> {
   if (!isMiniPayEmbeddedWallet()) {
     throw new Error("Not running in MiniPay");
   }
 
-  const checksummed = getAddress(address);
   contractSafeUsername(username);
 
   try {
-    await registerViaBackendNoGas(checksummed);
-    return "backend";
-  } catch (backendErr) {
-    if (isUserRejectedTransaction(backendErr)) throw backendErr;
-    try {
-      await registerViaMiniPayProvider(username);
-      return "wallet";
-    } catch (walletErr) {
-      if (isUserRejectedTransaction(walletErr)) throw walletErr;
-      const backendMsg = collectErrorTextForMiniPay(backendErr);
-      const walletMsg = collectErrorTextForMiniPay(walletErr);
-      throw new Error(
-        walletMsg.includes("invalid sender") || backendMsg.includes("invalid sender")
-          ? "Registration failed. Try a shorter username (letters/numbers only) or try again in a minute."
-          : backendMsg || walletMsg || "Registration failed"
-      );
-    }
+    await registerViaMiniPayProvider(username);
+  } catch (walletErr) {
+    if (isUserRejectedTransaction(walletErr)) throw walletErr;
+    const walletMsg = collectErrorTextForMiniPay(walletErr);
+    throw new Error(
+      walletMsg.includes("invalid sender")
+        ? "Registration failed. Try a shorter username (letters/numbers only) or try again in a minute."
+        : walletMsg || "Registration failed"
+    );
   }
 }

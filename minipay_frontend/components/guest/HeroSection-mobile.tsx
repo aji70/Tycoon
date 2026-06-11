@@ -295,7 +295,7 @@ const HeroSection: React.FC = () => {
 
     setLoading(true);
     const toastId = toast.loading(
-      user ? "Syncing your account…" : "Setting up your account…"
+      user ? "Sign to finish on-chain registration…" : "Sign in your wallet to register…"
     );
 
     try {
@@ -803,7 +803,7 @@ const HeroSection: React.FC = () => {
           )}
           {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
             <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
-              {user ? "Finish syncing your account" : "Creates your game account & smart wallet"}
+              {user ? "Sign the registration transaction in your wallet" : "Sign in your wallet to register on-chain"}
             </p>
           )}
 
