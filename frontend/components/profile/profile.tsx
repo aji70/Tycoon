@@ -30,6 +30,7 @@ import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAsse
 import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
+import { getGuestUserPlayAddress } from '@/lib/minipayGuestFlow';
 import GameRoomLoading from '@/components/settings/game-room-loading';
 
 const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
@@ -52,7 +53,10 @@ function backendUserStatsLookupAddress(
     }
     if (guestUser.address) return guestUser.address.trim();
   }
-  return (gameLookupAddress ?? walletAddress) ?? undefined;
+  // For non-guest sessions, backend user rows are keyed by connected/linked wallet.
+  // Do not prefer smart-wallet/on-chain lookup address here, or profile may flicker
+  // (loads, then switches to "not found" when smart wallet resolves).
+  return (walletAddress ?? gameLookupAddress) ?? undefined;
 }
 
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
@@ -86,6 +90,52 @@ function parseUserFromContract(data: unknown, username: string, walletAddress: s
   const registeredAt = Array.isArray(d) ? Number(d[3] ?? 0) : Number((d as Record<string, unknown>).registeredAt ?? 0);
   return {
     username: username || (Array.isArray(d) ? String(d[1] ?? '') : String((d as Record<string, unknown>).username ?? '')) || 'Unknown',
+    shortAddress: walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '',
+    gamesPlayed,
+    gamesWon,
+    gamesLost,
+    winRate: gamesPlayed > 0 ? ((gamesWon / gamesPlayed) * 100).toFixed(1) + '%' : '0%',
+    totalStaked,
+    totalEarned,
+    totalWithdrawn,
+    propertiesBought,
+    propertiesSold,
+    registeredAt,
+  };
+}
+
+function parseUserFromBackend(
+  backendUser: unknown,
+  walletAddress: string | undefined,
+  fallbackUsername?: string
+): {
+  username: string;
+  shortAddress: string;
+  gamesPlayed: number;
+  gamesWon: number;
+  gamesLost: number;
+  winRate: string;
+  totalStaked: number;
+  totalEarned: number;
+  totalWithdrawn: number;
+  propertiesBought: number;
+  propertiesSold: number;
+  registeredAt: number;
+} | null {
+  if (!backendUser || typeof backendUser !== 'object') return null;
+  const d = backendUser as Record<string, unknown>;
+  const gamesPlayed = Number(d.celo_games_played ?? d.games_played ?? 0);
+  const gamesWon = Number(d.celo_games_won ?? d.game_won ?? 0);
+  const gamesLost = Number(d.game_lost ?? 0);
+  const totalStaked = Number(d.total_staked ?? 0);
+  const totalEarned = Number(d.total_earned ?? 0);
+  const totalWithdrawn = Number(d.total_withdrawn ?? 0);
+  const propertiesBought = Number(d.properties_bought ?? 0);
+  const propertiesSold = Number(d.properties_sold ?? 0);
+  const createdAtRaw = typeof d.created_at === 'string' ? d.created_at : null;
+  const registeredAt = createdAtRaw ? Math.floor(new Date(createdAtRaw).getTime() / 1000) : 0;
+  return {
+    username: String(d.username ?? fallbackUsername ?? 'Unknown'),
     shortAddress: walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '',
     gamesPlayed,
     gamesWon,
@@ -601,7 +651,7 @@ function GuestProfileView({
                               color: 'cyan',
                             },
                             {
-                              label: 'USDC',
+                              label: 'USDT',
                               value: usdcBalanceLinked.isLoading ? '…' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2),
                               color: 'emerald',
                             },
@@ -634,7 +684,7 @@ function GuestProfileView({
                               color: 'cyan',
                             },
                             {
-                              label: 'USDC',
+                              label: 'USDT',
                               value: usdcBalanceSmart.isLoading ? '…' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2),
                               color: 'emerald',
                             },
@@ -698,7 +748,7 @@ function GuestProfileView({
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
                 <div className="mb-6">
-                  <DailyClaim chain="CELO" accountKey={guestUser.id} />
+                  <DailyClaim chain="CELO" playAddress={getGuestUserPlayAddress(guestUser)} />
                 </div>
                 {!displayStats ? (
                   <EmptyState
@@ -750,11 +800,11 @@ function GuestProfileView({
                         { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(displayStats.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
                         { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(displayStats.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
                       ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-                        <div key={label} className="bg-slate-800/60 border border-cyan-500/20 rounded-2xl p-4 flex items-center gap-3 hover:border-cyan-500/40 transition-all">
-                          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0"><Icon className="w-5 h-5" /></div>
+                        <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
                           <div className="min-w-0">
                             <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                            <p className={`font-bold font-orbitron text-sm truncate ${valueClass}`}>{value}</p>
+                            <p className={`font-bold text-sm truncate ${valueClass}`}>{value}</p>
                           </div>
                         </div>
                       ))}
@@ -765,11 +815,11 @@ function GuestProfileView({
                         { icon: BarChart2, label: 'Properties bought', value: String(displayStats.propertiesBought ?? 0), accent: 'cyan' },
                         { icon: BarChart2, label: 'Properties sold', value: String(displayStats.propertiesSold ?? 0), accent: 'amber', valueClass: 'text-amber-300' },
                       ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-                        <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
-                          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
+                        <div key={label} className="bg-slate-800/60 border border-cyan-500/20 rounded-2xl p-4 flex items-center gap-3 hover:border-cyan-500/40 transition-all">
+                          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0"><Icon className="w-5 h-5" /></div>
                           <div className="min-w-0">
                             <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                            <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
+                            <p className={`font-bold font-orbitron text-base truncate ${valueClass}`}>{value}</p>
                           </div>
                         </div>
                       ))}
@@ -1148,6 +1198,14 @@ export default function Profile() {
   React.useEffect(() => {
     if (!isConnected) return;
 
+    const backendParsed = parseUserFromBackend(backendUser, tycoonProfileOwnerAddress, guestUser?.username);
+    if (backendParsed) {
+      setError(null);
+      setUserData(backendParsed);
+      setLoading(false);
+      return;
+    }
+
     if (usernameReadError) {
       setError(usernameReadError instanceof Error ? usernameReadError.message : 'Failed to load username');
       setLoading(false);
@@ -1159,7 +1217,7 @@ export default function Profile() {
       return;
     }
 
-    // If username fetch is done but empty, user likely isn't registered (or wrong network/contract address).
+    // Backend profile was unavailable, so now check on-chain data.
     if (!usernameLoading && !username) {
       setError('No on-chain profile found for this address. Ensure you are on the correct network and registered.');
       setLoading(false);
@@ -1173,7 +1231,7 @@ export default function Profile() {
       return;
     }
 
-    // If getUser finished but returned empty, show error rather than spinning.
+    // If getUser finished but returned empty, show error.
     if (username && !playerDataLoading && (playerData == null)) {
       setError('No player data found');
       setLoading(false);
@@ -1188,6 +1246,8 @@ export default function Profile() {
     playerDataLoading,
     playerDataReadError,
     tycoonProfileOwnerAddress,
+    backendUser,
+    guestUser?.username,
   ]);
 
   // When contract returns all zeros but backend has stats (leaderboard source), use backend to populate profile stats.
@@ -1614,7 +1674,7 @@ export default function Profile() {
                       color: 'cyan',
                     },
                     {
-                      label: 'USDC',
+                      label: 'USDT',
                       value:
                         activeWalletView === 'smart'
                           ? (usdcBalanceSmart.isLoading ? '...' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2))
@@ -1696,7 +1756,7 @@ export default function Profile() {
                           ? 'CELO'
                           : 'BASE'
                     }
-                    accountKey={guestUser?.id ?? walletAddress ?? ''}
+                    playAddress={getGuestUserPlayAddress(guestUser) ?? walletAddress ?? undefined}
                   />
                 </div>
                 {effectiveUserData && (() => {
@@ -1725,13 +1785,13 @@ export default function Profile() {
                     { icon: Coins, label: 'Losses', value: String(effectiveUserData?.gamesLost ?? 0), accent: 'slate', valueClass: 'text-slate-300' },
                     { icon: BarChart2, label: 'Win rate', value: effectiveUserData?.winRate ?? '0%', accent: 'emerald', valueClass: 'text-emerald-300' },
                   ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-                    <div key={label} className="bg-slate-800/60 border border-cyan-500/20 rounded-2xl p-4 flex items-center gap-3 hover:border-cyan-500/40 transition-all">
-                      <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
+                    <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
                         <Icon className="w-5 h-5" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                        <p className={`font-bold font-orbitron text-base truncate ${valueClass}`}>{value}</p>
+                        <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
                       </div>
                     </div>
                   ))}
@@ -1742,13 +1802,13 @@ export default function Profile() {
                     { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(effectiveUserData?.totalEarned ?? 0) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
                     { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(effectiveUserData?.totalWithdrawn ?? 0) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
                   ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-                    <div key={label} className="bg-slate-800/60 border border-cyan-500/20 rounded-2xl p-4 flex items-center gap-3 hover:border-cyan-500/40 transition-all">
-                      <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
+                    <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
                         <Icon className="w-5 h-5" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                        <p className={`font-bold font-orbitron text-sm truncate ${valueClass}`}>{value}</p>
+                        <p className={`font-bold text-sm truncate ${valueClass}`}>{value}</p>
                       </div>
                     </div>
                   ))}

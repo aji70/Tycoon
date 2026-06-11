@@ -4,11 +4,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useChainId, useSignMessage } from "wagmi";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { toast } from "react-toastify";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 
 function chainIdToBackendChain(chainId: number): string {
-  if (chainId === 137 || chainId === 80001) return "POLYGON";
-  if (chainId === 42220 || chainId === 44787) return "CELO";
-  if (chainId === 8453 || chainId === 84531) return "BASE";
   return "CELO";
 }
 
@@ -114,7 +112,7 @@ export default function PrivyWalletProfilePrompt({
     try {
       const u = await auth.unlinkWallet();
       if (!u.success) {
-        toast.error((u as { message?: string }).message ?? "Could not unlink your current linked wallet");
+        toast.error(getContractErrorMessage(u, "Could not unlink your current linked wallet"));
         return;
       }
       await auth.refetchGuest?.();
@@ -138,7 +136,7 @@ export default function PrivyWalletProfilePrompt({
         toast.error(res.message ?? "Link failed after unlink. Try linking again from Account below.");
       }
     } catch (e) {
-      toast.error((e as Error)?.message ?? "Something went wrong");
+      toast.error(getContractErrorMessage(e, "Something went wrong"));
     } finally {
       setBusy(false);
     }
@@ -168,7 +166,7 @@ export default function PrivyWalletProfilePrompt({
         toast.error(res.message ?? "Link failed");
       }
     } catch (e) {
-      toast.error((e as Error)?.message ?? "Failed to sign or link");
+      toast.error(getContractErrorMessage(e, "Failed to sign or link"));
     } finally {
       setBusy(false);
     }

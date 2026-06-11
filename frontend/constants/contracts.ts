@@ -14,7 +14,7 @@ export const TYC_TOKEN_ADDRESS: Record<number, Address | undefined> = {
   [celo.id]: (process.env.NEXT_PUBLIC_CELO_TYC || process.env.NEXT_PUBLIC_CELO_TOKEN) as Address | undefined,
 };
 
-/** USDC: Celo mainnet (42220) and Alfajores (44787). Set NEXT_PUBLIC_ALFAJORES_USDC for testnet. */
+/** USDT: Celo mainnet (42220) and Alfajores (44787). Set NEXT_PUBLIC_ALFAJORES_USDC for testnet. */
 export const USDC_TOKEN_ADDRESS: Record<number, Address | undefined> = {
   42220: process.env.NEXT_PUBLIC_CELO_USDC as Address,
   44787: (process.env.NEXT_PUBLIC_ALFAJORES_USDC || process.env.NEXT_PUBLIC_CELO_USDC) as Address | undefined,
@@ -34,7 +34,7 @@ export const NAIRA_VAULT_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: process.env.NEXT_PUBLIC_CELO_NAIRA_VAULT as Address | undefined,
 };
 
-/** Backend operator address for smart wallets. When set on a wallet, user can withdraw CELO/USDC when not connected. */
+/** Backend operator address for smart wallets. When set on a wallet, user can withdraw CELO/USDT when not connected. */
 export const SMART_WALLET_OPERATOR_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: process.env.NEXT_PUBLIC_SMART_WALLET_OPERATOR_ADDRESS as Address | undefined,
 };
@@ -44,7 +44,7 @@ export const WITHDRAWAL_AUTHORITY_ADDRESSES: Record<number, Address | undefined>
   [celo.id]: process.env.NEXT_PUBLIC_WITHDRAWAL_AUTHORITY_ADDRESS as Address | undefined,
 };
 
-/** Swap executor: send CELO here from smart wallet; receives USDC back to the same wallet (Ubeswap CELO→USDC). */
+/** Swap executor: send CELO here from smart wallet; receives USDT back to the same wallet (Ubeswap CELO→USDT). */
 export const SWAP_EXECUTOR_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: process.env.NEXT_PUBLIC_CELO_SWAP_EXECUTOR_ADDRESS as Address | undefined,
 };

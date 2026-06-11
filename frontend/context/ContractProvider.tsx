@@ -5,13 +5,14 @@ import {
   useReadContract,
   useReadContracts,
   useWriteContract,
+  useSendTransaction,
   useAccount,
   useWaitForTransactionReceipt,
   useChainId,
   usePublicClient,
 } from 'wagmi';
 import { celo } from 'wagmi/chains';
-import { Address, createPublicClient, decodeEventLog, getAddress, hexToBigInt, http, parseEventLogs, zeroAddress } from 'viem';
+import { Address, createPublicClient, decodeEventLog, encodeFunctionData, getAddress, hexToBigInt, http, parseEventLogs, zeroAddress } from 'viem';
 import { celo as celoChain, celoAlfajores } from 'viem/chains';
 import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
@@ -22,7 +23,37 @@ import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
 import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
 import { getCeloRpcUrlForChainId, registerErc8004AgentViaInjectedEoa } from '@/lib/utils/erc8004InjectedEoa';
+import { minipaySendTransactionAttempts } from '@/lib/celoTransportForWagmi';
+import { ensureMiniPayWalletReady, isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
+import { isUserRejectedTransaction } from '@/lib/utils/contractErrors';
 import { API_BASE_URL } from '@/lib/api';
+
+const REWARD_TOKEN_READ_ABI = [
+  { type: 'function', name: 'tycToken', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { type: 'function', name: 'usdc', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { type: 'function', name: 'cusdc', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { type: 'function', name: 'usdt', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+] as const;
+
+const REWARD_BUY_COLLECTIBLE_ENUM_ABI = [
+  {
+    type: 'function',
+    name: 'buyCollectible',
+    stateMutability: 'nonpayable',
+    inputs: [{ type: 'uint256' }, { type: 'uint8' }],
+    outputs: [],
+  },
+] as const;
+
+const REWARD_BUY_COLLECTIBLE_FROM_ENUM_ABI = [
+  {
+    type: 'function',
+    name: 'buyCollectibleFrom',
+    stateMutability: 'nonpayable',
+    inputs: [{ type: 'address' }, { type: 'uint256' }, { type: 'uint8' }],
+    outputs: [],
+  },
+] as const;
 
 // Fixed stake amount (adjust if needed)
 const STAKE_AMOUNT = 1; // 1 wei for testing? Or change to actual value like 0.01 ether = 10000000000000000n
@@ -173,7 +204,7 @@ const UserRegistryABI = [
   { inputs: [{ name: 'newOwner', type: 'address' }], name: 'transferProfileTo', outputs: [], stateMutability: 'nonpayable', type: 'function' },
   { inputs: [], name: 'recreateWalletForUser', outputs: [{ name: 'newWallet', type: 'address' }], stateMutability: 'nonpayable', type: 'function' },
   /** Same as recreateWalletForUser but takes profile owner explicitly; contract allows caller to pass their own address. Use this so encoding is unambiguous. */
-  { inputs: [{ name: 'profileOwner', type: 'address' }], name: 'recreateWalletForUserByBackend', outputs: [{ name: 'newWallet', type: 'address' }], stateMutability: 'nonpayable', type: 'function' },
+  { inputs: [], name: 'recreateWalletForUser', outputs: [{ name: 'newWallet', type: 'address' }], stateMutability: 'nonpayable', type: 'function' },
 ] as const;
 
 /** Celo-only: when disconnected, wagmi chain id may be unset — still resolve registry/reward reads on Celo. */
@@ -270,10 +301,9 @@ export function useTransferProfileTo() {
   };
 }
 
-/** Write: create a new smart wallet for the current profile; registry updates profile to the new wallet. Caller must be profile owner. Uses recreateWalletForUserByBackend(caller) so encoding matches contract (contract allows profile owner to call for themselves). */
+/** Write: create a new smart wallet for the current profile; registry updates profile to the new wallet. Caller must be profile owner. */
 export function useRecreateWalletForUser() {
   const chainId = useChainId();
-  const { address: walletAddress } = useAccount();
   const registryAddress = USER_REGISTRY_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
@@ -281,15 +311,14 @@ export function useRecreateWalletForUser() {
   const recreate = useCallback(
     async () => {
       if (!registryAddress) throw new Error('User registry not configured for this chain');
-      if (!walletAddress) throw new Error('Connect your wallet to recreate smart wallet');
       return await writeContractAsync({
         address: registryAddress,
         abi: UserRegistryABI,
-        functionName: 'recreateWalletForUserByBackend',
-        args: [walletAddress],
+        functionName: 'recreateWalletForUser',
+        args: [],
       });
     },
-    [registryAddress, walletAddress, writeContractAsync]
+    [registryAddress, writeContractAsync]
   );
 
   return {
@@ -324,6 +353,53 @@ export function usePreviousGameCode(address?: Address) {
 export function useRegisterPlayer() {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  const { sendTransactionAsync, isPending, error: writeError, data: txHash, reset } =
+    useSendTransaction();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const write = useCallback(
+    async (username: string) => {
+      if (!contractAddress) throw new Error('Contract not deployed on this chain');
+      const trimmed = username.trim();
+      if (!trimmed) throw new Error('Username cannot be empty');
+
+      await ensureMiniPayWalletReady();
+
+      const fn = isMiniPayEmbeddedWallet() ? 'registerPlayerWithoutWallet' : 'registerPlayer';
+      const data = encodeFunctionData({
+        abi: TycoonABI,
+        functionName: fn,
+        args: [trimmed],
+      });
+
+      // MiniPay docs: encodeFunctionData + sendTransaction({ to, data, feeCurrency })
+      // https://docs.minipay.xyz/getting-started/examples.html
+      const attempts = isMiniPayEmbeddedWallet() ? minipaySendTransactionAttempts() : [{}];
+
+      let lastError: unknown;
+      for (const attempt of attempts) {
+        try {
+          return await sendTransactionAsync({
+            to: contractAddress,
+            data,
+            ...attempt,
+          });
+        } catch (err) {
+          lastError = err;
+          if (isUserRejectedTransaction(err)) throw err;
+        }
+      }
+      throw lastError ?? new Error('Registration failed');
+    },
+    [sendTransactionAsync, contractAddress]
+  );
+
+  return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
+export function useRegisterPlayerWithoutWallet() {
+  const chainId = useChainId();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
@@ -335,7 +411,7 @@ export function useRegisterPlayer() {
       const hash = await writeContractAsync({
         address: contractAddress,
         abi: TycoonABI,
-        functionName: 'registerPlayer',
+        functionName: 'registerPlayerWithoutWallet',
         args: [username.trim()],
       });
       return hash;
@@ -1302,28 +1378,28 @@ export function useRewardTokenAddresses(): {
 
   const { data: tycAddress, isLoading: tycLoading } = useReadContract({
     address: contractAddress,
-    abi: RewardABI,
+    abi: REWARD_TOKEN_READ_ABI,
     functionName: 'tycToken',
     query: { enabled: !!contractAddress },
   });
 
   const { data: usdcAddress, isLoading: usdcLoading } = useReadContract({
     address: contractAddress,
-    abi: RewardABI,
+    abi: REWARD_TOKEN_READ_ABI,
     functionName: 'usdc',
     query: { enabled: !!contractAddress },
   });
 
   const { data: cusdcAddress, isLoading: cusdcLoading } = useReadContract({
     address: contractAddress,
-    abi: RewardABI,
+    abi: REWARD_TOKEN_READ_ABI,
     functionName: 'cusdc',
     query: { enabled: !!contractAddress },
   });
 
   const { data: usdtAddress, isLoading: usdtLoading } = useReadContract({
     address: contractAddress,
-    abi: RewardABI,
+    abi: REWARD_TOKEN_READ_ABI,
     functionName: 'usdt',
     query: { enabled: !!contractAddress },
   });
@@ -1751,8 +1827,8 @@ export function useRewardStockShop() {
     amount: number,
     perk: CollectiblePerk,
     strength: number,
-    tycPrice: bigint | number = 0,
-    usdcPrice: bigint | number = 0,
+    tycPrice: bigint | number,
+    usdcPrice: bigint | number,
     cusdcPrice: bigint | number = 0,
     usdtPrice: bigint | number = 0,
   ) => {
@@ -1819,23 +1895,8 @@ export function useRewardUpdateCollectiblePrices() {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const update = useCallback(async (
-    tokenId: bigint,
-    tycPrice: bigint,
-    usdcPrice: bigint,
-    cusdcPrice?: bigint,
-    usdtPrice?: bigint,
-  ) => {
+  const update = useCallback(async (tokenId: bigint, tycPrice: bigint, usdcPrice: bigint) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    // Use 5-param version when cusdc/usdt prices are provided
-    if (cusdcPrice !== undefined && usdtPrice !== undefined) {
-      return await writeContractAsync({
-        address: contractAddress,
-        abi: RewardABI,
-        functionName: 'updateCollectiblePrices',
-        args: [tokenId, tycPrice, usdcPrice, cusdcPrice, usdtPrice],
-      });
-    }
     return await writeContractAsync({
       address: contractAddress,
       abi: RewardABI,

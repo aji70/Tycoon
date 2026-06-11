@@ -14,10 +14,10 @@ function systemFontFallback(variable: string, className = "font-sans") {
   };
 }
 
-// Next.js requires font loaders to be called and assigned to const in module scope
 const dmSansLoaded = DM_Sans({
   variable: "--font-dm-sans",
   subsets: ["latin"],
+  display: "swap",
 });
 const kronaOneLoaded = Krona_One({
   variable: "--font-krona-one",

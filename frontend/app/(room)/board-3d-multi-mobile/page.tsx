@@ -22,7 +22,7 @@ import { getBoardCenterImageUrl } from "@/lib/boardCenterImage";
 import { getDiceValues } from "@/components/game/constants";
 import { JAIL_POSITION, MOVE_ANIMATION_MS_PER_SQUARE } from "@/components/game/constants";
 import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
-import { isBenignTurnOrderError } from "@/lib/utils/contractErrors";
+import { isBenignTurnOrderError, getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
@@ -32,7 +32,6 @@ import { Toaster, toast } from "react-hot-toast";
 import { MONOPOLY_STATS } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
-import { VictorySocialShare } from "@/components/game/modals/VictorySocialShare";
 import RaiseFundsPanel from "@/components/game/modals/RaiseFundsPanel";
 import { useAgentAutoLiquidate } from "@/hooks/useAgentAutoLiquidate";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
@@ -43,11 +42,10 @@ const Mobile3DGameUI = dynamic(
 );
 import ActionLog from "@/components/game/ai-board/action-log";
 import { motion, AnimatePresence } from "framer-motion";
-import { Crown, Trophy, HeartHandshake, X, LayoutDashboard, Bot } from "lucide-react";
+import { Crown, Trophy, HeartHandshake, X, LayoutDashboard } from "lucide-react";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
 import { applyAgentBattleDisplayNamesToHistory } from "@/lib/agentBattleHistoryNames";
 import { getTournamentBracketExitHref, isTournamentBoardGame } from "@/lib/tournamentBoardGame";
-import { MyAgentToggle } from "@/components/game/MyAgentToggle";
 import { useAgentBindings } from "@/hooks/useAgentBindings";
 import { getStoredAgentApiKey, setStoredAgentApiKey } from "@/lib/agentApiKeySession";
 import { isOnchainHumanVsAgentGame } from "@/lib/utils/games";
@@ -194,7 +192,7 @@ function Board3DMobilePageContent() {
   const { address } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
-  const isGuest = !!guestUser;
+  const isGuest = !!(guestUser && !address);
 
   const { data: game, isLoading: gameLoading, isError: gameError, error: gameQueryError, refetch: refetchGame } = useQuery<Game>({
     queryKey: ["game", gameCode ?? ""],
@@ -335,7 +333,6 @@ function Board3DMobilePageContent() {
   const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
   const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
   const [showVotedOutModal, setShowVotedOutModal] = useState(false);
-  const [showAgentPanel, setShowAgentPanel] = useState(false);
   const [votedOutTargetUserId, setVotedOutTargetUserId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -415,7 +412,7 @@ function Board3DMobilePageContent() {
       if (data?.message) toast.success(data.message);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
-      toast.error(err?.response?.data?.message || err?.message || "Failed to request start");
+      toast.error(err?.response?.data?.message || getContractErrorMessage(err, "Failed to request start"));
     } finally {
       setRequestStartLoading(false);
     }
@@ -498,14 +495,14 @@ function Board3DMobilePageContent() {
 
   const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
 
-  const { bindings, myAgentOn, refetch: refetchAgentBindings } = useAgentBindings(game?.id);
+  const { bindings, myAgentOn } = useAgentBindings(game?.id);
   const [myAgentApiKey, setMyAgentApiKeyState] = useState<{ provider: string; apiKey: string } | null>(() => getStoredAgentApiKey());
   const setMyAgentApiKey = useCallback((value: { provider: string; apiKey: string } | null) => {
     setMyAgentApiKeyState(value);
     setStoredAgentApiKey(value);
   }, []);
   const agentOn = !isOnchainHumanVsAgentGame(game) && (myAgentOn || !!myAgentApiKey);
-  const { agentSettings, updateAgentSettings } = useAgentSettings();
+  const { agentSettings } = useAgentSettings();
 
   const currentPlayerId = game?.next_player_id ?? null;
   const isUntimed = !game?.duration || Number(game.duration) === 0;
@@ -2416,20 +2413,6 @@ function Board3DMobilePageContent() {
             ${Number(me.balance ?? 0).toLocaleString()}
           </div>
         )}
-        {isLiveGame && game && me && !isOnchainHumanVsAgentGame(game) && (
-          <div className="shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowAgentPanel(true)}
-              className="px-2 py-1.5 rounded-md bg-cyan-700/60 hover:bg-cyan-600/70 border border-cyan-500/40 text-cyan-100 text-xs font-semibold shrink-0 flex items-center gap-1"
-              title="Agent mode (My agent plays for me)"
-              aria-label="Open agent mode panel"
-            >
-              <Bot className="w-3.5 h-3.5" />
-              Agent
-            </button>
-          </div>
-        )}
         {/* Vote player out — same as 2D board */}
         {isLiveGame && game && voteablePlayersList.length > 0 && (
           <div className="flex items-center gap-2 overflow-x-auto shrink min-w-0">
@@ -2455,53 +2438,6 @@ function Board3DMobilePageContent() {
           </div>
         )}
       </div>
-
-      {/* Agent mode panel (mobile) */}
-      <AnimatePresence>
-        {showAgentPanel && isLiveGame && game && me && !isOnchainHumanVsAgentGame(game) && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowAgentPanel(false)}
-              className="fixed inset-0 bg-black/60 z-[2147483647]"
-            />
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 z-[2147483647] rounded-t-2xl border-t-2 border-cyan-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl p-4"
-              style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
-            >
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <h2 className="text-sm font-bold text-cyan-200 flex items-center gap-2">
-                  <Bot className="w-4 h-4" />
-                  Agent mode
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setShowAgentPanel(false)}
-                  className="min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/10"
-                  aria-label="Close"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <MyAgentToggle
-                gameId={game.id}
-                myAgentOn={myAgentOn}
-                myAgentApiKey={myAgentApiKey}
-                onStopApiKey={() => setMyAgentApiKey(null)}
-                onBindingsChange={refetchAgentBindings}
-                agentSettings={agentSettings}
-                onSettingsChange={updateAgentSettings}
-              />
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
       <main
         className="w-full relative overflow-hidden"
@@ -2723,7 +2659,7 @@ function Board3DMobilePageContent() {
                     try {
                       await burnCollectible(pendingBarPerk.tokenId);
                     } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "Burn failed");
+                      toast.error(getContractErrorMessage(e, "Burn failed"));
                       setPendingBarPerk(null);
                     }
                   }}
@@ -3042,14 +2978,6 @@ function Board3DMobilePageContent() {
                   You had the highest net worth when time ran out. Prizes were distributed when the game ended.
                 </p>
                 {endGameReason && <p className="text-slate-400 mb-4 text-sm">{endGameReason}</p>}
-                {(game?.code ?? gameCode ?? "").trim() ? (
-                  <VictorySocialShare
-                    gameCode={(game?.code ?? gameCode ?? "").trim()}
-                    winnerUsername={me?.username ?? undefined}
-                    joinPagePath="/game-waiting-3d"
-                    className="mb-5 text-left"
-                  />
-                ) : null}
                 <button
                   type="button"
                   onClick={() => handleFinalizeAndLeave()}
@@ -3073,16 +3001,6 @@ function Board3DMobilePageContent() {
                 <HeartHandshake className="w-12 h-12 mx-auto text-cyan-400 mb-4" />
                 {endGameReason && <p className="text-slate-400 mb-4 text-sm">{endGameReason}</p>}
                 <p className="text-slate-300 mb-4">You still get a consolation prize. Prizes were distributed when the game ended.</p>
-                {(game?.code ?? gameCode ?? "").trim() ? (
-                  <VictorySocialShare
-                    variant="loss"
-                    gameCode={(game?.code ?? gameCode ?? "").trim()}
-                    winnerUsername={winner.username}
-                    loserUsername={me?.username ?? undefined}
-                    joinPagePath="/game-waiting-3d"
-                    className="mb-5 text-left"
-                  />
-                ) : null}
                 <button
                   type="button"
                   onClick={() => handleFinalizeAndLeave()}

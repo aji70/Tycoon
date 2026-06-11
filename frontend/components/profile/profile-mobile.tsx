@@ -33,6 +33,7 @@ import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAsse
 import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
+import { getGuestUserPlayAddress } from '@/lib/minipayGuestFlow';
 import GameRoomLoading from '@/components/settings/game-room-loading';
 
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
@@ -65,6 +66,52 @@ function parseUserFromContract(data: unknown, username: string, walletAddress: s
   const registeredAt = Array.isArray(d) ? Number(d[3] ?? 0) : Number((d as Record<string, unknown>).registeredAt ?? 0);
   return {
     username: username || (Array.isArray(d) ? String(d[1] ?? '') : String((d as Record<string, unknown>).username ?? '')) || 'Unknown',
+    shortAddress: walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '',
+    gamesPlayed,
+    gamesWon,
+    gamesLost,
+    winRate: gamesPlayed > 0 ? ((gamesWon / gamesPlayed) * 100).toFixed(1) + '%' : '0%',
+    totalStaked,
+    totalEarned,
+    totalWithdrawn,
+    propertiesBought,
+    propertiesSold,
+    registeredAt,
+  };
+}
+
+function parseUserFromBackend(
+  backendUser: unknown,
+  walletAddress: string | undefined,
+  fallbackUsername?: string
+): {
+  username: string;
+  shortAddress: string;
+  gamesPlayed: number;
+  gamesWon: number;
+  gamesLost: number;
+  winRate: string;
+  totalStaked: number;
+  totalEarned: number;
+  totalWithdrawn: number;
+  propertiesBought: number;
+  propertiesSold: number;
+  registeredAt: number;
+} | null {
+  if (!backendUser || typeof backendUser !== 'object') return null;
+  const d = backendUser as Record<string, unknown>;
+  const gamesPlayed = Number(d.celo_games_played ?? d.games_played ?? 0);
+  const gamesWon = Number(d.celo_games_won ?? d.game_won ?? 0);
+  const gamesLost = Number(d.game_lost ?? 0);
+  const totalStaked = Number(d.total_staked ?? 0);
+  const totalEarned = Number(d.total_earned ?? 0);
+  const totalWithdrawn = Number(d.total_withdrawn ?? 0);
+  const propertiesBought = Number(d.properties_bought ?? 0);
+  const propertiesSold = Number(d.properties_sold ?? 0);
+  const createdAtRaw = typeof d.created_at === 'string' ? d.created_at : null;
+  const registeredAt = createdAtRaw ? Math.floor(new Date(createdAtRaw).getTime() / 1000) : 0;
+  return {
+    username: String(d.username ?? fallbackUsername ?? 'Unknown'),
     shortAddress: walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '',
     gamesPlayed,
     gamesWon,
@@ -123,7 +170,10 @@ function backendUserStatsLookupAddress(
     }
     if (guestUser.address) return guestUser.address.trim();
   }
-  return (gameLookupAddress ?? walletAddress) ?? undefined;
+  // For non-guest sessions, backend user rows are keyed by connected/linked wallet.
+  // Do not prefer smart-wallet/on-chain lookup address here, or profile may flicker
+  // (loads, then switches to "not found" when smart wallet resolves).
+  return (walletAddress ?? gameLookupAddress) ?? undefined;
 }
 
 /** Guest/Privy profile when wallet is not connected, or when a connected extension wallet is not the Tycoon-registered address (notice only if wallet not registered — smart/linked users see no banner). */
@@ -329,14 +379,16 @@ function GuestProfileViewMobile({
       username?: string;
       created_at?: string;
     } | undefined;
-    const gpBackend = Number(offChain?.celo_games_played) > 0 ? Number(offChain.celo_games_played) : Number(offChain?.games_played) ?? 0;
+    const gpBackend = Number(offChain?.celo_games_played) > 0
+      ? Number(offChain?.celo_games_played)
+      : Number(offChain?.games_played) ?? 0;
     const backendHasStats = offChain?.id && (gpBackend > 0 || Number(offChain.total_earned) > 0);
     const contractEmpty = userData && userData.gamesPlayed === 0 && userData.totalStaked === 0 && userData.totalEarned === 0;
     // When contract returns all zeros but backend has stats (leaderboard source), prefer backend.
     if (contractEmpty && backendHasStats) {
       const gp = gpBackend;
-      const gw = Number(offChain.celo_games_won) > 0 ? Number(offChain.celo_games_won) : Number(offChain.game_won) || 0;
-      const gl = Number(offChain.game_lost) || 0;
+      const gw = Number(offChain?.celo_games_won) > 0 ? Number(offChain?.celo_games_won) : Number(offChain?.game_won) || 0;
+      const gl = Number(offChain?.game_lost) || 0;
       return {
          ...userData!,
          gamesPlayed: gp,
@@ -599,7 +651,7 @@ function GuestProfileViewMobile({
                   <div className="flex gap-1.5">
                     {[
                       { label: 'TYC', value: tycBalanceLinked.isLoading ? '…' : Number(tycBalanceLinked.data?.formatted || 0).toFixed(2) },
-                      { label: 'USDC', value: usdcBalanceLinked.isLoading ? '…' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2) },
+                      { label: 'USDT', value: usdcBalanceLinked.isLoading ? '…' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2) },
                       { label: 'Celo', value: nativeBalanceLinked.isLoading ? '…' : (nativeBalanceLinked.data ? Number(nativeBalanceLinked.data.formatted).toFixed(4) : '0') },
                     ].map(({ label, value }) => (
                       <div key={`gc-${label}`} className="flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center">
@@ -613,7 +665,7 @@ function GuestProfileViewMobile({
                   <div className="flex gap-1.5">
                     {[
                       { label: 'TYC', value: tycBalanceSmart.isLoading ? '…' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2) },
-                      { label: 'USDC', value: usdcBalanceSmart.isLoading ? '…' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2) },
+                      { label: 'USDT', value: usdcBalanceSmart.isLoading ? '…' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2) },
                       { label: 'Celo', value: nativeBalanceSmart.isLoading ? '…' : (nativeBalanceSmart.data ? Number(nativeBalanceSmart.data.formatted).toFixed(4) : '0') },
                     ].map(({ label, value }) => (
                       <div key={`gs-${label}`} className="flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center">
@@ -923,9 +975,7 @@ function GuestProfileViewMobile({
         </section>
 
         <div className="px-4 py-4 space-y-4">
-          {(guestUser?.id || walletAddress) && (
-            <DailyClaim chain="CELO" accountKey={guestUser?.id || walletAddress} />
-          )}
+          <DailyClaim chain="CELO" playAddress={getGuestUserPlayAddress(guestUser)} />
           <ProfileReferralCard />
         </div>
 
@@ -965,7 +1015,7 @@ export default function ProfilePageMobile() {
 
   const { data: ethBalance } = useBalance({ address: walletAddress });
 
-  const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
+  const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress, cusdcAddress, usdtAddress } = useRewardTokenAddresses();
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
   const guestAuth = useGuestAuthOptional();
@@ -1002,10 +1052,14 @@ export default function ProfilePageMobile() {
 
   const tycBalance = useBalance({ address: walletAddress, token: tycTokenAddress, query: { enabled: !!walletAddress && !!tycTokenAddress } });
   const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
+  const cusdcBalance = useBalance({ address: walletAddress, token: cusdcAddress, query: { enabled: !!walletAddress && !!cusdcAddress } });
+  const usdtBalance = useBalance({ address: walletAddress, token: usdtAddress, query: { enabled: !!walletAddress && !!usdtAddress } });
   const showDualBalances = !!smartWallet && !!walletAddress && smartWallet.toLowerCase() !== walletAddress.toLowerCase();
   const { data: ethBalanceSmart } = useBalance({ address: smartWallet, query: { enabled: !!smartWallet } });
   const tycBalanceSmart = useBalance({ address: smartWallet, token: tycTokenAddress, query: { enabled: !!smartWallet && !!tycTokenAddress } });
   const usdcBalanceSmart = useBalance({ address: smartWallet, token: usdcTokenAddress, query: { enabled: !!smartWallet && !!usdcTokenAddress } });
+  const cusdcBalanceSmart = useBalance({ address: smartWallet, token: cusdcAddress, query: { enabled: !!smartWallet && !!cusdcAddress } });
+  const usdtBalanceSmart = useBalance({ address: smartWallet, token: usdtAddress, query: { enabled: !!smartWallet && !!usdtAddress } });
 
   const showDualWallets = showDualBalances;
   const [activeWalletView, setActiveWalletView] = useState<'connected' | 'smart'>(() => (smartWallet ? 'smart' : 'connected'));
@@ -1098,6 +1152,14 @@ export default function ProfilePageMobile() {
   useEffect(() => {
     if (!isConnected) return;
 
+    const backendParsed = parseUserFromBackend(backendUser, tycoonProfileOwnerAddress, guestUser?.username);
+    if (backendParsed) {
+      setError(null);
+      setUserData(backendParsed);
+      setLoading(false);
+      return;
+    }
+
     if (usernameReadError) {
       setError(usernameReadError instanceof Error ? usernameReadError.message : 'Failed to load username');
       setLoading(false);
@@ -1127,7 +1189,19 @@ export default function ProfilePageMobile() {
       setLoading(false);
       return;
     }
-  }, [isConnected, username, usernameLoading, usernameReadError, playerData, playerDataLoading, playerDataReadError, walletAddress, tycoonProfileOwnerAddress]);
+  }, [
+    isConnected,
+    username,
+    usernameLoading,
+    usernameReadError,
+    playerData,
+    playerDataLoading,
+    playerDataReadError,
+    walletAddress,
+    tycoonProfileOwnerAddress,
+    backendUser,
+    guestUser?.username,
+  ]);
 
   const effectiveUserData = useMemo(() => {
     if (!userData) return null;
@@ -1151,8 +1225,8 @@ export default function ProfilePageMobile() {
     const contractEmpty =
       userData.gamesPlayed === 0 && userData.totalStaked === 0 && userData.totalEarned === 0;
     const isCelo = chainParam === 'CELO';
-    const gp = isCelo && Number(backend?.celo_games_played) > 0 ? Number(backend.celo_games_played) : Number(backend?.games_played) ?? 0;
-    const gw = isCelo && Number(backend?.celo_games_won) > 0 ? Number(backend.celo_games_won) : Number(backend?.game_won) ?? 0;
+    const gp = isCelo && Number(backend?.celo_games_played) > 0 ? Number(backend?.celo_games_played) : Number(backend?.games_played) ?? 0;
+    const gw = isCelo && Number(backend?.celo_games_won) > 0 ? Number(backend?.celo_games_won) : Number(backend?.game_won) ?? 0;
     const hasBackendStats = backend && (gp > 0 || Number(backend.total_earned) > 0);
     if (contractEmpty && hasBackendStats) {
       const gl = Number(backend!.game_lost) ?? 0;
@@ -1236,8 +1310,9 @@ export default function ProfilePageMobile() {
       setSelectedPerkKey(null);
       tycBalance.refetch();
       tycBalanceSmart.refetch();
+      refetchVouchers();
     }
-  }, [txSuccess, txHash, reset, tycBalance, tycBalanceSmart]);
+  }, [txSuccess, txHash, reset, tycBalance, tycBalanceSmart, refetchVouchers]);
 
   useEffect(() => {
     setLocalDisplayName(profile?.displayName ?? '');
@@ -1545,11 +1620,25 @@ export default function ProfilePageMobile() {
                         : (tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2)),
                   },
                   {
-                    label: 'USDC',
+                    label: 'USDT',
                     value:
                       activeWalletView === 'smart'
                         ? (usdcBalanceSmart.isLoading ? '...' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2))
                         : (usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2)),
+                  },
+                  {
+                    label: 'cUSD',
+                    value:
+                      activeWalletView === 'smart'
+                        ? (cusdcBalanceSmart.isLoading ? '...' : Number(cusdcBalanceSmart.data?.formatted || 0).toFixed(2))
+                        : (cusdcBalance.isLoading ? '...' : Number(cusdcBalance.data?.formatted || 0).toFixed(2)),
+                  },
+                  {
+                    label: 'USDT',
+                    value:
+                      activeWalletView === 'smart'
+                        ? (usdtBalanceSmart.isLoading ? '...' : Number(usdtBalanceSmart.data?.formatted || 0).toFixed(2))
+                        : (usdtBalance.isLoading ? '...' : Number(usdtBalance.data?.formatted || 0).toFixed(2)),
                   },
                   {
                     label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native',
@@ -1571,7 +1660,9 @@ export default function ProfilePageMobile() {
           <div className="grid grid-cols-3 gap-2">
             {[
               { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2) },
-              { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2) },
+              { label: 'USDT', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2) },
+              { label: 'cUSD', value: cusdcBalance.isLoading ? '...' : Number(cusdcBalance.data?.formatted || 0).toFixed(2) },
+              { label: 'USDT', value: usdtBalance.isLoading ? '...' : Number(usdtBalance.data?.formatted || 0).toFixed(2) },
               { label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0' },
             ].map(({ label, value }) => (
               <div key={label} className="bg-slate-800/60 border border-cyan-500/20 rounded-xl p-3 text-center hover:border-cyan-500/40 transition-all">
@@ -1879,6 +1970,16 @@ export default function ProfilePageMobile() {
             )}
           </div>
         </section>
+
+        <div className="px-4 py-4 space-y-4">
+          <DailyClaim
+            chain="CELO"
+            playAddress={getGuestUserPlayAddress(guestUser) ?? walletAddress ?? undefined}
+          />
+          <ProfileReferralCard />
+        </div>
+
+        <AccountLinkWallet />
       </main>
 
       <style jsx global>{`

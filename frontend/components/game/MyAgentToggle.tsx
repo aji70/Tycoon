@@ -208,7 +208,7 @@ export function MyAgentToggle({
                 </>
               ) : (
                 <span className="text-[10px] text-slate-500">
-                  <Link href="/agents" className="text-cyan-400 hover:underline">My Agents</Link> — add one to use here
+                  My Agents — add one in your profile to use here
                 </span>
               )}
             </>
@@ -243,7 +243,7 @@ export function MyAgentToggle({
         <>
           {agents.length > 0 ? (
             <div className="flex flex-col gap-2">
-              <span className="text-xs text-slate-400">Use an agent from <Link href="/agents" className="text-cyan-400 hover:underline">My Agents</Link></span>
+              <span className="text-xs text-slate-400">Select an agent from your list</span>
               <select
                 value={selectedAgentId ?? ""}
                 onChange={(e) => setSelectedAgentId(Number(e.target.value))}
@@ -264,7 +264,7 @@ export function MyAgentToggle({
             </div>
           ) : (
             <p className="text-xs text-slate-400">
-              Add agents in <Link href="/agents" className="text-cyan-400 hover:underline">My Agents</Link> (name + URL) to use one here
+              Add agents in your profile (name + URL) to use one here
               {onUseApiKey ? " — or use your API key below." : "."}
             </p>
           )}

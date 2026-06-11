@@ -20,7 +20,11 @@ import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { socketService } from "@/lib/socket";
-import { shouldUseBackendGuestGameFlow, getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import {
+  shouldUseBackendGuestGameFlow,
+  getGuestUserPlayAddress,
+  ensureMiniPayWalletReady,
+} from "@/lib/minipayGuestFlow";
 
 const POLL_INTERVAL = 2000;
 const SOCKET_URL =
@@ -39,14 +43,14 @@ function isTournamentMatchCode(code: string): boolean {
 const MOBILE_BREAKPOINT_PX = 768;
 
 export interface UseWaitingRoomOptions {
-  /** When game is RUNNING, redirect here (default: /game-play). e.g. /board-3d-multi for 3D board. */
+  /** When game is RUNNING, redirect here (default: /board-3d-multi-mobile). */
   redirectToBoard?: string;
   /** On viewports <= 768px, redirect here instead of redirectToBoard (e.g. /board-3d-multi-mobile). */
   redirectToBoardMobile?: string;
 }
 
 export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
-  const { redirectToBoard = "/board-3d-multi", redirectToBoardMobile } = options;
+  const { redirectToBoard = "/board-3d-multi-mobile", redirectToBoardMobile } = options;
 
   const getRedirectBoardUrl = useCallback(() => {
     const base = redirectToBoard;
@@ -438,7 +442,18 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     setError(null);
     const toastId = toast.loading("Joining the game...");
 
-    // Backend guest join: no wallet, or MiniPay local address ≠ account play address (backend pays contract gas)
+    try {
+      await ensureMiniPayWalletReady();
+    } catch (err: unknown) {
+      const message = (err as Error)?.message ?? "Connect your wallet in MiniPay, then try again.";
+      setError(message);
+      toast.update(toastId, { render: message, type: "error", isLoading: false, autoClose: 8000 });
+      actionGuardRef.current = false;
+      setActionLoading(false);
+      return;
+    }
+
+    // Backend guest join: JWT guest with no connected wallet (not in MiniPay)
     if (guestUser && backendGuestGameFlow) {
       if (stakePerPlayer > BigInt(0) && !address) {
         setError("Guests cannot join staked games. Connect a wallet to join this game.");
@@ -502,7 +517,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     }
 
     if (!usdcTokenAddress && stakePerPlayer > 0) {
-      setError("USDC not available on this network.");
+      setError("USDT not available on this network.");
       actionGuardRef.current = false;
       setActionLoading(false);
       toast.dismiss(toastId);
@@ -511,14 +526,14 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
 
     try {
       if (stakePerPlayer > 0) {
-        toast.update(toastId, { render: "Checking USDC approval..." });
+        toast.update(toastId, { render: "Checking USDT approval..." });
         await refetchAllowance();
         const currentAllowance = usdcAllowance
           ? BigInt(usdcAllowance.toString())
           : BigInt(0);
 
         if (currentAllowance < stakePerPlayer) {
-          toast.update(toastId, { render: "Approving USDC spend..." });
+          toast.update(toastId, { render: "Approving USDT spend..." });
           await approveUSDC(usdcTokenAddress!, contractAddress, stakePerPlayer);
           await new Promise((r) => setTimeout(r, 3000));
         }
