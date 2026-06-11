@@ -84,7 +84,7 @@ export function useMiniPayShop() {
     [address, publicClient]
   )
 
-  const sendContractCallWithFee = useCallback(
+  const sendContractCallRaw = useCallback(
     async (
       contractAddress: Address,
       functionData: string, // Pre-encoded function call
@@ -96,17 +96,20 @@ export function useMiniPayShop() {
       setError(null)
 
       try {
-        // Use viem's wallet client with feeCurrency for MiniPay fee abstraction
-        const walletClient = createWalletClient({
-          chain: celo,
-          transport: custom(window.ethereum!),
+        // Use raw eth_sendTransaction with feeCurrency for adapter support
+        // This avoids viem's eth_estimateGas which MiniPay rejects
+        const accounts: string[] = await (window.ethereum as any).request({
+          method: 'eth_accounts',
         })
 
-        const txHash = await walletClient.sendTransaction({
-          account: address,
-          to: contractAddress,
-          data: functionData as `0x${string}`,
-          feeCurrency, // MiniPay will pay gas in this stablecoin
+        const txHash = await (window.ethereum as any).request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: accounts[0],
+            to: contractAddress,
+            data: functionData,
+            feeCurrency, // MiniPay adapter address for fee abstraction
+          }],
         })
 
         if (!txHash) throw new Error('Contract call failed')
@@ -135,6 +138,6 @@ export function useMiniPayShop() {
     isPaying,
     error,
     sendRawApproval,
-    sendContractCallWithFee,
+    sendContractCallRaw,
   }
 }

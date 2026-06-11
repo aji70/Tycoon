@@ -451,7 +451,7 @@ export default function GameShop() {
         });
         // Use viem with feeCurrency adapter for MiniPay fee abstraction
         const feeCurrencyAddress = getFeeCurrencyAddress(paymentTokenAddress);
-        await miniPayShop.sendContractCallWithFee(contractAddress, buyData, feeCurrencyAddress);
+        await miniPayShop.sendContractCallRaw(contractAddress, buyData, feeCurrencyAddress);
 
         refetchUsdc();
         refetchCusdc();
