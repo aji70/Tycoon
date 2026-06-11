@@ -35,6 +35,7 @@ import Erc20Abi from '@/context/abi/ERC20abi.json';
 import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import { shopPerkRow } from '@/lib/shopPerkRow';
 import { isShopPerkHidden } from '@/lib/perkShopAssets';
+import { useMiniPayShop, isMiniPayBrowser } from '@/hooks/useMiniPayShop';
 
 import {
   useRewardBuyCollectible,
@@ -117,6 +118,7 @@ export default function GameShop() {
   const { open: openWallet } = useAppKit();
   const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
   const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount();
+  const miniPayShop = useMiniPayShop();
   const address = useMemo((): Address | undefined => {
     const a = appKitAddress ?? wagmiAddress;
     return a && isAddress(a) ? (a as Address) : undefined;
@@ -411,6 +413,22 @@ export default function GameShop() {
       return;
     }
     try {
+      // MiniPay: bypass viem and use raw eth_sendTransaction
+      if (isMiniPayBrowser() && isConnected && address) {
+        const txHash = await miniPayShop.sendERC20Transfer(
+          paymentTokenAddress,
+          contractAddress,
+          price
+        );
+        if (!txHash) throw new Error('Transaction failed');
+        // Refetch balance after successful on-chain transfer
+        refetchUsdc();
+        refetchCusdc();
+        refetchUsdt();
+        toast.success('Purchase successful!');
+        return;
+      }
+
       if (stableAllowance === undefined || stableAllowance === null) {
         toast.info('Approval required');
         await approve(paymentTokenAddress, contractAddress, price);
