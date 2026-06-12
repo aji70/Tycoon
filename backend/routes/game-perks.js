@@ -1,6 +1,6 @@
 import express from "express";
 import gamePerkController from "../controllers/gamePerkController.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuthOrWallet } from "../middleware/auth.js";
 import { dispatch } from "../utils/dispatch.js";
 
 const router = express.Router();
@@ -8,7 +8,7 @@ const router = express.Router();
 // POST /api/perks/:action  (activate | teleport | exactRoll | burnForCash | useJailFree | applyCash)
 router.post(
   "/:action",
-  requireAuth,
+  requireAuthOrWallet,
   dispatch(
     gamePerkController,
     ["activatePerk", "teleport", "exactRoll", "burnForCash", "useJailFree", "applyCash"],

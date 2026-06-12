@@ -1,6 +1,59 @@
 // src/controllers/gamePerkController.js
 import db from "../config/database.js";
 
+function parseActivePerks(raw) {
+  if (raw == null || raw === "") return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "object") return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function collectUserAddresses(user, body = {}) {
+  const candidates = [
+    user?.address,
+    user?.linked_wallet_address,
+    user?.smart_wallet_address,
+    body?.address,
+  ];
+  return [
+    ...new Set(
+      candidates
+        .filter((a) => a && /^0x[a-fA-F0-9]{40}$/.test(String(a).trim()))
+        .map((a) => String(a).trim().toLowerCase())
+    ),
+  ];
+}
+
+/** Match game player by JWT user_id, then by wallet addresses (MiniPay / smart wallet). */
+async function resolveGamePlayer(trx, gameId, req) {
+  const gid = Number(gameId);
+  if (!Number.isFinite(gid) || gid <= 0) return { game: null, player: null };
+
+  const game = await trx("games").where({ id: gid }).first();
+  if (!game) return { game: null, player: null };
+
+  const userId = req.user?.id ?? req.userId;
+  if (userId != null) {
+    const byUser = await trx("game_players").where({ game_id: gid, user_id: userId }).first();
+    if (byUser) return { game, player: byUser };
+  }
+
+  for (const addr of collectUserAddresses(req.user, req.body)) {
+    const byAddr = await trx("game_players")
+      .where({ game_id: gid })
+      .whereRaw("LOWER(TRIM(address)) = ?", [addr])
+      .first();
+    if (byAddr) return { game, player: byAddr };
+  }
+
+  return { game, player: null };
+}
+
 const getPerkName = (id) => {
   const names = {
     1: "Extra Turn",
@@ -26,7 +79,6 @@ const gamePerkController = {
   const trx = await db.transaction();
   try {
     const { game_id, perk_id } = req.body;
-    const user_id = req.user?.id; // assuming authenticated
 
     if (!game_id || !perk_id) {
       await trx.rollback();
@@ -39,17 +91,14 @@ const gamePerkController = {
       return res.status(400).json({ success: false, message: "Invalid perk for this endpoint" });
     }
 
-    const [game, player] = await Promise.all([
-      trx("games").where({ id: game_id }).first(),
-      trx("game_players").where({ game_id, user_id }).first(),
-    ]);
+    const { game, player } = await resolveGamePlayer(trx, game_id, req);
 
     if (!game || !player) {
       await trx.rollback();
       return res.status(404).json({ success: false, message: "Game or player not found" });
     }
 
-    const activePerks = player.active_perks ? JSON.parse(player.active_perks) : [];
+    const activePerks = parseActivePerks(player.active_perks);
     const pid = Number(perk_id);
 
     // Lucky 7 (13): one-shot — set next roll to 7, do not add to active_perks
@@ -123,23 +172,20 @@ async teleport(req, res) {
   const trx = await db.transaction();
   try {
     const { game_id, target_position, from_collectible } = req.body;
-    const user_id = req.user?.id;
 
     if (!game_id || target_position === undefined || target_position < 0 || target_position > 39) {
       await trx.rollback();
       return res.status(400).json({ success: false, message: "Invalid position (0-39)" });
     }
 
-    const player = await trx("game_players")
-      .where({ game_id, user_id })
-      .first();
+    const { player } = await resolveGamePlayer(trx, game_id, req);
 
     if (!player) {
       await trx.rollback();
       return res.status(404).json({ success: false, message: "Player not found" });
     }
 
-    let updatedPerks = player.active_perks ? JSON.parse(player.active_perks) : [];
+    let updatedPerks = parseActivePerks(player.active_perks);
     if (!from_collectible) {
       const teleportPerk = updatedPerks.find(p => p.id === 6);
       if (!teleportPerk) {
@@ -183,23 +229,20 @@ async exactRoll(req, res) {
   const trx = await db.transaction();
   try {
     const { game_id, chosen_total, from_collectible } = req.body;
-    const user_id = req.user?.id;
 
     if (!chosen_total || chosen_total < 2 || chosen_total > 12) {
       await trx.rollback();
       return res.status(400).json({ success: false, message: "Roll must be 2–12" });
     }
 
-    const player = await trx("game_players")
-      .where({ game_id, user_id })
-      .first();
+    const { player } = await resolveGamePlayer(trx, game_id, req);
 
     if (!player) {
       await trx.rollback();
       return res.status(404).json({ success: false, message: "Player not found" });
     }
 
-    let activePerks = player.active_perks ? JSON.parse(player.active_perks) : [];
+    let activePerks = parseActivePerks(player.active_perks);
     if (!from_collectible) {
       const exactRollPerk = activePerks.find(p => p.id === 10);
       if (!exactRollPerk) {
@@ -233,18 +276,15 @@ async burnForCash(req, res) {
   const trx = await db.transaction();
   try {
     const { game_id, from_collectible, amount: requestedAmount } = req.body;
-    const user_id = req.user?.id;
 
-    const player = await trx("game_players")
-      .where({ game_id, user_id })
-      .first();
+    const { player } = await resolveGamePlayer(trx, game_id, req);
 
     if (!player) {
       await trx.rollback();
       return res.status(404).json({ success: false, message: "Player not found" });
     }
 
-    let updatedPerks = player.active_perks ? JSON.parse(player.active_perks) : [];
+    let updatedPerks = parseActivePerks(player.active_perks);
     if (!from_collectible) {
       const instantCashPerk = updatedPerks.find(p => p.id === 5);
       if (!instantCashPerk) {
@@ -255,9 +295,11 @@ async burnForCash(req, res) {
     }
 
     const tierRewards = [500, 1000, 2000, 5000];
-    const reward = from_collectible && typeof requestedAmount === "number" && requestedAmount >= 0
-      ? requestedAmount
-      : tierRewards[Math.floor(Math.random() * tierRewards.length)];
+    const parsedAmount = requestedAmount != null ? Number(requestedAmount) : NaN;
+    const reward =
+      from_collectible && Number.isFinite(parsedAmount) && parsedAmount >= 0
+        ? parsedAmount
+        : tierRewards[Math.floor(Math.random() * tierRewards.length)];
 
     await trx("game_players")
       .where({ id: player.id })
@@ -295,16 +337,13 @@ async burnForCash(req, res) {
     const trx = await db.transaction();
     try {
       const { game_id, from_collectible } = req.body;
-      const user_id = req.user?.id;
 
       if (!game_id) {
         await trx.rollback();
         return res.status(400).json({ success: false, message: "Missing game_id" });
       }
 
-      const player = await trx("game_players")
-        .where({ game_id, user_id })
-        .first();
+      const { player } = await resolveGamePlayer(trx, game_id, req);
 
       if (!player) {
         await trx.rollback();
@@ -316,7 +355,7 @@ async burnForCash(req, res) {
         return res.status(400).json({ success: false, message: "Player is not in jail" });
       }
 
-      let updatedPerks = player.active_perks ? JSON.parse(player.active_perks) : [];
+      let updatedPerks = parseActivePerks(player.active_perks);
       if (!from_collectible) {
         const jailFreePerk = updatedPerks.find(p => p.id === 2);
         if (!jailFreePerk) {
@@ -361,7 +400,6 @@ async burnForCash(req, res) {
     const trx = await db.transaction();
     try {
       const { game_id, perk_id, amount, from_collectible } = req.body;
-      const user_id = req.user?.id;
 
       if (!game_id || !perk_id || amount === undefined || amount === null) {
         await trx.rollback();
@@ -376,16 +414,14 @@ async burnForCash(req, res) {
 
       const value = Math.max(0, Number(amount));
 
-      const player = await trx("game_players")
-        .where({ game_id, user_id })
-        .first();
+      const { player } = await resolveGamePlayer(trx, game_id, req);
 
       if (!player) {
         await trx.rollback();
         return res.status(404).json({ success: false, message: "Player not found" });
       }
 
-      let updatedPerks = player.active_perks ? JSON.parse(player.active_perks) : [];
+      let updatedPerks = parseActivePerks(player.active_perks);
       if (!from_collectible) {
         const perk = updatedPerks.find(p => p.id === pid);
         if (!perk) {

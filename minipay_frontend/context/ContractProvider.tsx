@@ -11,7 +11,7 @@ import {
   usePublicClient,
 } from 'wagmi';
 import { celo } from 'wagmi/chains';
-import { Address, createPublicClient, decodeEventLog, encodeFunctionData, getAddress, hexToBigInt, http, parseEventLogs, zeroAddress } from 'viem';
+import { Address, createPublicClient, decodeEventLog, encodeFunctionData, getAddress, hexToBigInt, http, parseEventLogs, zeroAddress, type Hash } from 'viem';
 import { celo as celoChain, celoAlfajores } from 'viem/chains';
 import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
@@ -27,7 +27,7 @@ import {
   MINIPAY_REGISTER_GAS_HEX,
   sendMinipayAwareContractTx,
 } from '@/lib/minipayContractWrite';
-import { isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
+import { isMiniPayEmbeddedWallet, shouldBypassViemForTx } from '@/lib/minipayGuestFlow';
 import { API_BASE_URL } from '@/lib/api';
 
 const REWARD_TOKEN_READ_ABI = [
@@ -1550,22 +1550,61 @@ export function useRewardBurnCollectibleFrom() {
   return { burnFrom, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
+/** Wagmi tx hash is unset when MiniPay uses raw eth_sendTransaction — track that hash locally. */
+function useMinipayTrackedWriteContract() {
+  const { writeContractAsync, isPending, error: writeError, data: wagmiTxHash, reset: resetWagmi } =
+    useWriteContract();
+  const [minipayTxHash, setMinipayTxHash] = useState<Hash | undefined>();
+  const txHash = wagmiTxHash ?? minipayTxHash;
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const reset = useCallback(() => {
+    resetWagmi();
+    setMinipayTxHash(undefined);
+  }, [resetWagmi]);
+
+  const trackMinipayHash = useCallback((hash: Hash) => {
+    if (shouldBypassViemForTx()) setMinipayTxHash(hash);
+  }, []);
+
+  return {
+    writeContractAsync,
+    isPending,
+    writeError,
+    txHash,
+    reset,
+    trackMinipayHash,
+    isConfirming,
+    isSuccess,
+  };
+}
+
 export function useRewardBuyCollectible() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
-  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+  const {
+    writeContractAsync,
+    isPending,
+    writeError,
+    txHash,
+    reset,
+    trackMinipayHash,
+    isConfirming,
+    isSuccess,
+  } = useMinipayTrackedWriteContract();
 
   const buy = useCallback(async (tokenId: bigint, paymentToken: number) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    return sendMinipayAwareContractTx({
+    const hash = await sendMinipayAwareContractTx({
       to: contractAddress,
       abi: REWARD_BUY_COLLECTIBLE_ENUM_ABI,
       functionName: 'buyCollectible',
       args: [tokenId, paymentToken],
       writeContractAsync,
     });
-  }, [writeContractAsync, contractAddress]);
+    trackMinipayHash(hash);
+    return hash;
+  }, [writeContractAsync, contractAddress, trackMinipayHash]);
 
   return { buy, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
@@ -1574,19 +1613,29 @@ export function useRewardBuyCollectible() {
 export function useRewardBuyCollectibleFrom() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
-  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+  const {
+    writeContractAsync,
+    isPending,
+    writeError,
+    txHash,
+    reset,
+    trackMinipayHash,
+    isConfirming,
+    isSuccess,
+  } = useMinipayTrackedWriteContract();
 
   const buyFrom = useCallback(async (payer: Address, tokenId: bigint, paymentToken: number) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
-    return sendMinipayAwareContractTx({
+    const hash = await sendMinipayAwareContractTx({
       to: contractAddress,
       abi: REWARD_BUY_COLLECTIBLE_FROM_ENUM_ABI,
       functionName: 'buyCollectibleFrom',
       args: [payer, tokenId, paymentToken],
       writeContractAsync,
     });
-  }, [writeContractAsync, contractAddress]);
+    trackMinipayHash(hash);
+    return hash;
+  }, [writeContractAsync, contractAddress, trackMinipayHash]);
 
   return { buyFrom, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }

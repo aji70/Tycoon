@@ -1015,10 +1015,15 @@ function Board3DMobilePageContent() {
           }
           case 3:
           case 4:
-          case 7: {
+          case 7:
+          case 11:
+          case 12:
+          case 13:
+          case 14: {
             const res = await apiClient.post<{ success?: boolean }>("/perks/activate", {
               game_id: game.id,
               perk_id: perk,
+              ...(me?.address ? { address: me.address } : {}),
             });
             success = res?.data?.success ?? false;
             if (success) toast.success(`${name} activated for next use!`, { id: toastId });
