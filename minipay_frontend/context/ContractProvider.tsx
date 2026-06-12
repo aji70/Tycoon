@@ -57,6 +57,26 @@ const REWARD_BUY_COLLECTIBLE_FROM_ENUM_ABI = [
   },
 ] as const;
 
+const REWARD_BURN_COLLECTIBLE_ABI = [
+  {
+    type: 'function',
+    name: 'burnCollectibleForPerk',
+    stateMutability: 'nonpayable',
+    inputs: [{ type: 'uint256' }],
+    outputs: [],
+  },
+] as const;
+
+const REWARD_BURN_COLLECTIBLE_FROM_ABI = [
+  {
+    type: 'function',
+    name: 'burnCollectibleForPerkFrom',
+    stateMutability: 'nonpayable',
+    inputs: [{ type: 'address' }, { type: 'uint256' }],
+    outputs: [],
+  },
+] as const;
+
 // Fixed stake amount (adjust if needed)
 const STAKE_AMOUNT = 1; // 1 wei for testing? Or change to actual value like 0.01 ether = 10000000000000000n
 
@@ -1505,19 +1525,30 @@ export function useRewardRedeemVoucherFor() {
 export function useRewardBurnCollectible() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
-  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+  const {
+    writeContractAsync,
+    isPending,
+    writeError,
+    txHash,
+    reset,
+    trackMinipayHash,
+    isConfirming,
+    isSuccess,
+  } = useMinipayTrackedWriteContract();
 
   const burn = useCallback(async (tokenId: bigint) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
     if (!isCollectibleToken(tokenId)) throw new Error('Invalid collectible token ID');
-    return await writeContractAsync({
-      address: contractAddress,
-      abi: RewardABI,
+    const hash = await sendMinipayAwareContractTx({
+      to: contractAddress,
+      abi: REWARD_BURN_COLLECTIBLE_ABI,
       functionName: 'burnCollectibleForPerk',
       args: [tokenId],
+      writeContractAsync,
     });
-  }, [writeContractAsync, contractAddress]);
+    trackMinipayHash(hash);
+    return hash;
+  }, [writeContractAsync, contractAddress, trackMinipayHash]);
 
   return {
     burn,
@@ -1533,19 +1564,30 @@ export function useRewardBurnCollectible() {
 export function useRewardBurnCollectibleFrom() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
-  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+  const {
+    writeContractAsync,
+    isPending,
+    writeError,
+    txHash,
+    reset,
+    trackMinipayHash,
+    isConfirming,
+    isSuccess,
+  } = useMinipayTrackedWriteContract();
 
   const burnFrom = useCallback(async (payer: Address, tokenId: bigint) => {
     if (!contractAddress) throw new Error('Reward contract not deployed');
     if (!isCollectibleToken(tokenId)) throw new Error('Invalid collectible token ID');
-    return await writeContractAsync({
-      address: contractAddress,
-      abi: RewardABI,
+    const hash = await sendMinipayAwareContractTx({
+      to: contractAddress,
+      abi: REWARD_BURN_COLLECTIBLE_FROM_ABI,
       functionName: 'burnCollectibleForPerkFrom',
       args: [payer, tokenId],
+      writeContractAsync,
     });
-  }, [writeContractAsync, contractAddress]);
+    trackMinipayHash(hash);
+    return hash;
+  }, [writeContractAsync, contractAddress, trackMinipayHash]);
 
   return { burnFrom, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
@@ -2287,22 +2329,24 @@ export const TycoonProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const burnCollectible = useCallback(async (tokenId: bigint) => {
     const addr = REWARD_CONTRACT_ADDRESSES[chainId];
     if (!addr) throw new Error('Reward contract not deployed');
-    return await writeContractAsync({
-      address: addr,
-      abi: RewardABI,
+    return sendMinipayAwareContractTx({
+      to: addr,
+      abi: REWARD_BURN_COLLECTIBLE_ABI,
       functionName: 'burnCollectibleForPerk',
       args: [tokenId],
+      writeContractAsync,
     });
   }, [writeContractAsync, chainId]);
 
   const burnCollectibleFrom = useCallback(async (payer: Address, tokenId: bigint) => {
     const addr = REWARD_CONTRACT_ADDRESSES[chainId];
     if (!addr) throw new Error('Reward contract not deployed');
-    return await writeContractAsync({
-      address: addr,
-      abi: RewardABI,
+    return sendMinipayAwareContractTx({
+      to: addr,
+      abi: REWARD_BURN_COLLECTIBLE_FROM_ABI,
       functionName: 'burnCollectibleForPerkFrom',
       args: [payer, tokenId],
+      writeContractAsync,
     });
   }, [writeContractAsync, chainId]);
 

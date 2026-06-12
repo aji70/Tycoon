@@ -232,6 +232,17 @@ export default function CollectibleInventoryBar({
   const currentAllowance = allowance ?? 0;
 
   const { burn: burnCollectible, isPending: isBurning, isSuccess: burnSuccess, reset: resetBurn } = useRewardBurnCollectible();
+  const burnConfirmedRef = useRef(false);
+  const shopTxBusy =
+    buyingPending ||
+    buyingConfirming ||
+    buyFromPending ||
+    buyFromConfirming ||
+    approvePending ||
+    approveConfirming ||
+    smartWalletApprovePending ||
+    approvingId !== null ||
+    buyingId !== null;
 
   const currentPlayer = useMemo(() => {
     if (!address || !game?.players) return null;
@@ -673,11 +684,18 @@ export default function CollectibleInventoryBar({
       return;
     }
 
+    if (shopTxBusy) {
+      toast("Wait for your purchase to finish...", { icon: "⏳" });
+      return;
+    }
+
+    burnConfirmedRef.current = false;
+    resetBurn();
     setPendingPerk({ tokenId, perkId, name, strength });
   };
 
   useEffect(() => {
-    if (!pendingPerk || !burnSuccess || !currentPlayer) return;
+    if (!pendingPerk || !burnSuccess || !burnConfirmedRef.current || !currentPlayer) return;
 
     const { perkId, name, strength = 1 } = pendingPerk;
 
@@ -811,6 +829,7 @@ export default function CollectibleInventoryBar({
       } catch (err) {
         toast.error("Activation failed", { id: toastId });
       } finally {
+        burnConfirmedRef.current = false;
         resetBurn();
         setPendingPerk(null);
         setSelectedPositionIndex(null);
@@ -830,12 +849,19 @@ export default function CollectibleInventoryBar({
 
   const handleConfirmBurnAndActivate = async () => {
     if (!pendingPerk) return;
+    if (shopTxBusy) {
+      toast("Wait for your purchase to finish...", { icon: "⏳" });
+      return;
+    }
 
     const toastId = toast.loading("Burning collectible... 🔥");
 
     try {
+      burnConfirmedRef.current = true;
       await burnCollectible(pendingPerk.tokenId);
     } catch (err) {
+      burnConfirmedRef.current = false;
+      resetBurn();
       toast.error("Burn failed — perk not activated", { id: toastId });
       setPendingPerk(null);
       setSelectedPositionIndex(null);

@@ -303,7 +303,8 @@ function Board3DMobilePageContent() {
     strength: number;
     name: string;
   } | null>(null);
-  const { burn: burnCollectible, isSuccess: burnSuccess } = useRewardBurnCollectible();
+  const { burn: burnCollectible, isSuccess: burnSuccess, reset: resetBurn } = useRewardBurnCollectible();
+  const burnConfirmedRef = useRef(false);
   const [liveMovementOverride, setLiveMovementOverride] = useState<Record<number, number>>({});
   const [rollingDice, setRollingDice] = useState<{ die1: number; die2: number } | null>(null);
   const [lastRollResultLive, setLastRollResultLive] = useState<{ die1: number; die2: number; total: number } | null>(null);
@@ -982,13 +983,15 @@ function Board3DMobilePageContent() {
         setShowPerksModal(true);
         return;
       }
+      burnConfirmedRef.current = false;
+      resetBurn();
       setPendingBarPerk({ tokenId, perk, strength: _strength, name });
     },
-    []
+    [resetBurn]
   );
 
   useEffect(() => {
-    if (!burnSuccess || !pendingBarPerk || !game?.id || !me) return;
+    if (!burnSuccess || !burnConfirmedRef.current || !pendingBarPerk || !game?.id || !me) return;
 
     const { perk, strength, name } = pendingBarPerk;
     const toastId = toast.loading("Applying perk...");
@@ -1081,6 +1084,8 @@ function Board3DMobilePageContent() {
       } catch {
         toast.error("Activation failed", { id: toastId });
       } finally {
+        burnConfirmedRef.current = false;
+        resetBurn();
         setPendingBarPerk(null);
       }
     })();
@@ -1092,6 +1097,7 @@ function Board3DMobilePageContent() {
     playerCanRoll,
     handleRollForLive,
     refetchGame,
+    resetBurn,
   ]);
 
   const handleDiceCompleteForLive = useCallback(async () => {
@@ -2639,7 +2645,11 @@ function Board3DMobilePageContent() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-            onClick={() => setPendingBarPerk(null)}
+            onClick={() => {
+              burnConfirmedRef.current = false;
+              resetBurn();
+              setPendingBarPerk(null);
+            }}
           >
             <motion.div
               initial={{ scale: 0.95 }}
@@ -2653,7 +2663,11 @@ function Board3DMobilePageContent() {
               <div className="flex gap-3 justify-end">
                 <button
                   type="button"
-                  onClick={() => setPendingBarPerk(null)}
+                  onClick={() => {
+                    burnConfirmedRef.current = false;
+                    resetBurn();
+                    setPendingBarPerk(null);
+                  }}
                   className="px-4 py-2 rounded-lg bg-slate-600 text-slate-200 hover:bg-slate-500 transition"
                 >
                   Cancel
@@ -2662,8 +2676,11 @@ function Board3DMobilePageContent() {
                   type="button"
                   onClick={async () => {
                     try {
+                      burnConfirmedRef.current = true;
                       await burnCollectible(pendingBarPerk.tokenId);
                     } catch (e) {
+                      burnConfirmedRef.current = false;
+                      resetBurn();
                       toast.error(getContractErrorMessage(e, "Burn failed"));
                       setPendingBarPerk(null);
                     }
