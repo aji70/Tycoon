@@ -426,6 +426,18 @@ export function useRegisterPlayerWithoutWallet() {
   return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
+function parseGameCreatedIdFromReceipt(
+  logs: Parameters<typeof parseEventLogs>[0]['logs'],
+): bigint | null {
+  const parsed = parseEventLogs({
+    abi: TycoonABI as never,
+    logs,
+    eventName: 'GameCreated',
+  });
+  const gameId = (parsed[0] as { args?: { gameId?: bigint } } | undefined)?.args?.gameId;
+  return gameId != null ? BigInt(gameId) : null;
+}
+
 export function useCreateGame(
   creatorUsername: string,
   gameType: string,
@@ -437,6 +449,7 @@ export function useCreateGame(
 ) {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  const publicClient = usePublicClient();
 
   const {
     writeContractAsync,
@@ -449,10 +462,11 @@ export function useCreateGame(
   const { isLoading: isConfirming, isSuccess } =
     useWaitForTransactionReceipt({ hash: txHash });
 
-  const write = useCallback(async () => {
+  const write = useCallback(async (): Promise<bigint> => {
     if (!contractAddress) throw new Error('Contract not deployed');
+    if (!publicClient) throw new Error('Network unavailable');
 
-    return sendMinipayAwareContractTx({
+    const hash = await sendMinipayAwareContractTx({
       to: contractAddress,
       abi: TycoonABI,
       functionName: 'createGame',
@@ -467,8 +481,14 @@ export function useCreateGame(
       ],
       writeContractAsync,
     });
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
+    const gameId = parseGameCreatedIdFromReceipt(receipt.logs);
+    if (gameId == null) throw new Error('GameCreated event not found in transaction');
+    return gameId;
   }, [
     writeContractAsync,
+    publicClient,
     contractAddress,
     creatorUsername,
     gameType,

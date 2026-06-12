@@ -257,12 +257,13 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
       }
 
       toast.update(toastId, { render: "Creating game on-chain (sign in wallet)..." });
-      const txHash = await createGame();
-      if (!txHash) throw new Error("Failed to create game on-chain");
+      const onChainGameId = await createGame();
+      if (onChainGameId == null) throw new Error("Failed to create game on-chain");
 
       toast.update(toastId, { render: "Saving game to server..." });
 
       const saveRes = await apiClient.post<GameCreateResponse>("/games", {
+        id: onChainGameId.toString(),
         code: gameCode,
         mode: gameType,
         address,
