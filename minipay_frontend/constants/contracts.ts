@@ -14,10 +14,20 @@ export const TYC_TOKEN_ADDRESS: Record<number, Address | undefined> = {
   [celo.id]: (process.env.NEXT_PUBLIC_CELO_TYC || process.env.NEXT_PUBLIC_CELO_TOKEN) as Address | undefined,
 };
 
-/** USDT: Celo mainnet (42220) and Alfajores (44787). Set NEXT_PUBLIC_ALFAJORES_USDC for testnet. */
+/** Tether USDT on Celo (bridged). Primary stablecoin for MiniPay. */
+export const USDT_TOKEN_ADDRESS: Record<number, Address | undefined> = {
+  42220: process.env.NEXT_PUBLIC_CELO_USDT as Address,
+  44787: (process.env.NEXT_PUBLIC_ALFAJORES_USDT || process.env.NEXT_PUBLIC_CELO_USDT) as Address | undefined,
+};
+
+/**
+ * Stake / shop USDC slot on the reward contract (rewardSystem.usdc()).
+ * After owner calls setUsdcToken(USDT), this matches USDT_TOKEN_ADDRESS.
+ * Prefer useStakeTokenAddress() so reads stay aligned with the reward contract.
+ */
 export const USDC_TOKEN_ADDRESS: Record<number, Address | undefined> = {
-  42220: process.env.NEXT_PUBLIC_CELO_USDC as Address,
-  44787: (process.env.NEXT_PUBLIC_ALFAJORES_USDC || process.env.NEXT_PUBLIC_CELO_USDC) as Address | undefined,
+  42220: (process.env.NEXT_PUBLIC_CELO_USDC || process.env.NEXT_PUBLIC_CELO_USDT) as Address,
+  44787: (process.env.NEXT_PUBLIC_ALFAJORES_USDC || process.env.NEXT_PUBLIC_CELO_USDC || process.env.NEXT_PUBLIC_CELO_USDT) as Address | undefined,
 };
 
 export const AI_AGENT_REGISTRY_ADDRESSES: Record<number, Address | undefined> = {

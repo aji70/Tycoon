@@ -23,9 +23,10 @@ import {
   useGetUsername,
   useCreateGame,
   useApprove,
+  useStakeTokenAddress,
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
+import { TYCOON_CONTRACT_ADDRESSES, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
 import { shouldUseBackendGuestGameFlow, ensureMiniPayWalletReady } from "@/lib/minipayGuestFlow";
 import { Address, parseUnits } from "viem";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
@@ -92,14 +93,14 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
   const [createError, setCreateError] = useState<string | null>(null);
 
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[wagmiChainId as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
-  const usdcTokenAddress = USDC_TOKEN_ADDRESS[wagmiChainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
+  const { stakeTokenAddress, isLoading: stakeTokenLoading } = useStakeTokenAddress();
 
-  const { data: usdcAllowance, refetch: refetchAllowance } = useReadContract({
-    address: usdcTokenAddress,
+  const { data: stakeAllowance, refetch: refetchAllowance } = useReadContract({
+    address: stakeTokenAddress,
     abi: Erc20Abi,
     functionName: 'allowance',
     args: address && contractAddress ? [address, contractAddress] : undefined,
-    query: { enabled: !!address && !!usdcTokenAddress && !!contractAddress && !isFreeGame },
+    query: { enabled: !!address && !!stakeTokenAddress && !!contractAddress && !isFreeGame },
   });
 
   const gameCode = generateGameCode();
@@ -232,7 +233,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
       return;
     }
 
-    if (!isFreeGame && !usdcTokenAddress) {
+    if (!isFreeGame && (stakeTokenLoading || !stakeTokenAddress)) {
       toast.update(toastId, { render: "USDT not supported on current network.", type: "error", isLoading: false });
       setIsStarting(false);
       return;
@@ -241,11 +242,15 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
     try {
       if (!isFreeGame) {
         toast.update(toastId, { render: "Checking USDT allowance..." });
-        await refetchAllowance();
-        const allowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : 0n;
+        const allowanceResult = await refetchAllowance();
+        const allowance = allowanceResult.data
+          ? BigInt(allowanceResult.data.toString())
+          : stakeAllowance
+            ? BigInt(stakeAllowance.toString())
+            : 0n;
         if (allowance < stakeAmount) {
           toast.update(toastId, { render: "Approving USDT (one-time)..." });
-          await approveUSDC(usdcTokenAddress!, contractAddress, stakeAmount);
+          await approveUSDC(stakeTokenAddress!, contractAddress, stakeAmount);
           await new Promise((r) => setTimeout(r, 4000));
           await refetchAllowance();
         }

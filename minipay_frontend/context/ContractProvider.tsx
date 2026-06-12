@@ -17,7 +17,7 @@ import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
 import Erc20Abi from './abi/ERC20abi.json';
 import UserWalletABI from './abi/tycoon-user-wallet-abi.json';
-import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, AI_AGENT_REGISTRY_ADDRESSES, USER_REGISTRY_ADDRESSES, ERC8004_REPUTATION_REGISTRY_ADDRESSES, ERC8004_IDENTITY_REGISTRY_ADDRESSES } from '@/constants/contracts';
+import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, USDT_TOKEN_ADDRESS, AI_AGENT_REGISTRY_ADDRESSES, USER_REGISTRY_ADDRESSES, ERC8004_REPUTATION_REGISTRY_ADDRESSES, ERC8004_IDENTITY_REGISTRY_ADDRESSES } from '@/constants/contracts';
 import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
 import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
@@ -1416,6 +1416,25 @@ export function useRewardTokenAddresses(): {
     cusdcAddress: cusdcAddress as Address | undefined,
     usdtAddress: usdtAddress as Address | undefined,
     isLoading: tycLoading || usdcLoading || cusdcLoading || usdtLoading,
+  };
+}
+
+/**
+ * ERC20 used for staked-game create/join (TycoonUpgradeableLogic pulls rewardSystem.usdc()).
+ * Owner must call TycoonRewardSystem.setUsdcToken(CELO_USDT) so this is Tether USDT on Celo.
+ */
+export function useStakeTokenAddress(): {
+  stakeTokenAddress: Address | undefined;
+  isLoading: boolean;
+} {
+  const chainId = useReadChainIdOrCelo();
+  const { usdcAddress, usdtAddress, isLoading } = useRewardTokenAddresses();
+  const envFallback =
+    USDT_TOKEN_ADDRESS[chainId] ??
+    USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS];
+  return {
+    stakeTokenAddress: usdcAddress ?? usdtAddress ?? envFallback,
+    isLoading,
   };
 }
 

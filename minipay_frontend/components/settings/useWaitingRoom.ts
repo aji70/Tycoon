@@ -9,13 +9,14 @@ import {
   useJoinGame,
   useGetGameByCode,
   useApprove,
+  useStakeTokenAddress,
 } from "@/context/ContractProvider";
 import { apiClient } from "@/lib/api";
 import { Game } from "@/lib/types/games";
 import { getPlayerSymbolData, PlayerSymbol, symbols } from "@/lib/types/symbol";
 import { ApiResponse } from "@/types/api";
 import Erc20Abi from "@/context/abi/ERC20abi.json";
-import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
+import { TYCOON_CONTRACT_ADDRESSES } from "@/constants/contracts";
 import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
@@ -107,16 +108,14 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[
     chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES
   ] as Address | undefined;
-  const usdcTokenAddress = USDC_TOKEN_ADDRESS[
-    chainId as keyof typeof USDC_TOKEN_ADDRESS
-  ] as Address | undefined;
+  const { stakeTokenAddress } = useStakeTokenAddress();
 
-  const { data: usdcAllowance, refetch: refetchAllowance } = useReadContract({
-    address: usdcTokenAddress,
+  const { data: stakeAllowance, refetch: refetchAllowance } = useReadContract({
+    address: stakeTokenAddress,
     abi: Erc20Abi,
     functionName: "allowance",
     args: address && contractAddress ? [address, contractAddress] : undefined,
-    query: { enabled: !!address && !!usdcTokenAddress && !!contractAddress },
+    query: { enabled: !!address && !!stakeTokenAddress && !!contractAddress },
   });
 
   const {
@@ -516,7 +515,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
       return;
     }
 
-    if (!usdcTokenAddress && stakePerPlayer > 0) {
+    if (!stakeTokenAddress && stakePerPlayer > 0) {
       setError("USDT not available on this network.");
       actionGuardRef.current = false;
       setActionLoading(false);
@@ -527,14 +526,16 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     try {
       if (stakePerPlayer > 0) {
         toast.update(toastId, { render: "Checking USDT approval..." });
-        await refetchAllowance();
-        const currentAllowance = usdcAllowance
-          ? BigInt(usdcAllowance.toString())
-          : BigInt(0);
+        const allowanceResult = await refetchAllowance();
+        const currentAllowance = allowanceResult.data
+          ? BigInt(allowanceResult.data.toString())
+          : stakeAllowance
+            ? BigInt(stakeAllowance.toString())
+            : BigInt(0);
 
         if (currentAllowance < stakePerPlayer) {
           toast.update(toastId, { render: "Approving USDT spend..." });
-          await approveUSDC(usdcTokenAddress!, contractAddress, stakePerPlayer);
+          await approveUSDC(stakeTokenAddress!, contractAddress, stakePerPlayer);
           await new Promise((r) => setTimeout(r, 3000));
         }
       }
@@ -596,7 +597,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     stakePerPlayer,
     contractId,
     contractAddress,
-    usdcTokenAddress,
+    stakeTokenAddress,
     refetchAllowance,
     usdcAllowance,
     approveUSDC,
@@ -659,7 +660,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     contractId,
     username,
     contractAddress,
-    usdcTokenAddress,
+    stakeTokenAddress,
     usdcAllowance,
     refetchAllowance,
     approveUSDC,
