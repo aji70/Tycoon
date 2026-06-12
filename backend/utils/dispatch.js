@@ -10,13 +10,16 @@ function kebabToCamel(s) {
   return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 }
 
-export function dispatch(controller, actions) {
+export function dispatch(controller, actions, aliases = {}) {
   // Build a lookup: both the original name and its kebab equivalent resolve to the method name
   const map = new Map();
   for (const action of actions) {
     map.set(action, action);
     const kebab = action.replace(/([A-Z])/g, "-$1").toLowerCase();
     if (kebab !== action) map.set(kebab, action);
+  }
+  for (const [alias, methodName] of Object.entries(aliases)) {
+    map.set(alias, methodName);
   }
 
   return (req, res) => {

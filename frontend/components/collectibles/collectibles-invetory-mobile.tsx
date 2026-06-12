@@ -230,7 +230,7 @@ export default function CollectibleInventoryBar({
 
   const currentAllowance = allowance ?? 0;
 
-  const { burn: burnCollectible, isPending: isBurning, isSuccess: burnSuccess } = useRewardBurnCollectible();
+  const { burn: burnCollectible, isPending: isBurning, isSuccess: burnSuccess, reset: resetBurn } = useRewardBurnCollectible();
 
   const currentPlayer = useMemo(() => {
     if (!address || !game?.players) return null;
@@ -810,6 +810,7 @@ export default function CollectibleInventoryBar({
       } catch (err) {
         toast.error("Activation failed", { id: toastId });
       } finally {
+        resetBurn();
         setPendingPerk(null);
         setSelectedPositionIndex(null);
         setSelectedRollTotal(null);
@@ -822,7 +823,8 @@ export default function CollectibleInventoryBar({
     ROLL_DICE,
     triggerSpecialLanding,
     selectedPositionIndex,
-    selectedRollTotal
+    selectedRollTotal,
+    resetBurn,
   ]);
 
   const handleConfirmBurnAndActivate = async () => {

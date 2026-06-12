@@ -1519,7 +1519,15 @@ export function useRewardBurnCollectible() {
     });
   }, [writeContractAsync, contractAddress]);
 
-  return { burn, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+  return {
+    burn,
+    isPending: isPending || isConfirming,
+    isSuccess,
+    isConfirming,
+    error: writeError,
+    txHash,
+    reset,
+  };
 }
 
 export function useRewardBurnCollectibleFrom() {

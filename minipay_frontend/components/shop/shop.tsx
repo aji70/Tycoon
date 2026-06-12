@@ -1,14 +1,16 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { useAccount, useBalance, useReadContract, useReadContracts } from 'wagmi';
-import { formatUnits, isAddress, type Address, type Abi } from 'viem';
+import { useAccount, useBalance, usePublicClient, useReadContract, useReadContracts } from 'wagmi';
+import { formatUnits, parseUnits, isAddress, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
-import { getContractErrorMessage } from '@/lib/utils/contractErrors';
+import { ApiError } from '@/lib/api';
+import {
+  getNairaEligibility,
+  nairaBlockedMessage,
+} from '@/lib/shop/nairaPayment';
 import { toastContractError, toastTransactionOutcome } from '@/lib/utils/contractErrorToast';
-import { pickMinipayPreferredStable } from '@/lib/shop/preferredStable';
-import { STABLE_DISPLAY_SYMBOL } from '@/constants/stableDisplay';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -28,49 +30,35 @@ import {
   Percent,
   CircleDollarSign,
   MapPin,
+  Banknote,
+  Smartphone,
 } from 'lucide-react';
 
 import RewardABI from '@/context/abi/rewardabi.json';
 import Erc20Abi from '@/context/abi/ERC20abi.json';
 import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
+import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from '@/lib/constants/ngnPayments';
 import { shopPerkRow } from '@/lib/shopPerkRow';
 import { isShopPerkHidden } from '@/lib/perkShopAssets';
-import { isMiniPayBrowser, useMiniPayShop } from '@/hooks/useMiniPayShop';
-import { encodeFunctionData } from 'viem';
-
-const BUY_COLLECTIBLE_ABI = [
-  {
-    type: 'function',
-    name: 'buyCollectible',
-    stateMutability: 'nonpayable',
-    inputs: [{ type: 'uint256' }, { type: 'uint8' }],
-    outputs: [],
-  },
-] as const;
-
-// Fee currency mapping: USDT/USDC use adapters, USDm uses token address directly
-const getFeeCurrencyAddress = (tokenAddress: Address): Address => {
-  const USDT_ADDRESS = '0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e' as Address;
-  const USDC_ADDRESS = '0xcebA9300f2b948710d2653dD7B07f33A8B32118C' as Address;
-  const USDT_ADAPTER = (process.env.NEXT_PUBLIC_USDT_ADAPTER as Address) || '0x0e2a3e05bc9a16f5292a6170456a710cb89c6f72' as Address;
-  const USDC_ADAPTER = (process.env.NEXT_PUBLIC_USDC_ADAPTER as Address) || '0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B' as Address;
-
-  if (tokenAddress?.toLowerCase() === USDT_ADDRESS.toLowerCase()) return USDT_ADAPTER;
-  if (tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase()) return USDC_ADAPTER;
-  return tokenAddress; // USDm and others use token address directly
-};
+import { pickMinipayPreferredStable, type MinipayStableOption } from '@/lib/shop/preferredStable';
 
 import {
   useRewardBuyCollectible,
+  useRewardBuyCollectibleFrom,
+  useRewardBuyBundle,
+  useRewardBuyBundleFrom,
   useRewardRedeemVoucher,
   useRewardRedeemVoucherFor,
   useApprove,
   useRewardTokenAddresses,
   useUserRegistryWallet,
+  useRewardStockBundle,
   useReadChainIdOrCelo,
+  useUserWalletApproveERC20,
 } from '@/context/ContractProvider';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
-import { useAppKit, useAppKitAccount } from '@reown/appkit/react';
+import { apiClient } from '@/lib/api';
+import { useConnectWallet } from '@/hooks/useConnectWallet';
 import { SkeletonPerkGrid } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
 import {
@@ -93,8 +81,7 @@ const isCollectibleToken = (tokenId: bigint): boolean =>
 
 // Tiered perks: show "Tier N" badge
 const TIERED_PERKS = new Set([5, 8, 9]);
-type StableSymbol = 'USDC' | 'CUSDC' | 'USDT';
-type StableOption = { symbol: StableSymbol; tokenAddress?: Address; paymentToken: number; balance: number };
+type StableOption = MinipayStableOption;
 const REWARD_COLLECTIBLE_INFO_EXTENDED_ABI = [
   {
     type: 'function',
@@ -112,6 +99,46 @@ const REWARD_COLLECTIBLE_INFO_EXTENDED_ABI = [
     ],
   },
 ] as const;
+
+// Admin "stock all bundles" definitions (must match bundle composition used in UI)
+const BUNDLE_DEFS_FOR_STOCK: Array<{
+  name: string;
+  items: Array<{ perk: number; strength: number; quantity: number }>;
+  price_tyc: string;
+  price_usdc: string;
+}> = [
+  { name: "Starter Pack", price_tyc: "45", price_usdc: "2.5", items: [{ perk: 7, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }] },
+  { name: "Lucky Bundle", price_tyc: "60", price_usdc: "3", items: [{ perk: 2, strength: 1, quantity: 1 }, { perk: 6, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
+  { name: "Defender Pack", price_tyc: "55", price_usdc: "2.75", items: [{ perk: 7, strength: 1, quantity: 1 }, { perk: 2, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }] },
+  { name: "High Roller", price_tyc: "65", price_usdc: "3.25", items: [{ perk: 3, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }] },
+  { name: "Cash Flow", price_tyc: "70", price_usdc: "3.5", items: [{ perk: 5, strength: 1, quantity: 1 }, { perk: 8, strength: 1, quantity: 1 }, { perk: 9, strength: 1, quantity: 1 }] },
+  { name: "Chaos Bundle", price_tyc: "75", price_usdc: "4", items: [{ perk: 6, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
+  { name: "Landlord's Choice", price_tyc: "50", price_usdc: "2.5", items: [{ perk: 11, strength: 1, quantity: 1 }, { perk: 12, strength: 1, quantity: 1 }, { perk: 14, strength: 1, quantity: 1 }] },
+  { name: "Ultimate Pack", price_tyc: "80", price_usdc: "4.5", items: [{ perk: 1, strength: 1, quantity: 1 }, { perk: 3, strength: 1, quantity: 1 }, { perk: 7, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
+];
+
+type BundleLineItem = { perk: number; strength: number; quantity: number };
+type BundleDef = {
+  name: string;
+  description: string;
+  items: BundleLineItem[];
+};
+
+/**
+ * Bundle composition (perk IDs + strength) for "buy in sequence" bundles.
+ * Note: This buys existing stocked collectibles individually (multiple txs), since
+ * on-chain bundles may not be configured in every deployment yet.
+ */
+const BUNDLE_DEFS: BundleDef[] = [
+  { name: "Starter Pack", description: "Shield, Roll Boost, and Exact Roll — great for new players.", items: [{ perk: 7, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }] },
+  { name: "Lucky Bundle", description: "Jail Free, Teleport, and Lucky 7. Get out of tight spots.", items: [{ perk: 2, strength: 1, quantity: 1 }, { perk: 6, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
+  { name: "Defender Pack", description: "Shield, Jail Free, and Roll Boost. Stay in the game when the board turns against you.", items: [{ perk: 7, strength: 1, quantity: 1 }, { perk: 2, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }] },
+  { name: "High Roller", description: "Double Rent, Roll Boost, and Exact Roll. Maximize income and land where it hurts.", items: [{ perk: 3, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }] },
+  { name: "Cash Flow", description: "Instant Cash, Property Discount, and Tax Refund (tiered). Keep your balance healthy.", items: [{ perk: 5, strength: 1, quantity: 1 }, { perk: 8, strength: 1, quantity: 1 }, { perk: 9, strength: 1, quantity: 1 }] },
+  { name: "Chaos Bundle", description: "Teleport, Exact Roll, and Lucky 7. Control the board and bend the dice.", items: [{ perk: 6, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
+  { name: "Landlord's Choice", description: "Rent Cashback, Interest, and Free Parking Bonus. Rewards for property owners and patient play.", items: [{ perk: 11, strength: 1, quantity: 1 }, { perk: 12, strength: 1, quantity: 1 }, { perk: 14, strength: 1, quantity: 1 }] },
+  { name: "Ultimate Pack", description: "A bit of everything to dominate the board.", items: [{ perk: 1, strength: 1, quantity: 1 }, { perk: 3, strength: 1, quantity: 1 }, { perk: 7, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
+];
 
 // Perk metadata — names/images from lib/perkShopAssets (same card art as profile)
 const perkMetadata = [
@@ -131,6 +158,26 @@ const perkMetadata = [
   shopPerkRow(14, "Next time you land on Free Parking, collect $500. A classic Monopoly moment.", <MapPin className="w-12 h-12 text-sky-400" />),
 ];
 
+// Calculate NGN price with discount for purchases over 1000 NGN
+const calculateNgnPrice = (ngnBasePrice: number): number => {
+  const minNgnPurchase = MIN_FLUTTERWAVE_CHECKOUT_NGN;
+  if (ngnBasePrice < minNgnPurchase) return minNgnPurchase;
+  if (ngnBasePrice > 1000) return Math.round(ngnBasePrice * 0.8); // 20% discount
+  return ngnBasePrice;
+};
+
+// Bundle image mapping
+const bundleImageMap: Record<string, string> = {
+  "Starter Pack": "/shopcards/starterpack.jpg",
+  "Lucky Bundle": "/shopcards/lucky_7.jpg",
+  "Defender Pack": "/shopcards/defendpack.jpg",
+  "High Roller": "/shopcards/highroller.jpg",
+  "Cash Flow": "/shopcards/cashflow.jpg",
+  "Chaos Bundle": "/shopcards/chaosbundle.jpg",
+  "Landlord's Choice": "/shopcards/landlordsChoice.jpg",
+  "Ultimate Pack": "/shopcards/ultimatepack.jpg",
+};
+
 const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
 const isValidWallet = (a: string | undefined): a is Address =>
   !!a && a !== zeroAddress && a.toLowerCase() !== zeroAddress.toLowerCase();
@@ -138,22 +185,18 @@ const isValidWallet = (a: string | undefined): a is Address =>
 export default function GameShop() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { open: openWallet } = useAppKit();
-  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
-  const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount();
-  const miniPayShop = useMiniPayShop();
+  const connectWallet = useConnectWallet();
+  const { address: wagmiAddress, isConnected } = useAccount();
   const address = useMemo((): Address | undefined => {
-    const a = appKitAddress ?? wagmiAddress;
-    return a && isAddress(a) ? (a as Address) : undefined;
-  }, [appKitAddress, wagmiAddress]);
-  const isConnected = Boolean(appKitConnected || wagmiConnected);
+    return wagmiAddress && isAddress(wagmiAddress) ? (wagmiAddress as Address) : undefined;
+  }, [wagmiAddress]);
   const chainId = useReadChainIdOrCelo();
   const auth = useGuestAuthOptional();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
+  const stockBundleHook = useRewardStockBundle();
 
   const { usdcAddress: usdcTokenAddress, cusdcAddress, usdtAddress } = useRewardTokenAddresses();
   const guestUser = auth?.guestUser ?? null;
-
   const registryOwnerAddress = useMemo(
     () => shopRegistryOwnerAddress({ guestUser, connectedAddress: address }),
     [guestUser, address]
@@ -168,9 +211,39 @@ export default function GameShop() {
     [guestUser, registrySmartWallet]
   );
 
+  /** Session JWT — smart-wallet shop purchases can use PIN + API instead of wallet popups. */
+  const readAppSessionToken = (): string | null => {
+    try {
+      return typeof window !== 'undefined' ? window.localStorage?.getItem('token') : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const nairaEligibility = useMemo(
+    () => getNairaEligibility(guestUser, readAppSessionToken(), address),
+    [guestUser, auth?.isLoading, address]
+  );
+
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
+  const [shopTab, setShopTab] = useState<'perks' | 'bundles'>('perks');
+  const [payWith, setPayWith] = useState<'connected' | 'smart_wallet'>('connected');
+  const [bundles, setBundles] = useState<Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }>>([]);
+  const [ngnAvailable, setNgnAvailable] = useState(false);
+  const [ngnLoadingBundleId, setNgnLoadingBundleId] = useState<number | null>(null);
+  const [ngnLoadingTokenId, setNgnLoadingTokenId] = useState<string | null>(null);
+  const [bundleBuyingName, setBundleBuyingName] = useState<string | null>(null);
+  const [stockAllBundlesProgress, setStockAllBundlesProgress] = useState<{ active: boolean; current: number; total: number }>({
+    active: false,
+    current: 0,
+    total: 0,
+  });
+
+  const USDC_TO_NGN_RATE = 1600; // approximate; min charge matches MIN_FLUTTERWAVE_CHECKOUT_NGN
 
   const payerAddress = address ?? undefined;
+
+  // Minipay in-app purchases: USDT (default) from the connected MiniPay wallet.
 
   const { data: usdcBalanceData, isLoading: usdcLoading, refetch: refetchUsdc } = useBalance({
     address: payerAddress,
@@ -189,20 +262,13 @@ export default function GameShop() {
   });
   const stableOptions = useMemo<StableOption[]>(
     () => [
-      { symbol: 'USDC', tokenAddress: usdcTokenAddress, paymentToken: 1, balance: Number(usdcBalanceData?.formatted ?? 0) },
       { symbol: 'CUSDC', tokenAddress: cusdcAddress, paymentToken: 2, balance: Number(cusdcBalanceData?.formatted ?? 0) },
       { symbol: 'USDT', tokenAddress: usdtAddress, paymentToken: 3, balance: Number(usdtBalanceData?.formatted ?? 0) },
     ],
     [usdcTokenAddress, cusdcAddress, usdtAddress, usdcBalanceData?.formatted, cusdcBalanceData?.formatted, usdtBalanceData?.formatted]
   );
-  const preferredStable = useMemo<StableOption>(() => {
-    const minipayStables = stableOptions.filter(
-      (s): s is StableOption & { symbol: 'CUSDC' | 'USDT' } =>
-        s.symbol === 'CUSDC' || s.symbol === 'USDT'
-    );
-    return pickMinipayPreferredStable(minipayStables) as StableOption;
-  }, [stableOptions]);
-  const activeStableLabel = STABLE_DISPLAY_SYMBOL;
+  const preferredStable = useMemo<StableOption>(() => pickMinipayPreferredStable(stableOptions), [stableOptions]);
+  const activeStableLabel = preferredStable.symbol === 'CUSDC' ? 'cUSD' : preferredStable.symbol;
   const activeStableBalance = Number.isFinite(preferredStable.balance) ? preferredStable.balance : 0;
   const stableLoading = usdcLoading || cusdcLoading || usdtLoading;
 
@@ -224,6 +290,17 @@ export default function GameShop() {
     error: buyError,
     reset: resetBuy,
   } = useRewardBuyCollectible();
+  const { buyFrom, isPending: buyFromPending, isConfirming: buyFromConfirming, isSuccess: buyFromSuccess, error: buyFromError, reset: resetBuyFrom } = useRewardBuyCollectibleFrom();
+  const publicClient = usePublicClient();
+  const { buyBundle, isPending: buyBundlePending, isConfirming: buyBundleConfirming, reset: resetBuyBundle } = useRewardBuyBundle();
+  const { buyBundleFrom, isPending: buyBundleFromPending, isConfirming: buyBundleFromConfirming, reset: resetBuyBundleFrom } = useRewardBuyBundleFrom();
+  const bundleTxBusy = buyBundlePending || buyBundleConfirming || buyBundleFromPending || buyBundleFromConfirming;
+  const {
+    approveERC20: smartWalletApprove,
+    isPending: smartWalletApprovePending,
+    reset: resetSmartWalletApprove,
+  } = useUserWalletApproveERC20(smartWalletAddress ?? undefined);
+
   const {
     approve,
     isPending: approvePending,
@@ -255,8 +332,12 @@ export default function GameShop() {
 
   const resetShopWrites = useCallback(() => {
     resetBuy();
+    resetBuyFrom();
     resetapprove();
-  }, [resetBuy, resetapprove]);
+    resetBuyBundle();
+    resetBuyBundleFrom();
+    resetSmartWalletApprove();
+  }, [resetBuy, resetBuyFrom, resetapprove, resetBuyBundle, resetBuyBundleFrom, resetSmartWalletApprove]);
 
   const notifyShopTxOutcome = useCallback((error: unknown, fallback: string) => {
     const key =
@@ -273,8 +354,10 @@ export default function GameShop() {
 
   useEffect(() => {
     resetShopWrites();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- clear stale wagmi errors once on shop mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clear stale wagmi errors on mount
   }, []);
+
+  const payFromSmartWalletUnsupported = payWith === 'smart_wallet' && !smartWalletAddress;
 
   // ── Shop Items: Collectibles owned by contract (in shop stock) ──
   const contractTokenIdCalls = useMemo(() => {
@@ -327,6 +410,8 @@ export default function GameShop() {
         };
 
         const usdcPriceStr = formatUnits(usdcPrice, 6);
+        const baseNgnPrice = Math.round(Number(usdcPriceStr) * USDC_TO_NGN_RATE);
+        const ngnPrice = calculateNgnPrice(baseNgnPrice);
 
         return {
           tokenId,
@@ -336,6 +421,7 @@ export default function GameShop() {
           usdcPrice: usdcPriceStr,
           cusdcPrice: formatUnits(cusdcPrice, 6),
           usdtPrice: formatUnits(usdtPrice, 6),
+          ngnPrice,
           stock: Number(stock),
           comingSoon: false as const,
           ...meta,
@@ -343,6 +429,37 @@ export default function GameShop() {
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
   }, [shopInfoResults, shopTokenIds]);
+
+  // For admin bundle stocking we need tokenIds even when stock is 0
+  const allCollectiblesByPerkStrength = useMemo(() => {
+    const map = new Map<string, { tokenId: bigint; perk: number; strength: number }>();
+    if (!shopInfoResults) return map;
+    for (let i = 0; i < shopInfoResults.length; i++) {
+      const r = shopInfoResults[i];
+      if (!r || r.status !== 'success') continue;
+      const [perk, strength] = r.result as [number, bigint, bigint, bigint, bigint];
+      const tokenId = shopTokenIds[i];
+      if (!tokenId) continue;
+      map.set(`${Number(perk)}:${Number(strength)}`, { tokenId, perk: Number(perk), strength: Number(strength) });
+    }
+    return map;
+  }, [shopInfoResults, shopTokenIds]);
+
+  const { data: rewardOwner } = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'owner',
+    query: { enabled: !!contractAddress },
+  });
+
+  const isAdmin = useMemo(() => {
+    if (!address || !rewardOwner) return false;
+    try {
+      return String(address).toLowerCase() === String(rewardOwner).toLowerCase();
+    } catch {
+      return false;
+    }
+  }, [address, rewardOwner]);
 
   // ── User vouchers: union of connected wallet + smart wallet (readable without signing)
   const voucherOwners = useMemo((): Address[] => {
@@ -414,16 +531,19 @@ export default function GameShop() {
 
   // ── Handlers ──
   const handleBuy = async (item: typeof shopItems[0]) => {
-    if (!isConnected || !address) {
-      openWallet();
-      toast.info('Connect your wallet to buy perks');
+    // Allow if wallet is connected OR smart wallet is available
+    const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
+    if (!hasPaymentMethod) {
+      toast.error('Please connect your wallet or register to use your smart wallet');
       return;
     }
-    if (!usdtAddress || !contractAddress) {
-      toast.error('USDT not supported on this network');
-      return;
-    }
-    const priceNum = Number(item.usdtPrice || 0);
+    const selectedPriceRaw =
+      preferredStable.symbol === 'CUSDC'
+        ? item.cusdcPrice
+        : preferredStable.symbol === 'USDT'
+          ? item.usdtPrice
+          : item.usdcPrice;
+    const priceNum = Number(selectedPriceRaw || 0);
     if (activeStableBalance < priceNum) {
       toast.error(`Insufficient ${activeStableLabel} balance`);
       return;
@@ -436,29 +556,29 @@ export default function GameShop() {
       return;
     }
     try {
-      // MiniPay: MUST use raw eth_sendTransaction to avoid viem's eth_estimateGas calls
-      // which MiniPay rejects in production (even when whitelisted)
-      if (isMiniPayBrowser()) {
-        toast.info('Approving...');
-        await miniPayShop.sendRawApproval(paymentTokenAddress, contractAddress, price);
-        toast.success('Approval successful, processing purchase...');
-
-        toast.info('Processing purchase...');
-        const buyData = encodeFunctionData({
-          abi: BUY_COLLECTIBLE_ABI,
-          functionName: 'buyCollectible',
-          args: [item.tokenId, BigInt(paymentToken)],
-        });
-        // Use viem with feeCurrency adapter for MiniPay fee abstraction
-        const feeCurrencyAddress = getFeeCurrencyAddress(paymentTokenAddress);
-        await miniPayShop.sendContractCallRaw(contractAddress, buyData, feeCurrencyAddress);
-
-        refetchUsdc();
-        refetchCusdc();
-        refetchUsdt();
-        toast.success('Purchase successful!');
+      if (payWith === 'smart_wallet' && smartWalletAddress) {
+        const session = readAppSessionToken();
+        if (session && preferredStable.symbol === 'USDT') {
+          const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to pay from your smart wallet')?.trim() : '';
+          if (!pin) {
+            toast.error('PIN is required');
+            return;
+          }
+          const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-collectible', {
+            tokenId: item.tokenId.toString(),
+            useUsdc: true,
+            maxPrice: price.toString(),
+            pin,
+          });
+          if (!res?.success && !res?.data?.success) {
+            throw new Error(res?.data?.message || 'Purchase failed');
+          }
+          toast.success('Purchase successful!');
+        } else {
+          await smartWalletApprove(paymentTokenAddress, contractAddress, price);
+          await buyFrom(smartWalletAddress, item.tokenId, paymentToken);
+        }
       } else {
-        // Non-MiniPay: use normal wagmi approval + buy flow
         if (stableAllowance === undefined || stableAllowance === null) {
           toast.info('Approval required');
           await approve(paymentTokenAddress, contractAddress, price);
@@ -476,9 +596,172 @@ export default function GameShop() {
     }
   };
 
+  const handlePayPerkWithNaira = async (item: (typeof shopItems)[0]) => {
+    if (ngnLoadingTokenId != null) return;
+    if (!nairaEligibility.ok) {
+      toast.info(nairaBlockedMessage(nairaEligibility.reason));
+      return;
+    }
+    const tokenIdStr = item.tokenId.toString();
+    setNgnLoadingTokenId(tokenIdStr);
+    try {
+      const amountNgn = Math.max(MIN_FLUTTERWAVE_CHECKOUT_NGN, Math.ceil(Number(item.usdcPrice) * USDC_TO_NGN_RATE));
+      const base = typeof window !== 'undefined' ? window.location.origin : '';
+      const callbackUrl = `${base}/game-shop`;
+      const res = await apiClient.post<{ success?: boolean; link?: string; reference?: string; message?: string }>(
+        'shop/flutterwave/initialize-perk',
+        {
+          token_id: tokenIdStr,
+          amount_ngn: amountNgn,
+          callback_url: callbackUrl,
+          ...(address ? { address, chain: 'CELO' } : {}),
+        }
+      );
+      if (res?.data?.link) {
+        window.location.href = res.data.link;
+        return;
+      }
+      toast.error(res?.data?.message ?? 'Could not start Naira payment');
+    } catch (e: unknown) {
+      const status = e instanceof ApiError ? e.status : (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        auth?.refetchGuest?.();
+        toast.info(nairaBlockedMessage('session_expired'));
+      } else {
+        toastContractError(e, 'Failed to start Naira payment');
+      }
+    } finally {
+      setNgnLoadingTokenId(null);
+    }
+  };
+
+  const resolveBundlePurchases = useMemo(() => {
+    const byPerkStrength = new Map<string, Array<(typeof shopItems)[0]>>();
+    for (const si of shopItems) {
+      const key = `${si.perk}:${si.strength}`;
+      const arr = byPerkStrength.get(key) ?? [];
+      arr.push(si);
+      byPerkStrength.set(key, arr);
+    }
+    // Prefer higher stock first
+    for (const arr of byPerkStrength.values()) {
+      arr.sort((a, b) => b.stock - a.stock);
+    }
+    return { byPerkStrength };
+  }, [shopItems]);
+
+  const canBuyBundle = (def: BundleDef) => {
+    for (const li of def.items) {
+      const key = `${li.perk}:${li.strength}`;
+      const match = resolveBundlePurchases.byPerkStrength.get(key)?.[0];
+      if (!match || match.stock < li.quantity) return false;
+    }
+    return true;
+  };
+
+  const waitForBundleTx = async (hash: `0x${string}`) => {
+    if (!publicClient) throw new Error('Network client not ready. Try again.');
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    if (receipt.status === 'reverted') throw new Error('Bundle purchase transaction reverted');
+  };
+
+  const ensureBundleStableAllowance = async (amount: bigint) => {
+    const token = preferredStable.tokenAddress;
+    if (!token || !contractAddress || !payerAddress) {
+      throw new Error(`${activeStableLabel} not supported on this network`);
+    }
+    const allowance =
+      stableAllowance === undefined || stableAllowance === null
+        ? undefined
+        : typeof stableAllowance === 'bigint'
+          ? stableAllowance
+          : BigInt(stableAllowance.toString());
+    if (allowance === undefined || allowance < amount) {
+      const approveHash = await approve(token, contractAddress, amount);
+      if (approveHash) await waitForBundleTx(approveHash);
+    }
+  };
+
+  const handleBuyBundleWithUsdc = async (bundleName: string) => {
+    const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
+    if (!hasPaymentMethod) {
+      toast.error('Please connect your wallet or register to use your smart wallet');
+      return;
+    }
+    if (!contractAddress || !preferredStable.tokenAddress) {
+      toast.error(`${activeStableLabel} not supported on this network`);
+      return;
+    }
+    const bundleEntry = bundles.find((b) => b.name === bundleName);
+    if (!bundleEntry || typeof bundleEntry.id !== 'number') {
+      toast.error('Bundle not found');
+      return;
+    }
+    const def = BUNDLE_DEFS.find((b) => b.name === bundleName);
+    if (!def || !canBuyBundle(def)) {
+      toast.error('Bundle items are not currently in stock');
+      return;
+    }
+    if (bundleBuyingName || bundleTxBusy) return;
+
+    const priceWei = BigInt(Math.round(Number(bundleEntry.price_usdc) * 1e6));
+    setBundleBuyingName(def.name);
+    resetBuyBundle();
+    resetBuyBundleFrom();
+
+    try {
+      if (payWith === 'smart_wallet') {
+        if (!smartWalletAddress) {
+          toast.error('Smart wallet not available');
+          return;
+        }
+        const session = readAppSessionToken();
+        if (session) {
+          const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to buy bundle with smart wallet')?.trim() : '';
+          if (!pin) {
+            toast.info('Purchase cancelled');
+            return;
+          }
+          const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-bundle', {
+            bundleId: String(bundleEntry.id),
+            useUsdc: true,
+            maxPrice: priceWei.toString(),
+            pin,
+          });
+          if (!res?.success && !res?.data?.success) {
+            throw new Error(res?.data?.message || 'Bundle purchase failed');
+          }
+          toast.success('Bundle purchase successful!');
+          refetchUsdc();
+          refetchCusdc();
+          refetchUsdt();
+          return;
+        }
+        const swApproveHash = await smartWalletApprove(preferredStable.tokenAddress!, contractAddress, priceWei);
+        if (swApproveHash) await waitForBundleTx(swApproveHash);
+        const fromHash = await buyBundleFrom(smartWalletAddress, BigInt(bundleEntry.id), true);
+        await waitForBundleTx(fromHash);
+      } else {
+        await ensureBundleStableAllowance(priceWei);
+        const hash = await buyBundle(BigInt(bundleEntry.id), true);
+        await waitForBundleTx(hash);
+      }
+      toast.success('Bundle purchase successful!');
+      refetchUsdc();
+      refetchCusdc();
+      refetchUsdt();
+    } catch (err: unknown) {
+      notifyShopTxOutcome(err, 'Bundle purchase failed');
+      resetBuyBundle();
+      resetBuyBundleFrom();
+    } finally {
+      setBundleBuyingName(null);
+    }
+  };
+
   const handleRedeemVoucher = async (tokenId: bigint, voucherOwner: Address) => {
     if (!isConnected || !address) {
-      openWallet();
+      connectWallet();
       toast.info('Connect your wallet to redeem');
       return;
     }
@@ -496,6 +779,50 @@ export default function GameShop() {
     }
   };
 
+  const handleStockAllBundles = async () => {
+    if (!isConnected || !address) {
+      toast.error('Please connect your wallet');
+      return;
+    }
+    if (!isAdmin) {
+      toast.error('Admin only');
+      return;
+    }
+    if (!contractAddress) {
+      toast.error('Reward contract not configured on this chain');
+      return;
+    }
+    if (stockAllBundlesProgress.active) return;
+    setStockAllBundlesProgress({ active: true, current: 0, total: BUNDLE_DEFS_FOR_STOCK.length });
+    try {
+      for (let i = 0; i < BUNDLE_DEFS_FOR_STOCK.length; i++) {
+        const def = BUNDLE_DEFS_FOR_STOCK[i];
+        setStockAllBundlesProgress((p) => ({ ...p, current: i + 1 }));
+        const tokenIds: bigint[] = [];
+        const amounts: bigint[] = [];
+        for (const li of def.items) {
+          const key = `${li.perk}:${li.strength}`;
+          const match = allCollectiblesByPerkStrength.get(key);
+          if (!match) {
+            throw new Error(`Bundle "${def.name}": perk ${li.perk} (tier ${li.strength}) missing. Stock perks first.`);
+          }
+          for (let q = 0; q < li.quantity; q++) {
+            tokenIds.push(match.tokenId);
+            amounts.push(BigInt(1));
+          }
+        }
+        const tycPrice = parseUnits(def.price_tyc, 18);
+        const usdcPrice = parseUnits(def.price_usdc, 6);
+        await stockBundleHook.stockBundle(tokenIds, amounts, tycPrice, usdcPrice);
+      }
+      toast.success('All bundles stocked');
+    } catch (e: unknown) {
+      toastContractError(e, 'Failed to stock bundles');
+    } finally {
+      setStockAllBundlesProgress({ active: false, current: 0, total: 0 });
+    }
+  };
+
   // ── Success/Error Toasts ──
   useEffect(() => {
     if (buySuccess) {
@@ -506,6 +833,15 @@ export default function GameShop() {
       resetBuy();
     }
   }, [buySuccess, refetchUsdc, refetchCusdc, refetchUsdt, resetBuy]);
+  useEffect(() => {
+    if (buyFromSuccess) {
+      toast.success('Purchase successful!');
+      refetchUsdc();
+      refetchCusdc();
+      refetchUsdt();
+      resetBuyFrom();
+    }
+  }, [buyFromSuccess, refetchUsdc, refetchCusdc, refetchUsdt, resetBuyFrom]);
 
   useEffect(() => {
     if (redeemSuccess) {
@@ -521,13 +857,12 @@ export default function GameShop() {
     }
   }, [redeemForSuccess, resetRedeemFor]);
 
-  // Wagmi may set `error` without throwing; one toast for shared write state across buy/approve hooks.
   useEffect(() => {
-    const txError = buyError ?? approveError;
+    const txError = buyError ?? buyFromError ?? approveError;
     if (!txError) return;
     notifyShopTxOutcome(txError, 'Purchase failed');
     resetShopWrites();
-  }, [buyError, approveError, notifyShopTxOutcome, resetShopWrites]);
+  }, [buyError, buyFromError, approveError, notifyShopTxOutcome, resetShopWrites]);
 
   const handleBack = () => {
     const returnTo = searchParams.get('returnTo');
@@ -546,6 +881,128 @@ export default function GameShop() {
   const isLoadingShop =
     (!!contractAddress && contractTokenIdsPending) ||
     (shopTokenIds.length > 0 && shopCollectibleInfosPending);
+
+  // Compute available bundles by checking if all component perks are in stock
+  const computedBundles = useMemo(() => {
+    const bundleMap = new Map<string, { perk: number; strength: number }>();
+
+    // Build a map of available perk+strength combinations from shopItems
+    for (const item of shopItems) {
+      const key = `${item.perk}:${item.strength}`;
+      bundleMap.set(key, { perk: item.perk, strength: item.strength });
+    }
+
+    // Filter BUNDLE_DEFS to only those where all component perks are available
+    return BUNDLE_DEFS.map((bundle, idx) => {
+      const allComponentsAvailable = bundle.items.every((item) => {
+        const key = `${item.perk}:${item.strength}`;
+        return bundleMap.has(key);
+      });
+
+      const bundleDef = BUNDLE_DEFS_FOR_STOCK[idx];
+      const baseNgnPrice = Math.round(Number(bundleDef.price_usdc) * USDC_TO_NGN_RATE);
+      const ngnPrice = calculateNgnPrice(baseNgnPrice);
+
+      return {
+        id: idx + 1,
+        name: bundle.name,
+        description: bundle.description,
+        price_tyc: bundleDef.price_tyc,
+        price_usdc: bundleDef.price_usdc,
+        price_ngn: ngnPrice,
+        available: allComponentsAvailable,
+      };
+    });
+  }, [shopItems]);
+
+  // Update bundles list when computed bundles change
+  useEffect(() => {
+    setBundles(computedBundles);
+    // Also fetch NGN availability from backend
+    apiClient.get<{ ngn_available?: boolean; data?: { ngn_available?: boolean } }>('shop/bundles').then((r) => {
+      const body = r.data;
+      const ngn =
+        body && typeof body === 'object'
+          ? typeof body.ngn_available === 'boolean'
+            ? body.ngn_available
+            : typeof body.data?.ngn_available === 'boolean'
+              ? body.data.ngn_available
+              : undefined
+          : undefined;
+      if (typeof ngn === 'boolean') setNgnAvailable(ngn);
+    }).catch(() => {});
+  }, [computedBundles]);
+
+  // Legacy Flutterwave return (Naira removed from Minipay shop — dedupe toasts if user lands with ?reference=)
+  useEffect(() => {
+    const ref = searchParams.get('reference') ?? searchParams.get('tx_ref');
+    if (!ref) return;
+    const dedupeKey = `tycoon_shop_flw_toast:${ref}`;
+    try {
+      if (sessionStorage.getItem(dedupeKey)) {
+        router.replace('/game-shop', { scroll: false });
+        return;
+      }
+    } catch {
+      /* sessionStorage unavailable */
+    }
+    apiClient
+      .get<{ success?: boolean; found?: boolean; fulfilled?: boolean; status?: string }>(
+        `shop/flutterwave/verify?reference=${encodeURIComponent(ref)}`
+      )
+      .then((r) => {
+        try {
+          sessionStorage.setItem(dedupeKey, '1');
+        } catch {
+          /* ignore */
+        }
+        const data = r?.data;
+        if (data?.found && data?.fulfilled) {
+          toast.success('Perk bought successfully! Your bundle will be available in-game.');
+        } else if (data?.found && data?.status === 'failed') {
+          toast.error('Payment failed or was not completed.');
+        } else if (data?.found && data?.status === 'pending') {
+          toast.info('Payment was cancelled or not completed.');
+        }
+        router.replace('/game-shop', { scroll: false });
+      })
+      .catch(() => {
+        router.replace('/game-shop', { scroll: false });
+      });
+  }, [searchParams, router]);
+
+  const handlePayWithNgn = async (bundleId: number) => {
+    if (!bundleId || ngnLoadingBundleId != null) return;
+    if (!nairaEligibility.ok) {
+      toast.info(nairaBlockedMessage(nairaEligibility.reason));
+      return;
+    }
+    setNgnLoadingBundleId(bundleId);
+    try {
+      const base = typeof window !== 'undefined' ? window.location.origin : '';
+      const callbackUrl = `${base}/game-shop`;
+      const res = await apiClient.post<{ success?: boolean; link?: string; reference?: string; message?: string }>('shop/flutterwave/initialize', {
+        bundle_id: bundleId,
+        callback_url: callbackUrl,
+        ...(address ? { address, chain: 'CELO' } : {}),
+      });
+      if (res?.data?.link) {
+        window.location.href = res.data.link;
+        return;
+      }
+      toast.error(res?.data?.message ?? 'Could not start payment');
+    } catch (e: unknown) {
+      const status = e instanceof ApiError ? e.status : (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        auth?.refetchGuest?.();
+        toast.info(nairaBlockedMessage('session_expired'));
+      } else {
+        toastContractError(e, 'Failed to initialize NGN payment');
+      }
+    } finally {
+      setNgnLoadingBundleId(null);
+    }
+  };
 
   return (
     <section className="min-h-screen text-[#F0F7F7] py-8 px-4 relative overflow-hidden">
@@ -601,13 +1058,10 @@ export default function GameShop() {
           >
             <CreditCard className="w-5 h-5 text-[#00F0FF] shrink-0" />
             <div className="text-left">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider">{activeStableLabel} (auto)</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">{activeStableLabel} (MiniPay wallet)</p>
               <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-                {stableLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : payerAddress ? `$${activeStableBalance.toFixed(2)}` : '—'}
+                {stableLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : payerAddress ? `${activeStableBalance.toFixed(2)} ${activeStableLabel}` : '—'}
               </p>
-              {payerAddress && (
-                <p className="text-[10px] text-slate-500 mt-0.5">Connected wallet</p>
-              )}
             </div>
             <button onClick={() => { refetchUsdc(); refetchCusdc(); refetchUsdt(); }} className="p-1 rounded text-slate-500 hover:text-[#00F0FF]">
               <RefreshCw className="w-4 h-4" />
@@ -616,7 +1070,105 @@ export default function GameShop() {
 
         </div>
 
+        {!isConnected && (
+          <p className="text-center text-amber-200/90 text-sm mb-4">
+            Connect your MiniPay wallet to pay with {activeStableLabel}.
+          </p>
+        )}
+
+        {/* Tabs: Perks | Bundles — one visible at a time */}
+        <div className="flex gap-2 mb-6">
+          <button
+            type="button"
+            onClick={() => setShopTab('perks')}
+            className={`flex-1 sm:flex-none min-h-[44px] px-6 py-3 rounded-xl font-semibold transition-all ${
+              shopTab === 'perks'
+                ? 'bg-[#00F0FF]/20 border-2 border-[#00F0FF]/60 text-[#00F0FF]'
+                : 'bg-[#0E1415]/60 border border-[#003B3E] text-slate-400 hover:border-[#003B3E]/80 hover:text-slate-300'
+            }`}
+          >
+            Perks
+          </button>
+          <button
+            type="button"
+            onClick={() => setShopTab('bundles')}
+            className={`flex-1 sm:flex-none min-h-[44px] px-6 py-3 rounded-xl font-semibold transition-all ${
+              shopTab === 'bundles'
+                ? 'bg-amber-500/20 border-2 border-amber-400/60 text-amber-300'
+                : 'bg-[#0E1415]/60 border border-[#003B3E] text-slate-400 hover:border-[#003B3E]/80 hover:text-slate-300'
+            }`}
+          >
+            Bundles
+          </button>
+        </div>
+
         <div className="min-h-[320px]">
+          {shopTab === 'bundles' && (
+          <div>
+            <div className="flex items-center gap-4 mb-6">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
+              <span className="text-sm font-medium text-slate-500 uppercase tracking-[0.2em]">Bundles</span>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
+            </div>
+            {bundles.filter((b) => (b as any).available !== false).length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+                {bundles.filter((b) => (b as any).available !== false).map((b, idx) => (
+                  <motion.div
+                    key={b.id ?? b.name ?? idx}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col rounded-2xl overflow-hidden border border-amber-500/30 bg-[#0E1415]/60 backdrop-blur-sm"
+                  >
+                    {/* Bundle image — same frame as perks: contain so art stays proportional */}
+                    <div className="relative h-56 min-h-[14rem] w-full flex-shrink-0 overflow-hidden bg-black/60">
+                      <Image
+                        src={bundleImageMap[b.name] || "/game/shop/placeholder.jpg"}
+                        alt={b.name}
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                        className="object-contain p-3"
+                      />
+                    </div>
+
+                    <div className="p-5 flex flex-col flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/40 text-[10px] font-semibold text-amber-300 uppercase">Bundle</span>
+                      </div>
+                      <h3 className="font-bold text-lg text-white mb-2">{b.name}</h3>
+                      <p className="text-slate-400 text-sm leading-relaxed mb-4 flex-1">{b.description || ''}</p>
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)] mb-4">
+                        <span className="text-lg font-bold">{(typeof b.price_usdc === 'string' ? Number(b.price_usdc) : b.price_usdc).toFixed(2)} {activeStableLabel}</span>
+                      </div>
+                      <button
+                        onClick={() => handleBuyBundleWithUsdc(b.name)}
+                        disabled={bundleBuyingName != null || bundleTxBusy || !isConnected || !address || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)}
+                        className={`w-full py-3 rounded-xl font-semibold border transition-all ${
+                          bundleBuyingName === b.name
+                            ? 'bg-slate-700/80 text-slate-400 cursor-wait border-slate-600/50'
+                            : !isConnected || !address || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)
+                            ? 'bg-slate-800/80 text-slate-500 border-slate-700/80 cursor-not-allowed'
+                            : 'bg-[#00F0FF]/10 text-[#00F0FF] border-[#00F0FF]/40 hover:bg-[#00F0FF]/20'
+                        }`}
+                      >
+                        {bundleBuyingName === b.name ? (
+                          <><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Buying bundle...</>
+                        ) : (
+                          <><CreditCard className="w-4 h-4 inline mr-2" /> Pay with {activeStableLabel}</>
+                        )}
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 px-6 rounded-2xl border border-[#003B3E]/60 bg-[#0E1415]/40">
+                <p className="text-slate-400 text-sm">No bundles available yet. Check back soon.</p>
+              </div>
+            )}
+          </div>
+          )}
+
+          {shopTab === 'perks' && (
           <div>
             <div className="flex items-center gap-4 mb-6">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
@@ -645,7 +1197,7 @@ export default function GameShop() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-x-4 gap-y-6 items-stretch">
             {shopItems.map((item, index) => {
-              const isProcessing = buyingPending || buyingConfirming || approvePending || approveConfirming;
+              const isProcessing = buyingPending || buyingConfirming || buyFromPending || buyFromConfirming || smartWalletApprovePending;
 
               return (
                 <motion.div
@@ -685,7 +1237,7 @@ export default function GameShop() {
                       <div className="flex flex-col gap-1">
                         <p className="text-xs text-slate-500 uppercase tracking-wider">Price</p>
                         <p className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-                          ${Number(item.usdtPrice).toFixed(2)} {activeStableLabel}
+                          {Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} {activeStableLabel}
                         </p>
                       </div>
                     </div>
@@ -693,11 +1245,11 @@ export default function GameShop() {
                     <>
                         <button
                           onClick={() => handleBuy(item)}
-                          disabled={item.stock === 0 || isProcessing || !isConnected || !address || activeStableBalance < Number(item.usdtPrice)}
+                          disabled={item.stock === 0 || isProcessing || !isConnected || !address || activeStableBalance < Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice)}
                           className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415] ${
                             item.stock === 0
                               ? 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
-                              : activeStableBalance < Number(item.usdtPrice)
+                              : activeStableBalance < Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice)
                               ? 'bg-slate-700/80 text-slate-400 cursor-not-allowed'
                               : isProcessing
                               ? 'bg-amber-600/90 text-black cursor-wait shadow-lg shadow-amber-500/30'
@@ -708,12 +1260,12 @@ export default function GameShop() {
                             <> <Loader2 className="w-5 h-5 animate-spin" /> Purchasing... </>
                           ) : item.stock === 0 ? (
                             'Sold Out'
-                          ) : !isConnected || !address ? (
-                            <>Connect wallet to buy</>
-                          ) : activeStableBalance < Number(item.usdtPrice) ? (
+                          ) : activeStableBalance < Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice) ? (
                             `Insufficient ${activeStableLabel}`
+                          ) : !isConnected || !address ? (
+                            <>Connect MiniPay wallet</>
                           ) : (
-                            <> <CreditCard className="w-5 h-5" /> Pay with USDT — ${Number(item.usdtPrice).toFixed(2)} </>
+                            <> <CreditCard className="w-5 h-5" /> Pay with {activeStableLabel} — {Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)}</>
                           )}
                         </button>
                     </>
@@ -724,6 +1276,7 @@ export default function GameShop() {
           </div>
         )}
           </div>
+          )}
         </div>
 
         {/* Voucher Teaser FAB */}
