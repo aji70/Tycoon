@@ -587,20 +587,10 @@ function GuestProfileView({
                   ) : null}
 
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-4">
-                    {shortLinkedWalletAddress || shortSmartWalletAddress ? (
+                    {shortLinkedWalletAddress ? (
                       <>
-                        {shortLinkedWalletAddress ? (
-                          <>
-                            <span className="text-slate-400 text-xs">Connected wallet</span>
-                            <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortLinkedWalletAddress}</span>
-                          </>
-                        ) : null}
-                        {shortSmartWalletAddress ? (
-                          <>
-                            <span className="text-slate-400 text-xs">Smart wallet:</span>
-                            <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortSmartWalletAddress}</span>
-                          </>
-                        ) : null}
+                        <span className="text-slate-400 text-xs">Connected wallet</span>
+                        <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortLinkedWalletAddress}</span>
                       </>
                     ) : (
                       <span className="text-cyan-300/80 text-sm">Your progress is saved. Link a wallet to sync stats on-chain.</span>
@@ -609,39 +599,12 @@ function GuestProfileView({
                 </div>
 
                 {/* Balances beside identity on md+; full width below on small screens */}
-                {(linkedWalletAddress || showSmartBalances) && (
+                {linkedWalletAddress && (
                   <div className="w-full md:w-[min(100%,280px)] md:shrink-0">
                     <div className="rounded-xl border border-white/10 bg-black/20 px-2 py-2">
-                      {showDualGuestBalances ? (
-                        <div className="flex items-center justify-center sm:justify-start gap-1.5 mb-2">
-                          <button
-                            type="button"
-                            onClick={() => setGuestBalanceTab('connected')}
-                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition ${
-                              guestBalanceTab === 'connected'
-                                ? 'bg-cyan-500/20 border-cyan-500/45 text-cyan-200'
-                                : 'bg-white/5 border-white/10 text-white/55 hover:text-white/75'
-                            }`}
-                          >
-                            Connected
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setGuestBalanceTab('smart')}
-                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition ${
-                              guestBalanceTab === 'smart'
-                                ? 'bg-cyan-500/20 border-cyan-500/45 text-cyan-200'
-                                : 'bg-white/5 border-white/10 text-white/55 hover:text-white/75'
-                            }`}
-                          >
-                            Smart
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="text-[9px] font-medium uppercase tracking-wider text-white/40 mb-1.5 text-center sm:text-left">
-                          {linkedWalletAddress ? 'Balances · connected' : 'Balances · smart wallet'}
-                        </p>
-                      )}
+                      <p className="text-[9px] font-medium uppercase tracking-wider text-white/40 mb-1.5 text-center sm:text-left">
+                        Balances
+                      </p>
                       {viewingConnected ? (
                         <div className="flex gap-1.5">
                           {[
@@ -671,39 +634,6 @@ function GuestProfileView({
                             >
                               <p className="text-[8px] font-medium uppercase tracking-wider text-cyan-400/60 leading-none">{label}</p>
                               <p className="text-xs font-bold text-cyan-300 font-mono truncate mt-0.5 leading-tight tabular-nums">{value}</p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                      {viewingSmart ? (
-                        <div className="flex gap-1.5">
-                          {[
-                            {
-                              label: 'TYC',
-                              value: tycBalanceSmart.isLoading ? '…' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2),
-                              color: 'cyan',
-                            },
-                            {
-                              label: 'USDT',
-                              value: usdcBalanceSmart.isLoading ? '…' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2),
-                              color: 'emerald',
-                            },
-                            {
-                              label: 'Celo',
-                              value: nativeBalanceSmart.isLoading
-                                ? '…'
-                                : nativeBalanceSmart.data
-                                  ? Number(nativeBalanceSmart.data.formatted).toFixed(4)
-                                  : '0',
-                              color: 'slate',
-                            },
-                          ].map(({ label, value, color }) => (
-                            <div
-                              key={`s-${label}`}
-                              className={`flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center balance-${color}`}
-                            >
-                              <p className="text-[8px] font-medium uppercase tracking-wider text-white/45 leading-none">{label}</p>
-                              <p className="text-xs font-bold text-white truncate mt-0.5 leading-tight tabular-nums">{value}</p>
                             </div>
                           ))}
                         </div>
@@ -934,11 +864,6 @@ function GuestProfileView({
                         </div>
                         <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
                         {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-xs mt-0.5">Tier {item.strength}</p>}
-                        {smartWalletAddress && item.heldBy.toLowerCase() === smartWalletAddress.toLowerCase() ? (
-                          <p className="text-[10px] text-cyan-300/80 mt-1">Smart wallet</p>
-                        ) : linkedWalletAddress && item.heldBy.toLowerCase() === linkedWalletAddress.toLowerCase() ? (
-                          <p className="text-[10px] text-white/45 mt-1">Linked wallet</p>
-                        ) : null}
                         <p className="text-xs text-white/50 mt-3">Connect a wallet to transfer perks.</p>
                       </motion.div>
                     ))}
@@ -985,20 +910,11 @@ function GuestProfileView({
                       >
                         <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
                         <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
-                        {smartWalletAddress && voucher.heldBy.toLowerCase() === smartWalletAddress.toLowerCase() ? (
-                          <p className="text-[10px] text-amber-200/70 mb-2">Smart wallet</p>
-                        ) : linkedWalletAddress && voucher.heldBy.toLowerCase() === linkedWalletAddress.toLowerCase() ? (
-                          <p className="text-[10px] text-white/45 mb-2">Linked wallet</p>
-                        ) : null}
                         <button
                           type="button"
-                          disabled={!smartWalletAddress || redeemingVoucherId === voucher.tokenId.toString()}
+                          disabled={redeemingVoucherId === voucher.tokenId.toString()}
                           onClick={() => handleRedeemVoucher(voucher.tokenId, voucher.heldBy)}
-                          className={`w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition ${
-                            !smartWalletAddress
-                              ? 'bg-white/10 text-white/50 cursor-not-allowed'
-                              : 'bg-amber-500 text-white hover:bg-amber-600 disabled:bg-amber-500/50 disabled:cursor-wait'
-                          }`}
+                          className="w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition bg-amber-500 text-white hover:bg-amber-600 disabled:bg-amber-500/50 disabled:cursor-wait"
                         >
                           {redeemingVoucherId === voucher.tokenId.toString() ? (
                             <>
@@ -1009,9 +925,6 @@ function GuestProfileView({
                             'Redeem'
                           )}
                         </button>
-                        {!smartWalletAddress && (
-                          <p className="text-xs text-white/50 mt-2">Create a smart wallet to redeem.</p>
-                        )}
                       </motion.div>
                     ))}
                   </div>
@@ -1597,96 +1510,24 @@ export default function Profile() {
                   </button>
                   </div>
                 </div>
-                {/* Smart wallet: show the best-known value (registry or account), without contradictions */}
-                <div className="flex flex-col gap-2 mt-2">
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                    <span className="text-slate-500 text-xs">Smart wallet:</span>
-                    {smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' ? (
-                      <>
-                        <span className="text-cyan-300/90 font-mono text-xs truncate max-w-full">{`${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`}</span>
-                        {accountSmartWallet && isValidWallet(registrySmartWallet) && accountSmartWallet.toLowerCase() !== (registrySmartWallet as string).toLowerCase() ? (
-                          <span className="text-[10px] text-slate-500">
-                            (account: {accountSmartWallet.slice(0, 6)}...{accountSmartWallet.slice(-4)})
-                          </span>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => { navigator.clipboard.writeText(smartWalletAddress); toast.success('Smart wallet address copied'); }}
-                          className="p-1.5 rounded-lg bg-white/5 hover:bg-cyan-500/20 border border-white/10 text-cyan-300 transition shrink-0"
-                          title="Copy smart wallet"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    ) : (
-                      <span className="text-slate-500 text-xs italic">
-                        {guestLoading ? "Loading…" : "— (register in-game to get one)"}
-                      </span>
-                    )}
-                  </div>
-                  {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
-                    <Link
-                      href="/profile/smart-wallet"
-                      className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition"
-                    >
-                      Manage smart wallet
-                    </Link>
-                  )}
-                </div>
               </div>
 
               <div className="flex flex-col gap-3 shrink-0 w-full sm:w-[240px] justify-center sm:justify-start">
-                {showDualWallets && (
-                  <div className="flex items-center justify-center sm:justify-start gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveWalletView('connected')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                        activeWalletView === 'connected'
-                          ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-200'
-                          : 'bg-white/5 border-white/10 text-white/60 hover:text-white/80'
-                      }`}
-                    >
-                      Connected
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveWalletView('smart')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                        activeWalletView === 'smart'
-                          ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-200'
-                          : 'bg-white/5 border-white/10 text-white/60 hover:text-white/80'
-                      }`}
-                    >
-                      Smart
-                    </button>
-                  </div>
-                )}
-
                 <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
                   {[
                     {
                       label: 'TYC',
-                      value:
-                        activeWalletView === 'smart'
-                          ? (tycBalanceSmart.isLoading ? '...' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2))
-                          : (tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2)),
+                      value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2),
                       color: 'cyan',
                     },
                     {
                       label: 'USDT',
-                      value:
-                        activeWalletView === 'smart'
-                          ? (usdcBalanceSmart.isLoading ? '...' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2))
-                          : (usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2)),
+                      value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2),
                       color: 'emerald',
                     },
                     {
                       label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native',
-                      value:
-                        activeWalletView === 'smart'
-                          ? (ethBalanceSmart ? Number(ethBalanceSmart.formatted).toFixed(4) : '0')
-                          : (ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0'),
+                      value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0',
                       color: 'slate',
                     },
                   ].map(({ label, value, color }) => (
@@ -1696,14 +1537,6 @@ export default function Profile() {
                     </div>
                   ))}
                 </div>
-                {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
-                  <Link
-                    href="/profile/smart-wallet"
-                    className="w-full mt-3 inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition"
-                  >
-                    Manage smart wallet
-                  </Link>
-                )}
               </div>
             </div>
           </div>
@@ -1939,11 +1772,6 @@ export default function Profile() {
                         </div>
                         <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
                         {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-xs mt-0.5">Tier {item.strength}</p>}
-                        {smartWallet && item.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
-                          <p className="text-[10px] text-cyan-300/80 mt-1">Smart wallet</p>
-                        ) : walletAddress && item.heldBy.toLowerCase() === walletAddress.toLowerCase() ? (
-                          <p className="text-[10px] text-white/45 mt-1">Connected wallet</p>
-                        ) : null}
                         {selectedPerkKey === rowKey ? (
                           <div className="mt-3 space-y-2 text-left">
                             <label className="text-[10px] font-medium text-white/50 uppercase tracking-wider block">Send to address</label>
@@ -2024,11 +1852,6 @@ export default function Profile() {
                       >
                         <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
                         <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
-                        {smartWallet && voucher.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
-                          <p className="text-[10px] text-amber-200/70 mb-2">Smart wallet</p>
-                        ) : walletAddress && voucher.heldBy.toLowerCase() === walletAddress.toLowerCase() ? (
-                          <p className="text-[10px] text-white/45 mb-2">Connected wallet</p>
-                        ) : null}
                         <button
                           type="button"
                           onClick={() => handleRedeemVoucher(voucher.tokenId, voucher.heldBy)}

@@ -596,57 +596,20 @@ function GuestProfileViewMobile({
                 {!guestOnChainAddress && (
                   <p className="text-cyan-300/80 text-xs mb-2">Your progress is saved. Connect your wallet from the nav to link this account.</p>
                 )}
-                {(shortLinkedWalletAddress || shortSmartWalletAddress) && (
+                {shortLinkedWalletAddress && (
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                    {shortLinkedWalletAddress ? (
-                      <>
-                        <span className="text-cyan-400 font-semibold shrink-0">Connected</span>
-                        <span className="text-slate-300 font-mono truncate">{shortLinkedWalletAddress}</span>
-                      </>
-                    ) : null}
-                    {shortSmartWalletAddress ? (
-                      <>
-                        <span className="text-cyan-400 font-semibold shrink-0">Smart</span>
-                        <span className="text-slate-300 font-mono truncate">{shortSmartWalletAddress}</span>
-                      </>
-                    ) : null}
+                    <span className="text-cyan-400 font-semibold shrink-0">Connected</span>
+                    <span className="text-slate-300 font-mono truncate">{shortLinkedWalletAddress}</span>
                   </div>
                 )}
               </div>
             </div>
 
-            {(linkedWalletAddress || showSmartBalances) && (
+            {linkedWalletAddress && (
               <div className="w-full sm:w-[min(100%,260px)] sm:shrink-0 rounded-xl border border-white/10 bg-black/20 px-2 py-2">
-                {showDualGuestBalances ? (
-                  <div className="flex items-center justify-start gap-1.5 mb-2">
-                    <button
-                      type="button"
-                      onClick={() => setGuestBalanceTab('connected')}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition ${
-                        guestBalanceTab === 'connected'
-                          ? 'bg-cyan-500/20 border-cyan-500/45 text-cyan-200'
-                          : 'bg-white/5 border-white/10 text-white/55'
-                      }`}
-                    >
-                      Connected
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setGuestBalanceTab('smart')}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition ${
-                        guestBalanceTab === 'smart'
-                          ? 'bg-cyan-500/20 border-cyan-500/45 text-cyan-200'
-                          : 'bg-white/5 border-white/10 text-white/55'
-                      }`}
-                    >
-                      Smart
-                    </button>
-                  </div>
-                ) : (
-                  <p className="text-[9px] font-medium uppercase tracking-wider text-white/40 mb-1.5">
-                    {linkedWalletAddress ? 'Balances · connected' : 'Balances · smart wallet'}
-                  </p>
-                )}
+                <p className="text-[9px] font-medium uppercase tracking-wider text-white/40 mb-1.5">
+                  Balances
+                </p>
                 {viewingConnected ? (
                   <div className="flex gap-1.5">
                     {[
@@ -661,38 +624,10 @@ function GuestProfileViewMobile({
                     ))}
                   </div>
                 ) : null}
-                {viewingSmart ? (
-                  <div className="flex gap-1.5">
-                    {[
-                      { label: 'TYC', value: tycBalanceSmart.isLoading ? '…' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2) },
-                      { label: 'USDT', value: usdcBalanceSmart.isLoading ? '…' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2) },
-                      { label: 'Celo', value: nativeBalanceSmart.isLoading ? '…' : (nativeBalanceSmart.data ? Number(nativeBalanceSmart.data.formatted).toFixed(4) : '0') },
-                    ].map(({ label, value }) => (
-                      <div key={`gs-${label}`} className="flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center">
-                        <p className="text-[8px] font-medium uppercase tracking-wider text-white/45 leading-none">{label}</p>
-                        <p className="text-xs font-bold text-white truncate mt-0.5 tabular-nums">{value}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
               </div>
             )}
           </div>
         </div>
-
-        {(guestUser.smart_wallet_migration_status || guestUser.legacy_smart_wallet_address) && (
-          <div className="rounded-2xl border border-amber-500/20 bg-[#011112]/80 p-4">
-            <h3 className="text-xs font-semibold text-amber-300 uppercase tracking-wider mb-2">Wallet migration</h3>
-            <p className="text-xs text-white/70">
-              Status: <span className="font-semibold text-white">{guestUser.smart_wallet_migration_status ?? 'unknown'}</span>
-            </p>
-            {guestUser.legacy_smart_wallet_address ? (
-              <p className="text-[11px] text-white/60 mt-1 break-all">
-                Legacy wallet: {guestUser.legacy_smart_wallet_address}
-              </p>
-            ) : null}
-          </div>
-        )}
 
         {/* Game stats | About you | My Perks | Reward Vouchers — tabs (visible without wallet connection) */}
         <section className="pb-4">
@@ -902,11 +837,6 @@ function GuestProfileViewMobile({
                           </div>
                           <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
                           {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-[10px] mt-0.5">Tier {item.strength}</p>}
-                          {smartWallet && item.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
-                            <p className="text-[9px] text-cyan-300/80 mt-1">Smart wallet</p>
-                          ) : walletEoa && item.heldBy.toLowerCase() === walletEoa.toLowerCase() ? (
-                            <p className="text-[9px] text-white/45 mt-1">Linked wallet</p>
-                          ) : null}
                           <button
                             type="button"
                             disabled
@@ -951,11 +881,6 @@ function GuestProfileViewMobile({
                       >
                         <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
                         <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
-                        {smartWallet && voucher.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
-                          <p className="text-[9px] text-amber-200/70 mb-2">Smart wallet</p>
-                        ) : walletEoa && voucher.heldBy.toLowerCase() === walletEoa.toLowerCase() ? (
-                          <p className="text-[9px] text-white/45 mb-2">Linked wallet</p>
-                        ) : null}
                         <button
                           type="button"
                           onClick={() => handleRedeemVoucherViaApi(voucher.tokenId, voucher.heldBy)}
@@ -1540,124 +1465,11 @@ export default function ProfilePageMobile() {
               <span className="font-mono truncate">{userData.shortAddress || walletAddress}</span>
               {copied ? <Check className="w-4 h-4 text-emerald-400 shrink-0" /> : <Copy className="w-4 h-4 shrink-0" />}
             </button>
-            <div className="mt-2 space-y-2">
-              <p className="text-slate-500 text-[10px] flex items-center justify-center gap-1.5 flex-wrap">
-                <span>Smart wallet:</span>
-                {smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' ? (
-                  <>
-                    <span className="font-mono text-cyan-300/90">{`${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`}</span>
-                    {accountSmartWallet && isValidWallet(registrySmartWallet) && accountSmartWallet.toLowerCase() !== (registrySmartWallet as string).toLowerCase() ? (
-                      <span className="text-[9px] text-slate-500">
-                        (account: {accountSmartWallet.slice(0, 6)}...{accountSmartWallet.slice(-4)})
-                      </span>
-                    ) : null}
-                    <button type="button" onClick={() => { navigator.clipboard.writeText(smartWalletAddress); toast.success('Copied'); }} aria-label="Copy"><Copy className="w-3 h-3" /></button>
-                  </>
-                ) : (
-                  <span className="italic">— (register in-game to get one)</span>
-                )}
-              </p>
-              {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
-                <Link
-                  href="/profile/smart-wallet"
-                  className="w-full max-w-[260px] mx-auto flex justify-center px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition"
-                >
-                  Manage smart wallet
-                </Link>
-              )}
-            </div>
-            {(guestUser?.smart_wallet_migration_status || guestUser?.legacy_smart_wallet_address) && (
-              <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-left">
-                <p className="text-[10px] uppercase tracking-wider text-amber-300 font-semibold">Wallet migration</p>
-                <p className="text-xs text-white/70 mt-1">
-                  Status: <span className="font-semibold text-white">{guestUser?.smart_wallet_migration_status ?? 'unknown'}</span>
-                </p>
-                {guestUser?.legacy_smart_wallet_address ? (
-                  <p className="text-[11px] text-white/60 mt-1 break-all">
-                    Legacy wallet: {guestUser.legacy_smart_wallet_address}
-                  </p>
-                ) : null}
-              </div>
-            )}
           </div>
         </motion.div>
 
         {/* Balances */}
-        {showDualWallets ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveWalletView('connected')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                  activeWalletView === 'connected'
-                    ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-200'
-                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white/80'
-                }`}
-              >
-                Connected
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveWalletView('smart')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                  activeWalletView === 'smart'
-                    ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-200'
-                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white/80'
-                }`}
-              >
-                Smart
-              </button>
-            </div>
-            <div>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  {
-                    label: 'TYC',
-                    value:
-                      activeWalletView === 'smart'
-                        ? (tycBalanceSmart.isLoading ? '...' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2))
-                        : (tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2)),
-                  },
-                  {
-                    label: 'USDT',
-                    value:
-                      activeWalletView === 'smart'
-                        ? (usdcBalanceSmart.isLoading ? '...' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2))
-                        : (usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2)),
-                  },
-                  {
-                    label: 'cUSD',
-                    value:
-                      activeWalletView === 'smart'
-                        ? (cusdcBalanceSmart.isLoading ? '...' : Number(cusdcBalanceSmart.data?.formatted || 0).toFixed(2))
-                        : (cusdcBalance.isLoading ? '...' : Number(cusdcBalance.data?.formatted || 0).toFixed(2)),
-                  },
-                  {
-                    label: 'USDT',
-                    value:
-                      activeWalletView === 'smart'
-                        ? (usdtBalanceSmart.isLoading ? '...' : Number(usdtBalanceSmart.data?.formatted || 0).toFixed(2))
-                        : (usdtBalance.isLoading ? '...' : Number(usdtBalance.data?.formatted || 0).toFixed(2)),
-                  },
-                  {
-                    label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native',
-                    value:
-                      activeWalletView === 'smart'
-                        ? (ethBalanceSmart ? Number(ethBalanceSmart.formatted).toFixed(4) : '0')
-                        : (ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0'),
-                  },
-                ].map(({ label, value }) => (
-                  <div key={label} className="bg-slate-800/60 border border-cyan-500/20 rounded-xl p-3 text-center hover:border-cyan-500/40 transition-all">
-                    <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                    <p className="text-sm font-bold text-white truncate mt-0.5">{value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2">
             {[
               { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2) },
               { label: 'USDT', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2) },
@@ -1670,8 +1482,7 @@ export default function ProfilePageMobile() {
                 <p className="text-sm font-bold text-cyan-300 font-mono truncate mt-0.5">{value}</p>
               </div>
             ))}
-          </div>
-        )}
+        </div>
 
         {/* Game stats | About you | My Perks | Reward Vouchers — tabs, content below */}
         <section className="pb-4">
@@ -1870,11 +1681,6 @@ export default function ProfilePageMobile() {
                         </div>
                         <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
                         {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-[10px] mt-0.5">Tier {item.strength}</p>}
-                        {smartWallet && item.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
-                          <p className="text-[9px] text-cyan-300/80 mt-1">Smart wallet</p>
-                        ) : walletAddress && item.heldBy.toLowerCase() === walletAddress.toLowerCase() ? (
-                          <p className="text-[9px] text-white/45 mt-1">Connected</p>
-                        ) : null}
                         {selectedPerkKey === rowKey ? (
                           <div className="mt-3 space-y-2 text-left">
                             <p className="text-[10px] text-white/50 uppercase tracking-wider">Send to</p>
@@ -1949,11 +1755,6 @@ export default function ProfilePageMobile() {
                       >
                         <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
                         <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
-                        {smartWallet && voucher.heldBy.toLowerCase() === smartWallet.toLowerCase() ? (
-                          <p className="text-[9px] text-amber-200/70 mb-2">Smart wallet</p>
-                        ) : walletAddress && voucher.heldBy.toLowerCase() === walletAddress.toLowerCase() ? (
-                          <p className="text-[9px] text-white/45 mb-2">Connected</p>
-                        ) : null}
                         <button
                           onClick={() => handleRedeemVoucher(voucher.tokenId, voucher.heldBy)}
                           disabled={redeemingId === voucher.tokenId || isWriting || isConfirming}
