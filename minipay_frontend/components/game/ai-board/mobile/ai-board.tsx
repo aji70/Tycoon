@@ -1153,6 +1153,7 @@ const endTime =
         onTriggerSpecialLanding={triggerLandingLogic}
         onEndTurnAfterSpecial={endTurnAfterSpecialMove}
         userAddress={me?.address}
+        onPerkApplied={fetchUpdatedGame}
       />
 
       {/* End game by net worth — corner button (top-left) */}

@@ -16,6 +16,7 @@ interface PerksModalProps {
   onTriggerSpecialLanding: (position: number, isSpecial?: boolean) => void;
   onEndTurnAfterSpecial: () => void;
   userAddress?: string | null;
+  onPerkApplied?: () => void | Promise<void>;
 }
 
 export default function PerksModal({
@@ -29,6 +30,7 @@ export default function PerksModal({
   onTriggerSpecialLanding,
   onEndTurnAfterSpecial,
   userAddress,
+  onPerkApplied,
 }: PerksModalProps) {
   if (!open) return null;
 
@@ -71,6 +73,7 @@ export default function PerksModal({
               triggerSpecialLanding={onTriggerSpecialLanding}
               endTurnAfterSpecial={onEndTurnAfterSpecial}
               userAddress={userAddress}
+              onPerkApplied={onPerkApplied}
             />
           </div>
         </motion.div>

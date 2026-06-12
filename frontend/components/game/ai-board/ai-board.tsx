@@ -1735,6 +1735,10 @@ const endTurnAfterSpecialMove = useCallback(() => {
                           triggerSpecialLanding={triggerLandingLogic}
                           endTurnAfterSpecial={endTurnAfterSpecialMove}
                           userAddress={me?.address}
+                          onPerkApplied={async () => {
+                            await fetchGameState();
+                            await onRefetchGame?.();
+                          }}
                         />
                       
                     </div>

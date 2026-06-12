@@ -2825,6 +2825,7 @@ function Board3DMobileContent() {
         onEndTurn={END_TURN}
         triggerSpecialLanding={triggerLandingLogic}
         endTurnAfterSpecial={endTurnAfterSpecialMove}
+        onPerkApplied={refetchGame}
       />
 
       {/* End game by net worth — confirm modal */}

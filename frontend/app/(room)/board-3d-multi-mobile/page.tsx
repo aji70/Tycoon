@@ -2634,6 +2634,10 @@ function Board3DMobilePageContent() {
           refetchGame();
           refetchGameProperties();
         }}
+        onPerkApplied={async () => {
+          await refetchGame();
+          await refetchGameProperties();
+        }}
       />
 
       {/* End game by net worth — confirm modal */}

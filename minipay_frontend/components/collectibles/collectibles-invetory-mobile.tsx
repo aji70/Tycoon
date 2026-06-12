@@ -49,6 +49,7 @@ import {
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import Erc20Abi from "@/context/abi/ERC20abi.json";
 import { apiClient } from "@/lib/api";
+import { refreshGameStateAfterPerk } from "@/lib/perks/refreshGameStateAfterPerk";
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "@/lib/constants/ngnPayments";
 import { getNairaEligibility, nairaBlockedMessage } from "@/lib/shop/nairaPayment";
 import { ApiResponse } from "@/types/api";
@@ -111,6 +112,8 @@ interface CollectibleInventoryBarProps {
   endTurnAfterSpecial?: () => void;
   userAddress?: string | null;
   userWalletAddresses?: string[];
+  /** Refetch game state after a perk successfully updates the server (balance, perks, jail, etc.). */
+  onPerkApplied?: () => void | Promise<void>;
 }
 
 export default function CollectibleInventoryBar({
@@ -121,6 +124,7 @@ export default function CollectibleInventoryBar({
   triggerSpecialLanding,
   userAddress,
   userWalletAddresses,
+  onPerkApplied,
 }: CollectibleInventoryBarProps) {
   const { address: wagmiAddress, isConnected } = useAccount();
   const guestAuth = useGuestAuthOptional();
@@ -822,6 +826,7 @@ export default function CollectibleInventoryBar({
         }
 
         if (success || perkId === 1) {
+          await refreshGameStateAfterPerk(onPerkApplied);
           toast.success(`${name} activated & collectible burned! 🔥`, { id: toastId });
         } else {
           toast.error("Effect failed — contact support", { id: toastId });
@@ -845,6 +850,7 @@ export default function CollectibleInventoryBar({
     selectedPositionIndex,
     selectedRollTotal,
     resetBurn,
+    onPerkApplied,
   ]);
 
   const handleConfirmBurnAndActivate = async () => {

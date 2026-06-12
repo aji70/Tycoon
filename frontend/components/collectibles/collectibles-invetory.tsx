@@ -18,6 +18,7 @@ import { REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contr
 import { Game, GameProperty } from "@/types/game";
 import { useRewardBurnCollectible } from "@/context/ContractProvider";
 import { apiClient } from "@/lib/api";
+import { refreshGameStateAfterPerk } from "@/lib/perks/refreshGameStateAfterPerk";
 import { ApiResponse } from "@/types/api";
 import {
   buildTokenOfOwnerByIndexSlotCalls,
@@ -51,6 +52,8 @@ interface CollectibleInventoryBarProps {
   triggerSpecialLanding?: (position: number, isSpecial: boolean) => void;
   endTurnAfterSpecial?: () => void;
   userAddress?: string | null;
+  /** Refetch game state after a perk successfully updates the server (balance, perks, jail, etc.). */
+  onPerkApplied?: () => void | Promise<void>;
 }
 
 const perkMetadata: Record<number, {
@@ -84,6 +87,7 @@ export default function CollectibleInventoryBar({
   ROLL_DICE,
   triggerSpecialLanding,
   userAddress,
+  onPerkApplied,
 }: CollectibleInventoryBarProps) {
   const { address: wagmiAddress, isConnected } = useAccount();
   const address = wagmiAddress || (userAddress as Address | undefined);
@@ -528,6 +532,7 @@ export default function CollectibleInventoryBar({
         }
 
         if (success || perkId === 1) {
+          await refreshGameStateAfterPerk(onPerkApplied);
           toast.success(`${name} activated & collectible burned! 🔥`, { id: toastId });
         } else {
           toast.error("Effect failed — contact support", { id: toastId });
@@ -541,7 +546,7 @@ export default function CollectibleInventoryBar({
         setSelectedRollTotal(null);
       }
     })();
-  }, [burnSuccess, pendingPerk, currentPlayer, ROLL_DICE, triggerSpecialLanding, selectedRollTotal, selectedPositionIndex, resetBurn]);
+  }, [burnSuccess, pendingPerk, currentPlayer, ROLL_DICE, triggerSpecialLanding, selectedRollTotal, selectedPositionIndex, resetBurn, onPerkApplied]);
 
   const handleConfirmBurnAndActivate = async () => {
     if (!pendingPerk) return;

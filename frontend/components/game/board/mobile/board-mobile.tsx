@@ -872,6 +872,7 @@ const MobileGameLayout = ({
         onEndTurnAfterSpecial={endTurnAfterSpecialMove}
         userAddress={myAddress}
         userWalletAddresses={userWalletAddresses}
+        onPerkApplied={fetchUpdatedGame}
       />
 
       <GameModals

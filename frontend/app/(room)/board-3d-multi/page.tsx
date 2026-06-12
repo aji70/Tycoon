@@ -2924,6 +2924,10 @@ function Board3DPageContent() {
                     triggerSpecialLanding={triggerLandingLogic}
                     endTurnAfterSpecial={endTurnAfterSpecialMove}
                     userAddress={me?.address}
+                    onPerkApplied={async () => {
+                      await refetchGame();
+                      await refetchGameProperties();
+                    }}
                   />
                 </div>
               </motion.div>

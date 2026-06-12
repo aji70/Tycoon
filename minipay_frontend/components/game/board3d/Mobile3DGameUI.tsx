@@ -43,6 +43,8 @@ interface Mobile3DGameUIProps {
   chatUnreadCount?: number;
   /** Called when the Players/Game modal is opened so parent can refetch and show fresh balances. */
   onPlayersModalOpen?: () => void;
+  /** Refetch game state after a perk updates server-side player data. */
+  onPerkApplied?: () => void | Promise<void>;
 }
 
 export default function Mobile3DGameUI({
@@ -72,6 +74,7 @@ export default function Mobile3DGameUI({
   onOpenChat,
   chatUnreadCount = 0,
   onPlayersModalOpen,
+  onPerkApplied,
 }: Mobile3DGameUIProps) {
   const hasGame = !!game;
 
@@ -362,6 +365,7 @@ export default function Mobile3DGameUI({
                     triggerSpecialLanding={triggerSpecialLanding}
                     endTurnAfterSpecial={endTurnAfterSpecial}
                     userAddress={me?.address}
+                    onPerkApplied={onPerkApplied}
                   />
                 ) : (
                   <p className="text-slate-500 text-sm py-4">Join a game to see your perks.</p>

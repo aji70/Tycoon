@@ -87,6 +87,7 @@ const Board = ({
     dismissTimeoutPopup,
     showVotedOutModal,
     setShowVotedOutModal,
+    fetchUpdatedGame,
   } = logic;
 
   const voteablePlayersList = players
@@ -445,6 +446,7 @@ const Board = ({
                     triggerSpecialLanding={triggerLandingLogic}
                     endTurnAfterSpecial={endTurnAfterSpecialMove}
                     userAddress={me?.address}
+                    onPerkApplied={fetchUpdatedGame}
                   />
                 </div>
               </div>

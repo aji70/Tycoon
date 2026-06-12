@@ -3103,6 +3103,7 @@ function Board3DPageContent() {
                     triggerSpecialLanding={triggerLandingLogic}
                     endTurnAfterSpecial={endTurnAfterSpecialMove}
                     userAddress={me?.address}
+                    onPerkApplied={refetchGame}
                   />
                 </div>
               </motion.div>

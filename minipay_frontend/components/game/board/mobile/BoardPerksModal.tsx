@@ -17,6 +17,7 @@ interface BoardPerksModalProps {
   onEndTurnAfterSpecial: () => void;
   userAddress?: string | null;
   userWalletAddresses?: string[];
+  onPerkApplied?: () => void | Promise<void>;
 }
 
 export default function BoardPerksModal({
@@ -31,6 +32,7 @@ export default function BoardPerksModal({
   onEndTurnAfterSpecial,
   userAddress,
   userWalletAddresses,
+  onPerkApplied,
 }: BoardPerksModalProps) {
   if (!open) return null;
 
@@ -70,6 +72,7 @@ export default function BoardPerksModal({
               endTurnAfterSpecial={onEndTurnAfterSpecial}
               userAddress={userAddress}
               userWalletAddresses={userWalletAddresses}
+              onPerkApplied={onPerkApplied}
             />
           </div>
         </motion.div>
