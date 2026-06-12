@@ -356,10 +356,10 @@ function GuestProfileView({
     chainId: CELO_CHAIN_ID,
     query: { enabled: !!rewardAddress },
   });
-  const { data: usdcTokenAddress } = useReadContract({
+  const { data: usdtTokenAddress } = useReadContract({
     address: rewardAddress,
     abi: RewardABI,
-    functionName: 'usdc',
+    functionName: 'usdt',
     chainId: CELO_CHAIN_ID,
     query: { enabled: !!rewardAddress },
   });
@@ -370,11 +370,11 @@ function GuestProfileView({
     chainId: CELO_CHAIN_ID,
     query: { enabled: !!linkedWalletAddress && !!tycTokenAddress },
   });
-  const usdcBalanceLinked = useBalance({
+  const usdtBalanceLinked = useBalance({
     address: linkedWalletAddress ?? undefined,
-    token: (usdcTokenAddress as Address | undefined) ?? undefined,
+    token: (usdtTokenAddress as Address | undefined) ?? undefined,
     chainId: CELO_CHAIN_ID,
-    query: { enabled: !!linkedWalletAddress && !!usdcTokenAddress },
+    query: { enabled: !!linkedWalletAddress && !!usdtTokenAddress },
   });
   const nativeBalanceLinked = useBalance({
     address: linkedWalletAddress ?? undefined,
@@ -388,11 +388,11 @@ function GuestProfileView({
     chainId: CELO_CHAIN_ID,
     query: { enabled: !!smartWalletAddress && !!tycTokenAddress },
   });
-  const usdcBalanceSmart = useBalance({
+  const usdtBalanceSmart = useBalance({
     address: smartWalletAddress ?? undefined,
-    token: (usdcTokenAddress as Address | undefined) ?? undefined,
+    token: (usdtTokenAddress as Address | undefined) ?? undefined,
     chainId: CELO_CHAIN_ID,
-    query: { enabled: !!smartWalletAddress && !!usdcTokenAddress },
+    query: { enabled: !!smartWalletAddress && !!usdtTokenAddress },
   });
   const nativeBalanceSmart = useBalance({
     address: smartWalletAddress ?? undefined,
@@ -615,7 +615,7 @@ function GuestProfileView({
                             },
                             {
                               label: 'USDT',
-                              value: usdcBalanceLinked.isLoading ? '…' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2),
+                              value: usdtBalanceLinked.isLoading ? '…' : Number(usdtBalanceLinked.data?.formatted || 0).toFixed(2),
                               color: 'emerald',
                             },
                           ].map(({ label, value, color }) => (
@@ -958,12 +958,12 @@ export default function Profile() {
 
   const { data: ethBalance } = useBalance({ address: walletAddress });
 
-  const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
+  const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress, usdtAddress } = useRewardTokenAddresses();
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
 
   const tycBalance = useBalance({ address: walletAddress, token: tycTokenAddress, query: { enabled: !!walletAddress && !!tycTokenAddress } });
-  const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
+  const usdtBalance = useBalance({ address: walletAddress, token: usdtAddress, query: { enabled: !!walletAddress && !!usdtAddress } });
 
   const { data: registrySmartWallet } = useUserRegistryWallet(walletAddress);
   // Smart wallet can come from on-chain registry OR from the logged-in account (guest/Privy)
@@ -1513,7 +1513,7 @@ export default function Profile() {
                     },
                     {
                       label: 'USDT',
-                      value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2),
+                      value: usdtBalance.isLoading ? '...' : Number(usdtBalance.data?.formatted || 0).toFixed(2),
                       color: 'emerald',
                     },
                   ].map(({ label, value, color }) => (
