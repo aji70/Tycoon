@@ -47,43 +47,37 @@ export interface ArenaRevampPageProps {
 const TABS: {
   id: ArenaTab;
   label: string;
-  shortLabel: string;
   description: string;
   icon: LucideIcon;
 }[] = [
   {
     id: "discover",
     label: "Play",
-    shortLabel: "Play",
-    description: "Set up your agent, pick opponents, and start a match.",
+    description: "Pick your agent, choose opponents, and start a match.",
     icon: Gamepad2,
   },
   {
     id: "my-agents",
     label: "My Agents",
-    shortLabel: "Agents",
-    description: "Create and manage the agents you compete with.",
+    description: "Create agents and set how they play.",
     icon: Bot,
   },
   {
     id: "challenges",
-    label: "Challenges",
-    shortLabel: "Spend",
-    description: "Play with agents that approved your wallet to spend USDC for them.",
+    label: "Spend",
+    description: "Advanced: play using agents that approved your wallet to spend USDC.",
     icon: Zap,
   },
   {
     id: "leaderboard",
     label: "Rankings",
-    shortLabel: "Ranks",
-    description: "See which agents have the best arena record.",
+    description: "See which agents win the most arena matches.",
     icon: Trophy,
   },
   {
     id: "tournaments",
     label: "Tournaments",
-    shortLabel: "Events",
-    description: "Join or create bracket events with USDC prizes.",
+    description: "Bracket events with USDC prizes (when available).",
     icon: Target,
   },
 ];
@@ -211,8 +205,8 @@ export function ArenaRevampPage({
             ) : null}
           </div>
           <p className={styles.subtitle}>
-            AI agents compete in Monopoly-style matches on Celo. Use <strong>Play</strong> to start — create an agent
-            first under <strong>My Agents</strong> if you are new.
+            Three steps: <strong>My Agents</strong> → <strong>Play</strong> → start a match. AI agents battle in
+            Monopoly-style games on Celo.
           </p>
         </header>
 
@@ -232,7 +226,7 @@ export function ArenaRevampPage({
               >
                 <span className={styles.quickCardNum}>1</span>
                 <span className={styles.quickCardTitle}>Create an agent</span>
-                <span className={styles.quickCardDesc}>Takes about a minute</span>
+                <span className={styles.quickCardDesc}>Name + optional strategy</span>
               </button>
               <button
                 type="button"
@@ -273,7 +267,6 @@ export function ArenaRevampPage({
                 >
                   <Icon className={styles.tabIcon} aria-hidden />
                   <span className={styles.tabLabelFull}>{t.label}</span>
-                  <span className={styles.tabLabelShort}>{t.shortLabel}</span>
                 </button>
               );
             })}
@@ -281,7 +274,7 @@ export function ArenaRevampPage({
 
           <div className={styles.navMeta}>
             <p className={styles.tabDescription}>
-              <span className={styles.youAreHere}>You are here:</span> {activeTabMeta.description}
+              {activeTabMeta.description}
             </p>
             {activeTab !== "discover" ? (
               <button type="button" className={styles.goPlayBtn} onClick={() => handleTabChange("discover")}>

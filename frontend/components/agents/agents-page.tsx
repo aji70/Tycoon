@@ -356,6 +356,19 @@ export default function AgentsPage({
     fetchAgents();
   }, [fetchAgents]);
 
+  const deepLinkEditHandled = React.useRef(false);
+  React.useEffect(() => {
+    if (deepLinkEditHandled.current || loading || agents.length === 0) return;
+    const editRaw = searchParams.get("edit");
+    if (!editRaw) return;
+    const id = Number(editRaw);
+    if (!Number.isFinite(id)) return;
+    const agent = agents.find((a) => a.id === id);
+    if (!agent) return;
+    deepLinkEditHandled.current = true;
+    openEdit(agent);
+  }, [loading, agents, searchParams]);
+
   // Check for NGN redirect (reference from Flutterwave)
   React.useEffect(() => {
     const ref = searchParams.get("reference") ?? searchParams.get("tx_ref");

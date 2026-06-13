@@ -3,8 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { apiClient } from "@/lib/api";
-import { buildTycoonHostedAgentPayload } from "@/lib/agentCreatePayload";
+import {
+  buildTycoonHostedAgentPayload,
+  defaultBehaviorProfile,
+  type AgentBehaviorProfile,
+} from "@/lib/agentCreatePayload";
 import { ApiResponse } from "@/types/api";
+import { AgentStrategyFields } from "@/components/arena/AgentStrategyFields";
 import styles from "./arena-my-agents-simple.module.css";
 
 export interface ArenaSimpleAgent {
@@ -33,9 +38,19 @@ export function ArenaMyAgentsSimple({
 }: ArenaMyAgentsSimpleProps) {
   const [name, setName] = useState("");
   const [listInDiscover, setListInDiscover] = useState(true);
+  const [showStrategy, setShowStrategy] = useState(false);
+  const [behaviorProfile, setBehaviorProfile] = useState<AgentBehaviorProfile>(defaultBehaviorProfile());
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(myAgents.length === 0);
+  const [justCreated, setJustCreated] = useState(false);
+
+  const resetCreateForm = () => {
+    setName("");
+    setBehaviorProfile(defaultBehaviorProfile());
+    setShowStrategy(false);
+    setCreateError(null);
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,17 +61,19 @@ export function ArenaMyAgentsSimple({
     }
     setCreating(true);
     setCreateError(null);
+    setJustCreated(false);
     try {
       const res = await apiClient.post<ApiResponse<{ id: number }>>(
         "/agents",
-        buildTycoonHostedAgentPayload(trimmed)
+        buildTycoonHostedAgentPayload(trimmed, behaviorProfile)
       );
       const agentId = res?.data?.data?.id;
       if (listInDiscover && agentId != null) {
         await apiClient.patch(`/agents/${agentId}`, { is_public: true });
       }
-      setName("");
+      resetCreateForm();
       setShowAddForm(false);
+      setJustCreated(true);
       await onRefresh();
     } catch (err) {
       setCreateError((err as Error)?.message || "Could not create agent. Try again.");
@@ -70,8 +87,8 @@ export function ArenaMyAgentsSimple({
       <div className={styles.wrap}>
         <div className={styles.callout}>
           <p>
-            <strong>Sign in</strong> with the wallet button in the top navigation bar, then come back here to create
-            your agent.
+            <strong>Step 1:</strong> Sign in with the wallet button in the top navigation bar, then return here to
+            create your agent.
           </p>
         </div>
       </div>
@@ -80,9 +97,35 @@ export function ArenaMyAgentsSimple({
 
   return (
     <div className={styles.wrap}>
+      <ol className={styles.flowSteps} aria-label="How the arena works">
+        <li className={myAgents.length > 0 ? styles.flowStepDone : styles.flowStepActive}>
+          <span className={styles.flowNum}>1</span>
+          <span>Create your agent</span>
+        </li>
+        <li className={myAgents.length > 0 ? styles.flowStepActive : styles.flowStep}>
+          <span className={styles.flowNum}>2</span>
+          <span>Go to Play & pick opponents</span>
+        </li>
+        <li className={styles.flowStep}>
+          <span className={styles.flowNum}>3</span>
+          <span>Start match</span>
+        </li>
+      </ol>
+
+      {justCreated ? (
+        <div className={styles.successBanner} role="status">
+          <p>
+            <strong>Agent ready!</strong> Head to <strong>Play</strong> to choose opponents and start a match.
+          </p>
+          <button type="button" className={styles.playBtn} onClick={onGoPlay}>
+            Go to Play →
+          </button>
+        </div>
+      ) : null}
+
       <p className={styles.intro}>
-        You only need a name. Tycoon runs the AI for you — no API keys required. When you are done, go to{" "}
-        <strong>Play</strong> to find opponents.
+        Give your agent a name and optional strategy. Tycoon runs the AI — no API keys needed. When you&apos;re ready,
+        open the <strong>Play</strong> tab to start a match.
       </p>
 
       {(showAddForm || myAgents.length === 0) && (
@@ -91,7 +134,8 @@ export function ArenaMyAgentsSimple({
             {myAgents.length === 0 ? "Create your first agent" : "Add another agent"}
           </h2>
           <p className={styles.createDesc}>
-            Pick any name. Your agent will use balanced default strategy — you can customize later if needed.
+            Balanced defaults work great for beginners. Expand <strong>Agent strategy</strong> to set play style and
+            custom instructions.
           </p>
           <form onSubmit={handleCreate}>
             {createError ? <p className={styles.errorText}>{createError}</p> : null}
@@ -108,6 +152,22 @@ export function ArenaMyAgentsSimple({
               maxLength={48}
               autoFocus={myAgents.length === 0}
             />
+
+            <button
+              type="button"
+              className={styles.strategyToggle}
+              onClick={() => setShowStrategy((v) => !v)}
+              aria-expanded={showStrategy}
+            >
+              {showStrategy ? "▾ Hide agent strategy" : "▸ Agent strategy (optional)"}
+            </button>
+
+            {showStrategy ? (
+              <div className={styles.strategyPanel}>
+                <AgentStrategyFields profile={behaviorProfile} onChange={setBehaviorProfile} />
+              </div>
+            ) : null}
+
             <label className={styles.checkRow}>
               <input
                 type="checkbox"
@@ -115,8 +175,8 @@ export function ArenaMyAgentsSimple({
                 onChange={(e) => setListInDiscover(e.target.checked)}
               />
               <span className={styles.checkLabel}>
-                Show in Discover
-                <span className={styles.checkHint}>Other players can select this agent as an opponent</span>
+                Let others play against this agent
+                <span className={styles.checkHint}>Shows your agent in the opponent list on Play</span>
               </span>
             </label>
             <button type="submit" className={styles.primaryBtn} disabled={creating || !name.trim()}>
@@ -127,7 +187,10 @@ export function ArenaMyAgentsSimple({
                 type="button"
                 className={styles.secondaryBtn}
                 style={{ marginTop: 10, width: "100%" }}
-                onClick={() => setShowAddForm(false)}
+                onClick={() => {
+                  resetCreateForm();
+                  setShowAddForm(false);
+                }}
               >
                 Cancel
               </button>
@@ -139,6 +202,7 @@ export function ArenaMyAgentsSimple({
       {myAgents.length > 0 ? (
         <>
           <section aria-label="Your agents">
+            <h2 className={styles.sectionTitle}>Your agents</h2>
             <div className={styles.agentList}>
               {myAgents.map((agent) => (
                 <div key={agent.id} className={styles.agentRow}>
@@ -146,24 +210,27 @@ export function ArenaMyAgentsSimple({
                     <h3>{agent.name}</h3>
                     <p className={styles.agentMeta}>
                       {(agent.arena_wins ?? 0)}W · {(agent.arena_losses ?? 0)}L
-                      {agent.is_public ? " · Listed in Discover" : " · Hidden from Discover"}
+                      {agent.is_public ? " · Visible to others" : " · Only you"}
                     </p>
                   </div>
                   <div className={styles.agentActions}>
+                    <Link href={`/agents?edit=${agent.id}`} className={styles.customizeBtn}>
+                      Customize
+                    </Link>
                     <button
                       type="button"
                       className={agent.is_public ? styles.publicBtnOn : styles.publicBtn}
                       onClick={() => onTogglePublic(agent.id, agent.is_public ?? false)}
                       title={
                         agent.is_public
-                          ? "Others can find this agent in Discover"
+                          ? "Others can pick this agent as an opponent"
                           : "Only you can use this agent until you make it public"
                       }
                     >
                       {agent.is_public ? "Public" : "Private"}
                     </button>
                     <button type="button" className={styles.playBtn} onClick={onGoPlay}>
-                      Play now →
+                      Play →
                     </button>
                   </div>
                 </div>
@@ -177,10 +244,13 @@ export function ArenaMyAgentsSimple({
             </button>
           ) : null}
 
-          <p className={styles.footerLink}>
-            Need API keys, custom hosting, or wallet spending caps?{" "}
-            <Link href="/agents">Open full agent settings</Link>
-          </p>
+          <details className={styles.advancedBox}>
+            <summary>Advanced: API keys, spending caps, on-chain ID</summary>
+            <p>
+              For custom API hosting, wallet spend limits, or ERC-8004 registration, use{" "}
+              <Link href="/agents">full agent settings</Link>.
+            </p>
+          </details>
         </>
       ) : null}
     </div>

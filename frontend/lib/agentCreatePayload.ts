@@ -56,9 +56,9 @@ export function behaviorToPrompt(name: string, profile: AgentBehaviorProfile): s
     .join("\n");
 }
 
-export function buildTycoonHostedAgentPayload(name: string) {
+export function buildTycoonHostedAgentPayload(name: string, profileOverride?: Partial<AgentBehaviorProfile>) {
   const trimmed = name.trim();
-  const profile = defaultBehaviorProfile();
+  const profile: AgentBehaviorProfile = { ...defaultBehaviorProfile(), ...profileOverride };
   const prompt = behaviorToPrompt(trimmed, profile);
   return {
     name: trimmed,

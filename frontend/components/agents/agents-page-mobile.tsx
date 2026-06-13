@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
 import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2, CheckCircle2, XCircle, Trophy, Eye, EyeOff, Wallet, X } from "lucide-react";
 import { apiClient, ApiError } from "@/lib/api";
@@ -176,6 +176,7 @@ export default function AgentsPageMobile({
   onTournamentSpendingModalOpened,
 }: AgentsPageMobileProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
@@ -336,6 +337,19 @@ export default function AgentsPageMobile({
   React.useEffect(() => {
     fetchAgents();
   }, [fetchAgents]);
+
+  const deepLinkEditHandled = React.useRef(false);
+  React.useEffect(() => {
+    if (deepLinkEditHandled.current || loading || agents.length === 0) return;
+    const editRaw = searchParams.get("edit");
+    if (!editRaw) return;
+    const id = Number(editRaw);
+    if (!Number.isFinite(id)) return;
+    const agent = agents.find((a) => a.id === id);
+    if (!agent) return;
+    deepLinkEditHandled.current = true;
+    openEdit(agent);
+  }, [loading, agents, searchParams]);
 
   // On form load: AppKit address or injected EOA (registration uses injected EOA).
   React.useEffect(() => {
