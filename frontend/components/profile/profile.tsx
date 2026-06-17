@@ -23,6 +23,7 @@ import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
 import { DailyClaim } from '@/components/rewards/DailyClaim';
+import { GoodDollarClaim } from '@/components/rewards/GoodDollarClaim';
 import { SkeletonPerkGrid, SkeletonCard } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
 import FirstTimeHint from '@/components/ui/FirstTimeHint';
@@ -31,6 +32,7 @@ import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
 import GameRoomLoading from '@/components/settings/game-room-loading';
+import { ProfileOnchainRegisterPrompt } from '@/components/profile/ProfileOnchainRegisterPrompt';
 
 const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
 const isValidWallet = (a: unknown): a is Address => {
@@ -697,7 +699,8 @@ function GuestProfileView({
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[260px] max-h-[60vh] overflow-y-auto">
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
-                <div className="mb-6">
+                <div className="mb-6 space-y-4">
+                  <GoodDollarClaim />
                   <DailyClaim chain="CELO" accountKey={guestUser.id} />
                 </div>
                 {!displayStats ? (
@@ -1161,7 +1164,7 @@ export default function Profile() {
 
     // If username fetch is done but empty, user likely isn't registered (or wrong network/contract address).
     if (!usernameLoading && !username) {
-      setError('No on-chain profile found for this address. Ensure you are on the correct network and registered.');
+      setError('NEEDS_ONCHAIN_REGISTRATION');
       setLoading(false);
       return;
     }
@@ -1446,6 +1449,10 @@ export default function Profile() {
       );
     }
 
+    if (error === 'NEEDS_ONCHAIN_REGISTRATION' && !guestUser) {
+      return <ProfileOnchainRegisterPrompt variant="desktop" />;
+    }
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] flex items-center justify-center">
         <div className="text-center space-y-6 px-4">
@@ -1687,7 +1694,8 @@ export default function Profile() {
                   compact
                   className="mb-4"
                 />
-                <div className="mb-6">
+                <div className="mb-6 space-y-4">
+                  <GoodDollarClaim />
                   <DailyClaim
                     chain={
                       chainId === 137 || chainId === 80001

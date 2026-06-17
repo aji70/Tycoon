@@ -26,6 +26,7 @@ import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
 import { DailyClaim } from '@/components/rewards/DailyClaim';
+import { GoodDollarClaim } from '@/components/rewards/GoodDollarClaim';
 import { SkeletonPerkGrid, SkeletonCard } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
 import FirstTimeHint from '@/components/ui/FirstTimeHint';
@@ -34,6 +35,7 @@ import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
 import GameRoomLoading from '@/components/settings/game-room-loading';
+import { ProfileOnchainRegisterPrompt } from '@/components/profile/ProfileOnchainRegisterPrompt';
 
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
 const MAX_AVATAR_DIM = 512;
@@ -923,6 +925,7 @@ function GuestProfileViewMobile({
         </section>
 
         <div className="px-4 py-4 space-y-4">
+          <GoodDollarClaim />
           {(guestUser?.id || walletAddress) && (
             <DailyClaim chain="CELO" accountKey={guestUser?.id || walletAddress} />
           )}
@@ -1110,7 +1113,7 @@ export default function ProfilePageMobile() {
     }
 
     if (!usernameLoading && !username) {
-      setError('No on-chain profile found for this address. Ensure you are on the correct network and registered.');
+      setError('NEEDS_ONCHAIN_REGISTRATION');
       setLoading(false);
       return;
     }
@@ -1385,6 +1388,10 @@ export default function ProfilePageMobile() {
       );
     }
 
+    if (error === 'NEEDS_ONCHAIN_REGISTRATION' && !guestUser) {
+      return <ProfileOnchainRegisterPrompt variant="mobile" />;
+    }
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] flex items-center justify-center px-4">
         <div className="text-center space-y-6">
@@ -1615,6 +1622,9 @@ export default function ProfilePageMobile() {
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[220px] max-h-[50vh] overflow-y-auto">
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                <div className="mb-4 space-y-4">
+                  <GoodDollarClaim />
+                </div>
                 <FirstTimeHint
                   storageKey="profile_stats"
                   message="Your stats and level progress live here. Claim rewards after games from the results screen."

@@ -189,7 +189,9 @@ export function ArenaRevampPage({
     : !hasAgent
       ? "Create an agent in My Agents first"
       : !hasOpponents
-        ? `Select ${matchType === "agentVsAi" ? "1 opponent" : "at least 1 opponent"} below`
+        ? matchType === "agentVsAi"
+          ? "Step 2: tap Select opponent on one agent below (your agent in Step 1 is not enough)"
+          : "Step 2: select at least 1 opponent below"
         : null;
 
   return (
@@ -530,7 +532,9 @@ function DiscoverPanel({
           <div className={styles.emptyState}>
             <p className={styles.emptyTitle}>No opponents available yet</p>
             <p className={styles.emptyDesc}>
-              When other players make agents public, they will appear here. You can create your own and invite friends.
+              Step 1 only picks <strong>your</strong> agent. To enable Start match, you need a public opponent here in
+              Step 2. Ask a friend to list an agent in Discover, or create a second agent and turn on{" "}
+              <strong>List in Discover</strong> in My Agents.
             </p>
             <button type="button" className={styles.emptyCta} onClick={() => onTabChange("my-agents")}>
               Go to My Agents

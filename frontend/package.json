@@ -10,12 +10,13 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@sentry/nextjs": "^8.0.0",
     "@ai-sdk/anthropic": "^3.0.39",
     "@farcaster/miniapp-sdk": "^0.2.1",
     "@goat-sdk/adapter-vercel-ai": "^0.2.10",
     "@goat-sdk/core": "^0.5.0",
     "@goat-sdk/wallet-viem": "^0.3.0",
+    "@goodsdks/citizen-sdk": "^1.2.5",
+    "@goodsdks/identity-sdk": "^1.0.5",
     "@privy-io/react-auth": "^1.99.1",
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-switch": "^1.2.5",
@@ -23,6 +24,7 @@
     "@react-three/fiber": "8.18.0",
     "@reown/appkit": "^1.8.2",
     "@reown/appkit-adapter-wagmi": "^1.8.2",
+    "@sentry/nextjs": "^8.0.0",
     "@tanstack/react-query": "^5.90.2",
     "ai": "^6.0.78",
     "axios": "^1.12.2",

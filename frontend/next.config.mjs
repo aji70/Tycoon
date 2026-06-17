@@ -28,8 +28,11 @@ const nextConfig = {
       "@tanstack/react-query",
       "wagmi",
       "viem",
+      "@goodsdks/citizen-sdk",
+      "@goodsdks/identity-sdk",
     ],
   },
+  transpilePackages: ["@goodsdks/citizen-sdk", "@goodsdks/identity-sdk"],
   async redirects() {
     return [
       {
