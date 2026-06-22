@@ -89,9 +89,10 @@ export async function getEconomyConfig(req, res) {
         dailyClaim: {
           dailyRewardTycBase: eff.dailyRewardTycBase,
           streakBonusTycPerDay: eff.streakBonusTycPerDay,
+          gdVerifiedBonusTyc: eff.gdVerifiedBonusTyc,
           effectiveSource: eff.source,
-          envFallback: { dailyRewardTycBase: envBase, streakBonusTycPerDay: envStreak },
-          envKeys: ["DAILY_REWARD_TYC_BASE", "DAILY_REWARD_STREAK_BONUS_TYC"],
+          envFallback: { dailyRewardTycBase: envBase, streakBonusTycPerDay: envStreak, gdVerifiedBonusTyc: process.env.GD_VERIFIED_BONUS_TYC ?? "0.5" },
+          envKeys: ["DAILY_REWARD_TYC_BASE", "DAILY_REWARD_STREAK_BONUS_TYC", "GD_VERIFIED_BONUS_TYC"],
         },
         note:
           eff.source === "db_override"
@@ -115,6 +116,7 @@ export async function patchEconomyConfig(req, res) {
     const next = {
       dailyRewardTycBase: cur.dailyRewardTycBase,
       streakBonusTycPerDay: cur.streakBonusTycPerDay,
+      gdVerifiedBonusTyc: cur.gdVerifiedBonusTyc,
     };
 
     if (Object.prototype.hasOwnProperty.call(req.body || {}, "dailyRewardTycBase")) {
@@ -143,9 +145,23 @@ export async function patchEconomyConfig(req, res) {
       }
     }
 
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "gdVerifiedBonusTyc")) {
+      const v = req.body.gdVerifiedBonusTyc;
+      if (v === null || v === "") {
+        next.gdVerifiedBonusTyc = null;
+      } else {
+        const n = Number(v);
+        if (!Number.isFinite(n) || n < 0 || n > 1e6) {
+          return res.status(400).json({ success: false, error: "gdVerifiedBonusTyc must be a finite non-negative number" });
+        }
+        next.gdVerifiedBonusTyc = n;
+      }
+    }
+
     const rowPayload = {};
     if (next.dailyRewardTycBase != null) rowPayload.dailyRewardTycBase = next.dailyRewardTycBase;
     if (next.streakBonusTycPerDay != null) rowPayload.streakBonusTycPerDay = next.streakBonusTycPerDay;
+    if (next.gdVerifiedBonusTyc != null) rowPayload.gdVerifiedBonusTyc = next.gdVerifiedBonusTyc;
 
     const hasAny = Object.keys(rowPayload).length > 0;
     if (!hasAny) {
@@ -173,6 +189,7 @@ export async function patchEconomyConfig(req, res) {
         dailyClaim: {
           dailyRewardTycBase: eff.dailyRewardTycBase,
           streakBonusTycPerDay: eff.streakBonusTycPerDay,
+          gdVerifiedBonusTyc: eff.gdVerifiedBonusTyc,
           effectiveSource: eff.source,
         },
       },

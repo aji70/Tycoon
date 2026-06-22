@@ -5,11 +5,29 @@ import db from "../config/database.js";
 import { mintVoucherTo, isContractConfigured } from "../services/tycoonContract.js";
 import logger from "../config/logger.js";
 import { getEffectiveDailyClaimConfig } from "../services/platformSettings.js";
+import { isGoodDollarIdentityEnabled, isUserGoodDollarVerified } from "../services/goodDollarIdentity.js";
+import { recordEvent } from "../services/analytics.js";
 
 function toDateOnly(d) {
   if (!d) return null;
   const x = new Date(d);
   return `${x.getUTCFullYear()}-${String(x.getUTCMonth() + 1).padStart(2, "0")}-${String(x.getUTCDate()).padStart(2, "0")}`;
+}
+
+function computeDailyRewardWei(eff, streak, verifiedCitizen) {
+  const baseReward = BigInt(String(eff.dailyRewardTycBase).split(".")[0] || "0") * BigInt(1e18);
+  const streakDays = Math.min(Math.max(streak, 1) - 1, 7);
+  const streakBonus = BigInt(streakDays) * BigInt(Math.round(eff.streakBonusTycPerDay * 1e18));
+  const gdBonus =
+    verifiedCitizen && eff.gdVerifiedBonusTyc > 0
+      ? BigInt(Math.round(eff.gdVerifiedBonusTyc * 1e18))
+      : BigInt(0);
+  return {
+    baseReward,
+    streakBonus,
+    gdBonus,
+    totalWei: baseReward + streakBonus + gdBonus,
+  };
 }
 
 /**
@@ -68,18 +86,31 @@ export async function dailyClaim(req, res) {
 
     let rewardTyc = null;
     let txHash = null;
+    let verifiedCitizen = false;
+    let gdVerifiedBonusTyc = 0;
 
     if (isContractConfigured(normalizedChain)) {
       const eff = await getEffectiveDailyClaimConfig();
-      const baseReward = BigInt(String(eff.dailyRewardTycBase).split(".")[0] || "0") * BigInt(1e18);
-      const streakDays = Math.min(newStreak - 1, 7);
-      const streakBonus = BigInt(streakDays) * BigInt(Math.round(eff.streakBonusTycPerDay * 1e18));
-      const totalWei = baseReward + streakBonus;
+      verifiedCitizen = await isUserGoodDollarVerified(user);
+      const reward = computeDailyRewardWei(eff, newStreak, verifiedCitizen);
+      gdVerifiedBonusTyc = verifiedCitizen ? eff.gdVerifiedBonusTyc : 0;
 
       try {
-        const { hash } = await mintVoucherTo(mintToAddress, totalWei.toString(), normalizedChain);
+        const { hash } = await mintVoucherTo(mintToAddress, reward.totalWei.toString(), normalizedChain);
         txHash = hash;
-        rewardTyc = Number(totalWei) / 1e18;
+        rewardTyc = Number(reward.totalWei) / 1e18;
+        if (verifiedCitizen && gdVerifiedBonusTyc > 0) {
+          await recordEvent("gd_verified_bonus_claim", {
+            entityType: "user",
+            entityId: user_id,
+            payload: {
+              streak: newStreak,
+              gd_verified_bonus_tyc: gdVerifiedBonusTyc,
+              reward_tyc: rewardTyc,
+              chain: normalizedChain,
+            },
+          });
+        }
       } catch (mintErr) {
         await trx.rollback();
         const rawMsg = String(mintErr?.shortMessage || mintErr?.reason || mintErr?.message || "");
@@ -113,9 +144,16 @@ export async function dailyClaim(req, res) {
     return res.json({
       success: true,
       already_claimed: false,
-      message: rewardTyc != null ? `Day ${newStreak}! You received ${rewardTyc} TYC.` : `Day ${newStreak}! Streak recorded.`,
+      message:
+        rewardTyc != null
+          ? verifiedCitizen && gdVerifiedBonusTyc > 0
+            ? `Day ${newStreak}! You received ${rewardTyc} TYC (includes +${gdVerifiedBonusTyc} G$ citizen bonus).`
+            : `Day ${newStreak}! You received ${rewardTyc} TYC.`
+          : `Day ${newStreak}! Streak recorded.`,
       streak: newStreak,
       reward_tyc: rewardTyc,
+      verified_citizen: verifiedCitizen,
+      gd_verified_bonus_tyc: verifiedCitizen ? gdVerifiedBonusTyc : 0,
       tx_hash: txHash || undefined,
       mint_to: mintToAddress,
     });
@@ -144,13 +182,34 @@ export async function dailyClaimStatus(req, res) {
 
     const today = toDateOnly(new Date());
     const lastClaim = toDateOnly(user.last_daily_claim_at);
+    const yesterday = (() => {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() - 1);
+      return toDateOnly(d);
+    })();
     const canClaim = lastClaim !== today;
+    const streak = Number(user.login_streak || 0);
+
+    let nextStreak = streak;
+    if (canClaim) {
+      if (lastClaim === yesterday) nextStreak = streak + 1;
+      else if (!lastClaim) nextStreak = 1;
+      else nextStreak = 1;
+    }
+
+    const eff = await getEffectiveDailyClaimConfig();
+    const verifiedCitizen = await isUserGoodDollarVerified(user);
+    const rewardPreview = computeDailyRewardWei(eff, nextStreak, verifiedCitizen);
 
     return res.json({
       success: true,
       can_claim: canClaim,
-      streak: Number(user.login_streak || 0),
+      streak,
       last_claim_at: user.last_daily_claim_at || null,
+      verified_citizen: verifiedCitizen,
+      gd_identity_enabled: isGoodDollarIdentityEnabled(),
+      gd_verified_bonus_tyc: eff.gdVerifiedBonusTyc,
+      estimated_reward_tyc: canClaim ? Number(rewardPreview.totalWei) / 1e18 : null,
     });
   } catch (err) {
     logger.error({ err: err?.message }, "dailyClaimStatus error");

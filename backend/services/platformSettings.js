@@ -71,8 +71,12 @@ export async function getEconomyDailyClaimOverrides() {
             parsed.streakBonusTycPerDay != null && Number.isFinite(Number(parsed.streakBonusTycPerDay))
               ? Number(parsed.streakBonusTycPerDay)
               : null,
+          gdVerifiedBonusTyc:
+            parsed.gdVerifiedBonusTyc != null && Number.isFinite(Number(parsed.gdVerifiedBonusTyc))
+              ? Number(parsed.gdVerifiedBonusTyc)
+              : null,
         }
-      : { dailyRewardTycBase: null, streakBonusTycPerDay: null };
+      : { dailyRewardTycBase: null, streakBonusTycPerDay: null, gdVerifiedBonusTyc: null };
   cache.economy = { v: out, at: now };
   return out;
 }
@@ -87,10 +91,16 @@ export async function getEffectiveDailyClaimConfig() {
     o.streakBonusTycPerDay != null
       ? Number(o.streakBonusTycPerDay)
       : Number(process.env.DAILY_REWARD_STREAK_BONUS_TYC ?? "0.5");
-  const hasDbOverride = o.dailyRewardTycBase != null || o.streakBonusTycPerDay != null;
+  const gdBonus =
+    o.gdVerifiedBonusTyc != null
+      ? Number(o.gdVerifiedBonusTyc)
+      : Number(process.env.GD_VERIFIED_BONUS_TYC ?? "0.5");
+  const hasDbOverride =
+    o.dailyRewardTycBase != null || o.streakBonusTycPerDay != null || o.gdVerifiedBonusTyc != null;
   return {
     dailyRewardTycBase: base,
     streakBonusTycPerDay: Number.isFinite(streakBonus) ? streakBonus : 0.5,
+    gdVerifiedBonusTyc: Number.isFinite(gdBonus) && gdBonus >= 0 ? gdBonus : 0.5,
     source: hasDbOverride ? "db_override" : "env",
   };
 }

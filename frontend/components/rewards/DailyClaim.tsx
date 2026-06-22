@@ -1,14 +1,19 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Calendar, Gift, Loader2 } from 'lucide-react';
+import { Calendar, Gift, Loader2, ShieldCheck } from 'lucide-react';
 import { apiClient } from '@/lib/api';
+import { GOODDOLLAR_UPDATED_EVENT } from '@/lib/gooddollar/events';
 import toast from 'react-hot-toast';
 
 interface DailyClaimStatus {
   can_claim: boolean;
   streak: number;
   last_claim_at: string | null;
+  verified_citizen?: boolean;
+  gd_identity_enabled?: boolean;
+  gd_verified_bonus_tyc?: number;
+  estimated_reward_tyc?: number | null;
 }
 
 type SupportedChain = 'CELO' | 'POLYGON' | 'BASE';
@@ -27,7 +32,16 @@ export function DailyClaim({ chain, accountKey }: DailyClaimProps) {
   const fetchStatus = useCallback(() => {
     setLoading(true);
     apiClient
-      .get<{ success?: boolean; can_claim?: boolean; streak?: number; last_claim_at?: string | null }>(
+      .get<{
+        success?: boolean;
+        can_claim?: boolean;
+        streak?: number;
+        last_claim_at?: string | null;
+        verified_citizen?: boolean;
+        gd_identity_enabled?: boolean;
+        gd_verified_bonus_tyc?: number;
+        estimated_reward_tyc?: number | null;
+      }>(
         'rewards/daily-claim/status',
         chain ? { chain } : undefined
       )
@@ -38,6 +52,10 @@ export function DailyClaim({ chain, accountKey }: DailyClaimProps) {
             can_claim: r.data.can_claim === true,
             streak: r.data.streak ?? 0,
             last_claim_at: r.data.last_claim_at ?? null,
+            verified_citizen: r.data.verified_citizen === true,
+            gd_identity_enabled: r.data.gd_identity_enabled !== false,
+            gd_verified_bonus_tyc: r.data.gd_verified_bonus_tyc ?? 0,
+            estimated_reward_tyc: r.data.estimated_reward_tyc ?? null,
           });
         } else {
           setStatus(null);
@@ -51,6 +69,14 @@ export function DailyClaim({ chain, accountKey }: DailyClaimProps) {
     setStatus(null);
     fetchStatus();
   }, [chain, accountKey, fetchStatus]);
+
+  useEffect(() => {
+    const onGdUpdated = () => {
+      fetchStatus();
+    };
+    window.addEventListener(GOODDOLLAR_UPDATED_EVENT, onGdUpdated);
+    return () => window.removeEventListener(GOODDOLLAR_UPDATED_EVENT, onGdUpdated);
+  }, [fetchStatus]);
 
   const handleClaim = () => {
     if (!status?.can_claim || claiming) return;
@@ -104,9 +130,34 @@ export function DailyClaim({ chain, accountKey }: DailyClaimProps) {
           </p>
         </div>
       </div>
-      <p className="text-slate-400 text-sm mb-4">
+      <p className="text-slate-400 text-sm mb-3">
         Log in every day to build your streak and claim TYC vouchers. Higher streaks earn bonus TYC.
       </p>
+      {status.gd_identity_enabled && (status.gd_verified_bonus_tyc ?? 0) > 0 && (
+        <p
+          className={`text-sm mb-4 flex items-start gap-2 rounded-lg border px-3 py-2 ${
+            status.verified_citizen
+              ? 'border-emerald-500/30 bg-emerald-950/25 text-emerald-100'
+              : 'border-slate-700/80 bg-slate-900/40 text-slate-400'
+          }`}
+        >
+          <ShieldCheck className={`w-4 h-4 shrink-0 mt-0.5 ${status.verified_citizen ? 'text-emerald-400' : 'text-slate-500'}`} />
+          <span>
+            {status.verified_citizen ? (
+              <>
+                Verified G$ citizen: <strong>+{status.gd_verified_bonus_tyc} TYC</strong> on each daily claim.
+                {status.can_claim && status.estimated_reward_tyc != null && (
+                  <> Today&apos;s total: ~{status.estimated_reward_tyc} TYC.</>
+                )}
+              </>
+            ) : (
+              <>
+                Verify with GoodDollar below for <strong>+{status.gd_verified_bonus_tyc} TYC</strong> on each daily claim.
+              </>
+            )}
+          </span>
+        </p>
+      )}
       <button
         onClick={handleClaim}
         disabled={!status.can_claim || claiming}

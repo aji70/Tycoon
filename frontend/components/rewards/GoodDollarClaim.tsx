@@ -9,6 +9,7 @@ import { celo } from 'wagmi/chains';
 import toast from 'react-hot-toast';
 import { useGoodDollarClaim } from '@/hooks/useGoodDollarClaim';
 import { GD_CELO_CHAIN_ID } from '@/lib/gooddollar/constants';
+import { dispatchGoodDollarUpdated } from '@/lib/gooddollar/events';
 
 function formatGdAmount(amount: bigint): string {
   const decimals = CHAIN_DECIMALS[SupportedChains.CELO] ?? 18;
@@ -40,6 +41,9 @@ export function GoodDollarClaim({ className = '' }: GoodDollarClaimProps) {
     try {
       const next = await refreshStatus();
       setStatus(next);
+      if (next?.status !== 'not_whitelisted') {
+        dispatchGoodDollarUpdated();
+      }
     } catch (err) {
       console.error('GoodDollar status:', err);
       setStatus(null);
@@ -77,6 +81,7 @@ export function GoodDollarClaim({ className = '' }: GoodDollarClaimProps) {
       await claim();
       toast.success(`Claimed ${formatGdAmount(status.entitlement)} G$!`);
       await loadStatus();
+      dispatchGoodDollarUpdated();
     } catch (err) {
       const msg = (err as Error)?.message || 'Claim failed';
       if (/whitelist|verif/i.test(msg)) {
