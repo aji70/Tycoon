@@ -154,9 +154,13 @@ export const GameTradeRequestController = {
 
       if (trade.status !== "pending" && trade.status !== "counter") {
         await trx.rollback();
+        const rolledWithoutReply =
+          trade.status === "declined"
+            ? "This trade was already declined — unanswered incoming offers are auto-declined when you finish your roll and move."
+            : "This trade is no longer pending and cannot be accepted.";
         return res.status(400).json({
           success: false,
-          message: "Trade not available for acceptance",
+          message: rolledWithoutReply,
         });
       }
 
@@ -335,7 +339,11 @@ export const GameTradeRequestController = {
         .whereIn("status", ["pending", "counter"])
         .update({ status: "declined", updated_at: new Date() });
       if (!updated) {
-        return res.status(409).json({ success: false, message: "Trade already resolved" });
+        return res.status(409).json({
+          success: false,
+          message:
+            "This trade was already resolved — if you rolled without replying, incoming offers are auto-declined when you move.",
+        });
       }
       const io = req.app.get("io");
       if (io && row?.game_id) await emitGameUpdateByGameId(io, row.game_id);
@@ -495,7 +503,11 @@ export const GameTradeRequestController = {
 
       if (trade.status !== "pending" && trade.status !== "counter") {
         await trx.rollback();
-        return res.status(409).json({ success: false, message: "Trade already resolved" });
+        return res.status(409).json({
+          success: false,
+          message:
+            "This trade was already resolved — if you rolled without replying, incoming offers are auto-declined when you move.",
+        });
       }
 
       const game = await trx("games").where({ id: trade.game_id, status: "RUNNING" }).first();
