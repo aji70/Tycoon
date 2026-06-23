@@ -133,7 +133,7 @@ export const GameTradeRequestController = {
       console.error("Create Trade Error:", error);
       res.status(500).json({
         success: false,
-        message: "Failed to create trade request" + error?.message,
+        message: "Failed to create trade request",
       });
     }
   },
@@ -247,24 +247,31 @@ export const GameTradeRequestController = {
         updated_at: new Date(),
       });
 
-      const proposerUser = await trx("users").where({ id: player.user_id }).select("username").first();
-      const proposerUsername = proposerUser?.username ?? "Player";
-      await trx("game_play_history").insert({
-        game_id,
-        game_player_id: target_player.id,
-        rolled: null,
-        old_position: null,
-        new_position: null,
-        action: "trade_accept",
-        amount: 0,
-        extra: null,
-        comment: `accepted trade with ${proposerUsername}`,
-        active: 1,
-        created_at: new Date(),
-        updated_at: new Date(),
-      });
-
       await trx.commit();
+
+      const proposerUser = await db("users").where({ id: player.user_id }).select("username").first();
+      const proposerUsername = proposerUser?.username ?? "Player";
+      try {
+        await db("game_play_history").insert({
+          game_id,
+          game_player_id: target_player.id,
+          rolled: null,
+          old_position: target_player.position ?? null,
+          new_position: target_player.position ?? 0,
+          action: "trade_accept",
+          amount: 0,
+          extra: null,
+          comment: `accepted trade with ${proposerUsername}`,
+          active: 1,
+          created_at: new Date(),
+          updated_at: new Date(),
+        });
+      } catch (historyErr) {
+        logger.warn(
+          { err: historyErr, game_id, trade_id: id, game_player_id: target_player.id },
+          "Trade accepted but game_play_history insert failed — run migration 20260303000000 if action trade_accept is missing"
+        );
+      }
 
       // Notify clients so balance updates immediately
       const io = req.app.get("io");
@@ -311,9 +318,10 @@ export const GameTradeRequestController = {
     } catch (error) {
       await trx.rollback();
       console.error("Accept Trade Error:", error);
-      res
-        .status(500)
-        .json({ success: false, message: "Failed to accept trade" });
+      res.status(500).json({
+        success: false,
+        message: "Failed to accept trade",
+      });
     }
   },
 
