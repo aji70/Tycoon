@@ -25,6 +25,21 @@ const REWARD_SYSTEM_ABI = [
       { name: "strength", type: "uint256" },
       { name: "tycPrice", type: "uint256" },
       { name: "usdcPrice", type: "uint256" },
+      { name: "cusdcPrice", type: "uint256" },
+      { name: "usdtPrice", type: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "updateCollectiblePrices",
+    inputs: [
+      { name: "tokenId", type: "uint256" },
+      { name: "newTycPrice", type: "uint256" },
+      { name: "newUsdcPrice", type: "uint256" },
+      { name: "newCusdcPrice", type: "uint256" },
+      { name: "newUsdtPrice", type: "uint256" },
     ],
     outputs: [],
     stateMutability: "nonpayable",
@@ -217,7 +232,7 @@ export async function stockAllInitialPerks(chain = "CELO", amount = 50) {
         { chain, perk: item.perk, strength: item.strength, amount: amt.toString() },
         "stockAllInitialPerks: stockShop"
       );
-      const tx = await contract.stockShop(amt, item.perk, item.strength, tycWei, usdcUnits);
+      const tx = await contract.stockShop(amt, item.perk, item.strength, tycWei, usdcUnits, usdcUnits, usdcUnits);
       const receipt = await tx.wait();
       transactions.push({
         perk: item.perk,
@@ -294,7 +309,7 @@ export async function stockShop(amount, perk, strength, tycPrice, usdcPrice, cha
       const contract = await getRewardSystemContract(chain);
       logger.info(`Stocking shop: perk=${perk}, strength=${strength}, amount=${amount}, tycPrice=${tycPrice}, usdcPrice=${usdcPrice}`);
 
-      const tx = await contract.stockShop(amount, perk, strength, tycPrice, usdcPrice);
+      const tx = await contract.stockShop(amount, perk, strength, tycPrice, usdcPrice, usdcPrice, usdcPrice);
       const receipt = await tx.wait();
 
       logger.info(`stockShop tx confirmed: ${receiptHash(receipt)}`);

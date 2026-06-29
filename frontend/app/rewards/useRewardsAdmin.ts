@@ -42,6 +42,7 @@ import {
   useTycoonCreateWalletForExistingUser,
 } from "@/context/ContractProvider";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
+import { mirrorUsdcStablePrices } from "@/lib/shop/mirrorUsdcStablePrices";
 import { ApiResponse } from "@/types/api";
 import {
   CollectiblePerk,
@@ -601,12 +602,15 @@ export function useRewardsAdmin() {
     const usdcPrice = selectedItem
       ? parseUnits(selectedItem.usdcPrice, 6)
       : parseUnits("0.20", 6);
+    const { cusdcWei, usdtWei } = mirrorUsdcStablePrices(usdcPrice);
     await stockShopHook.stock(
       50,
       perk as unknown as ContractCollectiblePerk,
       strength,
       Number(tycPrice),
-      Number(usdcPrice)
+      Number(usdcPrice),
+      Number(cusdcWei),
+      Number(usdtWei)
     );
   };
 
@@ -665,12 +669,15 @@ export function useRewardsAdmin() {
         const item = missing[i];
         const tycPrice = parseUnits(item.tycPrice, 18);
         const usdcPrice = parseUnits(item.usdcPrice, 6);
+        const { cusdcWei, usdtWei } = mirrorUsdcStablePrices(usdcPrice);
         const hash = await stockShopHook.stock(
           50,
           item.perk as unknown as ContractCollectiblePerk,
           item.strength,
           Number(tycPrice),
-          Number(usdcPrice)
+          Number(usdcPrice),
+          Number(cusdcWei),
+          Number(usdtWei)
         );
         if (publicClient && hash) {
           await publicClient.waitForTransactionReceipt({ hash });
@@ -795,10 +802,51 @@ export function useRewardsAdmin() {
     if (!updateTokenId) return;
     const tycWei = updateTycPrice ? parseUnits(updateTycPrice, 18) : BigInt(0);
     const usdcWei = updateUsdcPrice ? parseUnits(updateUsdcPrice, 6) : BigInt(0);
-    await updateHook.update(BigInt(updateTokenId), tycWei, usdcWei);
+    const { cusdcWei, usdtWei } = mirrorUsdcStablePrices(usdcWei);
+    await updateHook.update(BigInt(updateTokenId), tycWei, usdcWei, cusdcWei, usdtWei);
     setUpdateTokenId("");
     setUpdateTycPrice("");
     setUpdateUsdcPrice("");
+  };
+
+  const handleSyncStablePricesFromCatalog = async () => {
+    const shopCollectibles = allTokens.filter(
+      (t): t is TokenDisplayItem & { perk: CollectiblePerk; strength: number } =>
+        t.type === "collectible" && t.perk != null && t.strength != null
+    );
+    if (shopCollectibles.length === 0) {
+      setStatus({ type: "error", message: "No shop collectibles found to sync." });
+      return;
+    }
+    setStockAllProgress({ active: true, current: 0, total: shopCollectibles.length });
+    try {
+      let synced = 0;
+      for (let i = 0; i < shopCollectibles.length; i++) {
+        const token = shopCollectibles[i]!;
+        setStockAllProgress((p) => ({ ...p, current: i + 1 }));
+        const catalog = INITIAL_COLLECTIBLES.find(
+          (row) => row.perk === token.perk && row.strength === token.strength
+        );
+        const tycWei = catalog ? parseUnits(catalog.tycPrice, 18) : (token.tycPrice as bigint);
+        const usdcWei = catalog ? parseUnits(catalog.usdcPrice, 6) : (token.usdcPrice as bigint);
+        if (usdcWei <= 0n) continue;
+        const { cusdcWei, usdtWei } = mirrorUsdcStablePrices(usdcWei);
+        const hash = await updateHook.update(token.tokenId, tycWei, usdcWei, cusdcWei, usdtWei);
+        if (publicClient && hash) {
+          await publicClient.waitForTransactionReceipt({ hash });
+        }
+        synced += 1;
+      }
+      setStatus({
+        type: "success",
+        message: `Synced USDT/cUSD prices for ${synced} shop perk(s) from catalog.`,
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Sync stable prices failed";
+      setStatus({ type: "error", message: msg });
+    } finally {
+      setStockAllProgress({ active: false, current: 0, total: 0 });
+    }
   };
 
   const handleWithdraw = async () => {
@@ -1041,6 +1089,7 @@ export function useRewardsAdmin() {
       handleMintCollectible,
       handleStockShop,
       handleStockAllPerks,
+      handleSyncStablePricesFromCatalog,
       handleBackendStockAllPerks,
       handleBackendStockAllBundles,
       handleStockBundle,

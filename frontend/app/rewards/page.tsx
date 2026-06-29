@@ -29,6 +29,7 @@ import {
   BookOpen,
   Copy,
   X,
+  Smartphone,
 } from 'lucide-react';
 
 import {
@@ -287,7 +288,13 @@ export default function RewardAdminPanel() {
 
   const searchParams = useSearchParams();
   useEffect(() => {
-    if (searchParams.get('section') === 'stock') setActiveSection('stock');
+    const section = searchParams.get('section');
+    if (section === 'stock') setActiveSection('stock');
+    if (searchParams.get('sync') === 'minipay' && typeof document !== 'undefined') {
+      requestAnimationFrame(() => {
+        document.getElementById('minipay-shop-sync')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
@@ -394,6 +401,53 @@ export default function RewardAdminPanel() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <motion.div
+          id="minipay-shop-sync"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-10 max-w-3xl mx-auto rounded-2xl border border-cyan-500/40 bg-gradient-to-br from-cyan-950/50 to-teal-950/30 p-6 sm:p-8 shadow-lg shadow-cyan-900/20"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6">
+            <div className="rounded-xl bg-cyan-500/15 p-3 border border-cyan-400/30 shrink-0 self-start">
+              <Smartphone className="w-8 h-8 text-cyan-300" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl font-bold text-white mb-1">MiniPay perk shop — USDT prices</h2>
+              <p className="text-sm text-gray-300 mb-4 leading-relaxed">
+                After stocking perks, run this once so on-chain <strong className="text-cyan-200">USDT</strong> prices match the catalog.
+                MiniPay only charges USDT; without this step, purchases can show a price but revert on-chain.
+              </p>
+              <div className="flex flex-col sm:flex-row flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => handlers.handleSyncStablePricesFromCatalog()}
+                  disabled={anyPending || stockAllProgress.active || backendShopBulk != null}
+                  className="px-6 py-3 rounded-xl font-bold bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {stockAllProgress.active ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Syncing {stockAllProgress.current}/{stockAllProgress.total}…
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-5 h-5" />
+                      Sync USDT prices from catalog
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSection('stock')}
+                  className="px-6 py-3 rounded-xl font-semibold bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600 text-gray-200 transition"
+                >
+                  Stock more perks →
+                </button>
+              </div>
+            </div>
+          </div>
+        </motion.div>
 
         {activeSection === 'overview' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
@@ -608,8 +662,11 @@ export default function RewardAdminPanel() {
             <h3 className="text-2xl font-bold mb-6 flex items-center gap-2 justify-center">
               <Package className="w-8 h-8 text-green-400" /> Stock Shop (50 Units Each)
             </h3>
-            <p className="text-center text-gray-400 mb-6">
+            <p className="text-center text-gray-400 mb-2">
               Click any item to stock 50 units with pre-set prices, or stock all at once below.
+            </p>
+            <p className="text-center text-cyan-400/90 text-sm mb-6">
+              Then use <strong>Sync USDT prices from catalog</strong> at the top of this page (above the tabs).
             </p>
 
             <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-4 mb-8">
@@ -839,8 +896,11 @@ export default function RewardAdminPanel() {
                   disabled={anyPending || !updateTokenId}
                   className="w-full py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold transition disabled:opacity-50"
                 >
-                  {pendingUpdate ? 'Updating...' : 'Update Prices'}
+                  {pendingUpdate ? 'Updating...' : 'Update one perk'}
                 </button>
+                <p className="text-xs text-gray-500 text-center pt-1">
+                  To fix all MiniPay prices at once, use the cyan card at the top of this page.
+                </p>
               </div>
             </div>
           </motion.div>
