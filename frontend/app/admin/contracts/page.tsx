@@ -26,6 +26,7 @@ type TxStatsData = {
 
 const CATEGORY_LABELS: Record<string, string> = {
   core: "Core",
+  general: "General",
   token: "Tokens",
   infrastructure: "Infrastructure",
   erc8004: "ERC-8004",
@@ -76,8 +77,9 @@ export default function AdminContractsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-100">Contract activity</h1>
           <p className="mt-1 text-sm text-slate-400 max-w-2xl">
-            On-chain transaction counts for every address configured in backend env (Tycoon, reward, escrow, tokens,
-            registries, etc.). Data comes from Blockscout counters and is cached ~10 minutes.
+            On-chain transaction counts for <strong className="text-slate-300 font-medium">Celo mainnet</strong> app
+            contracts (Tycoon, reward, property transfer registry, registries, TYC, infrastructure). Excludes
+            USDC, tournament escrow, and Polygon/Base/Alfajores. ERC-8004 entries are mainnet only. Data from Blockscout; cached ~10 minutes.
           </p>
         </div>
         <button
