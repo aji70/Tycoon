@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "@/lib/adminApi";
 import { ApiError } from "@/lib/api";
+import AdminBarChart from "@/components/admin/AdminBarChart";
 import { Loader2 } from "lucide-react";
 
 type GamesOverDay = { date: string; started: number; finished: number };
@@ -29,6 +30,27 @@ type ActivityRow = {
   created_at: string;
 };
 
+type ActiveUsersPeriod = "daily" | "weekly" | "monthly";
+
+type ActiveUsersData = {
+  period: ActiveUsersPeriod;
+  series: { period: string; periodStart: string; activeUsers: number }[];
+  summary: { dauToday: number; wauLast7Days: number; mauThisMonth: number };
+  generatedAt: string;
+};
+
+const ACTIVE_PERIOD_TABS: { value: ActiveUsersPeriod; label: string; hint: string }[] = [
+  { value: "daily", label: "Daily", hint: "Last 30 days" },
+  { value: "weekly", label: "Weekly", hint: "Last 12 weeks (WAU)" },
+  { value: "monthly", label: "Monthly", hint: "Last 12 months (MAU)" },
+];
+
+function formatPeriodLabel(period: ActiveUsersPeriod, row: { period: string; periodStart: string }) {
+  if (period === "daily") return row.periodStart.slice(5);
+  if (period === "monthly") return row.periodStart.slice(0, 7);
+  return row.period.replace(/^\d{4}-W/, "W");
+}
+
 export default function AdminAnalyticsPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -36,6 +58,11 @@ export default function AdminAnalyticsPage() {
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [activePeriod, setActivePeriod] = useState<ActiveUsersPeriod>("daily");
+  const [activeUsers, setActiveUsers] = useState<ActiveUsersData | null>(null);
+  const [activeLoading, setActiveLoading] = useState(true);
+  const [activeError, setActiveError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,6 +98,32 @@ export default function AdminAnalyticsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadActiveUsers = useCallback(async () => {
+    setActiveLoading(true);
+    setActiveError(null);
+    try {
+      const { data: body } = await adminApi.get<{ success: boolean; data?: ActiveUsersData }>(
+        "admin/analytics/active-users",
+        { params: { period: activePeriod } }
+      );
+      if (!body?.success || !body.data) {
+        setActiveError("Unexpected active users response");
+        setActiveUsers(null);
+        return;
+      }
+      setActiveUsers(body.data);
+    } catch (e) {
+      setActiveError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Failed to load active users");
+      setActiveUsers(null);
+    } finally {
+      setActiveLoading(false);
+    }
+  }, [activePeriod]);
+
+  useEffect(() => {
+    loadActiveUsers();
+  }, [loadActiveUsers]);
 
   const maxDayTotal = dash?.gamesOverTime?.length
     ? Math.max(
@@ -127,6 +180,96 @@ export default function AdminAnalyticsPage() {
           {error}
         </p>
       )}
+
+      <section className="mt-8 rounded-xl border border-violet-900/40 bg-violet-950/15 p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-violet-100/95">Active users</h2>
+            <p className="mt-1 text-xs text-violet-200/60 max-w-2xl">
+              Distinct users per period who played a move (<code className="text-violet-100/50">game_play_history</code>)
+              or had a profile update (<code className="text-violet-100/50">users.updated_at</code>). UTC day boundaries.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {ACTIVE_PERIOD_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => setActivePeriod(tab.value)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition-colors ${
+                  activePeriod === tab.value
+                    ? "bg-violet-950/80 text-violet-100 border-violet-700/60"
+                    : "bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-600"
+                }`}
+                title={tab.hint}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {activeLoading && (
+          <div className="mt-4 flex items-center gap-2 text-slate-400 text-sm">
+            <Loader2 className="w-5 h-5 animate-spin text-violet-400" />
+            Loading active users…
+          </div>
+        )}
+
+        {activeError && !activeLoading && (
+          <p className="mt-4 text-sm text-red-400 border border-red-900/50 bg-red-950/30 rounded-lg px-3 py-2 max-w-xl">
+            {activeError}
+          </p>
+        )}
+
+        {activeUsers && !activeLoading && (
+          <>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+                <p className="text-[10px] uppercase text-slate-500">DAU today</p>
+                <p className="text-xl font-semibold text-violet-100 tabular-nums">{activeUsers.summary.dauToday}</p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+                <p className="text-[10px] uppercase text-slate-500">WAU (7 days)</p>
+                <p className="text-xl font-semibold text-slate-200 tabular-nums">{activeUsers.summary.wauLast7Days}</p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+                <p className="text-[10px] uppercase text-slate-500">MAU (this month)</p>
+                <p className="text-xl font-semibold text-slate-200 tabular-nums">{activeUsers.summary.mauThisMonth}</p>
+              </div>
+            </div>
+
+            <AdminBarChart
+              series={activeUsers.series.map((row) => ({
+                label: formatPeriodLabel(activePeriod, row),
+                value: row.activeUsers,
+                title: `${row.periodStart}: ${row.activeUsers.toLocaleString()} active users`,
+              }))}
+              valueLabel="active users"
+              barClassName="bg-violet-600/80"
+            />
+
+            <div className="mt-4 rounded-xl border border-slate-800 overflow-hidden bg-slate-900/30 max-h-56 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-900/90 text-slate-500 text-left sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Period</th>
+                    <th className="px-3 py-2 font-medium text-right">Active users</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {[...activeUsers.series].reverse().map((row) => (
+                    <tr key={`${row.period}-${row.periodStart}`} className="text-slate-400">
+                      <td className="px-3 py-1.5 font-mono text-slate-300">{row.periodStart}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{row.activeUsers}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
 
       {dash && !loading && (
         <>

@@ -28,6 +28,12 @@ type LeaderboardRow = {
   gamesPlayed?: number;
 };
 
+type ActiveUsersSummary = {
+  dauToday: number;
+  wauLast7Days: number;
+  mauThisMonth: number;
+};
+
 const metricCards: { key: keyof PlatformMetrics; label: string; hint?: string }[] = [
   { key: "totalPlayers", label: "Total players" },
   { key: "activePlayersToday", label: "Active players today", hint: "Users updated today (UTC)" },
@@ -91,6 +97,7 @@ export default function AdminDashboardPage() {
   const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
   const [gamesOverTime, setGamesOverTime] = useState<GamesOverDay[] | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
+  const [activeSummary, setActiveSummary] = useState<ActiveUsersSummary | null>(null);
   const [chartNote, setChartNote] = useState<string | null>(null);
   const [leaderboardNote, setLeaderboardNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +111,7 @@ export default function AdminDashboardPage() {
       setChartNote(null);
       setLeaderboardNote(null);
       try {
-        const [ovRes, dashRes, lbRes] = await Promise.allSettled([
+        const [ovRes, dashRes, lbRes, auRes] = await Promise.allSettled([
           adminApi.get<{ success: boolean; data?: { metrics: PlatformMetrics } }>("admin/overview"),
           adminApi.get<{ success: boolean; data?: { gamesOverTime: GamesOverDay[] } }>("admin/analytics/dashboard"),
           adminApi.get<{
@@ -112,6 +119,9 @@ export default function AdminDashboardPage() {
             data?: { leaderboard: LeaderboardRow[] };
           }>("admin/leaderboard", {
             params: { period: "all", chain: "CELO", limit: 10, source: "profile" },
+          }),
+          adminApi.get<{ success: boolean; data?: { summary: ActiveUsersSummary } }>("admin/analytics/active-users", {
+            params: { period: "daily" },
           }),
         ]);
 
@@ -160,6 +170,13 @@ export default function AdminDashboardPage() {
               : "Leaderboard preview unavailable."
           );
         }
+
+        const auBody = auRes.status === "fulfilled" ? auRes.value.data : null;
+        if (auRes.status === "fulfilled" && auBody?.success && auBody?.data?.summary) {
+          setActiveSummary(auBody.data.summary);
+        } else {
+          setActiveSummary(null);
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Failed to load overview");
@@ -177,8 +194,8 @@ export default function AdminDashboardPage() {
     <div>
       <h1 className="text-2xl font-semibold text-slate-100">Dashboard overview</h1>
       <p className="mt-1 text-sm text-slate-400 max-w-2xl">
-        Live platform metrics, a seven-day games volume strip from analytics, and an all-time wins preview (CELO profile
-        source). Live alerts load in the right panel on wide screens.
+        Live platform metrics, active users (DAU/WAU/MAU), a seven-day games volume strip, and an all-time wins preview.
+        See <Link href="/admin/contracts" className="text-cyan-400 hover:underline">Contracts</Link> for on-chain tx counts.
       </p>
 
       {loading && (
@@ -210,6 +227,26 @@ export default function AdminDashboardPage() {
               </div>
             ))}
           </div>
+
+          {activeSummary && (
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-violet-900/40 bg-violet-950/20 px-4 py-3">
+                <p className="text-xs uppercase text-violet-300/70">DAU today</p>
+                <p className="text-2xl font-semibold text-violet-100 tabular-nums mt-1">{activeSummary.dauToday}</p>
+                <Link href="/admin/analytics" className="text-xs text-cyan-400 hover:underline mt-1 inline-block">
+                  Charts →
+                </Link>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3">
+                <p className="text-xs uppercase text-slate-500">WAU (7 days)</p>
+                <p className="text-2xl font-semibold text-slate-200 tabular-nums mt-1">{activeSummary.wauLast7Days}</p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3">
+                <p className="text-xs uppercase text-slate-500">MAU (this month)</p>
+                <p className="text-2xl font-semibold text-slate-200 tabular-nums mt-1">{activeSummary.mauThisMonth}</p>
+              </div>
+            </div>
+          )}
 
           <div className="mt-10 grid gap-6 xl:grid-cols-2">
             <section className="rounded-xl border border-slate-800 bg-slate-900/30 px-4 py-4">

@@ -126,6 +126,123 @@ export async function getDashboard(options = {}) {
   };
 }
 
+function startOfUtcDay(d = new Date()) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+/**
+ * Distinct active users per period (daily / weekly / monthly).
+ * A user counts as active if they played (game_play_history) or had a profile update that day.
+ * @param {'daily'|'weekly'|'monthly'} period
+ */
+export async function getActiveUsersSeries(period = "daily") {
+  const now = new Date();
+  const today = startOfUtcDay(now);
+  let rangeStart = new Date(today);
+
+  if (period === "weekly") {
+    rangeStart.setUTCDate(rangeStart.getUTCDate() - 12 * 7);
+  } else if (period === "monthly") {
+    rangeStart.setUTCMonth(rangeStart.getUTCMonth() - 12);
+  } else {
+    rangeStart.setUTCDate(rangeStart.getUTCDate() - 30);
+  }
+
+  const rangeStartIso = rangeStart.toISOString().slice(0, 19).replace("T", " ");
+
+  let groupExpr;
+  let periodLabelExpr;
+  if (period === "weekly") {
+    groupExpr = "DATE_FORMAT(activity_date, '%x-W%v')";
+    periodLabelExpr = "DATE_FORMAT(MIN(activity_date), '%Y-%m-%d')";
+  } else if (period === "monthly") {
+    groupExpr = "DATE_FORMAT(activity_date, '%Y-%m')";
+    periodLabelExpr = "DATE_FORMAT(MIN(activity_date), '%Y-%m-01')";
+  } else {
+    groupExpr = "activity_date";
+    periodLabelExpr = "activity_date";
+  }
+
+  const rows = await db.raw(
+    `
+    SELECT
+      ${groupExpr} AS period_key,
+      ${periodLabelExpr} AS period_start,
+      COUNT(DISTINCT user_id) AS active_users
+    FROM (
+      SELECT DATE(updated_at) AS activity_date, id AS user_id
+      FROM users
+      WHERE updated_at >= ?
+      UNION
+      SELECT DATE(gph.created_at) AS activity_date, gp.user_id
+      FROM game_play_history gph
+      INNER JOIN game_players gp ON gp.id = gph.game_player_id
+      WHERE gph.created_at >= ?
+    ) activity
+    GROUP BY period_key
+    ORDER BY period_start ASC
+    `,
+    [rangeStartIso, rangeStartIso]
+  );
+
+  const series = (rows[0] || []).map((r) => ({
+    period: String(r.period_key),
+    periodStart: r.period_start ? String(r.period_start).slice(0, 10) : String(r.period_key),
+    activeUsers: Number(r.active_users ?? 0),
+  }));
+
+  const weekStart = new Date(today);
+  weekStart.setUTCDate(weekStart.getUTCDate() - 6);
+  const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const weekStartIso = weekStart.toISOString().slice(0, 19).replace("T", " ");
+  const monthStartIso = monthStart.toISOString().slice(0, 19).replace("T", " ");
+  const todayIso = today.toISOString().slice(0, 19).replace("T", " ");
+
+  const [[todayRow], [weekRow], [monthRow]] = await Promise.all([
+    db.raw(
+      `SELECT COUNT(DISTINCT user_id) AS c FROM (
+        SELECT id AS user_id FROM users WHERE updated_at >= ?
+        UNION
+        SELECT gp.user_id FROM game_play_history gph
+        INNER JOIN game_players gp ON gp.id = gph.game_player_id
+        WHERE gph.created_at >= ?
+      ) t`,
+      [todayIso, todayIso]
+    ),
+    db.raw(
+      `SELECT COUNT(DISTINCT user_id) AS c FROM (
+        SELECT id AS user_id FROM users WHERE updated_at >= ?
+        UNION
+        SELECT gp.user_id FROM game_play_history gph
+        INNER JOIN game_players gp ON gp.id = gph.game_player_id
+        WHERE gph.created_at >= ?
+      ) t`,
+      [weekStartIso, weekStartIso]
+    ),
+    db.raw(
+      `SELECT COUNT(DISTINCT user_id) AS c FROM (
+        SELECT id AS user_id FROM users WHERE updated_at >= ?
+        UNION
+        SELECT gp.user_id FROM game_play_history gph
+        INNER JOIN game_players gp ON gp.id = gph.game_player_id
+        WHERE gph.created_at >= ?
+      ) t`,
+      [monthStartIso, monthStartIso]
+    ),
+  ]);
+
+  return {
+    period,
+    series,
+    summary: {
+      dauToday: Number(todayRow?.[0]?.c ?? 0),
+      wauLast7Days: Number(weekRow?.[0]?.c ?? 0),
+      mauThisMonth: Number(monthRow?.[0]?.c ?? 0),
+    },
+    generatedAt: now.toISOString(),
+  };
+}
+
 /**
  * Get recent analytics events for "recent activity" / errors tab.
  * @param {number} limit - Max rows (default 50, max 200).
