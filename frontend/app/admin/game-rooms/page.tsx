@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { adminApi } from "@/lib/adminApi";
+import { canCancelGameStatus, getAdminGamePlayPath } from "@/lib/adminGameRoomRoutes";
 import { ApiError } from "@/lib/api";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, Loader2, Search, Square } from "lucide-react";
 
 type RoomRow = {
   id: number;
@@ -49,6 +51,7 @@ function formatDuration(ms: number) {
 }
 
 export default function AdminGameRoomsPage() {
+  const router = useRouter();
   const [status, setStatus] = useState<string>("active");
   const [qInput, setQInput] = useState("");
   const [q, setQ] = useState("");
@@ -70,6 +73,13 @@ export default function AdminGameRoomsPage() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkDone, setBulkDone] = useState<string | null>(null);
+
+  const [jumpInput, setJumpInput] = useState("");
+  const [jumpLoading, setJumpLoading] = useState(false);
+  const [jumpError, setJumpError] = useState<string | null>(null);
+
+  const [endingId, setEndingId] = useState<number | null>(null);
+  const [endMsg, setEndMsg] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -117,6 +127,73 @@ export default function AdminGameRoomsPage() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const selectedBulkStatuses = BULK_STATUS_OPTIONS.filter((o) => bulkPick[o.value]).map((o) => o.value);
+
+  async function resolveJumpRoom(): Promise<RoomRow | null> {
+    const trimmed = jumpInput.trim();
+    if (!trimmed) {
+      setJumpError("Enter a room code or id.");
+      return null;
+    }
+    setJumpLoading(true);
+    setJumpError(null);
+    try {
+      const { data: body } = await adminApi.get<{
+        success: boolean;
+        data?: { rooms: RoomRow[] };
+      }>("admin/rooms", {
+        params: { page: 1, pageSize: 1, status: "all", q: trimmed },
+      });
+      const room = body?.data?.rooms?.[0];
+      if (!room) {
+        setJumpError("No room found for that code or id.");
+        return null;
+      }
+      return room;
+    } catch (e) {
+      setJumpError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Lookup failed");
+      return null;
+    } finally {
+      setJumpLoading(false);
+    }
+  }
+
+  async function jumpToAdmin() {
+    const room = await resolveJumpRoom();
+    if (room) router.push(`/admin/game-rooms/${room.id}`);
+  }
+
+  async function jumpToBoard() {
+    const room = await resolveJumpRoom();
+    if (!room) return;
+    const path = getAdminGamePlayPath({
+      code: room.code,
+      status: room.status,
+      isAi: room.isAi,
+    });
+    window.open(path, "_blank", "noopener,noreferrer");
+  }
+
+  async function endGame(room: RoomRow) {
+    if (!canCancelGameStatus(room.status)) return;
+    if (
+      !window.confirm(
+        `End game #${room.id} (${room.code})? This sets status to CANCELLED. On-chain state is not unwound.`
+      )
+    ) {
+      return;
+    }
+    setEndingId(room.id);
+    setEndMsg(null);
+    try {
+      await adminApi.post(`admin/rooms/${room.id}/cancel`, { reason: "admin_dashboard" });
+      setEndMsg(`Ended ${room.code}.`);
+      await load();
+    } catch (e) {
+      setEndMsg(e instanceof ApiError ? e.message : "Failed to end game");
+    } finally {
+      setEndingId(null);
+    }
+  }
 
   async function runBulkPreview() {
     if (selectedBulkStatuses.length === 0) {
@@ -209,8 +286,55 @@ export default function AdminGameRoomsPage() {
       <p className="mt-1 text-sm text-slate-400 max-w-2xl">
         Live games from the database. Duration is from <code className="text-slate-500">started_at</code> (or{" "}
         <code className="text-slate-500">created_at</code>) to now for open games, or to <code className="text-slate-500">updated_at</code>{" "}
-        for finished/cancelled. Cancelling a room does not unwind on-chain state.
+        for finished/cancelled. Ending a game sets <code className="text-slate-500">CANCELLED</code> and does not unwind on-chain state.
       </p>
+
+      <section className="mt-6 rounded-xl border border-cyan-900/40 bg-cyan-950/20 p-4">
+        <h2 className="text-sm font-semibold text-cyan-200/95">Quick open</h2>
+        <p className="mt-1 text-xs text-cyan-200/70 max-w-3xl">
+          Jump straight to a room by code or id — open the live board in a new tab or go to the admin detail view.
+        </p>
+        <div className="mt-3 flex flex-col sm:flex-row gap-2 max-w-2xl">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+            <input
+              type="search"
+              value={jumpInput}
+              onChange={(e) => {
+                setJumpInput(e.target.value);
+                setJumpError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void jumpToAdmin();
+              }}
+              placeholder="Room code or id, e.g. ABC123 or 42"
+              className="w-full rounded-lg bg-slate-900/80 border border-slate-700 pl-9 pr-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-800/60"
+            />
+          </div>
+          <button
+            type="button"
+            disabled={jumpLoading || !jumpInput.trim()}
+            onClick={() => void jumpToBoard()}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-cyan-800/60 bg-cyan-950/50 px-3 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-950/70 disabled:opacity-50"
+          >
+            {jumpLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+            Open board
+          </button>
+          <button
+            type="button"
+            disabled={jumpLoading || !jumpInput.trim()}
+            onClick={() => void jumpToAdmin()}
+            className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-200 hover:border-slate-500 disabled:opacity-50"
+          >
+            Admin view
+          </button>
+        </div>
+        {jumpError && (
+          <p className="mt-2 text-sm text-red-400 border border-red-900/40 rounded-lg px-2 py-1.5 bg-red-950/30 max-w-2xl">
+            {jumpError}
+          </p>
+        )}
+      </section>
 
       <section className="mt-6 rounded-xl border border-amber-900/40 bg-amber-950/20 p-4">
         <h2 className="text-sm font-semibold text-amber-200/95">Bulk cancel open games</h2>
@@ -314,6 +438,18 @@ export default function AdminGameRoomsPage() {
         </p>
       )}
 
+      {endMsg && (
+        <p
+          className={`mt-4 text-sm rounded-lg px-3 py-2 max-w-xl border ${
+            endMsg.startsWith("Ended")
+              ? "text-emerald-400 border-emerald-900/50 bg-emerald-950/30"
+              : "text-red-400 border-red-900/50 bg-red-950/30"
+          }`}
+        >
+          {endMsg}
+        </p>
+      )}
+
       <div className="mt-6 rounded-xl border border-slate-800 overflow-hidden bg-slate-900/30">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left min-w-[720px]">
@@ -362,12 +498,44 @@ export default function AdminGameRoomsPage() {
                     <td className="px-4 py-3 text-slate-400 text-xs">{r.chain ?? "—"}</td>
                     <td className="px-4 py-3 text-slate-400 text-xs tabular-nums">{formatDuration(r.durationMs)}</td>
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/admin/game-rooms/${r.id}`}
-                        className="text-cyan-400 hover:text-cyan-300 text-xs font-medium"
-                      >
-                        Open
-                      </Link>
+                      <div className="inline-flex flex-wrap items-center justify-end gap-2">
+                        <a
+                          href={getAdminGamePlayPath({
+                            code: r.code,
+                            status: r.status,
+                            isAi: r.isAi,
+                          })}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300 text-xs font-medium"
+                          title="Open game board in new tab"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          Board
+                        </a>
+                        <Link
+                          href={`/admin/game-rooms/${r.id}`}
+                          className="text-slate-400 hover:text-slate-200 text-xs font-medium"
+                        >
+                          Admin
+                        </Link>
+                        {canCancelGameStatus(r.status) && (
+                          <button
+                            type="button"
+                            disabled={endingId === r.id}
+                            onClick={() => void endGame(r)}
+                            className="inline-flex items-center gap-1 text-red-400 hover:text-red-300 text-xs font-medium disabled:opacity-50"
+                            title="End game (sets CANCELLED)"
+                          >
+                            {endingId === r.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Square className="w-3 h-3" />
+                            )}
+                            End
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

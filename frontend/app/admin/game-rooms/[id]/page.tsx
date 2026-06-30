@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { adminApi } from "@/lib/adminApi";
+import { canCancelGameStatus, getAdminGamePlayPath } from "@/lib/adminGameRoomRoutes";
 import { ApiError } from "@/lib/api";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
 
 type GameRow = Record<string, unknown>;
 
@@ -38,8 +39,6 @@ type HistRow = {
   comment: string | null;
   created_at: string;
 };
-
-const CANCELLABLE = new Set(["PENDING", "RUNNING", "IN_PROGRESS", "AWAITING_PLAYERS"]);
 
 export default function AdminGameRoomDetailPage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
@@ -102,8 +101,8 @@ export default function AdminGameRoomDetailPage({ params }: { params: { id: stri
   }, [id]);
 
   async function cancelRoom() {
-    if (!game || !CANCELLABLE.has(String(game.status))) return;
-    if (!window.confirm(`Cancel game #${id} (${String(game.code)})? This sets status to CANCELLED. On-chain is not unwound.`)) {
+    if (!game || !canCancelGameStatus(String(game.status))) return;
+    if (!window.confirm(`End game #${id} (${String(game.code)})? This sets status to CANCELLED. On-chain is not unwound.`)) {
       return;
     }
     setCancelBusy(true);
@@ -120,7 +119,7 @@ export default function AdminGameRoomDetailPage({ params }: { params: { id: stri
         setPlayers(body.data.players);
         setProperties(body.data.properties);
         setHistory(body.data.historyTail);
-        setCancelMsg("Room cancelled.");
+        setCancelMsg("Game ended.");
       }
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : "Cancel failed";
@@ -143,7 +142,15 @@ export default function AdminGameRoomDetailPage({ params }: { params: { id: stri
   }
 
   const statusStr = game ? String(game.status) : "";
-  const canCancel = game && CANCELLABLE.has(statusStr);
+  const canCancel = game && canCancelGameStatus(statusStr);
+  const boardPath =
+    game && game.code
+      ? getAdminGamePlayPath({
+          code: String(game.code),
+          status: statusStr,
+          isAi: !!game.is_ai,
+        })
+      : null;
 
   return (
     <div>
@@ -180,16 +187,29 @@ export default function AdminGameRoomDetailPage({ params }: { params: { id: stri
                 )}
               </p>
             </div>
-            {canCancel && (
-              <button
-                type="button"
-                disabled={cancelBusy}
-                onClick={cancelRoom}
-                className="shrink-0 rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-2 text-sm font-medium text-red-200 hover:bg-red-950/60 disabled:opacity-50"
-              >
-                {cancelBusy ? "Cancelling…" : "Cancel room"}
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {boardPath && (
+                <a
+                  href={boardPath}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-800/60 bg-cyan-950/40 px-4 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-950/60"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Open board
+                </a>
+              )}
+              {canCancel && (
+                <button
+                  type="button"
+                  disabled={cancelBusy}
+                  onClick={cancelRoom}
+                  className="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-2 text-sm font-medium text-red-200 hover:bg-red-950/60 disabled:opacity-50"
+                >
+                  {cancelBusy ? "Ending…" : "End game"}
+                </button>
+              )}
+            </div>
           </div>
 
           {cancelMsg && (
