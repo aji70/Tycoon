@@ -187,7 +187,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     <div className="flex min-h-dvh flex-col bg-[#080c0d] text-slate-100">
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-800/80 bg-[#0a1011] px-3 sm:px-4">
         <Link href="/" className="flex items-center gap-2 shrink-0 text-slate-200 hover:text-white transition-colors">
-          <Image src="/icon.png" alt="" width={32} height={32} className="rounded-md" />
+          <Image src="/favicon.png" alt="Tycoon" width={32} height={32} className="rounded-md" />
           <span className="font-semibold text-sm hidden sm:inline">Tycoon</span>
           <span className="text-cyan-500/90 text-xs font-medium uppercase tracking-wider hidden sm:inline">Admin</span>
         </Link>

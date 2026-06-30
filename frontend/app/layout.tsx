@@ -67,7 +67,13 @@ export async function generateMetadata(): Promise<Metadata> {
     description:
       "Tycoon is a decentralized on-chain game inspired by the classic Monopoly game, built on Celo. It allows players to buy, sell, and trade digital properties in a trustless gaming environment.",
     icons: {
-      icon: "/favicon.png",
+      icon: [
+        { url: "/favicon.png", sizes: "192x192", type: "image/png" },
+        { url: "/metadata/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+        { url: "/metadata/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      ],
+      apple: [{ url: "/metadata/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+      shortcut: [{ url: "/metadata/favicon.ico", sizes: "48x48", type: "image/x-icon" }],
     },
     other: {
       "talentapp:project_verification":

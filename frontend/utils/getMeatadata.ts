@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 
 const isProduction = process.env.NODE_ENV === "production";
-const baseUrl = isProduction
-  ? "https://base-monopoly.vercel.app/"
-  : `http://localhost:${process.env.PORT || 3000}`;
+const baseUrl = (
+  process.env.NEXT_PUBLIC_URL ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (isProduction ? "https://www.tycoonworld.xyz" : `http://localhost:${process.env.PORT || 3000}`)
+)
+  .trim()
+  .replace(/\/$/, "");
 
 const titleTemplate = "%s | Decentralized Monopoly Game";
 
@@ -88,7 +92,7 @@ export const getMetadata = ({
       type: "website",
       siteName: "Tycoon",
       locale: "en_US",
-      url: "https://base-monopoly.vercel.app/",
+      url: baseUrl,
     },
     twitter: {
       card: "summary_large_image", // Ensures Twitter uses a large image for the preview
