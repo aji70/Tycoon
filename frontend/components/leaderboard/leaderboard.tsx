@@ -149,14 +149,14 @@ export default function Leaderboard() {
     timeScope === 'bounty' && BOUNTY_COMPLETED
       ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Final standings · Prizes awarded`
       : timeScope === 'bounty'
-        ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Daily snapshot · Fair play · Finished human games (UTC)`
+        ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Daily snapshot · Fair play (UTC)`
         : timeScope === 'month' && monthKey === BOUNTY_MONTH_KEY && BOUNTY_COMPLETED
           ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Final standings`
           : timeScope === 'month' && monthKey === BOUNTY_MONTH_KEY
-            ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Daily snapshot · Finished human games (UTC)`
+            ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Daily snapshot (UTC)`
             : timeScope === 'month'
-              ? `${chainParam} · ${formatMonthLabelUtc(monthKey)} · Finished games only`
-              : `${chainParam} · All-time · Finished games only`;
+              ? `${chainParam} · ${formatMonthLabelUtc(monthKey)}`
+              : `${chainParam} · All-time`;
 
   return (
     <LeaderboardView

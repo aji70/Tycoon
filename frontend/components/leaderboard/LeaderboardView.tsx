@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { CalendarDays, ChevronLeft, Coins, Info, Loader2, Users, Zap } from 'lucide-react';
+import { CalendarDays, ChevronLeft, Info, Loader2, Users, Zap } from 'lucide-react';
 import type { BountyRow, TimeScope } from './leaderboard-types';
 import { BOUNTY_WINNER_COUNT, formatLeaderboardLastUpdated } from './leaderboard-types';
 
@@ -113,9 +113,6 @@ function RankCard({
           >
             {row.username || '—'}
           </Link>
-          <span className="text-[10px] sm:text-xs text-cyan-300/55 font-medium tabular-nums">
-            {row.games_played} finished {row.games_played === 1 ? 'game' : 'games'}
-          </span>
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
             {badge}
             {isMe && (
@@ -133,53 +130,11 @@ function RankCard({
                 inBountyPrize ? 'text-amber-300' : 'text-white/35'
               }`}
             >
-              {inBountyPrize ? (bountyCompleted ? '5 USDT ✓' : '5 USDT') : '0 USDT'}
+              {inBountyPrize ? (bountyCompleted ? '$5 ✓' : '$5') : '—'}
             </span>
           </div>
         ) : null}
       </div>
-    </motion.div>
-  );
-}
-
-function FeaturedBountyPanel({ monthLabel, completed }: { monthLabel: string; completed: boolean }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45 }}
-      className="mb-8 rounded-2xl border-2 border-amber-500/35 bg-gradient-to-br from-amber-950/30 via-[#081517]/95 to-slate-900/50 p-5 sm:p-8 shadow-[0_0_48px_rgba(251,191,36,0.1)]"
-    >
-      <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
-        <h2 className="text-lg sm:text-xl font-black font-orbitron uppercase tracking-wide text-white text-center">
-          🎯 {monthLabel.toUpperCase()} BOUNTY
-        </h2>
-        {completed ? (
-          <>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-400/60 bg-emerald-500/20 text-emerald-200 text-xs font-bold uppercase tracking-widest">
-              ACTIVE
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-400/50 bg-slate-500/20 text-slate-200 text-xs font-bold uppercase tracking-widest">
-              COMPLETED
-            </span>
-          </>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-400/60 bg-emerald-500/20 text-emerald-200 text-xs font-bold uppercase tracking-widest shadow-[0_0_12px_rgba(52,211,153,0.25)]">
-            DAILY
-          </span>
-        )}
-      </div>
-
-      <p className="text-center text-lg sm:text-2xl md:text-3xl font-black text-amber-300 mb-2 flex flex-wrap items-center justify-center gap-2 px-2">
-        <Coins className="w-7 h-7 sm:w-8 sm:h-8 text-amber-400 shrink-0" />
-        {completed ? 'TOP 10 PLAYERS WON 5 USDT EACH' : 'TOP 10 PLAYERS WIN 5 USDT EACH'}
-      </p>
-
-      <p className="text-center text-sm text-white/55 max-w-xl mx-auto">
-        {completed
-          ? 'Final standings ranked by finished games played this month (UTC).'
-          : 'Ranked by finished human games this month (UTC). AI bots and short/abandoned games do not count toward prizes. Rankings refresh daily at 12:00 AM UTC.'}
-      </p>
     </motion.div>
   );
 }
@@ -259,7 +214,7 @@ export function LeaderboardView({
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-black font-orbitron uppercase tracking-wider mb-2" style={{ textShadow: '0 0 24px rgba(0, 240, 255, 0.55), 0 0 48px rgba(0, 240, 255, 0.25)' }}>
             <span className="bg-gradient-to-r from-cyan-300 via-cyan-200 to-cyan-400 bg-clip-text text-transparent">🏆 HALL OF DOMINANCE</span>
           </h1>
-          <p className="text-cyan-300/65 font-dmSans text-xs sm:text-sm tracking-widest uppercase">Ranked by finished games · {chainParam} Chain</p>
+          <p className="text-cyan-300/65 font-dmSans text-xs sm:text-sm tracking-widest uppercase">{chainParam} Chain</p>
         </motion.div>
 
         {showRankPill && (
@@ -312,10 +267,6 @@ export function LeaderboardView({
           </p>
         )}
 
-        {isFeaturedBountyView && (
-          <FeaturedBountyPanel monthLabel={bountyMonthLabel} completed={bountyCompleted} />
-        )}
-
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-white/10 bg-black/30 py-20">
             <Loader2 className="h-10 w-10 animate-spin text-cyan-300" />
@@ -332,52 +283,36 @@ export function LeaderboardView({
             <p>No entries yet for this scope.</p>
           </div>
         ) : bountyMode ? (
-          <>
-            <div className="space-y-3 sm:space-y-4">
-              {eligibleRows.slice(0, BOUNTY_WINNER_COUNT).map((row, idx) => {
-                const rank = idx + 1;
-                const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
-                return (
-                  <div key={`${row.id}-${rank}`} className="relative">
-                    {rank === 1 && <div className="pointer-events-none absolute -inset-4 rounded-3xl bg-amber-400/10 blur-2xl opacity-70" aria-hidden />}
-                    <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} />
-                  </div>
-                );
-              })}
-            </div>
-            {eligibleRows.length > BOUNTY_WINNER_COUNT && (
-              <>
-                <div className="my-6 border-t border-white/10" aria-hidden />
-                <div className="space-y-3 sm:space-y-4">
-                  {eligibleRows.slice(BOUNTY_WINNER_COUNT).map((row, idx) => {
-                    const rank = BOUNTY_WINNER_COUNT + idx + 1;
-                    const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
-                    return (
-                      <div key={`${row.id}-${rank}`} className="relative">
-                        <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} />
-                      </div>
-                    );
-                  })}
+          <div className="space-y-3 sm:space-y-4">
+            {eligibleRows.slice(0, BOUNTY_WINNER_COUNT).map((row, idx) => {
+              const rank = idx + 1;
+              const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
+              return (
+                <div key={`${row.id}-${rank}`} className="relative">
+                  {rank === 1 && <div className="pointer-events-none absolute -inset-4 rounded-3xl bg-amber-400/10 blur-2xl opacity-70" aria-hidden />}
+                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} />
                 </div>
-              </>
-            )}
-            {ineligibleRows.length > 0 && (
-              <>
-                <div className="my-6 border-t border-white/10" aria-hidden />
-                <div className="space-y-3 sm:space-y-4 opacity-70">
-                  {ineligibleRows.map((row, idx) => {
-                    const rank = eligibleRows.length + idx + 1;
-                    const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
-                    return (
-                      <div key={`${row.id}-${rank}`} className="relative">
-                        <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} />
-                      </div>
-                    );
-                  })}
+              );
+            })}
+            {eligibleRows.slice(BOUNTY_WINNER_COUNT).map((row, idx) => {
+              const rank = BOUNTY_WINNER_COUNT + idx + 1;
+              const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
+              return (
+                <div key={`${row.id}-${rank}`} className="relative">
+                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} />
                 </div>
-              </>
-            )}
-          </>
+              );
+            })}
+            {ineligibleRows.map((row, idx) => {
+              const rank = eligibleRows.length + idx + 1;
+              const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
+              return (
+                <div key={`${row.id}-${rank}`} className="relative opacity-70">
+                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} />
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <div className="space-y-3 sm:space-y-4">
             {eligibleRows.map((row, idx) => {
@@ -390,20 +325,15 @@ export function LeaderboardView({
                 </div>
               );
             })}
-            {ineligibleRows.length > 0 && (
-              <>
-                <div className="my-6 border-t border-white/10" aria-hidden />
-                {ineligibleRows.map((row, idx) => {
-                  const rank = eligibleRows.length + idx + 1;
-                  const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
-                  return (
-                    <div key={`${row.id}-${rank}`} className="relative opacity-70">
-                      <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} />
-                    </div>
-                  );
-                })}
-              </>
-            )}
+            {ineligibleRows.map((row, idx) => {
+              const rank = eligibleRows.length + idx + 1;
+              const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
+              return (
+                <div key={`${row.id}-${rank}`} className="relative opacity-70">
+                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} />
+                </div>
+              );
+            })}
           </div>
         )}
       </main>
