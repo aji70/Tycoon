@@ -286,7 +286,7 @@ export async function claimMinipayBogo(req, res) {
 
     const txHash = String(req.body?.txHash || "").trim();
     const tokenId = String(req.body?.tokenId || "").trim();
-    const recipient = String(req.body?.recipient || "").trim().toLowerCase();
+    const recipientHint = String(req.body?.recipient || "").trim().toLowerCase();
     const chain = User.normalizeChain(req.body?.chain || "CELO");
 
     if (!/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
@@ -295,23 +295,25 @@ export async function claimMinipayBogo(req, res) {
     if (!/^\d+$/.test(tokenId) || BigInt(tokenId) <= 0n) {
       return res.status(400).json({ success: false, error: "Valid tokenId required" });
     }
-    if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
-      return res.status(400).json({ success: false, error: "Valid recipient required" });
-    }
 
-    await verifyCollectiblePurchaseReceipt({ txHash, tokenId, recipient, chain });
+    const { buyer } = await verifyCollectiblePurchaseReceipt({
+      txHash,
+      tokenId,
+      recipient: recipientHint || undefined,
+      chain,
+    });
 
     let userId = req.body?.userId != null ? Number(req.body.userId) : null;
     if (!userId) {
       const row = await db("users")
-        .whereRaw("LOWER(address) = ?", [recipient])
-        .orWhereRaw("LOWER(linked_wallet_address) = ?", [recipient])
-        .orWhereRaw("LOWER(smart_wallet_address) = ?", [recipient])
+        .whereRaw("LOWER(address) = ?", [buyer])
+        .orWhereRaw("LOWER(linked_wallet_address) = ?", [buyer])
+        .orWhereRaw("LOWER(smart_wallet_address) = ?", [buyer])
         .first();
       userId = row?.id ?? null;
     }
     if (!userId) {
-      return res.status(400).json({ success: false, error: "userId required (could not resolve from recipient)" });
+      return res.status(400).json({ success: false, error: "userId required (could not resolve from buyer)" });
     }
 
     const bonus = await claimMinipayPerkBogo({
@@ -319,7 +321,7 @@ export async function claimMinipayBogo(req, res) {
       userId,
       tokenId,
       chain,
-      deliveryAddress: recipient,
+      deliveryAddress: buyer,
       source: MINIPAY_BOGO_PROMO_MODE,
       purchaseTxHash: txHash,
     });

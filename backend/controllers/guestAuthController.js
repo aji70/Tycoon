@@ -38,7 +38,6 @@ import {
   claimMinipayPerkBogo,
   isMinipayBogoPromoMode,
   MINIPAY_BOGO_PROMO_MODE,
-  promoAddressSetFromUser,
   verifyCollectiblePurchaseReceipt,
 } from "../services/minipayPerkPromo.js";
 import { buildContractUsername } from "../utils/ensureContractAuth.js";
@@ -1415,27 +1414,20 @@ export async function claimPerkBogo(req, res) {
       return res.status(400).json({ success: false, message: "Valid tokenId required" });
     }
 
-    const allowed = promoAddressSetFromUser(req.user);
-    let recipient = String(req.body?.recipient || "").trim().toLowerCase();
-    if (recipient && !allowed.has(recipient)) {
-      return res.status(403).json({ success: false, message: "Recipient is not owned by this user" });
-    }
-    if (!recipient) {
-      recipient = req.user.smart_wallet_address
-        ? String(req.user.smart_wallet_address).trim().toLowerCase()
-        : String(req.user.linked_wallet_address || req.user.address || "").trim().toLowerCase();
-    }
-    if (!allowed.has(recipient)) {
-      return res.status(400).json({ success: false, message: "No eligible recipient wallet found" });
-    }
+    const recipientHint = String(req.body?.recipient || "").trim().toLowerCase();
+    const { buyer } = await verifyCollectiblePurchaseReceipt({
+      txHash,
+      tokenId,
+      recipient: recipientHint || undefined,
+      chain,
+    });
 
-    await verifyCollectiblePurchaseReceipt({ txHash, tokenId, recipient, chain });
     const bonus = await claimMinipayPerkBogo({
       claimKey: `tx:${txHash}`,
       userId: req.user.id,
       tokenId,
       chain,
-      deliveryAddress: recipient,
+      deliveryAddress: buyer,
       source: MINIPAY_BOGO_PROMO_MODE,
       purchaseTxHash: txHash,
     });

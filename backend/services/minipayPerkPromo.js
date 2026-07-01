@@ -2,7 +2,7 @@ import db from "../config/database.js";
 import logger from "../config/logger.js";
 import { ethers } from "ethers";
 import { getChainConfig } from "../config/chains.js";
-import { deliverCollectibleToUser } from "./tycoonContract.js";
+import { deliverBonusCollectibleToUser } from "./tycoonContract.js";
 
 export const MINIPAY_BOGO_PROMO_MODE = "minipay_bogo";
 
@@ -13,7 +13,7 @@ const MINIPAY_BOGO_EVENT_ABI = [
 
 function normalizeAddress(value) {
   const s = String(value || "").trim();
-  return /^0x[a-fA-F0-9]{40}$/.test(s) ? s : null;
+  return /^0x[a-fA-F0-9]{40}$/.test(s) ? s.toLowerCase() : null;
 }
 
 export function isMinipayBogoPromoMode(value) {
@@ -47,8 +47,8 @@ async function getRewardAddressForChain(chain) {
   return { provider, rewardAddress };
 }
 
-/** Confirms a successful CollectibleBought log for tokenId + buyer on txHash. */
-export async function verifyCollectiblePurchaseReceipt({ txHash, tokenId, recipient, chain }) {
+/** Parse buyer from a successful CollectibleBought log on txHash. */
+export async function parseCollectiblePurchaseBuyer({ txHash, tokenId, chain }) {
   const { provider, rewardAddress } = await getRewardAddressForChain(chain);
   const receipt = await provider.getTransactionReceipt(txHash);
   if (!receipt) throw new Error("Transaction receipt not found yet");
@@ -56,21 +56,28 @@ export async function verifyCollectiblePurchaseReceipt({ txHash, tokenId, recipi
 
   const iface = new ethers.Interface(MINIPAY_BOGO_EVENT_ABI);
   const tokenStr = String(tokenId);
-  const recipientLower = String(recipient).toLowerCase();
   for (const log of receipt.logs || []) {
     if (String(log.address || "").toLowerCase() !== String(rewardAddress).toLowerCase()) continue;
     try {
       const parsed = iface.parseLog(log);
-      if (
-        parsed?.name === "CollectibleBought" &&
-        String(parsed.args?.tokenId) === tokenStr &&
-        String(parsed.args?.buyer || "").toLowerCase() === recipientLower
-      ) {
-        return { rewardAddress, buyer: recipientLower };
+      if (parsed?.name === "CollectibleBought" && String(parsed.args?.tokenId) === tokenStr) {
+        const buyer = String(parsed.args?.buyer || "").toLowerCase();
+        if (!/^0x[a-f0-9]{40}$/.test(buyer)) break;
+        return { rewardAddress, buyer };
       }
     } catch (_) {}
   }
   throw new Error("Could not verify perk purchase from transaction receipt");
+}
+
+/** Confirms purchase tx; optional recipient must match on-chain buyer when provided. */
+export async function verifyCollectiblePurchaseReceipt({ txHash, tokenId, recipient, chain }) {
+  const parsed = await parseCollectiblePurchaseBuyer({ txHash, tokenId, chain });
+  const hint = recipient ? String(recipient).trim().toLowerCase() : null;
+  if (hint && hint !== parsed.buyer) {
+    throw new Error("Recipient does not match on-chain purchase buyer");
+  }
+  return parsed;
 }
 
 /**
@@ -93,11 +100,24 @@ export async function claimMinipayPerkBogo({
     return { applied: false, reason: "invalid_input" };
   }
 
-  const existing = await db("perk_purchase_promos")
-    .where({ claim_key: safeClaimKey, promo_type: MINIPAY_BOGO_PROMO_MODE })
-    .first();
-  if (existing?.status === "completed" || existing?.status === "pending") {
-    return { applied: false, duplicate: true, status: existing.status };
+  let existing;
+  try {
+    existing = await db("perk_purchase_promos")
+      .where({ claim_key: safeClaimKey, promo_type: MINIPAY_BOGO_PROMO_MODE })
+      .first();
+  } catch (err) {
+    if (/doesn't exist|no such table/i.test(String(err?.message || ""))) {
+      logger.error("perk_purchase_promos table missing — run migrations");
+      return { applied: false, error: "Promo table not migrated on server" };
+    }
+    throw err;
+  }
+
+  if (existing?.status === "completed") {
+    return { applied: false, duplicate: true, status: existing.status, bonusTxHash: existing.bonus_tx_hash };
+  }
+  if (existing?.status === "pending") {
+    return { applied: false, duplicate: true, status: "pending" };
   }
 
   if (!existing) {
@@ -131,7 +151,7 @@ export async function claimMinipayPerkBogo({
   }
 
   try {
-    const { hash } = await deliverCollectibleToUser(safeAddress, safeTokenId, chain);
+    const { hash, method } = await deliverBonusCollectibleToUser(safeAddress, safeTokenId, chain);
     await db("perk_purchase_promos")
       .where({ claim_key: safeClaimKey, promo_type: MINIPAY_BOGO_PROMO_MODE })
       .update({
@@ -140,7 +160,7 @@ export async function claimMinipayPerkBogo({
         completed_at: db.fn.now(),
         updated_at: db.fn.now(),
       });
-    return { applied: true, bonusTxHash: hash || null };
+    return { applied: true, bonusTxHash: hash || null, deliveryMethod: method };
   } catch (err) {
     const msg = String(err?.shortMessage || err?.reason || err?.message || "Promo delivery failed");
     logger.warn({ err: msg, claimKey: safeClaimKey, userId, tokenId: safeTokenId, chain }, "minipay perk bogo failed");

@@ -712,6 +712,51 @@ const REWARD_ABI_MINT = [
   },
   {
     type: "function",
+    name: "mintCollectible",
+    inputs: [
+      { name: "to", type: "address", internalType: "address" },
+      { name: "perk", type: "uint8", internalType: "enum TycoonLib.CollectiblePerk" },
+      { name: "strength", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [{ name: "tokenId", type: "uint256", internalType: "uint256" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "getCollectibleInfo",
+    inputs: [{ name: "tokenId", type: "uint256", internalType: "uint256" }],
+    outputs: [
+      { name: "perk", type: "uint8", internalType: "enum TycoonLib.CollectiblePerk" },
+      { name: "strength", type: "uint256", internalType: "uint256" },
+      { name: "tycPrice", type: "uint256", internalType: "uint256" },
+      { name: "usdcPrice", type: "uint256", internalType: "uint256" },
+      { name: "shopStock", type: "uint256", internalType: "uint256" },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "collectiblePerk",
+    inputs: [{ name: "tokenId", type: "uint256", internalType: "uint256" }],
+    outputs: [{ name: "", type: "uint8", internalType: "enum TycoonLib.CollectiblePerk" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "collectiblePerkStrength",
+    inputs: [{ name: "tokenId", type: "uint256", internalType: "uint256" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "shopStock",
+    inputs: [{ name: "tokenId", type: "uint256", internalType: "uint256" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "collectibleTycPrice",
     inputs: [{ name: "tokenId", type: "uint256", internalType: "uint256" }],
     outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
@@ -1712,13 +1757,63 @@ export async function mintVoucherTo(toAddress, tycValueWei, chain = "CELO") {
 export async function deliverCollectibleToUser(toAddress, tokenId, chain = "CELO") {
   return withTxQueue(async () => {
     const reward = await getRewardContract(chain);
-    // Add ABI for the delivery methods since they might not be fully described in the basic ABI exported earlier. Wait, actually I should include them in the REWARD_ABI_MINT definition if needed.
-    // Rather than adding a full ABI, you can instantiate an Interface inline if not in the ABI, or just add to REWARD_ABI_MINT (see next replacement chunk).
     const tx = await reward.deliverCollectible(toAddress, BigInt(tokenId));
     const receipt = await tx.wait();
     logger.info({ to: toAddress, tokenId: String(tokenId), hash: receipt?.hash }, "deliverCollectibleToUser tx");
     return { hash: receipt?.hash };
   });
+}
+
+/**
+ * Read perk enum + strength for a shop collectible token id.
+ */
+export async function getCollectiblePerkStrength(tokenId, chain = "CELO") {
+  const cfg = getChainConfig(chain);
+  if (!cfg?.rpcUrl || !cfg?.contractAddress) {
+    throw new Error(`Tycoon contract not configured for ${chain}`);
+  }
+  const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+  const network = new Network(networkName, cfg.chainId);
+  const provider = getCachedProvider(cfg.rpcUrl, network);
+  const tycoon = new Contract(cfg.contractAddress, TYCOON_ABI, provider);
+  const rewardAddress = await tycoon.rewardSystem();
+  const reward = new Contract(rewardAddress, REWARD_ABI_MINT, provider);
+  const info = await reward.getCollectibleInfo(BigInt(tokenId));
+  const perk = Number(info.perk ?? info[0]);
+  const strength = Number(info.strength ?? info[1]);
+  if (!perk || perk <= 0) throw new Error("Invalid collectible token");
+  return { perk, strength };
+}
+
+/**
+ * Mint a fresh collectible token to a user (not from shop stock). Used when deliverCollectible is out of stock.
+ */
+export async function mintCollectibleToUser(toAddress, perk, strength, chain = "CELO") {
+  return withTxQueue(async () => {
+    const reward = await getRewardContract(chain);
+    const tx = await reward.mintCollectible(toAddress, perk, BigInt(strength));
+    const receipt = await tx.wait();
+    logger.info(
+      { to: toAddress, perk, strength: String(strength), hash: receipt?.hash },
+      "mintCollectibleToUser tx"
+    );
+    return { hash: receipt?.hash };
+  });
+}
+
+/**
+ * Deliver bonus copy from shop stock, or mint matching perk/strength if stock is empty.
+ */
+export async function deliverBonusCollectibleToUser(toAddress, tokenId, chain = "CELO") {
+  try {
+    return { ...(await deliverCollectibleToUser(toAddress, tokenId, chain)), method: "deliver" };
+  } catch (err) {
+    const msg = String(err?.shortMessage || err?.reason || err?.message || "");
+    if (!/out of stock|shopstock/i.test(msg)) throw err;
+    const { perk, strength } = await getCollectiblePerkStrength(tokenId, chain);
+    const minted = await mintCollectibleToUser(toAddress, perk, strength, chain);
+    return { ...minted, method: "mint" };
+  }
 }
 
 /**
