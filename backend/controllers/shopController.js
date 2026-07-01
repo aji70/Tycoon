@@ -11,6 +11,11 @@ import {
   FLW_CHECKOUT_EMAIL,
 } from "../services/flutterwave.js";
 import { deliverBundleToUser, deliverCollectibleToUser } from "../services/tycoonContract.js";
+import {
+  claimMinipayPerkBogo,
+  isMinipayBogoPromoMode,
+  MINIPAY_BOGO_PROMO_MODE,
+} from "../services/minipayPerkPromo.js";
 
 /**
  * Same base resolution as celoPurchaseInitialize, then ensure path ends with /game-shop.
@@ -271,7 +276,9 @@ export async function flutterwaveInitializePerk(_req, res) {
     }
     const redirectUrl = resolveShopFlutterwaveRedirect(_req.body?.callback_url);
 
-    const txRef = `tycoon_perk_${userId}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const promoMode = _req.body?.promoMode;
+    const txPrefix = isMinipayBogoPromoMode(promoMode) ? "tycoon_perk_mbogo" : "tycoon_perk";
+    const txRef = `${txPrefix}_${userId}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
     // Same Flutterwave shape as buy-CELO-with-Naira (fixed email, empty meta).
     const { link, tx_ref } = await initializePayment({
       amountNaira,
@@ -453,6 +460,22 @@ async function fulfillFlutterwavePayment(txRef, source, trigger) {
   await db(table)
     .where({ tx_ref: txRef })
     .update({ status: "completed", fulfilled_at: db.fn.now(), updated_at: db.fn.now() });
+
+  if (source === "perk" && String(txRef).startsWith("tycoon_perk_mbogo_")) {
+    const bonus = await claimMinipayPerkBogo({
+      claimKey: `flutterwave:${txRef}`,
+      userId: row.user_id,
+      tokenId: row.token_id,
+      chain: "CELO",
+      deliveryAddress: fulfillmentAddr,
+      source: MINIPAY_BOGO_PROMO_MODE,
+      paymentRef: txRef,
+    });
+    if (!bonus.applied && bonus.error) {
+      logger.warn({ txRef, userId: row.user_id, tokenId: row.token_id, error: bonus.error }, "flutterwave perk bogo bonus failed");
+    }
+  }
+
   logger.info({ txRef, source, userId: row.user_id, fulfillmentAddr, trigger }, "Flutterwave payment fulfilled");
   return true;
 }

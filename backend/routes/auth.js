@@ -20,6 +20,7 @@ router.post("/smart-wallet/withdraw-usdc", requireAuth, guestAuthController.smar
 router.post("/smart-wallet/buy-collectible", requireAuth, guestAuthController.smartWalletBuyCollectible);
 router.post("/smart-wallet/buy-bundle", requireAuth, guestAuthController.smartWalletBuyBundle);
 router.post("/smart-wallet/burn-collectible", requireAuth, guestAuthController.smartWalletBurnCollectible);
+router.post("/minipay/claim-perk-bogo", requireAuth, guestAuthController.claimPerkBogo);
 
 // POST /api/auth/:action  (all require auth)
 router.post("/:action", requireAuth, dispatch(guestAuthController, [
