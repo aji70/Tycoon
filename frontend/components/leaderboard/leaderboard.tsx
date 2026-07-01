@@ -54,14 +54,25 @@ function monthOptionSuffix(value: string): string {
   return ' (Bounty)';
 }
 
-function utcYearMonthOptions(count: number): { value: string; label: string }[] {
+const MONTHLY_DROPDOWN_START = '2026-03';
+
+function utcYearMonthOptions(): { value: string; label: string }[] {
   const out: { value: string; label: string }[] = [];
-  const d = new Date();
-  for (let i = 0; i < count; i += 1) {
-    const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - i, 1));
-    const value = `${x.getUTCFullYear()}-${String(x.getUTCMonth() + 1).padStart(2, '0')}`;
+  const [startY, startM] = MONTHLY_DROPDOWN_START.split('-').map(Number);
+  const now = new Date();
+  let y = now.getUTCFullYear();
+  let m = now.getUTCMonth() + 1;
+
+  for (;;) {
+    const value = `${y}-${String(m).padStart(2, '0')}`;
     const base = formatMonthLabelUtc(value);
     out.push({ value, label: `${base}${monthOptionSuffix(value)}` });
+    if (y === startY && m === startM) break;
+    m -= 1;
+    if (m < 1) {
+      m = 12;
+      y -= 1;
+    }
   }
   return out;
 }
@@ -132,7 +143,7 @@ export default function Leaderboard() {
     return names;
   }, [username, guestUsername]);
 
-  const monthOptions = useMemo(() => utcYearMonthOptions(12), []);
+  const monthOptions = useMemo(() => utcYearMonthOptions(), []);
 
   const fetchLeaderboard = useCallback(async () => {
     setRows([]);
