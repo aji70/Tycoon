@@ -33,6 +33,26 @@ export function withTxQueue(fn) {
 /** Cache RPC providers to avoid creating new connections on every call (cost optimization). */
 const providerCache = new Map();
 
+function normalizePk(pk) {
+  const s = String(pk || "").trim();
+  if (!s) return "";
+  return s.startsWith("0x") ? s : `0x${s}`;
+}
+
+/**
+ * Prefer the reward owner/minter key for reward-system writes (deliverCollectible, deliverBundle, mintVoucher),
+ * then fall back to the per-chain backend game controller key.
+ */
+function getRewardWritePrivateKey(chain = "CELO") {
+  const ownerLike = process.env.TYCOON_OWNER_PRIVATE_KEY || process.env.REWARD_STOCK_MINTER_PRIVATE_KEY;
+  if (ownerLike && String(ownerLike).trim()) return normalizePk(ownerLike);
+  const cfg = getChainConfig(chain);
+  if (cfg?.privateKey && String(cfg.privateKey).trim()) return normalizePk(cfg.privateKey);
+  throw new Error(
+    "Set TYCOON_OWNER_PRIVATE_KEY (or REWARD_STOCK_MINTER_PRIVATE_KEY), or BACKEND_GAME_CONTROLLER_*_PRIVATE_KEY for this chain"
+  );
+}
+
 /** Get or create a cached provider for a given RPC URL and network. */
 function getCachedProvider(rpcUrl, network) {
   const cacheKey = `${rpcUrl}:${network.chainId}:${network.name}`;
@@ -838,8 +858,8 @@ async function getRewardContract(chain = "CELO") {
   if (!rewardAddress || rewardAddress === "0x0000000000000000000000000000000000000000") {
     throw new Error(`Reward system not set on chain ${chain}`);
   }
-  const { rpcUrl, privateKey, chainId } = getChainConfig(chain);
-  const pk = String(privateKey).startsWith("0x") ? privateKey : `0x${privateKey}`;
+  const { rpcUrl, chainId } = getChainConfig(chain);
+  const pk = getRewardWritePrivateKey(chain);
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
   const network = new Network(networkName, chainId);
   const provider = getCachedProvider(rpcUrl, network);
