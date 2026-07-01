@@ -1,6 +1,9 @@
 import User from "../models/User.js";
 import { getUserPropertyStats } from "../utils/userPropertyStats.js";
 import {
+  getLeaderboardWithSnapshot,
+} from "../services/leaderboardSnapshotService.js";
+import {
   callContractRead,
   getSmartWalletAddress,
   isContractConfigured,
@@ -201,69 +204,40 @@ const userController = {
    */
   async getLeaderboard(req, res) {
     try {
-      const { chain = "CELO", type = "wins", limit = 20, period = "all", month, start, end } = req.query;
-      const normalizedLimit = Math.min(Number.parseInt(limit, 10) || 20, 100);
+      const { chain = "CELO", type = "wins", limit = 0, period = "all", month, start, end } = req.query;
+      const normalizedLimit =
+        limit === "all" || limit === "0" || Number(limit) === 0
+          ? 0
+          : Number.parseInt(limit, 10) || 0;
       const normalizedType = String(type).toLowerCase();
       const rawPeriod = String(period).toLowerCase();
       const periodNorm = rawPeriod === "month" ? "month" : rawPeriod === "range" ? "range" : "all";
-      let data;
-      if (periodNorm === "range") {
-        if (normalizedType !== "played") {
-          return res.status(400).json({
-            error: "range_not_supported",
-            message: "Range leaderboard currently supports type=played only.",
-          });
-        }
-        if (!start || !end) {
-          return res.status(400).json({
-            error: "missing_range_params",
-            message: "Provide start and end ISO timestamps for period=range.",
-          });
-        }
-        data = await User.getRangeLeaderboardByGamesPlayed(chain, String(start), String(end), normalizedLimit);
-      } else if (periodNorm === "month") {
-        switch (normalizedType) {
-          case "wins":
-            data = await User.getMonthlyLeaderboardByWins(chain, month, normalizedLimit);
-            break;
-          case "winrate":
-            data = await User.getMonthlyLeaderboardByWinRate(chain, month, normalizedLimit);
-            break;
-          case "played":
-            data = await User.getMonthlyLeaderboardByGamesPlayed(chain, month, normalizedLimit);
-            break;
-          case "earnings":
-          case "stakes":
-            return res.status(400).json({
-              error: "monthly_not_supported",
-              message: "Monthly leaderboard is available for wins, win rate, and games played. Earnings/stakes are all-time totals.",
-            });
-          default:
-            return res.status(400).json({ error: "Invalid type. Use: wins, earnings, stakes, winrate, played" });
-        }
-      } else {
-        switch (normalizedType) {
-          case "wins":
-            data = await User.getLeaderboardByWins(chain, normalizedLimit);
-            break;
-          case "earnings":
-            data = await User.getLeaderboardByEarnings(chain, normalizedLimit);
-            break;
-          case "stakes":
-            data = await User.getLeaderboardByStakes(chain, normalizedLimit);
-            break;
-          case "winrate":
-            data = await User.getLeaderboardByWinRate(chain, normalizedLimit);
-            break;
-          case "played":
-            data = await User.getLeaderboardByWins(chain, normalizedLimit);
-            break;
-          default:
-            return res.status(400).json({ error: "Invalid type. Use: wins, earnings, stakes, winrate, played" });
-        }
-      }
-      res.json(Array.isArray(data) ? data : []);
+
+      const query = {
+        chain,
+        type: normalizedType,
+        limit: normalizedLimit,
+        period: periodNorm,
+        month,
+        start,
+        end,
+      };
+
+      const result = await getLeaderboardWithSnapshot(query);
+      res.json({
+        data: result.data,
+        lastUpdatedAt: result.lastUpdatedAt,
+        snapshotDate: result.snapshotDate ?? null,
+        live: Boolean(result.live),
+      });
     } catch (error) {
+      const code = error?.code;
+      if (code === "range_not_supported" || code === "missing_range_params" || code === "monthly_not_supported") {
+        return res.status(400).json({ error: code, message: error.message });
+      }
+      if (code === "invalid_type") {
+        return res.status(400).json({ error: error.message });
+      }
       console.error("Leaderboard error:", error);
       res.status(500).json({ error: error.message });
     }

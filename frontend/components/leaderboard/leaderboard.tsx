@@ -11,8 +11,8 @@ import {
   BOUNTY_COMPLETED,
   BOUNTY_MONTH_KEY,
   BOUNTY_MONTH_LABEL,
-  COMPLETED_BOUNTY_LIMIT,
   LEADERBOARD_LIMIT,
+  parseLeaderboardApiResponse,
   type BountyRow,
   type TimeScope,
 } from './leaderboard-types';
@@ -51,27 +51,14 @@ function utcYearMonthOptions(count: number): { value: string; label: string }[] 
     const value = `${x.getUTCFullYear()}-${String(x.getUTCMonth() + 1).padStart(2, '0')}`;
     const base = formatMonthLabelUtc(value);
     const suffix =
-      value === BOUNTY_MONTH_KEY && BOUNTY_COMPLETED ? ' (Active · Completed)' : '';
+      value === BOUNTY_MONTH_KEY
+        ? BOUNTY_COMPLETED
+          ? ' (Completed)'
+          : ' (Daily)'
+        : '';
     out.push({ value, label: `${base}${suffix}` });
   }
   return out;
-}
-
-function normalizeLeaderboardArray(res: unknown): BountyRow[] {
-  const raw = (res as { data?: unknown })?.data;
-  let list: unknown = raw;
-  if (Array.isArray(raw)) list = raw;
-  else if (raw && typeof raw === 'object' && Array.isArray((raw as { data?: unknown[] }).data)) {
-    list = (raw as { data: unknown[] }).data;
-  } else if (raw && typeof raw === 'object' && Array.isArray((raw as { leaderboard?: unknown[] }).leaderboard)) {
-    list = (raw as { leaderboard: unknown[] }).leaderboard;
-  }
-  if (!Array.isArray(list)) return [];
-  return list.map((row: Record<string, unknown>, index: number) => ({
-    id: Number(row.id ?? index),
-    username: String(row.username ?? '—'),
-    games_played: Number(row.games_played ?? 0),
-  }));
 }
 
 export default function Leaderboard() {
@@ -85,10 +72,11 @@ export default function Leaderboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<BountyRow[]>([]);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [timeScope, setTimeScope] = useState<TimeScope>('bounty');
   const [monthKey, setMonthKey] = useState<string>(BOUNTY_MONTH_KEY);
 
-  const isMayView =
+  const isFeaturedBountyMonth =
     timeScope === 'bounty' ||
     (timeScope === 'month' && monthKey === BOUNTY_MONTH_KEY);
 
@@ -115,11 +103,10 @@ export default function Leaderboard() {
     setLoading(true);
     setError(null);
     try {
-      const useFullMayList = isMayView && BOUNTY_COMPLETED;
       const params: Record<string, string | number> = {
         chain: chainParam,
         type: 'played',
-        limit: useFullMayList ? COMPLETED_BOUNTY_LIMIT : LEADERBOARD_LIMIT,
+        limit: LEADERBOARD_LIMIT,
       };
 
       if (timeScope === 'bounty') {
@@ -133,7 +120,8 @@ export default function Leaderboard() {
       }
 
       const res = await apiClient.get('/users/leaderboard', params);
-      const normalized = normalizeLeaderboardArray(res);
+      const { rows: normalized, meta } = parseLeaderboardApiResponse(res);
+      setLastUpdatedAt(meta.lastUpdatedAt);
       const filtered =
         timeScope === 'month' || timeScope === 'bounty'
           ? normalized.filter((row) => !row.username.includes('AI_'))
@@ -146,7 +134,7 @@ export default function Leaderboard() {
     } finally {
       setLoading(false);
     }
-  }, [chainParam, isMayView, monthKey, timeScope]);
+  }, [chainParam, monthKey, timeScope]);
 
   useEffect(() => {
     fetchLeaderboard();
@@ -159,14 +147,16 @@ export default function Leaderboard() {
 
   const infoLabel =
     timeScope === 'bounty' && BOUNTY_COMPLETED
-      ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Active bounty · Final standings`
+      ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Final standings · Prizes awarded`
       : timeScope === 'bounty'
-        ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Finished games only`
+        ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Daily snapshot · Fair play · Finished human games (UTC)`
         : timeScope === 'month' && monthKey === BOUNTY_MONTH_KEY && BOUNTY_COMPLETED
-          ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Active · Completed · Final standings`
-          : timeScope === 'month'
-            ? `${chainParam} · ${formatMonthLabelUtc(monthKey)} · Finished games only`
-            : `${chainParam} · All-time · Finished games only`;
+          ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Final standings`
+          : timeScope === 'month' && monthKey === BOUNTY_MONTH_KEY
+            ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Daily snapshot · Finished human games (UTC)`
+            : timeScope === 'month'
+              ? `${chainParam} · ${formatMonthLabelUtc(monthKey)} · Finished games only`
+              : `${chainParam} · All-time · Finished games only`;
 
   return (
     <LeaderboardView
@@ -185,7 +175,8 @@ export default function Leaderboard() {
       onRetry={fetchLeaderboard}
       bountyMonthLabel={BOUNTY_MONTH_LABEL}
       bountyCompleted={BOUNTY_COMPLETED}
-      isMayBountyView={isMayView && BOUNTY_COMPLETED}
+      isFeaturedBountyView={isFeaturedBountyMonth}
+      lastUpdatedAt={lastUpdatedAt}
     />
   );
 }

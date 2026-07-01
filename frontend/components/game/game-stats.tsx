@@ -10,6 +10,7 @@ import Link from "next/link";
 import herobg from "@/public/heroBg.png";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
+import { parseLeaderboardApiResponse } from "@/components/leaderboard/leaderboard-types";
 
 function chainIdToLeaderboardChain(chainId: number): string {
   if (chainId === 137 || chainId === 80001) return "POLYGON";
@@ -70,8 +71,7 @@ const GameStats: React.FC = () => {
         type: "wins",
         limit: 10,
       });
-      const raw = Array.isArray(res?.data) ? res.data : (res as { data?: unknown[] })?.data;
-      const list = (raw ?? []) as Array<{ username?: string; games_played?: number; game_won?: number }>;
+      const { rows: list } = parseLeaderboardApiResponse(res);
       const filtered = list.filter((row) => !String(row?.username ?? "").includes("AI_"));
       setLeaderboard(
         filtered.map((row, i) => ({

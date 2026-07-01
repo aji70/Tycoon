@@ -1,7 +1,7 @@
 import db from "../config/database.js";
 import logger from "../config/logger.js";
 import User from "../models/User.js";
-import { isContractConfigured, mintVoucherTo } from "../services/tycoonContract.js";
+import { isContractConfigured, mintVoucherTo, deliverBonusCollectibleToUser, mintCollectibleToUser } from "../services/tycoonContract.js";
 import { recordEvent } from "../services/analytics.js";
 import { appendAdminAuditLog } from "../services/adminAuditLog.js";
 import {
@@ -295,5 +295,146 @@ export async function grantVoucher(req, res) {
   } catch (err) {
     logger.error({ err }, "admin grantVoucher error");
     res.status(500).json({ success: false, error: "Grant voucher failed" });
+  }
+}
+
+function isValidEthAddress(addr) {
+  return /^0x[a-fA-F0-9]{40}$/.test(String(addr || "").trim());
+}
+
+/**
+ * POST /api/admin/economy/deliver-collectible
+ * Body: { toAddress?: string, userId?: number, tokenId: string|number, chain?: string, reason?: string }
+ *       OR mint path: { toAddress?, userId?, perk: number, strength: number, chain?, reason? }
+ * Delivers from shop stock when possible; mints matching perk if out of stock.
+ */
+export async function deliverCollectible(req, res) {
+  try {
+    const tokenIdRaw = req.body?.tokenId ?? req.body?.token_id;
+    const perk = req.body?.perk != null ? Number(req.body.perk) : null;
+    const strength = req.body?.strength != null ? Number(req.body.strength) : null;
+    const reason = req.body?.reason != null ? String(req.body.reason).slice(0, 500) : "";
+
+    const userId = req.body?.userId != null ? Number(req.body.userId) : req.body?.user_id != null ? Number(req.body.user_id) : null;
+    let toAddress = req.body?.toAddress != null ? String(req.body.toAddress).trim() : req.body?.to_address != null ? String(req.body.to_address).trim() : "";
+
+    let user = null;
+    if (userId != null && Number.isFinite(userId) && userId > 0) {
+      user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ success: false, error: "User not found" });
+      }
+      if (!toAddress) {
+        toAddress = resolveMintToAddress(user) || "";
+      }
+    }
+
+    if (!isValidEthAddress(toAddress)) {
+      return res.status(400).json({ success: false, error: "Valid toAddress (0x…) or userId required" });
+    }
+
+    const chain = normalizeRewardChain(req.body?.chain, user?.chain || "CELO");
+    if (!isContractConfigured(chain)) {
+      return res.status(400).json({
+        success: false,
+        error: `Reward contract not configured for chain ${chain}`,
+      });
+    }
+
+    let result;
+    let tokenId = null;
+    let deliveryMethod = "deliver";
+
+    if (tokenIdRaw != null && String(tokenIdRaw).trim() !== "") {
+      tokenId = String(tokenIdRaw).trim();
+      if (!/^\d+$/.test(tokenId) || BigInt(tokenId) <= 0n) {
+        return res.status(400).json({ success: false, error: "tokenId must be a positive integer" });
+      }
+      try {
+        result = await deliverBonusCollectibleToUser(toAddress, tokenId, chain);
+        deliveryMethod = result.method || "deliver";
+      } catch (mintErr) {
+        const rawMsg = String(mintErr?.shortMessage || mintErr?.reason || mintErr?.message || "");
+        logger.warn({ err: rawMsg, toAddress, tokenId, chain }, "admin deliverCollectible failed");
+        return res.status(502).json({
+          success: false,
+          error: rawMsg || "Deliver collectible failed",
+          deliverTo: toAddress,
+          chain,
+        });
+      }
+    } else if (perk != null && strength != null && Number.isFinite(perk) && perk > 0 && Number.isFinite(strength) && strength > 0) {
+      try {
+        result = await mintCollectibleToUser(toAddress, perk, strength, chain);
+        deliveryMethod = "mint";
+      } catch (mintErr) {
+        const rawMsg = String(mintErr?.shortMessage || mintErr?.reason || mintErr?.message || "");
+        logger.warn({ err: rawMsg, toAddress, perk, strength, chain }, "admin mintCollectible failed");
+        return res.status(502).json({
+          success: false,
+          error: rawMsg || "Mint collectible failed",
+          deliverTo: toAddress,
+          chain,
+        });
+      }
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: "Provide tokenId (shop collectible id) or perk + strength to mint",
+      });
+    }
+
+    const hash = result?.hash || null;
+
+    await recordEvent("admin_deliver_collectible", {
+      entityType: userId ? "user" : "wallet",
+      entityId: userId || toAddress,
+      payload: {
+        tokenId,
+        perk,
+        strength,
+        chain,
+        reason: reason || null,
+        tx_hash: hash,
+        method: deliveryMethod,
+      },
+    });
+
+    await appendAdminAuditLog({
+      action: "economy.deliver_collectible",
+      targetType: userId ? "user" : "wallet",
+      targetId: userId ? String(userId) : toAddress,
+      payload: {
+        username: user?.username ?? null,
+        tokenId,
+        perk,
+        strength,
+        chain,
+        reason: reason || null,
+        txHash: hash,
+        deliverTo: toAddress,
+        method: deliveryMethod,
+      },
+      req,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        userId: userId || null,
+        username: user?.username ?? null,
+        chain,
+        tokenId,
+        perk,
+        strength,
+        deliverTo: toAddress,
+        txHash: hash,
+        method: deliveryMethod,
+        reason: reason || null,
+      },
+    });
+  } catch (err) {
+    logger.error({ err }, "admin deliverCollectible error");
+    res.status(500).json({ success: false, error: "Deliver collectible failed" });
   }
 }

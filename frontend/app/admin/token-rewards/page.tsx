@@ -39,6 +39,15 @@ export default function AdminTokenRewardsPage() {
   const [grantError, setGrantError] = useState<string | null>(null);
   const [grantOk, setGrantOk] = useState<string | null>(null);
 
+  const [collectibleAddress, setCollectibleAddress] = useState("");
+  const [collectibleUserId, setCollectibleUserId] = useState("");
+  const [collectibleTokenId, setCollectibleTokenId] = useState("");
+  const [collectibleChain, setCollectibleChain] = useState<string>("CELO");
+  const [collectibleReason, setCollectibleReason] = useState("");
+  const [collectibleBusy, setCollectibleBusy] = useState(false);
+  const [collectibleError, setCollectibleError] = useState<string | null>(null);
+  const [collectibleOk, setCollectibleOk] = useState<string | null>(null);
+
   const [ecoBase, setEcoBase] = useState("");
   const [ecoStreak, setEcoStreak] = useState("");
   const [ecoBusy, setEcoBusy] = useState(false);
@@ -150,11 +159,76 @@ export default function AdminTokenRewardsPage() {
     }
   }
 
+  async function onDeliverCollectible(e: React.FormEvent) {
+    e.preventDefault();
+    setCollectibleBusy(true);
+    setCollectibleError(null);
+    setCollectibleOk(null);
+
+    const addr = collectibleAddress.trim();
+    const uidRaw = collectibleUserId.trim();
+    const tokenId = collectibleTokenId.trim();
+
+    if (!tokenId || !/^\d+$/.test(tokenId)) {
+      setCollectibleError("Enter a valid shop token ID (e.g. 2000000429)");
+      setCollectibleBusy(false);
+      return;
+    }
+    if (!addr && !uidRaw) {
+      setCollectibleError("Enter wallet address or user id");
+      setCollectibleBusy(false);
+      return;
+    }
+
+    const body: Record<string, string | number> = {
+      tokenId,
+      chain: collectibleChain,
+      reason: collectibleReason.trim() || undefined,
+    };
+    if (addr) body.toAddress = addr;
+    if (uidRaw) {
+      const uid = parseInt(uidRaw, 10);
+      if (!Number.isFinite(uid) || uid < 1) {
+        setCollectibleError("Invalid user id");
+        setCollectibleBusy(false);
+        return;
+      }
+      body.userId = uid;
+    }
+
+    try {
+      const { data: resBody } = await adminApi.post<{
+        success: boolean;
+        data?: {
+          txHash?: string;
+          deliverTo: string;
+          chain: string;
+          tokenId?: string | null;
+          method?: string;
+        };
+        error?: string;
+      }>("admin/economy/deliver-collectible", body, { timeout: GRANT_TIMEOUT_MS });
+
+      if (!resBody?.success || !resBody.data) {
+        setCollectibleError((resBody as { error?: string })?.error || "Send failed");
+        return;
+      }
+      const d = resBody.data;
+      setCollectibleOk(
+        `Sent collectible #${tokenId} to ${d.deliverTo.slice(0, 10)}… on ${d.chain} (${d.method || "deliver"}). Tx: ${d.txHash || "—"}`
+      );
+    } catch (e) {
+      setCollectibleError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Send failed");
+    } finally {
+      setCollectibleBusy(false);
+    }
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-semibold text-slate-100">Token & rewards</h1>
       <p className="mt-1 text-sm text-slate-400 max-w-2xl">
-        Economy aggregates, daily-claim env hints, and <strong>manual TYC voucher mint</strong> (same path as daily claim — backend must be minter on the reward contract).
+        Economy aggregates, daily-claim env hints, <strong>manual TYC voucher mint</strong>, and <strong>one-click collectible delivery</strong> (backend minter on Celo).
       </p>
 
       {loading && (
@@ -351,6 +425,87 @@ export default function AdminTokenRewardsPage() {
                 className="rounded-lg bg-cyan-800 hover:bg-cyan-700 text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
               >
                 {grantBusy ? "Minting…" : "Mint voucher"}
+              </button>
+            </form>
+          </section>
+
+          <section className="mt-8 rounded-xl border border-emerald-900/40 bg-emerald-950/15 p-4 max-w-xl">
+            <h2 className="text-sm font-semibold text-emerald-200/95">Send collectible (backend)</h2>
+            <p className="text-xs text-emerald-200/70 mt-1">
+              One-click delivery via backend minter — pulls from shop stock, or mints the same perk if out of stock. Use the
+              wallet the player actually uses in MiniPay (connected address).
+            </p>
+            <form onSubmit={onDeliverCollectible} className="mt-4 space-y-3">
+              <label className="block text-sm">
+                <span className="text-slate-500 text-xs">Wallet address (0x…)</span>
+                <input
+                  value={collectibleAddress}
+                  onChange={(e) => setCollectibleAddress(e.target.value)}
+                  placeholder="0x08D7… or leave blank if using user id"
+                  className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-200 font-mono text-sm"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-500 text-xs">Or user id (uses smart → linked → primary wallet)</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={collectibleUserId}
+                  onChange={(e) => setCollectibleUserId(e.target.value)}
+                  placeholder="Optional"
+                  className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-200 tabular-nums"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-500 text-xs">Shop token ID</span>
+                <input
+                  value={collectibleTokenId}
+                  onChange={(e) => setCollectibleTokenId(e.target.value)}
+                  required
+                  placeholder="e.g. 2000000429"
+                  className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-200 font-mono text-sm"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-500 text-xs">Chain</span>
+                <select
+                  value={collectibleChain}
+                  onChange={(e) => setCollectibleChain(e.target.value)}
+                  className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-200"
+                >
+                  {CHAINS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-500 text-xs">Reason (optional, audit log)</span>
+                <input
+                  value={collectibleReason}
+                  onChange={(e) => setCollectibleReason(e.target.value)}
+                  maxLength={500}
+                  placeholder="e.g. July bounty prize, support make-good"
+                  className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-200 text-sm"
+                />
+              </label>
+              {collectibleError && (
+                <p className="text-sm text-red-400 border border-red-900/40 rounded-lg px-2 py-1.5 bg-red-950/30">
+                  {collectibleError}
+                </p>
+              )}
+              {collectibleOk && (
+                <p className="text-sm text-emerald-400/90 border border-emerald-900/40 rounded-lg px-2 py-1.5 bg-emerald-950/30 break-all">
+                  {collectibleOk}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={collectibleBusy}
+                className="w-full rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white px-4 py-3 text-sm font-semibold disabled:opacity-50 shadow-lg shadow-emerald-950/40"
+              >
+                {collectibleBusy ? "Sending on-chain…" : "Send collectible"}
               </button>
             </form>
           </section>

@@ -6,6 +6,26 @@ import { monthUtcBounds, parseYearMonth } from "../utils/leaderboardMonth.js";
 /** Set LEADERBOARD_MIN_TURNS=20 in production to require substantial games; default 0 shows all finished games. */
 const LEADERBOARD_MIN_TURNS = Math.max(0, Number(process.env.LEADERBOARD_MIN_TURNS ?? 0));
 
+/** Max rows returned when limit=0 / limit=all (effectively unlimited for display). */
+const LEADERBOARD_MAX_ROWS = Math.max(100, Number(process.env.LEADERBOARD_MAX_ROWS ?? 10000));
+
+function isUnlimitedLeaderboardLimit(limit) {
+  if (limit === "all" || limit === 0 || limit === "0") return true;
+  const n = Number.parseInt(limit, 10);
+  return !Number.isFinite(n) || n <= 0;
+}
+
+/** SQL + merge cap. Unlimited requests use LEADERBOARD_MAX_ROWS as a safety ceiling. */
+function leaderboardSqlLimit(limit) {
+  if (isUnlimitedLeaderboardLimit(limit)) return LEADERBOARD_MAX_ROWS;
+  const n = Number.parseInt(limit, 10);
+  return Math.min(n, LEADERBOARD_MAX_ROWS);
+}
+
+function applyLeaderboardQueryLimit(qb, limit) {
+  return qb.limit(leaderboardSqlLimit(limit));
+}
+
 /** Agent / arena-automation modes — exclude from leaderboards (keep PVP_HUMAN + AI_HUMAN_VS_AI). */
 const AGENT_ORCHESTRATED_GAME_TYPES = [
   "AGENT_VS_AI",
@@ -48,15 +68,19 @@ function tagLeaderboardRows(rows, eligible) {
 
 /** Ranked players first, then users with finished games that did not meet LEADERBOARD_MIN_TURNS. */
 function mergeLeaderboardLists(eligibleRows, ineligibleRows, limit) {
-  const lim = Math.min(Number(limit) || 20, 100);
-  const eligible = tagLeaderboardRows(eligibleRows, true).slice(0, lim);
-  if (LEADERBOARD_MIN_TURNS <= 0) return eligible;
-  const excludeIds = new Set(eligible.map((r) => r.id));
+  const unlimited = isUnlimitedLeaderboardLimit(limit);
+  const cap = unlimited ? null : leaderboardSqlLimit(limit);
+  const eligible = tagLeaderboardRows(eligibleRows, true);
+  const eligibleOut = cap == null ? eligible : eligible.slice(0, cap);
+  if (LEADERBOARD_MIN_TURNS <= 0) return eligibleOut;
+  const excludeIds = new Set(eligibleOut.map((r) => r.id));
   const ineligible = tagLeaderboardRows(
     (ineligibleRows || []).filter((r) => !excludeIds.has(r.id)),
     false
-  ).slice(0, lim);
-  return [...eligible, ...ineligible];
+  );
+  if (cap == null) return [...eligibleOut, ...ineligible];
+  const slotsLeft = Math.max(0, cap - eligibleOut.length);
+  return [...eligibleOut, ...ineligible.slice(0, slotsLeft)];
 }
 
 function baseIneligibleLeaderboardQuery(normalized) {
@@ -71,7 +95,7 @@ function baseIneligibleLeaderboardQuery(normalized) {
 
 async function fetchIneligibleLeaderboard(normalized, { start, end } = {}, limit = 20) {
   if (LEADERBOARD_MIN_TURNS <= 0) return [];
-  const lim = Math.min(Number(limit) || 20, 100);
+  const lim = leaderboardSqlLimit(limit);
   const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
   const lostExpr = "SUM(CASE WHEN g.winner_id IS NOT NULL AND g.winner_id <> gp.user_id THEN 1 ELSE 0 END)";
   let qb = baseIneligibleLeaderboardQuery(normalized);
@@ -460,14 +484,21 @@ const User = {
   },
 
   /**
+   * Top players by finished games played on this chain (eligible games only).
+   */
+  async getAllTimeLeaderboardByGamesPlayed(chain, limit = 20) {
+    return this.getLeaderboardByWins(chain, limit);
+  },
+
+  /**
    * Top players by games won on this chain. Uses per-chain columns (celo_games_won, etc.) when present;
    * falls back to legacy games_played/game_won so existing data still shows until per-chain is populated.
    */
   async getLeaderboardByWins(chain, limit = 20) {
     const normalized = this.normalizeChain(chain);
-    const lim = Math.min(Number(limit) || 20, 100);
     const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
-    const eligible = await db("game_players as gp")
+    const eligible = await applyLeaderboardQueryLimit(
+      db("game_players as gp")
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
@@ -486,10 +517,11 @@ const User = {
       .havingRaw("COUNT(*) > 0")
       .orderByRaw("COUNT(*) DESC")
       .orderByRaw(`${wonExpr} DESC`)
-      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
-      .limit(lim);
-    const ineligible = await fetchIneligibleLeaderboard(normalized, {}, lim);
-    return mergeLeaderboardLists(eligible, ineligible, lim);
+      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC"),
+      limit
+    );
+    const ineligible = await fetchIneligibleLeaderboard(normalized, {}, limit);
+    return mergeLeaderboardLists(eligible, ineligible, limit);
   },
 
   /**
@@ -498,7 +530,7 @@ const User = {
   async getLeaderboardByEarnings(chain, limit = 20) {
     const normalized = this.normalizeChain(chain);
     const cols = this.chainColumns(normalized);
-    const lim = Math.min(Number(limit) || 20, 100);
+    const lim = leaderboardSqlLimit(limit);
     if (cols) {
       try {
         const q = db("users").where({ chain: normalized }).andWhereRaw("username NOT LIKE ?", ["%AI_%"]).where(cols.played, ">", 0);
@@ -527,7 +559,7 @@ const User = {
   async getLeaderboardByStakes(chain, limit = 20) {
     const normalized = this.normalizeChain(chain);
     const cols = this.chainColumns(normalized);
-    const lim = Math.min(Number(limit) || 20, 100);
+    const lim = leaderboardSqlLimit(limit);
     if (cols) {
       try {
         const q = db("users").where({ chain: normalized }).andWhereRaw("username NOT LIKE ?", ["%AI_%"]).where(cols.played, ">", 0);
@@ -554,10 +586,10 @@ const User = {
    */
   async getLeaderboardByWinRate(chain, limit = 20) {
     const normalized = this.normalizeChain(chain);
-    const lim = Math.min(Number(limit) || 20, 100);
     const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
     const rateExpr = `(${wonExpr} * 1.0 / NULLIF(COUNT(*), 0))`;
-    const eligible = await db("game_players as gp")
+    const eligible = await applyLeaderboardQueryLimit(
+      db("game_players as gp")
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
@@ -578,10 +610,11 @@ const User = {
       .havingRaw("COUNT(*) > 0")
       .orderByRaw("COUNT(*) DESC")
       .orderByRaw(`${rateExpr} DESC`)
-      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
-      .limit(lim);
-    const ineligible = await fetchIneligibleLeaderboard(normalized, {}, lim);
-    return mergeLeaderboardLists(eligible, ineligible, lim);
+      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC"),
+      limit
+    );
+    const ineligible = await fetchIneligibleLeaderboard(normalized, {}, limit);
+    return mergeLeaderboardLists(eligible, ineligible, limit);
   },
 
   /**
@@ -590,11 +623,11 @@ const User = {
    */
   async getMonthlyLeaderboardByWins(chain, yearMonth, limit = 20) {
     const normalized = this.normalizeChain(chain);
-    const lim = Math.min(Number(limit) || 20, 100);
     const { start, end } = monthUtcBounds(parseYearMonth(yearMonth));
     const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
     const lostExpr = "SUM(CASE WHEN g.winner_id IS NOT NULL AND g.winner_id <> gp.user_id THEN 1 ELSE 0 END)";
-    const eligible = await db("game_players as gp")
+    const eligible = await applyLeaderboardQueryLimit(
+      db("game_players as gp")
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
@@ -615,10 +648,11 @@ const User = {
       .havingRaw("COUNT(*) > 0")
       .orderByRaw("COUNT(*) DESC")
       .orderByRaw(`${wonExpr} DESC`)
-      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
-      .limit(lim);
-    const ineligible = await fetchIneligibleLeaderboard(normalized, { start, end }, lim);
-    return mergeLeaderboardLists(eligible, ineligible, lim);
+      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC"),
+      limit
+    );
+    const ineligible = await fetchIneligibleLeaderboard(normalized, { start, end }, limit);
+    return mergeLeaderboardLists(eligible, ineligible, limit);
   },
 
   /**
@@ -626,11 +660,11 @@ const User = {
    */
   async getMonthlyLeaderboardByWinRate(chain, yearMonth, limit = 20) {
     const normalized = this.normalizeChain(chain);
-    const lim = Math.min(Number(limit) || 20, 100);
     const { start, end } = monthUtcBounds(parseYearMonth(yearMonth));
     const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
     const rateExpr = `(${wonExpr} * 1.0 / NULLIF(COUNT(*), 0))`;
-    const eligible = await db("game_players as gp")
+    const eligible = await applyLeaderboardQueryLimit(
+      db("game_players as gp")
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
@@ -652,10 +686,11 @@ const User = {
       .havingRaw("COUNT(*) > 0")
       .orderByRaw("COUNT(*) DESC")
       .orderByRaw(`${rateExpr} DESC`)
-      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
-      .limit(lim);
-    const ineligible = await fetchIneligibleLeaderboard(normalized, { start, end }, lim);
-    return mergeLeaderboardLists(eligible, ineligible, lim);
+      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC"),
+      limit
+    );
+    const ineligible = await fetchIneligibleLeaderboard(normalized, { start, end }, limit);
+    return mergeLeaderboardLists(eligible, ineligible, limit);
   },
 
   /**
@@ -663,12 +698,12 @@ const User = {
    */
   async getMonthlyLeaderboardByGamesPlayed(chain, yearMonth, limit = 20) {
     const normalized = this.normalizeChain(chain);
-    const lim = Math.min(Number(limit) || 20, 100);
     const { start, end } = monthUtcBounds(parseYearMonth(yearMonth));
     const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
     const lostExpr = "SUM(CASE WHEN g.winner_id IS NOT NULL AND g.winner_id <> gp.user_id THEN 1 ELSE 0 END)";
 
-    const eligible = await db("game_players as gp")
+    const eligible = await applyLeaderboardQueryLimit(
+      db("game_players as gp")
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
@@ -690,10 +725,11 @@ const User = {
       .havingRaw("COUNT(*) > 0")
       .orderByRaw("COUNT(*) DESC")
       .orderByRaw(`${wonExpr} DESC`)
-      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
-      .limit(lim);
-    const ineligible = await fetchIneligibleLeaderboard(normalized, { start, end }, lim);
-    return mergeLeaderboardLists(eligible, ineligible, lim);
+      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC"),
+      limit
+    );
+    const ineligible = await fetchIneligibleLeaderboard(normalized, { start, end }, limit);
+    return mergeLeaderboardLists(eligible, ineligible, limit);
   },
 
   /**
@@ -702,7 +738,6 @@ const User = {
    */
   async getRangeLeaderboardByGamesPlayed(chain, startIso, endIso, limit = 20) {
     const normalized = this.normalizeChain(chain);
-    const lim = Math.min(Number(limit) || 20, 100);
     const start = new Date(startIso);
     const end = new Date(endIso);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !(end > start)) {
@@ -712,7 +747,8 @@ const User = {
     const wonExpr = "SUM(CASE WHEN g.winner_id = gp.user_id THEN 1 ELSE 0 END)";
     const lostExpr = "SUM(CASE WHEN g.winner_id IS NOT NULL AND g.winner_id <> gp.user_id THEN 1 ELSE 0 END)";
 
-    const eligible = await db("game_players as gp")
+    const eligible = await applyLeaderboardQueryLimit(
+      db("game_players as gp")
       .join("games as g", "g.id", "gp.game_id")
       .join("users as u", "u.id", "gp.user_id")
       .where("g.status", "FINISHED")
@@ -734,10 +770,11 @@ const User = {
       .havingRaw("COUNT(*) > 0")
       .orderByRaw("COUNT(*) DESC")
       .orderByRaw(`${wonExpr} DESC`)
-      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC")
-      .limit(lim);
-    const ineligible = await fetchIneligibleLeaderboard(normalized, { start, end }, lim);
-    return mergeLeaderboardLists(eligible, ineligible, lim);
+      .orderByRaw("(COALESCE(u.properties_bought, 0) + COALESCE(u.properties_sold, 0)) DESC"),
+      limit
+    );
+    const ineligible = await fetchIneligibleLeaderboard(normalized, { start, end }, limit);
+    return mergeLeaderboardLists(eligible, ineligible, limit);
   },
 };
 

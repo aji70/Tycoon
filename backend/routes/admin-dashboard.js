@@ -57,6 +57,7 @@ router.get("/economy/overview", adminEconomyController.getEconomyOverview);
 router.get("/economy/config", adminEconomyController.getEconomyConfig);
 router.patch("/economy/config", adminEconomyController.patchEconomyConfig);
 router.post("/economy/grant-voucher", adminEconomyController.grantVoucher);
+router.post("/economy/deliver-collectible", adminEconomyController.deliverCollectible);
 
 router.get("/leaderboard", adminLeaderboardController.getLeaderboard);
 

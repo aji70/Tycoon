@@ -66,6 +66,7 @@ import { isStarknetConfigured, testStarknetConnection } from "./services/starkne
 import { startAgentGameRunner } from "./services/agentGameRunner.js";
 import { startAgentTournamentRunner } from "./services/agentTournamentRunner.js";
 import { startTimedGameFinishPoller } from "./services/timedGameFinishPoller.js";
+import { startLeaderboardSnapshotScheduler } from "./services/leaderboardSnapshotScheduler.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -449,6 +450,12 @@ async function start() {
     startAgentTournamentRunner();
   } catch (err) {
     logger.warn({ err: err?.message }, "Agent tournament runner failed to start");
+  }
+
+  try {
+    startLeaderboardSnapshotScheduler();
+  } catch (err) {
+    logger.warn({ err: err?.message }, "Leaderboard snapshot scheduler failed to start");
   }
 
   try {
