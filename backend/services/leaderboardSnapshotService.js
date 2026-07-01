@@ -2,6 +2,11 @@ import db from "../config/database.js";
 import User from "../models/User.js";
 import logger from "../config/logger.js";
 import { parseYearMonth } from "../utils/leaderboardMonth.js";
+import {
+  FEATURED_BOUNTY_MONTH_KEY,
+  listBountyMonths,
+  bountyMonthToLeaderboardQuery,
+} from "../config/bountyMonths.js";
 
 /** Set LEADERBOARD_DAILY_SNAPSHOT=false to serve live rankings (legacy). Default: daily snapshots. */
 export function isDailySnapshotEnabled() {
@@ -13,7 +18,7 @@ const SNAPSHOT_CHAINS = (process.env.LEADERBOARD_SNAPSHOT_CHAINS || "CELO,BASE,P
   .map((s) => s.trim().toUpperCase())
   .filter(Boolean);
 
-const BOUNTY_MONTH = process.env.LEADERBOARD_BOUNTY_MONTH || "2026-07";
+const BOUNTY_MONTH = process.env.LEADERBOARD_BOUNTY_MONTH || FEATURED_BOUNTY_MONTH_KEY;
 
 /** Unlimited snapshot size — all players with finished games (safety cap via LEADERBOARD_MAX_ROWS in User model). */
 const SNAPSHOT_LIMIT = 0;
@@ -126,6 +131,18 @@ export async function saveSnapshot(cacheKey, snapshotDate, data) {
   return updatedAt;
 }
 
+async function serveLiveLeaderboard(query, clientLim) {
+  const data = await computeLeaderboard(query);
+  const rows = Array.isArray(data) ? data : [];
+  const today = utcDateString();
+  return {
+    data: clientLim == null ? rows : rows.slice(0, clientLim),
+    lastUpdatedAt: new Date().toISOString(),
+    snapshotDate: today,
+    live: true,
+  };
+}
+
 export async function loadLatestSnapshot(cacheKey, preferDate = utcDateString()) {
   let row = await db("leaderboard_snapshots")
     .where({ cache_key: cacheKey, snapshot_date: preferDate })
@@ -157,13 +174,29 @@ export async function loadLatestSnapshot(cacheKey, preferDate = utcDateString())
 
 export function snapshotQueriesForRefresh() {
   const currentMonth = parseYearMonth();
-  const months = [...new Set([currentMonth, BOUNTY_MONTH])];
+  const monthKeys = new Set([currentMonth, BOUNTY_MONTH]);
+  for (const bounty of listBountyMonths()) {
+    if (bounty.period === "month" && bounty.month) {
+      monthKeys.add(bounty.month);
+    }
+  }
+
   const queries = [];
 
   for (const chain of SNAPSHOT_CHAINS) {
     queries.push({ chain, type: "played", period: "all", limit: SNAPSHOT_LIMIT });
-    for (const month of months) {
+    for (const month of monthKeys) {
       queries.push({ chain, type: "played", period: "month", month, limit: SNAPSHOT_LIMIT });
+    }
+    for (const bounty of listBountyMonths()) {
+      if (bounty.period === "range" && bounty.completed) {
+        queries.push({
+          chain,
+          type: "played",
+          limit: SNAPSHOT_LIMIT,
+          ...bountyMonthToLeaderboardQuery(bounty),
+        });
+      }
     }
   }
 
@@ -201,14 +234,7 @@ export async function getLeaderboardWithSnapshot(query) {
   const clientLim = clientResultLimit(query.limit);
 
   if (!isDailySnapshotEnabled() || periodNorm === "range") {
-    const data = await computeLeaderboard(query);
-    const rows = Array.isArray(data) ? data : [];
-    return {
-      data: clientLim == null ? rows : rows.slice(0, clientLim),
-      lastUpdatedAt: new Date().toISOString(),
-      snapshotDate: utcDateString(),
-      live: true,
-    };
+    return serveLiveLeaderboard(query, clientLim);
   }
 
   const key = buildCacheKey({ ...query, period: periodNorm });
@@ -220,17 +246,26 @@ export async function getLeaderboardWithSnapshot(query) {
     if (!anyRow) {
       logger.info({ cacheKey: key }, "Bootstrapping first leaderboard snapshot");
       const data = await computeLeaderboard({ ...query, limit: SNAPSHOT_LIMIT });
-      const updatedAt = await saveSnapshot(key, today, data);
-      cached = {
-        data: Array.isArray(data) ? data : [],
-        lastUpdatedAt: updatedAt,
-        snapshotDate: today,
-      };
+      try {
+        const updatedAt = await saveSnapshot(key, today, data);
+        cached = {
+          data: Array.isArray(data) ? data : [],
+          lastUpdatedAt: updatedAt,
+          snapshotDate: today,
+        };
+      } catch (saveErr) {
+        logger.warn(
+          { err: saveErr?.message, code: saveErr?.code, cacheKey: key },
+          "Snapshot bootstrap failed; serving live leaderboard"
+        );
+        return serveLiveLeaderboard({ ...query, limit: query.limit ?? SNAPSHOT_LIMIT }, clientLim);
+      }
     }
   }
 
   if (!cached) {
-    return { data: [], lastUpdatedAt: null, snapshotDate: null, live: false };
+    logger.info({ cacheKey: key }, "No snapshot available; serving live leaderboard");
+    return serveLiveLeaderboard(query, clientLim);
   }
 
   return {
