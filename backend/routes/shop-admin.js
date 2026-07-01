@@ -64,4 +64,11 @@ router.post("/stock-all-perks", shopAdminController.stockAllPerks);
  */
 router.post("/stock-all-bundles", shopAdminController.stockAllBundles);
 
+/**
+ * POST /api/shop-admin/claim-minipay-bogo
+ * Verify purchase tx + deliver one BOGO bonus copy (idempotent per txHash).
+ * Body: { txHash, tokenId, recipient, userId?, chain?, promoMode?: "minipay_bogo" }
+ */
+router.post("/claim-minipay-bogo", shopAdminController.claimMinipayBogo);
+
 export default router;

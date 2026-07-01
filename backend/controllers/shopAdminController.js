@@ -4,6 +4,14 @@
  * Uses the backend's private key to call reward system contract functions.
  */
 import * as rewardSystemContract from "../services/rewardSystemContract.js";
+import db from "../config/database.js";
+import User from "../models/User.js";
+import {
+  claimMinipayPerkBogo,
+  isMinipayBogoPromoMode,
+  MINIPAY_BOGO_PROMO_MODE,
+  verifyCollectiblePurchaseReceipt,
+} from "../services/minipayPerkPromo.js";
 import logger from "../config/logger.js";
 
 /**
@@ -261,6 +269,67 @@ export async function setBundleActive(req, res) {
     return res.status(500).json({
       success: false,
       error: err.message || "Failed to update bundle status",
+    });
+  }
+}
+
+/**
+ * POST /api/shop-admin/claim-minipay-bogo
+ * Ops/test helper: verify a MiniPay perk purchase tx and deliver the BOGO copy once.
+ * Body: { txHash, tokenId, recipient, userId?, chain?, promoMode?: "minipay_bogo" }
+ */
+export async function claimMinipayBogo(req, res) {
+  try {
+    if (!isMinipayBogoPromoMode(req.body?.promoMode ?? MINIPAY_BOGO_PROMO_MODE)) {
+      return res.status(400).json({ success: false, error: "promoMode must be minipay_bogo" });
+    }
+
+    const txHash = String(req.body?.txHash || "").trim();
+    const tokenId = String(req.body?.tokenId || "").trim();
+    const recipient = String(req.body?.recipient || "").trim().toLowerCase();
+    const chain = User.normalizeChain(req.body?.chain || "CELO");
+
+    if (!/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+      return res.status(400).json({ success: false, error: "Valid txHash required" });
+    }
+    if (!/^\d+$/.test(tokenId) || BigInt(tokenId) <= 0n) {
+      return res.status(400).json({ success: false, error: "Valid tokenId required" });
+    }
+    if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
+      return res.status(400).json({ success: false, error: "Valid recipient required" });
+    }
+
+    await verifyCollectiblePurchaseReceipt({ txHash, tokenId, recipient, chain });
+
+    let userId = req.body?.userId != null ? Number(req.body.userId) : null;
+    if (!userId) {
+      const row = await db("users")
+        .whereRaw("LOWER(address) = ?", [recipient])
+        .orWhereRaw("LOWER(linked_wallet_address) = ?", [recipient])
+        .orWhereRaw("LOWER(smart_wallet_address) = ?", [recipient])
+        .first();
+      userId = row?.id ?? null;
+    }
+    if (!userId) {
+      return res.status(400).json({ success: false, error: "userId required (could not resolve from recipient)" });
+    }
+
+    const bonus = await claimMinipayPerkBogo({
+      claimKey: `tx:${txHash}`,
+      userId,
+      tokenId,
+      chain,
+      deliveryAddress: recipient,
+      source: MINIPAY_BOGO_PROMO_MODE,
+      purchaseTxHash: txHash,
+    });
+
+    return res.json({ success: true, data: { bonus } });
+  } catch (err) {
+    logger.error("claimMinipayBogo error:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Failed to claim MiniPay BOGO",
     });
   }
 }
