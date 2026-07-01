@@ -48,11 +48,9 @@ function isValidFlutterwaveFulfillmentAddress(a) {
   return /^0x[a-fA-F0-9]{40}$/.test(s) && s.toLowerCase() !== ZERO_FLW_ADDR.toLowerCase();
 }
 
-/** Prefer smart wallet; else linked_wallet_address; else primary users.address (wallet-only / MiniPay). */
+/** MiniPay shop fulfillment: prefer linked wallet, then primary users.address. Do not send to smart wallet. */
 function resolveFlutterwaveFulfillmentAddress(user) {
   if (!user) return null;
-  const sw = String(user.smart_wallet_address || "").trim();
-  if (isValidFlutterwaveFulfillmentAddress(sw)) return sw;
   const linked = String(user.linked_wallet_address || "").trim();
   if (isValidFlutterwaveFulfillmentAddress(linked)) return linked;
   const addr = String(user.address || "").trim();
