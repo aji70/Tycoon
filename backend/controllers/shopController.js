@@ -10,12 +10,13 @@ import {
   verifyTransactionByReference,
   FLW_CHECKOUT_EMAIL,
 } from "../services/flutterwave.js";
-import { deliverBundleToUser, deliverCollectibleToUser } from "../services/tycoonContract.js";
+import { deliverBundleToUser, deliverBonusCollectibleToUser } from "../services/tycoonContract.js";
 import {
   claimMinipayPerkBogo,
   isMinipayBogoPromoMode,
   MINIPAY_BOGO_PROMO_MODE,
 } from "../services/minipayPerkPromo.js";
+import { resolveMinipayShopDeliveryAddress } from "../services/shopFulfillment.js";
 
 /**
  * Same base resolution as celoPurchaseInitialize, then ensure path ends with /game-shop.
@@ -48,14 +49,9 @@ function isValidFlutterwaveFulfillmentAddress(a) {
   return /^0x[a-fA-F0-9]{40}$/.test(s) && s.toLowerCase() !== ZERO_FLW_ADDR.toLowerCase();
 }
 
-/** MiniPay shop fulfillment: prefer linked wallet, then primary users.address. Do not send to smart wallet. */
-function resolveFlutterwaveFulfillmentAddress(user) {
-  if (!user) return null;
-  const linked = String(user.linked_wallet_address || "").trim();
-  if (isValidFlutterwaveFulfillmentAddress(linked)) return linked;
-  const addr = String(user.address || "").trim();
-  if (isValidFlutterwaveFulfillmentAddress(addr)) return addr;
-  return null;
+/** @deprecated Use resolveMinipayShopDeliveryAddress */
+function resolveFlutterwaveFulfillmentAddress(user, preferredAddress) {
+  return resolveMinipayShopDeliveryAddress(user, preferredAddress);
 }
 
 /**
@@ -201,7 +197,10 @@ export async function flutterwaveInitialize(_req, res) {
 
     const user = await db("users").where({ id: userId }).first();
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
-    const fulfillmentAddr = resolveFlutterwaveFulfillmentAddress(user);
+    const fulfillmentAddr = resolveFlutterwaveFulfillmentAddress(
+      user,
+      _req.body?.address ?? _req.body?.delivery_address
+    );
     if (!fulfillmentAddr) {
       return res.status(400).json({
         success: false,
@@ -265,7 +264,10 @@ export async function flutterwaveInitializePerk(_req, res) {
 
     const user = await db("users").where({ id: userId }).first();
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
-    const fulfillmentAddr = resolveFlutterwaveFulfillmentAddress(user);
+    const fulfillmentAddr = resolveFlutterwaveFulfillmentAddress(
+      user,
+      _req.body?.address ?? _req.body?.delivery_address
+    );
     if (!fulfillmentAddr) {
       return res.status(400).json({
         success: false,
@@ -295,6 +297,7 @@ export async function flutterwaveInitializePerk(_req, res) {
       tx_ref: ref,
       user_id: userId,
       token_id: tokenId,
+      delivery_address: fulfillmentAddr,
       amount_kobo: Math.round(amountNaira * 100),
       amount_ngn: amountNaira,
       status: "pending",
@@ -437,7 +440,10 @@ async function fulfillFlutterwavePayment(txRef, source, trigger) {
   const row = await db(table).where({ tx_ref: txRef }).first();
 
   const user = await db("users").where({ id: row.user_id }).first();
-  const fulfillmentAddr = resolveFlutterwaveFulfillmentAddress(user);
+  const fulfillmentAddr =
+    (row.delivery_address && isValidFlutterwaveFulfillmentAddress(row.delivery_address)
+      ? String(row.delivery_address).trim()
+      : null) || resolveFlutterwaveFulfillmentAddress(user);
   if (!fulfillmentAddr) {
     await db(table).where({ tx_ref: txRef }).update({ status: "failed", updated_at: db.fn.now() });
     throw new Error("User has no delivery address for fulfillment");
@@ -445,7 +451,7 @@ async function fulfillFlutterwavePayment(txRef, source, trigger) {
 
   try {
     if (source === "perk") {
-      await deliverCollectibleToUser(fulfillmentAddr, row.token_id, "CELO");
+      await deliverBonusCollectibleToUser(fulfillmentAddr, row.token_id, "CELO");
     } else {
       await deliverBundleToUser(fulfillmentAddr, row.bundle_id, "CELO");
     }
