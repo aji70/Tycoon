@@ -10,6 +10,7 @@ import {
   upsertSetting,
   clearPlatformSettingsCache,
 } from "../services/platformSettings.js";
+import { listAdminCollectibleOptions, resolveShopTokenIdForPerk } from "../services/rewardSystemContract.js";
 
 function startOfUtcDay(d = new Date()) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -303,6 +304,27 @@ function isValidEthAddress(addr) {
 }
 
 /**
+ * GET /api/admin/economy/collectible-options?chain=CELO
+ * Human-readable perk list with shop token ids when in stock.
+ */
+export async function listCollectibleOptions(req, res) {
+  try {
+    const chain = normalizeRewardChain(req.query?.chain, "CELO");
+    if (!isContractConfigured(chain)) {
+      return res.status(400).json({
+        success: false,
+        error: `Reward contract not configured for chain ${chain}`,
+      });
+    }
+    const options = await listAdminCollectibleOptions(chain);
+    res.json({ success: true, data: options, chain });
+  } catch (err) {
+    logger.error({ err }, "admin listCollectibleOptions error");
+    res.status(500).json({ success: false, error: err?.message || "Failed to load collectibles" });
+  }
+}
+
+/**
  * POST /api/admin/economy/deliver-collectible
  * Body: { toAddress?: string, userId?: number, tokenId: string|number, chain?: string, reason?: string }
  *       OR mint path: { toAddress?, userId?, perk: number, strength: number, chain?, reason? }
@@ -365,8 +387,15 @@ export async function deliverCollectible(req, res) {
       }
     } else if (perk != null && strength != null && Number.isFinite(perk) && perk > 0 && Number.isFinite(strength) && strength > 0) {
       try {
-        result = await mintCollectibleToUser(toAddress, perk, strength, chain);
-        deliveryMethod = "mint";
+        const resolved = await resolveShopTokenIdForPerk(perk, strength, chain);
+        if (resolved) {
+          tokenId = resolved.toString();
+          result = await deliverBonusCollectibleToUser(toAddress, tokenId, chain);
+          deliveryMethod = result.method || "deliver";
+        } else {
+          result = await mintCollectibleToUser(toAddress, perk, strength, chain);
+          deliveryMethod = "mint";
+        }
       } catch (mintErr) {
         const rawMsg = String(mintErr?.shortMessage || mintErr?.reason || mintErr?.message || "");
         logger.warn({ err: rawMsg, toAddress, perk, strength, chain }, "admin mintCollectible failed");

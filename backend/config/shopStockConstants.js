@@ -5,6 +5,25 @@
  * - frontend/app/rewards/useRewardsAdmin.ts (BUNDLE_DEFS_FOR_STOCK)
  */
 
+/** @type {Record<number, string>} */
+export const PERK_NAMES = {
+  0: "None",
+  1: "Extra Turn",
+  2: "Get Out of Jail Free",
+  3: "Double Rent",
+  4: "Roll Boost",
+  5: "Instant Cash (Tiered)",
+  6: "Teleport",
+  7: "Shield",
+  8: "Property Discount",
+  9: "Tax Refund (Tiered)",
+  10: "Exact Roll",
+  11: "Rent Cashback",
+  12: "Interest",
+  13: "Lucky 7",
+  14: "Free Parking Bonus",
+};
+
 /** @type {readonly { perk: number; strength: number; tycPrice: string; usdcPrice: string }[]} */
 export const INITIAL_COLLECTIBLES = [
   { perk: 1, strength: 1, tycPrice: "0.75", usdcPrice: "0.08" },

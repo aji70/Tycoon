@@ -9,6 +9,23 @@ const CHAINS = ["CELO", "BASE", "POLYGON"] as const;
 
 const GRANT_TIMEOUT_MS = 180_000;
 
+type CollectibleOption = {
+  tokenId: string | null;
+  perk: number;
+  strength: number;
+  label: string;
+  inShop: boolean;
+};
+
+function collectibleOptionKey(opt: CollectibleOption): string {
+  return opt.tokenId ? `token:${opt.tokenId}` : `mint:${opt.perk}:${opt.strength}`;
+}
+
+function formatCollectibleOptionLabel(opt: CollectibleOption): string {
+  const stock = opt.inShop && opt.tokenId ? ` — #${opt.tokenId}` : opt.inShop ? "" : " (mint if out of stock)";
+  return `${opt.label}${stock}`;
+}
+
 type OverviewData = {
   totals: { totalEarnedSum: number; totalWithdrawnSum: number; totalStakedSum: number };
   dailyClaim: { usersClaimedTodayUtc: number; usersWithNonZeroStreak: number };
@@ -41,8 +58,11 @@ export default function AdminTokenRewardsPage() {
 
   const [collectibleAddress, setCollectibleAddress] = useState("");
   const [collectibleUserId, setCollectibleUserId] = useState("");
-  const [collectibleTokenId, setCollectibleTokenId] = useState("");
   const [collectibleChain, setCollectibleChain] = useState<string>("CELO");
+  const [selectedCollectibleKey, setSelectedCollectibleKey] = useState("");
+  const [collectibleOptions, setCollectibleOptions] = useState<CollectibleOption[]>([]);
+  const [collectibleOptionsLoading, setCollectibleOptionsLoading] = useState(false);
+  const [collectibleOptionsError, setCollectibleOptionsError] = useState<string | null>(null);
   const [collectibleReason, setCollectibleReason] = useState("");
   const [collectibleBusy, setCollectibleBusy] = useState(false);
   const [collectibleError, setCollectibleError] = useState<string | null>(null);
@@ -80,6 +100,31 @@ export default function AdminTokenRewardsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadCollectibleOptions = useCallback(async (chain: string) => {
+    setCollectibleOptionsLoading(true);
+    setCollectibleOptionsError(null);
+    setSelectedCollectibleKey("");
+    try {
+      const { data: res } = await adminApi.get<{ success: boolean; data?: CollectibleOption[]; error?: string }>(
+        "admin/economy/collectible-options",
+        { params: { chain } }
+      );
+      if (!res?.success) {
+        throw new Error(res?.error || "Failed to load collectibles");
+      }
+      setCollectibleOptions(res.data || []);
+    } catch (e) {
+      setCollectibleOptions([]);
+      setCollectibleOptionsError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Load failed");
+    } finally {
+      setCollectibleOptionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCollectibleOptions(collectibleChain);
+  }, [collectibleChain, loadCollectibleOptions]);
 
   async function saveEconomyOverrides(e: React.FormEvent) {
     e.preventDefault();
@@ -167,10 +212,10 @@ export default function AdminTokenRewardsPage() {
 
     const addr = collectibleAddress.trim();
     const uidRaw = collectibleUserId.trim();
-    const tokenId = collectibleTokenId.trim();
+    const selected = collectibleOptions.find((opt) => collectibleOptionKey(opt) === selectedCollectibleKey);
 
-    if (!tokenId || !/^\d+$/.test(tokenId)) {
-      setCollectibleError("Enter a valid shop token ID (e.g. 2000000429)");
+    if (!selected) {
+      setCollectibleError("Select a collectible from the list");
       setCollectibleBusy(false);
       return;
     }
@@ -181,10 +226,15 @@ export default function AdminTokenRewardsPage() {
     }
 
     const body: Record<string, string | number> = {
-      tokenId,
       chain: collectibleChain,
       reason: collectibleReason.trim() || undefined,
     };
+    if (selected.tokenId) {
+      body.tokenId = selected.tokenId;
+    } else {
+      body.perk = selected.perk;
+      body.strength = selected.strength;
+    }
     if (addr) body.toAddress = addr;
     if (uidRaw) {
       const uid = parseInt(uidRaw, 10);
@@ -214,8 +264,9 @@ export default function AdminTokenRewardsPage() {
         return;
       }
       const d = resBody.data;
+      const sentLabel = selected.label + (d.tokenId ? ` (#${d.tokenId})` : "");
       setCollectibleOk(
-        `Sent collectible #${tokenId} to ${d.deliverTo.slice(0, 10)}… on ${d.chain} (${d.method || "deliver"}). Tx: ${d.txHash || "—"}`
+        `Sent ${sentLabel} to ${d.deliverTo.slice(0, 10)}… on ${d.chain} (${d.method || "deliver"}). Tx: ${d.txHash || "—"}`
       );
     } catch (e) {
       setCollectibleError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Send failed");
@@ -457,16 +508,6 @@ export default function AdminTokenRewardsPage() {
                 />
               </label>
               <label className="block text-sm">
-                <span className="text-slate-500 text-xs">Shop token ID</span>
-                <input
-                  value={collectibleTokenId}
-                  onChange={(e) => setCollectibleTokenId(e.target.value)}
-                  required
-                  placeholder="e.g. 2000000429"
-                  className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-200 font-mono text-sm"
-                />
-              </label>
-              <label className="block text-sm">
                 <span className="text-slate-500 text-xs">Chain</span>
                 <select
                   value={collectibleChain}
@@ -479,6 +520,37 @@ export default function AdminTokenRewardsPage() {
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-500 text-xs">Collectible</span>
+                <select
+                  value={selectedCollectibleKey}
+                  onChange={(e) => setSelectedCollectibleKey(e.target.value)}
+                  required
+                  disabled={collectibleOptionsLoading || collectibleOptions.length === 0}
+                  className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-200 disabled:opacity-60"
+                >
+                  <option value="">
+                    {collectibleOptionsLoading
+                      ? "Loading collectibles…"
+                      : collectibleOptions.length === 0
+                        ? "No collectibles available"
+                        : "Choose a perk…"}
+                  </option>
+                  {collectibleOptions.map((opt) => (
+                    <option key={collectibleOptionKey(opt)} value={collectibleOptionKey(opt)}>
+                      {formatCollectibleOptionLabel(opt)}
+                    </option>
+                  ))}
+                </select>
+                {collectibleOptionsError && (
+                  <p className="mt-1 text-xs text-amber-400/90">{collectibleOptionsError}</p>
+                )}
+                {!collectibleOptionsLoading && collectibleOptions.length > 0 && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    In-shop perks show their token ID. Others mint on delivery if not in stock.
+                  </p>
+                )}
               </label>
               <label className="block text-sm">
                 <span className="text-slate-500 text-xs">Reason (optional, audit log)</span>

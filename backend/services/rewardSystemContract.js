@@ -8,7 +8,7 @@
  */
 import { JsonRpcProvider, Wallet, Contract, parseUnits, ZeroAddress } from "ethers";
 import { getChainConfig } from "../config/chains.js";
-import { INITIAL_COLLECTIBLES, BUNDLE_DEFS_FOR_STOCK } from "../config/shopStockConstants.js";
+import { INITIAL_COLLECTIBLES, BUNDLE_DEFS_FOR_STOCK, PERK_NAMES } from "../config/shopStockConstants.js";
 import logger from "../config/logger.js";
 import { withTxQueue, getContract } from "./tycoonContract.js";
 
@@ -182,6 +182,24 @@ async function getRewardSystemContract(chain = "CELO") {
   const wallet = getRewardSystemWallet(chain);
   const contractAddress = await resolveRewardSystemAddress(chain);
   return new Contract(contractAddress, REWARD_SYSTEM_ABI, wallet);
+}
+
+async function getRewardReadContract(chain = "CELO") {
+  const config = getChainConfig(chain);
+  if (!config?.rpcUrl) {
+    throw new Error(`No RPC configured for chain ${chain}`);
+  }
+  const contractAddress = await resolveRewardSystemAddress(chain);
+  const provider = new JsonRpcProvider(config.rpcUrl);
+  return new Contract(contractAddress, REWARD_SYSTEM_ABI, provider);
+}
+
+function formatCollectibleLabel(perk, strength) {
+  const baseName = PERK_NAMES[perk] || `Perk ${perk}`;
+  if (strength > 1) {
+    return `${baseName} (tier ${strength})`;
+  }
+  return baseName;
 }
 
 function receiptHash(receipt) {
@@ -411,4 +429,63 @@ export async function setBundleActive(bundleId, active, chain = "CELO") {
       throw err;
     }
   });
+}
+
+/**
+ * Shop inventory held by the reward contract (read-only).
+ */
+export async function listShopCollectibleInventory(chain = "CELO") {
+  const contract = await getRewardReadContract(chain);
+  const rewardAddr = await contract.getAddress();
+  const items = [];
+
+  for (let i = 0; i < REWARD_SLOT_SCAN_CAP; i += 1) {
+    let tid;
+    try {
+      tid = await contract.tokenOfOwnerByIndex(rewardAddr, BigInt(i));
+    } catch (_) {
+      break;
+    }
+    const perk = Number(await contract.collectiblePerk(tid));
+    const strength = Number(await contract.collectiblePerkStrength(tid));
+    if (perk === 0) continue;
+    items.push({
+      tokenId: tid.toString(),
+      perk,
+      strength,
+      label: formatCollectibleLabel(perk, strength),
+      inShop: true,
+    });
+  }
+
+  items.sort((a, b) => a.perk - b.perk || a.strength - b.strength);
+  return items;
+}
+
+/**
+ * Admin dropdown: shop stock first, then catalog perks not currently in shop (mint path).
+ */
+export async function listAdminCollectibleOptions(chain = "CELO") {
+  const shop = await listShopCollectibleInventory(chain);
+  const shopKeys = new Set(shop.map((item) => `${item.perk}:${item.strength}`));
+  const extras = INITIAL_COLLECTIBLES.filter((item) => !shopKeys.has(`${item.perk}:${item.strength}`)).map(
+    (item) => ({
+      tokenId: null,
+      perk: item.perk,
+      strength: item.strength,
+      label: formatCollectibleLabel(item.perk, item.strength),
+      inShop: false,
+    })
+  );
+
+  return [...shop, ...extras].sort((a, b) => a.perk - b.perk || a.strength - b.strength);
+}
+
+/**
+ * Resolve shop token id for perk:strength from reward contract inventory.
+ */
+export async function resolveShopTokenIdForPerk(perk, strength, chain = "CELO") {
+  const contract = await getRewardReadContract(chain);
+  const map = await buildPerkStrengthTokenMap(contract);
+  return map.get(`${perk}:${strength}`) ?? null;
 }
