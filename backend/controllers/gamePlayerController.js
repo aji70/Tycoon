@@ -1414,7 +1414,7 @@ const gamePlayerController = {
 
       const playersBeforeLeave = await trx("game_players")
         .where({ game_id: game.id })
-        .select("user_id", "turn_count");
+        .select("user_id", "turn_count", "turn_order");
       const chainForLeave = User.normalizeChain(game.chain || "CELO");
       const gameContinues =
         game.status === "RUNNING" && playersBeforeLeave.length > 2;
@@ -1546,7 +1546,50 @@ const gamePlayerController = {
           );
         }
       } else {
+        if (game.status === "RUNNING" && remaining.length > 1) {
+          let nextPlayerId = game.next_player_id;
+          if (Number(game.next_player_id) === Number(user.id)) {
+            const remainingBeforeLeave = playersBeforeLeave
+              .filter((p) => Number(p.user_id) !== Number(user.id))
+              .sort(
+                (a, b) =>
+                  Number(a.turn_order ?? 0) - Number(b.turn_order ?? 0),
+              );
+            const leaverTurnOrder = Number(
+              playersBeforeLeave.find(
+                (p) => Number(p.user_id) === Number(user.id),
+              )?.turn_order ?? 0,
+            );
+            const nextInOrder = remainingBeforeLeave.find(
+              (p) => Number(p.turn_order ?? 0) > leaverTurnOrder,
+            );
+            nextPlayerId = nextInOrder
+              ? nextInOrder.user_id
+              : remainingBeforeLeave[0]?.user_id ?? nextPlayerId;
+          }
+
+          await trx("games").where({ id: game.id }).update({
+            next_player_id: nextPlayerId,
+            updated_at: db.fn.now(),
+          });
+
+          if (nextPlayerId) {
+            const turnStartSeconds = String(Math.floor(Date.now() / 1000));
+            await trx("game_players")
+              .where({ game_id: game.id, user_id: nextPlayerId })
+              .update({
+                turn_start: turnStartSeconds,
+                updated_at: db.fn.now(),
+              });
+            await applyTurnStartPerks(trx, game.id, nextPlayerId);
+          }
+        }
+
         await trx.commit();
+        await invalidateGameById(game.id);
+        await invalidateGameByCode(game.code);
+        const io = req.app.get("io");
+        if (io && game.code) emitGameUpdate(io, game.code);
       }
 
       return res.status(200).json({

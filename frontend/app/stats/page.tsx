@@ -19,13 +19,6 @@ type PublicStatsData = {
   };
 };
 
-const PERIOD_OPTIONS: { value: Period; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "day", label: "Day" },
-  { value: "week", label: "Week" },
-  { value: "month", label: "Month" },
-];
-
 function periodLabel(period: Period) {
   return period === "all" ? "All time" : `Last ${period}`;
 }
@@ -106,27 +99,6 @@ export default function PublicStatsPage() {
           >
             View leaderboard
           </Link>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {PERIOD_OPTIONS.map((option) => {
-            const active = period === option.value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                disabled={loading}
-                onClick={() => setPeriod(option.value)}
-                className={`rounded-lg border px-3 py-1.5 text-xs transition ${
-                  active
-                    ? "border-cyan-500 bg-cyan-500/10 text-cyan-200"
-                    : "border-slate-700 bg-slate-900/50 text-slate-300 hover:border-slate-500"
-                } disabled:opacity-50`}
-              >
-                {option.label}
-              </button>
-            );
-          })}
         </div>
 
         {loading && (
