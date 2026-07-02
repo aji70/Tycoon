@@ -24,7 +24,32 @@ export type BountyMonthConfig = {
   sourceMonth?: string;
   shuffleRanks?: boolean;
   shuffleSeed?: string;
+  /** Keep API ranks 1..N fixed; inject curated names into the prize tail. */
+  pinnedTopCount?: number;
+  curatedUsernames?: readonly string[];
 };
+
+/** May/June bounty — injected into ranks after pinnedTopCount, shuffled per month seed. */
+export const MAY_JUNE_BOUNTY_CURATED_USERNAMES = [
+  'praiz-francis',
+  'samm',
+  'daveilorah',
+  'simply',
+  'milah',
+  'harlord',
+  'Ejiro',
+  'stilldarc',
+  'amxauto',
+  'nuem',
+  'laateet',
+  'macnelson',
+  'vince',
+  'mish',
+  'mullah',
+  'niffy',
+  'ijafier',
+  'llins',
+] as const;
 
 export const BOUNTY_MONTHS: Record<string, BountyMonthConfig> = {
   '2026-05': {
@@ -34,6 +59,10 @@ export const BOUNTY_MONTHS: Record<string, BountyMonthConfig> = {
     prizeCount: 40,
     period: 'month',
     month: '2026-05',
+    pinnedTopCount: 10,
+    curatedUsernames: MAY_JUNE_BOUNTY_CURATED_USERNAMES,
+    shuffleRanks: true,
+    shuffleSeed: '2026-05',
   },
   '2026-06': {
     key: '2026-06',
@@ -43,6 +72,8 @@ export const BOUNTY_MONTHS: Record<string, BountyMonthConfig> = {
     period: 'month',
     month: '2026-05',
     sourceMonth: '2026-05',
+    pinnedTopCount: 10,
+    curatedUsernames: MAY_JUNE_BOUNTY_CURATED_USERNAMES,
     shuffleRanks: true,
     shuffleSeed: '2026-06',
   },
@@ -115,11 +146,57 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+function shuffleWithRng<T>(items: T[], rng: () => number): T[] {
+  const list = [...items];
+  for (let i = list.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
+
+function applyCuratedTailShuffle(rows: BountyRow[], config: BountyMonthConfig): BountyRow[] {
+  const curated = config.curatedUsernames ?? [];
+  const pinnedTopCount = config.pinnedTopCount ?? 0;
+  if (!curated.length || pinnedTopCount <= 0) return rows;
+
+  const eligible = rows.filter((r) => r.leaderboard_eligible !== false);
+  const ineligible = rows.filter((r) => r.leaderboard_eligible === false);
+  if (eligible.length <= pinnedTopCount) return rows;
+
+  const curatedLower = new Set(curated.map((name) => name.toLowerCase()));
+  const top = eligible.slice(0, pinnedTopCount);
+  const restReal = eligible
+    .slice(pinnedTopCount)
+    .filter((row) => !curatedLower.has(row.username.toLowerCase()));
+
+  const rng = mulberry32(hashSeed(config.shuffleSeed ?? config.key));
+  const syntheticRows: BountyRow[] = curated.map((username, index) => ({
+    id: -(index + 1),
+    username,
+    games_played: 0,
+    leaderboard_eligible: true,
+  }));
+
+  const tailSlotCount = Math.max(0, config.prizeCount - pinnedTopCount);
+  const shuffledTail = shuffleWithRng([...syntheticRows, ...restReal], rng).slice(0, tailSlotCount);
+  const usedInTail = new Set(shuffledTail.map((row) => row.username.toLowerCase()));
+  const overflow = restReal.filter((row) => !usedInTail.has(row.username.toLowerCase()));
+
+  return [...top, ...shuffledTail, ...overflow, ...ineligible];
+}
+
 export function transformBountyLeaderboardRows(
   rows: BountyRow[],
   config: BountyMonthConfig | null | undefined
 ): BountyRow[] {
-  if (!config?.shuffleRanks) return rows;
+  if (!config) return rows;
+
+  if (config.curatedUsernames?.length && config.pinnedTopCount) {
+    return applyCuratedTailShuffle(rows, config);
+  }
+
+  if (!config.shuffleRanks) return rows;
 
   const eligible = rows.filter((r) => r.leaderboard_eligible !== false);
   const ineligible = rows.filter((r) => r.leaderboard_eligible === false);

@@ -18,7 +18,31 @@
  * @property {string} [sourceMonth] fetch another month's data (June uses May)
  * @property {boolean} [shuffleRanks] partial deterministic shuffle for display
  * @property {string} [shuffleSeed] seed for shuffleRanks
+ * @property {number} [pinnedTopCount] keep API ranks 1..N fixed
+ * @property {string[]} [curatedUsernames] inject into prize tail (May/June)
  */
+
+/** May/June bounty display names — keep in sync with frontend leaderboard-types.ts */
+export const MAY_JUNE_BOUNTY_CURATED_USERNAMES = [
+  "praiz-francis",
+  "samm",
+  "daveilorah",
+  "simply",
+  "milah",
+  "harlord",
+  "Ejiro",
+  "stilldarc",
+  "amxauto",
+  "nuem",
+  "laateet",
+  "macnelson",
+  "vince",
+  "mish",
+  "mullah",
+  "niffy",
+  "ijafier",
+  "llins",
+];
 
 /** @type {Record<string, BountyMonthConfig>} */
 export const BOUNTY_MONTHS = {
@@ -29,6 +53,10 @@ export const BOUNTY_MONTHS = {
     prizeCount: 40,
     period: "month",
     month: "2026-05",
+    pinnedTopCount: 10,
+    curatedUsernames: MAY_JUNE_BOUNTY_CURATED_USERNAMES,
+    shuffleRanks: true,
+    shuffleSeed: "2026-05",
   },
   "2026-06": {
     key: "2026-06",
@@ -38,6 +66,8 @@ export const BOUNTY_MONTHS = {
     period: "month",
     month: "2026-05",
     sourceMonth: "2026-05",
+    pinnedTopCount: 10,
+    curatedUsernames: MAY_JUNE_BOUNTY_CURATED_USERNAMES,
     shuffleRanks: true,
     shuffleSeed: "2026-06",
   },
