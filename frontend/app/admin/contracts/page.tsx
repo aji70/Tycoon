@@ -5,6 +5,8 @@ import { adminApi } from "@/lib/adminApi";
 import { ApiError } from "@/lib/api";
 import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
 
+type Period = "all" | "day" | "week" | "month";
+
 type ContractRow = {
   label: string;
   address: string;
@@ -20,6 +22,7 @@ type ContractRow = {
 type TxStatsData = {
   contracts: ContractRow[];
   summary: { configured: number; withCounts: number; totalTxns: number };
+  period: Period;
   cachedUntil: string;
   generatedAt: string;
 };
@@ -29,7 +32,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   general: "General",
   token: "Tokens",
   infrastructure: "Infrastructure",
-  erc8004: "ERC-8004",
 };
 
 function shortAddr(a: string) {
@@ -41,17 +43,32 @@ function formatCount(n: number | null) {
   return n.toLocaleString();
 }
 
+const PERIOD_OPTIONS: { value: Period; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "day", label: "Day" },
+  { value: "week", label: "Week" },
+  { value: "month", label: "Month" },
+];
+
+function periodLabel(period: Period) {
+  return period === "all" ? "All time" : `Last ${period}`;
+}
+
 export default function AdminContractsPage() {
   const [data, setData] = useState<TxStatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [period, setPeriod] = useState<Period>("all");
 
-  const load = useCallback(async (refresh = false) => {
+  const load = useCallback(async (refresh = false, selectedPeriod: Period = period) => {
     setLoading(true);
     setError(null);
     try {
       const { data: body } = await adminApi.get<{ success: boolean; data?: TxStatsData }>("admin/contracts/tx-stats", {
-        params: refresh ? { refresh: "true" } : {},
+        params: {
+          ...(refresh ? { refresh: "true" } : {}),
+          period: selectedPeriod,
+        },
         timeout: 120_000,
       });
       if (!body?.success || !body.data) {
@@ -65,10 +82,10 @@ export default function AdminContractsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [period]);
 
   useEffect(() => {
-    load();
+    load(false, period);
   }, [load]);
 
   return (
@@ -78,14 +95,33 @@ export default function AdminContractsPage() {
           <h1 className="text-2xl font-semibold text-slate-100">Contract activity</h1>
           <p className="mt-1 text-sm text-slate-400 max-w-2xl">
             On-chain transaction counts for <strong className="text-slate-300 font-medium">Celo mainnet</strong> app
-            contracts (Tycoon, reward, property transfer registry, registries, TYC, infrastructure). Excludes
-            USDC, tournament escrow, and Polygon/Base/Alfajores. ERC-8004 entries are mainnet only. Data from Blockscout; cached ~10 minutes.
+            contracts (Tycoon, reward, property transfer registry, registries, TYC, infrastructure).
           </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {PERIOD_OPTIONS.map((option) => {
+              const active = period === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => setPeriod(option.value)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs transition ${
+                    active
+                      ? "border-cyan-500 bg-cyan-500/10 text-cyan-200"
+                      : "border-slate-700 bg-slate-900/50 text-slate-300 hover:border-slate-500"
+                  } disabled:opacity-50`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <button
           type="button"
           disabled={loading}
-          onClick={() => void load(true)}
+          onClick={() => void load(true, period)}
           className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-200 hover:border-slate-500 disabled:opacity-50 shrink-0"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
@@ -118,7 +154,7 @@ export default function AdminContractsPage() {
               <p className="text-2xl font-semibold text-slate-200 tabular-nums mt-1">{data.summary.withCounts}</p>
             </div>
             <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3">
-              <p className="text-xs uppercase text-slate-500">Sum of tx counts</p>
+              <p className="text-xs uppercase text-slate-500">{periodLabel(data.period)} tx count</p>
               <p className="text-2xl font-semibold text-slate-200 tabular-nums mt-1">
                 {data.summary.totalTxns.toLocaleString()}
               </p>
@@ -127,7 +163,7 @@ export default function AdminContractsPage() {
           </div>
 
           <p className="mt-3 text-xs text-slate-600">
-            Generated {data.generatedAt} · cache until {data.cachedUntil}
+            Range: {periodLabel(data.period)} · Generated {data.generatedAt} · cache until {data.cachedUntil}
           </p>
 
           <div className="mt-6 rounded-xl border border-slate-800 overflow-hidden bg-slate-900/30">
@@ -138,7 +174,9 @@ export default function AdminContractsPage() {
                     <th className="px-4 py-3 font-medium">Contract</th>
                     <th className="px-4 py-3 font-medium">Chain</th>
                     <th className="px-4 py-3 font-medium">Address</th>
-                    <th className="px-4 py-3 font-medium text-right">Transactions</th>
+                    <th className="px-4 py-3 font-medium text-right">
+                      {data.period === "all" ? "Transactions" : `${periodLabel(data.period)} txs`}
+                    </th>
                     <th className="px-4 py-3 font-medium text-right">Token transfers</th>
                     <th className="px-4 py-3 font-medium text-right">Explorer</th>
                   </tr>

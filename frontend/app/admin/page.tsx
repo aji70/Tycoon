@@ -5,6 +5,8 @@ import Link from "next/link";
 import { adminApi } from "@/lib/adminApi";
 import { ApiError } from "@/lib/api";
 
+type Period = "all" | "day" | "week" | "month";
+
 type PlatformMetrics = {
   totalPlayers: number;
   activePlayersToday: number;
@@ -34,6 +36,11 @@ type ActiveUsersSummary = {
   mauThisMonth: number;
 };
 
+type OverviewResponse = {
+  metrics: PlatformMetrics;
+  period: Period;
+};
+
 const metricCards: { key: keyof PlatformMetrics; label: string; hint?: string }[] = [
   { key: "totalPlayers", label: "Total players" },
   { key: "activePlayersToday", label: "Active players today", hint: "Users updated today (UTC)" },
@@ -49,6 +56,20 @@ const metricCards: { key: keyof PlatformMetrics; label: string; hint?: string }[
     hint: "moderation_reports with status open; see /admin/moderation",
   },
 ];
+
+const PERIOD_OPTIONS: { value: Period; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "day", label: "Day" },
+  { value: "week", label: "Week" },
+  { value: "month", label: "Month" },
+];
+
+const PERIOD_AFFECTED_KEYS = new Set<keyof PlatformMetrics>([
+  "totalGames",
+  "totalTrades",
+  "totalPlayHistoryEvents",
+  "totalPropertiesOwned",
+]);
 
 function formatMetric(key: keyof PlatformMetrics, v: number): string {
   if (key === "totalTokensDistributed") {
@@ -95,6 +116,8 @@ function GamesVolumeBars({ series }: { series: GamesOverDay[] }) {
 
 export default function AdminDashboardPage() {
   const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
+  const [overviewPeriod, setOverviewPeriod] = useState<Period>("all");
+  const [effectiveOverviewPeriod, setEffectiveOverviewPeriod] = useState<Period>("all");
   const [gamesOverTime, setGamesOverTime] = useState<GamesOverDay[] | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [activeSummary, setActiveSummary] = useState<ActiveUsersSummary | null>(null);
@@ -112,7 +135,9 @@ export default function AdminDashboardPage() {
       setLeaderboardNote(null);
       try {
         const [ovRes, dashRes, lbRes, auRes] = await Promise.allSettled([
-          adminApi.get<{ success: boolean; data?: { metrics: PlatformMetrics } }>("admin/overview"),
+          adminApi.get<{ success: boolean; data?: OverviewResponse }>("admin/overview", {
+            params: { period: overviewPeriod },
+          }),
           adminApi.get<{ success: boolean; data?: { gamesOverTime: GamesOverDay[] } }>("admin/analytics/dashboard"),
           adminApi.get<{
             success: boolean;
@@ -142,6 +167,7 @@ export default function AdminDashboardPage() {
         }
 
         setMetrics(ovBody.data.metrics);
+        setEffectiveOverviewPeriod(ovBody.data.period ?? "all");
 
         const dashBody = dashRes.status === "fulfilled" ? dashRes.value.data : null;
         if (dashRes.status === "fulfilled" && dashBody?.success && dashBody?.data?.gamesOverTime) {
@@ -188,7 +214,7 @@ export default function AdminDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [overviewPeriod]);
 
   return (
     <div>
@@ -197,6 +223,26 @@ export default function AdminDashboardPage() {
         Live platform metrics, active users (DAU/WAU/MAU), a seven-day games volume strip, and an all-time wins preview.
         See <Link href="/admin/contracts" className="text-cyan-400 hover:underline">Contracts</Link> for on-chain tx counts.
       </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {PERIOD_OPTIONS.map((option) => {
+          const active = overviewPeriod === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              disabled={loading}
+              onClick={() => setOverviewPeriod(option.value)}
+              className={`rounded-lg border px-3 py-1.5 text-xs transition ${
+                active
+                  ? "border-cyan-500 bg-cyan-500/10 text-cyan-200"
+                  : "border-slate-700 bg-slate-900/50 text-slate-300 hover:border-slate-500"
+              } disabled:opacity-50`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
 
       {loading && (
         <div className="mt-8 flex items-center gap-3 text-slate-400">
@@ -224,6 +270,13 @@ export default function AdminDashboardPage() {
                   {formatMetric(key, metrics[key])}
                 </p>
                 {hint && <p className="mt-1 text-xs text-slate-600">{hint}</p>}
+                {PERIOD_AFFECTED_KEYS.has(key) && (
+                  <p className="mt-1 text-[10px] text-slate-600">
+                    {effectiveOverviewPeriod === "all"
+                      ? "All time"
+                      : `Last ${effectiveOverviewPeriod}`}
+                  </p>
+                )}
               </div>
             ))}
           </div>

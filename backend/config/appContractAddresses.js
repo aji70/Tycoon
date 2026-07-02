@@ -57,7 +57,6 @@ export function collectAppContractAddresses() {
     },
     { label: "Naira vault", address: cfg.nairaVaultAddress, category: "infrastructure" },
     { label: "TYC token", address: cfg.tycTokenAddress, category: "token" },
-    { label: "DashRunner", address: cfg.dashRunnerContractAddress, category: "infrastructure" },
   ];
 
   for (const p of celoPairs) {
@@ -71,8 +70,6 @@ export function collectAppContractAddresses() {
     { label: "Withdrawal authority", address: process.env.WITHDRAWAL_AUTHORITY_ADDRESS || process.env.NEXT_PUBLIC_WITHDRAWAL_AUTHORITY_ADDRESS, category: "infrastructure" },
     { label: "Swap executor", address: process.env.CELO_SWAP_EXECUTOR_ADDRESS || process.env.NEXT_PUBLIC_CELO_SWAP_EXECUTOR_ADDRESS, category: "infrastructure" },
     { label: "X402 pay-to", address: process.env.X402_PAY_TO_ADDRESS, category: "infrastructure" },
-    { label: "ERC-8004 reputation registry", address: process.env.ERC8004_REPUTATION_REGISTRY_ADDRESS || process.env.NEXT_PUBLIC_ERC8004_REPUTATION || "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63", category: "erc8004" },
-    { label: "ERC-8004 identity registry", address: process.env.ERC8004_IDENTITY_REGISTRY_ADDRESS || process.env.NEXT_PUBLIC_ERC8004_IDENTITY || "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432", category: "erc8004" },
   ];
 
   for (const p of globalPairs) {

@@ -11,9 +11,10 @@ const BLOCKSCOUT_BASE = {
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const cache = new Map();
+const VALID_PERIODS = new Set(["all", "day", "week", "month"]);
 
-function cacheKey(chainId, address) {
-  return `${chainId}:${address.toLowerCase()}`;
+function cacheKey(chainId, address, period = "all") {
+  return `${chainId}:${address.toLowerCase()}:${period}`;
 }
 
 function explorerAddressUrl(chainId, address) {
@@ -63,16 +64,109 @@ async function fetchTxCountFromBlockscout(chainId, address) {
   }
 }
 
+function getPeriodStart(period) {
+  const now = new Date();
+  if (period === "day") {
+    return new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  }
+  if (period === "week") {
+    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  }
+  if (period === "month") {
+    return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  }
+  return null;
+}
+
+async function countWindowedItems(base, address, endpoint, cutoff) {
+  let count = 0;
+  let nextPageParams = null;
+  let shouldContinue = true;
+
+  while (shouldContinue) {
+    const url = new URL(`${base}/addresses/${address}/${endpoint}`);
+    if (nextPageParams) {
+      for (const [k, v] of Object.entries(nextPageParams)) {
+        if (v != null) url.searchParams.set(k, String(v));
+      }
+    }
+
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) {
+      throw new Error(`Explorer HTTP ${res.status}`);
+    }
+
+    const body = await res.json();
+    const items = Array.isArray(body?.items) ? body.items : [];
+    if (items.length === 0) break;
+
+    for (const item of items) {
+      const rawTimestamp = item?.timestamp;
+      const ts = rawTimestamp ? new Date(rawTimestamp) : null;
+      if (!ts || Number.isNaN(ts.getTime())) continue;
+      if (ts >= cutoff) {
+        count += 1;
+      } else {
+        shouldContinue = false;
+        break;
+      }
+    }
+
+    if (!shouldContinue || !body?.next_page_params) break;
+    nextPageParams = body.next_page_params;
+  }
+
+  return count;
+}
+
+async function fetchWindowedTxCountFromBlockscout(chainId, address, period) {
+  const base = BLOCKSCOUT_BASE[chainId];
+  if (!base) {
+    return { txCount: null, tokenTransfers: null, error: `No explorer configured for chainId ${chainId}` };
+  }
+
+  const key = cacheKey(chainId, address, period);
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+    return hit.data;
+  }
+
+  const cutoff = getPeriodStart(period);
+  if (!cutoff) {
+    return fetchTxCountFromBlockscout(chainId, address);
+  }
+
+  try {
+    const [txCount, tokenTransfers] = await Promise.all([
+      countWindowedItems(base, address, "transactions", cutoff),
+      countWindowedItems(base, address, "token-transfers", cutoff),
+    ]);
+
+    const data = { txCount, tokenTransfers, error: null };
+    cache.set(key, { at: Date.now(), data });
+    return data;
+  } catch (err) {
+    logger.warn({ err: err?.message, chainId, address, period }, "contractTxStats range fetch failed");
+    const data = { txCount: null, tokenTransfers: null, error: err?.message || "Explorer request failed" };
+    cache.set(key, { at: Date.now() - CACHE_TTL_MS + 60_000, data });
+    return data;
+  }
+}
+
 /**
- * @param {{ refresh?: boolean }} options
+ * @param {{ refresh?: boolean, period?: "all"|"day"|"week"|"month" }} options
  */
 export async function getContractTxStats(options = {}) {
   if (options.refresh) cache.clear();
+  const period = VALID_PERIODS.has(options.period) ? options.period : "all";
 
   const addresses = collectAppContractAddresses();
   const contracts = await Promise.all(
     addresses.map(async (row) => {
-      const stats = await fetchTxCountFromBlockscout(row.chainId, row.address);
+      const stats =
+        period === "all"
+          ? await fetchTxCountFromBlockscout(row.chainId, row.address)
+          : await fetchWindowedTxCountFromBlockscout(row.chainId, row.address, period);
       return {
         ...row,
         txCount: stats.txCount,
@@ -90,6 +184,7 @@ export async function getContractTxStats(options = {}) {
   return {
     contracts,
     summary: { configured, withCounts, totalTxns },
+    period,
     cachedUntil: new Date(Date.now() + CACHE_TTL_MS).toISOString(),
     generatedAt: new Date().toISOString(),
   };
