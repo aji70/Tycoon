@@ -73,6 +73,14 @@ export default function AdminTokenRewardsPage() {
   const [ecoBusy, setEcoBusy] = useState(false);
   const [ecoMsg, setEcoMsg] = useState<string | null>(null);
 
+  const [shopStockChain, setShopStockChain] = useState<string>("CELO");
+  const [shopAddAmount, setShopAddAmount] = useState("200");
+  const [shopStockBusy, setShopStockBusy] = useState(false);
+  const [shopStockError, setShopStockError] = useState<string | null>(null);
+  const [shopStockOk, setShopStockOk] = useState<string | null>(null);
+
+  const SHOP_STOCK_TIMEOUT_MS = 600_000;
+
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -272,6 +280,43 @@ export default function AdminTokenRewardsPage() {
       setCollectibleError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Send failed");
     } finally {
       setCollectibleBusy(false);
+    }
+  }
+
+  async function onAddShopStock(e: React.FormEvent) {
+    e.preventDefault();
+    setShopStockBusy(true);
+    setShopStockError(null);
+    setShopStockOk(null);
+    const amount = Number(shopAddAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setShopStockError("Enter a positive amount (e.g. 200)");
+      setShopStockBusy(false);
+      return;
+    }
+    try {
+      const { data: body } = await adminApi.post<{
+        success: boolean;
+        data?: { processed: number; restocked: number; newlyStocked: number; failed: number };
+        message?: string;
+        error?: string;
+      }>(
+        "admin/economy/shop-add-all-perks",
+        { chain: shopStockChain, amount },
+        { timeout: SHOP_STOCK_TIMEOUT_MS }
+      );
+      if (!body?.success) {
+        setShopStockError(body?.error || body?.message || "Shop restock failed");
+        return;
+      }
+      setShopStockOk(
+        body.message ||
+          `Added ${amount} to ${body.data?.processed ?? 0} perk row(s) (${body.data?.restocked ?? 0} restocked, ${body.data?.newlyStocked ?? 0} new).`
+      );
+    } catch (e) {
+      setShopStockError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Shop restock failed");
+    } finally {
+      setShopStockBusy(false);
     }
   }
 
@@ -578,6 +623,58 @@ export default function AdminTokenRewardsPage() {
                 className="w-full rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white px-4 py-3 text-sm font-semibold disabled:opacity-50 shadow-lg shadow-emerald-950/40"
               >
                 {collectibleBusy ? "Sending on-chain…" : "Send collectible"}
+              </button>
+            </form>
+          </section>
+
+          <section className="mt-8 rounded-xl border border-violet-900/40 bg-violet-950/15 p-4 max-w-xl">
+            <h2 className="text-sm font-semibold text-violet-200/95">Shop — add stock to all perks</h2>
+            <p className="text-xs text-violet-200/70 mt-1">
+              Adds units to every catalog perk on-chain. Restocks perks already in the shop; stocks any that are missing.
+              Unlike the old &quot;Stock 50&quot; on /rewards, this works even when inventory is not empty.
+            </p>
+            <form onSubmit={onAddShopStock} className="mt-4 space-y-3">
+              <label className="block text-sm">
+                <span className="text-slate-500 text-xs">Chain</span>
+                <select
+                  value={shopStockChain}
+                  onChange={(e) => setShopStockChain(e.target.value)}
+                  className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-200"
+                >
+                  {CHAINS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-500 text-xs">Units per perk</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={shopAddAmount}
+                  onChange={(e) => setShopAddAmount(e.target.value)}
+                  required
+                  className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-200 tabular-nums"
+                />
+              </label>
+              {shopStockError && (
+                <p className="text-sm text-red-400 border border-red-900/40 rounded-lg px-2 py-1.5 bg-red-950/30">
+                  {shopStockError}
+                </p>
+              )}
+              {shopStockOk && (
+                <p className="text-sm text-emerald-400/90 border border-emerald-900/40 rounded-lg px-2 py-1.5 bg-emerald-950/30">
+                  {shopStockOk}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={shopStockBusy}
+                className="w-full rounded-lg bg-violet-700 hover:bg-violet-600 text-white px-4 py-3 text-sm font-semibold disabled:opacity-50"
+              >
+                {shopStockBusy ? "Adding on-chain stock… (several minutes)" : `Add ${shopAddAmount || "200"} of each perk`}
               </button>
             </form>
           </section>

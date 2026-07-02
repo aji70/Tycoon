@@ -175,7 +175,8 @@ export function useRewardsAdmin() {
     total: 0,
   });
   /** Backend /api/shop-admin bulk actions (owner or minter key on server). */
-  const [backendShopBulk, setBackendShopBulk] = useState<null | "perks" | "bundles">(null);
+  const [backendShopBulk, setBackendShopBulk] = useState<null | "perks" | "bundles" | "add-perks">(null);
+  const [shopAddAllAmount, setShopAddAllAmount] = useState("200");
 
   const NAIRA_VAULT_ABI = [
     { inputs: [], name: "balanceCelo", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
@@ -753,6 +754,64 @@ export function useRewardsAdmin() {
     }
   };
 
+  const handleBackendAddAllPerks = async () => {
+    const amount = Number(shopAddAllAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setStatus({ type: "error", message: "Enter a positive amount (e.g. 200)." });
+      return;
+    }
+    setBackendShopBulk("add-perks");
+    try {
+      const chain = backendChainFromChainId(chainId);
+      const wrapped = await apiClient.post<{
+        success?: boolean;
+        data?: {
+          processed: number;
+          restocked: number;
+          newlyStocked: number;
+          failed: number;
+          errors?: { label: string; error: string }[];
+        };
+        message?: string;
+        error?: string;
+      }>(
+        "shop-admin/add-all-perks",
+        { chain, amount },
+        {
+          timeout: 600_000,
+          headers: shopAdminRequestHeaders(),
+        }
+      );
+      const body = wrapped.data as {
+        success?: boolean;
+        data?: {
+          processed: number;
+          restocked: number;
+          newlyStocked: number;
+          failed: number;
+          errors?: { label: string; error: string }[];
+        };
+        message?: string;
+        error?: string;
+      };
+      if (!body?.success) {
+        const errList = body?.data?.errors?.map((x) => `${x.label}: ${x.error}`).join("; ");
+        throw new Error(errList || body?.error || body?.message || "Backend add all perks failed");
+      }
+      setStatus({
+        type: "success",
+        message:
+          body.message ||
+          `Added ${amount} to ${body.data?.processed ?? 0} perk row(s) (${body.data?.restocked ?? 0} restocked, ${body.data?.newlyStocked ?? 0} new).`,
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Backend add all perks failed";
+      setStatus({ type: "error", message: msg });
+    } finally {
+      setBackendShopBulk(null);
+    }
+  };
+
   const handleBackendStockAllBundles = async () => {
     setBackendShopBulk("bundles");
     try {
@@ -1075,6 +1134,8 @@ export function useRewardsAdmin() {
       setVaultWithdrawUsdcTo,
       stockAllProgress,
       backendShopBulk,
+      shopAddAllAmount,
+      setShopAddAllAmount,
     },
     contract: {
       tycBalance: tycBalance.data,
@@ -1091,6 +1152,7 @@ export function useRewardsAdmin() {
       handleStockAllPerks,
       handleSyncStablePricesFromCatalog,
       handleBackendStockAllPerks,
+      handleBackendAddAllPerks,
       handleBackendStockAllBundles,
       handleStockBundle,
       handleRestock,

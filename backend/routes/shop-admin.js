@@ -59,6 +59,12 @@ router.post("/bundle-active", shopAdminController.setBundleActive);
 router.post("/stock-all-perks", shopAdminController.stockAllPerks);
 
 /**
+ * POST /api/shop-admin/add-all-perks
+ * Body: { chain?: string, amount?: number } — restock existing + stock missing catalog perks.
+ */
+router.post("/add-all-perks", shopAdminController.addAllPerks);
+
+/**
  * POST /api/shop-admin/stock-all-bundles
  * Body: { chain?: string }
  */

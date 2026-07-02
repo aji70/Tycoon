@@ -270,6 +270,79 @@ export async function stockAllInitialPerks(chain = "CELO", amount = 50) {
 }
 
 /**
+ * Add `amount` units to every catalog perk: restock when already in shop, stockShop when missing.
+ */
+export async function stockOrRestockAllInitialPerks(chain = "CELO", amount = 200) {
+  return withTxQueue(async () => {
+    const contract = await getRewardSystemContract(chain);
+    const map = await buildPerkStrengthTokenMap(contract);
+    const amt = BigInt(amount);
+    const transactions = [];
+    const errors = [];
+
+    for (const item of INITIAL_COLLECTIBLES) {
+      const key = `${item.perk}:${item.strength}`;
+      const tycWei = parseUnits(item.tycPrice, 18);
+      const usdcUnits = parseUnits(item.usdcPrice, 6);
+      try {
+        const existingTokenId = map.get(key);
+        if (existingTokenId !== undefined) {
+          logger.info(
+            { chain, tokenId: existingTokenId.toString(), amount: amt.toString(), perk: item.perk, strength: item.strength },
+            "stockOrRestockAllInitialPerks: restockCollectible"
+          );
+          const tx = await contract.restockCollectible(existingTokenId, amt);
+          const receipt = await tx.wait();
+          transactions.push({
+            perk: item.perk,
+            strength: item.strength,
+            method: "restock",
+            tokenId: existingTokenId.toString(),
+            txHash: receiptHash(receipt),
+            blockNumber: receipt.blockNumber,
+          });
+        } else {
+          logger.info(
+            { chain, perk: item.perk, strength: item.strength, amount: amt.toString() },
+            "stockOrRestockAllInitialPerks: stockShop"
+          );
+          const tx = await contract.stockShop(amt, item.perk, item.strength, tycWei, usdcUnits, usdcUnits, usdcUnits);
+          const receipt = await tx.wait();
+          transactions.push({
+            perk: item.perk,
+            strength: item.strength,
+            method: "stock",
+            txHash: receiptHash(receipt),
+            blockNumber: receipt.blockNumber,
+          });
+        }
+      } catch (err) {
+        logger.error(
+          { err: err?.message, perk: item.perk, strength: item.strength },
+          "stockOrRestockAllInitialPerks failed for perk"
+        );
+        errors.push({
+          perk: item.perk,
+          strength: item.strength,
+          label: PERK_NAMES[item.perk] || `Perk ${item.perk}`,
+          error: err?.message || String(err),
+        });
+      }
+    }
+
+    return {
+      success: errors.length === 0,
+      processed: transactions.length,
+      restocked: transactions.filter((t) => t.method === "restock").length,
+      newlyStocked: transactions.filter((t) => t.method === "stock").length,
+      failed: errors.length,
+      transactions,
+      errors,
+    };
+  });
+}
+
+/**
  * Register all BUNDLE_DEFS_FOR_STOCK on-chain (perks must exist in shop first).
  */
 export async function stockAllBundlesFromDefs(chain = "CELO") {

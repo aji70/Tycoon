@@ -217,6 +217,36 @@ export async function stockAllPerks(req, res) {
 }
 
 /**
+ * POST /api/shop-admin/add-all-perks
+ * Body: { chain?: "CELO", amount?: number } — adds units to every catalog perk (restock or initial stock).
+ */
+export async function addAllPerks(req, res) {
+  try {
+    const chain = String(req.body?.chain || "CELO").toUpperCase();
+    const amount = req.body?.amount != null ? Number(req.body.amount) : 200;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ success: false, error: "amount must be a positive number" });
+    }
+
+    const result = await rewardSystemContract.stockOrRestockAllInitialPerks(chain, amount);
+    const status = result.success ? 200 : 207;
+    return res.status(status).json({
+      success: result.success,
+      data: result,
+      message: result.success
+        ? `Added ${amount} unit(s) to ${result.processed} perk row(s) (${result.restocked} restocked, ${result.newlyStocked} newly stocked).`
+        : `Partial failure: ${result.failed} perk row(s) failed; ${result.processed} succeeded.`,
+    });
+  } catch (err) {
+    logger.error("addAllPerks error:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Failed to add perks to shop",
+    });
+  }
+}
+
+/**
  * POST /api/shop-admin/stock-all-bundles
  * Body: { chain?: "CELO" } — registers every bundle in BUNDLE_DEFS_FOR_STOCK (perks must exist first).
  */

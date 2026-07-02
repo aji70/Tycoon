@@ -134,6 +134,8 @@ export default function RewardAdminPanel() {
     setVaultWithdrawUsdcTo,
     stockAllProgress,
     backendShopBulk,
+    shopAddAllAmount,
+    setShopAddAllAmount,
   } = state;
 
   type AdminTournamentRow = {
@@ -669,6 +671,39 @@ export default function RewardAdminPanel() {
               Then use <strong>Sync USDT prices from catalog</strong> at the top of this page (above the tabs).
             </p>
 
+            <div className="mb-8 rounded-2xl border border-emerald-500/35 bg-emerald-950/20 p-6">
+              <h4 className="text-lg font-bold text-emerald-200 mb-2 text-center">Add stock to every perk</h4>
+              <p className="text-center text-gray-400 text-sm mb-4 max-w-2xl mx-auto">
+                Restocks perks already in the shop and stocks any missing catalog perks. Use this when inventory is low —
+                unlike &quot;Stock 50&quot; above, which only mints perks that are not in the shop yet.
+              </p>
+              <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-gray-300">
+                  <span>Units each</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={shopAddAllAmount}
+                    onChange={(e) => setShopAddAllAmount(e.target.value)}
+                    className="w-24 px-3 py-2 bg-gray-800 rounded-lg border border-gray-600 text-white tabular-nums"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => handlers.handleBackendAddAllPerks()}
+                  disabled={anyPending || stockAllProgress.active || backendShopBulk != null}
+                  className="px-6 py-3 rounded-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {backendShopBulk === 'add-perks'
+                    ? `Adding ${shopAddAllAmount} of each perk (backend)…`
+                    : `Add ${shopAddAllAmount || '200'} of each perk (backend)`}
+                </button>
+              </div>
+              <p className="text-center text-xs text-gray-500 mt-3">
+                Runs ~{INITIAL_COLLECTIBLES.length} on-chain txs — can take several minutes.
+              </p>
+            </div>
+
             <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-4 mb-8">
               <button
                 type="button"
@@ -685,7 +720,7 @@ export default function RewardAdminPanel() {
                 onClick={() => handlers.handleBackendStockAllPerks()}
                 disabled={anyPending || stockAllProgress.active || backendShopBulk != null}
                 className="px-6 py-3 rounded-xl font-bold bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-500 hover:to-slate-600 text-white shadow-lg border border-cyan-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center"
-                title="Uses backend TYCOON_OWNER_PRIVATE_KEY (or REWARD_STOCK_MINTER_PRIVATE_KEY / game controller key). Same missing-perks-only logic as the wallet button."
+                title="Uses backend TYCOON_OWNER_PRIVATE_KEY. Only mints perks not already in shop."
               >
                 {backendShopBulk === 'perks'
                   ? 'Backend stocking perks…'

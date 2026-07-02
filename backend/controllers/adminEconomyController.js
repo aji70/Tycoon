@@ -10,7 +10,7 @@ import {
   upsertSetting,
   clearPlatformSettingsCache,
 } from "../services/platformSettings.js";
-import { listAdminCollectibleOptions, resolveShopTokenIdForPerk } from "../services/rewardSystemContract.js";
+import { listAdminCollectibleOptions, resolveShopTokenIdForPerk, stockOrRestockAllInitialPerks } from "../services/rewardSystemContract.js";
 
 function startOfUtcDay(d = new Date()) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -465,5 +465,47 @@ export async function deliverCollectible(req, res) {
   } catch (err) {
     logger.error({ err }, "admin deliverCollectible error");
     res.status(500).json({ success: false, error: "Deliver collectible failed" });
+  }
+}
+
+/**
+ * POST /api/admin/economy/shop-add-all-perks
+ * Body: { chain?: string, amount?: number } — restock every catalog perk (or stock if missing).
+ */
+export async function addAllShopPerks(req, res) {
+  try {
+    const chain = normalizeRewardChain(req.body?.chain, "CELO");
+    const amount = req.body?.amount != null ? Number(req.body.amount) : 200;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ success: false, error: "amount must be a positive number" });
+    }
+    if (!isContractConfigured(chain)) {
+      return res.status(400).json({
+        success: false,
+        error: `Reward contract not configured for chain ${chain}`,
+      });
+    }
+
+    const result = await stockOrRestockAllInitialPerks(chain, amount);
+
+    await appendAdminAuditLog({
+      action: "economy.shop_add_all_perks",
+      targetType: "chain",
+      targetId: chain,
+      payload: { amount, processed: result.processed, restocked: result.restocked, newlyStocked: result.newlyStocked, failed: result.failed },
+      req,
+    });
+
+    const status = result.success ? 200 : 207;
+    return res.status(status).json({
+      success: result.success,
+      data: result,
+      message: result.success
+        ? `Added ${amount} unit(s) to ${result.processed} perk row(s) (${result.restocked} restocked, ${result.newlyStocked} newly stocked).`
+        : `Partial failure: ${result.failed} perk row(s) failed.`,
+    });
+  } catch (err) {
+    logger.error({ err }, "admin addAllShopPerks error");
+    res.status(500).json({ success: false, error: err?.message || "Failed to add perks to shop" });
   }
 }
