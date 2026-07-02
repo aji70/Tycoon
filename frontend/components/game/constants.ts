@@ -86,7 +86,27 @@ export const MONOPOLY_STATS = {
   },
 };
 
-export function getDiceValues(): { die1: number; die2: number; total: number } {
+export function splitDiceTotal(total: number): { die1: number; die2: number; total: number } {
+  const clamped = Math.min(12, Math.max(2, Math.round(total)));
+  for (let die1 = 1; die1 <= 6; die1++) {
+    const die2 = clamped - die1;
+    if (die2 >= 1 && die2 <= 6) {
+      return { die1, die2, total: clamped };
+    }
+  }
+  return { die1: 1, die2: 1, total: 2 };
+}
+
+export function getDiceValues(
+  pendingExactRoll?: number | null
+): { die1: number; die2: number; total: number } {
+  if (
+    pendingExactRoll != null &&
+    pendingExactRoll >= 2 &&
+    pendingExactRoll <= 12
+  ) {
+    return splitDiceTotal(pendingExactRoll);
+  }
   const die1 = Math.floor(Math.random() * 6) + 1;
   const die2 = Math.floor(Math.random() * 6) + 1;
   return { die1, die2, total: die1 + die2 };

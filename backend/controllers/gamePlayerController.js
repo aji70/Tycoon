@@ -851,24 +851,13 @@ const payRent = async (
       const toRemove = [];
       if (rent.player < 0) {
         const hasShield = activePerks.some((p) => p.id === 7);
-        const hasDoubleRent = activePerks.some((p) => p.id === 3);
         if (hasShield) {
           rent = { player: 0, owner: 0, players: 0 };
           comment = "Shield blocked rent";
           toRemove.push(7);
-        } else if (hasDoubleRent) {
-          rent = {
-            player: rent.player * 2,
-            owner: rent.owner * 2,
-            players: rent.players ?? 0,
-          };
-          comment = comment
-            ? `${comment} (Double Rent!)`
-            : "Double Rent applied";
-          toRemove.push(3);
         }
       }
-      // Rent Cashback (11): when owner receives rent, they get +25% and lose the perk
+      // Double Rent (3) and Rent Cashback (11): applied on the rent collector (owner)
       const ownerAmountBefore = Number(rent?.owner ?? 0);
       if (ownerAmountBefore > 0 && game_property?.player_id) {
         const ownerGp = await trx("game_players")
@@ -882,14 +871,33 @@ const payRent = async (
               ? JSON.parse(ownerGp.active_perks)
               : [];
           } catch (_) {}
-          if (ownerPerks.some((p) => p.id === 11)) {
-            const bonus = Math.floor(ownerAmountBefore * 0.25);
+          const ownerToRemove = [];
+          let ownerPortion = ownerAmountBefore;
+          if (ownerPerks.some((p) => p.id === 3)) {
+            ownerPortion *= 2;
             rent = {
-              player: rent?.player ?? 0,
-              owner: ownerAmountBefore + bonus,
+              player: (rent?.player ?? 0) * 2,
+              owner: ownerPortion,
               players: rent?.players ?? 0,
             };
-            ownerActivePerksAfterRent = ownerPerks.filter((p) => p.id !== 11);
+            ownerToRemove.push(3);
+            comment = comment
+              ? `${comment} (Double Rent!)`
+              : "Double Rent applied";
+          }
+          if (ownerPerks.some((p) => p.id === 11)) {
+            const bonus = Math.floor(ownerPortion * 0.25);
+            rent = {
+              player: rent?.player ?? 0,
+              owner: ownerPortion + bonus,
+              players: rent?.players ?? 0,
+            };
+            ownerToRemove.push(11);
+          }
+          if (ownerToRemove.length > 0) {
+            ownerActivePerksAfterRent = ownerPerks.filter(
+              (p) => !ownerToRemove.includes(p.id),
+            );
           }
         }
       }
@@ -1779,8 +1787,35 @@ const gamePlayerController = {
       // Clear vote-to-end-by-networth when any player rolls (untimed games)
       await trx("end_by_networth_votes").where({ game_id }).del();
 
-      // Apply Roll Boost (4): add +2 to roll and consume perk
+      let rollDie1 = die1;
+      let rollDie2 = die2;
       let effectiveRolled = rolled != null ? Number(rolled) : null;
+      let usedExactRoll = false;
+
+      const pendingExact =
+        game_player.pending_exact_roll != null
+          ? Number(game_player.pending_exact_roll)
+          : null;
+      if (
+        pendingExact != null &&
+        pendingExact >= 2 &&
+        pendingExact <= 12
+      ) {
+        usedExactRoll = true;
+        effectiveRolled = pendingExact;
+        const d1 = Math.min(6, Math.max(1, Math.floor(pendingExact / 2)));
+        let d2 = pendingExact - d1;
+        if (d2 < 1 || d2 > 6) {
+          d2 = Math.min(6, Math.max(1, pendingExact - 1));
+        }
+        rollDie1 = d1;
+        rollDie2 = d2;
+        await trx("game_players")
+          .where({ id: game_player.id })
+          .update({ pending_exact_roll: null, updated_at: now });
+      }
+
+      // Apply Roll Boost (4): add +2 to roll and consume perk (not with Exact Roll / Lucky 7)
       let activePerksRoll = [];
       try {
         activePerksRoll = game_player.active_perks
@@ -1789,7 +1824,11 @@ const gamePlayerController = {
       } catch (_) {
         activePerksRoll = [];
       }
-      if (effectiveRolled != null && activePerksRoll.some((p) => p.id === 4)) {
+      if (
+        !usedExactRoll &&
+        effectiveRolled != null &&
+        activePerksRoll.some((p) => p.id === 4)
+      ) {
         effectiveRolled = Math.min(12, effectiveRolled + 2);
         const updated = activePerksRoll.filter((p) => p.id !== 4);
         await trx("game_players")
@@ -1841,7 +1880,7 @@ const gamePlayerController = {
           .update({ status: "declined", updated_at: now });
         await trx.commit();
         await notifyGameUpdate(req, game_id);
-        await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
+        await emitPlayerRolledIfPresent(game, user_id, rollDie1, rollDie2, effectiveRolled ?? rolled);
         if (is_double) {
           awardActivityXpByGameUser(
             game_id,
@@ -1881,7 +1920,7 @@ const gamePlayerController = {
         );
         await trx.commit();
         await notifyGameUpdate(req, game_id);
-        await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
+        await emitPlayerRolledIfPresent(game, user_id, rollDie1, rollDie2, effectiveRolled ?? rolled);
         if (is_double) {
           awardActivityXpByGameUser(
             game_id,
@@ -2001,7 +2040,7 @@ const gamePlayerController = {
 
         await trx.commit();
         await notifyGameUpdate(req, game_id);
-        await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
+        await emitPlayerRolledIfPresent(game, user_id, rollDie1, rollDie2, effectiveRolled ?? rolled);
         if (is_double) {
           awardActivityXpByGameUser(
             game_id,
@@ -2043,7 +2082,7 @@ const gamePlayerController = {
           .update({ status: "declined", updated_at: now });
         await trx.commit();
         await notifyGameUpdate(req, game_id);
-        await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
+        await emitPlayerRolledIfPresent(game, user_id, rollDie1, rollDie2, effectiveRolled ?? rolled);
         if (is_double) {
           awardActivityXpByGameUser(
             game_id,

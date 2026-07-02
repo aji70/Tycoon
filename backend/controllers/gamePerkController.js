@@ -396,6 +396,77 @@ async burnForCash(req, res) {
     }
   },
 
+  async useExtraTurn(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { game_id, from_collectible } = req.body;
+
+      if (!game_id) {
+        await trx.rollback();
+        return res.status(400).json({ success: false, message: "Missing game_id" });
+      }
+
+      const { game, player } = await resolveGamePlayer(trx, game_id, req);
+
+      if (!game || !player) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Game or player not found" });
+      }
+
+      if (Number(game.next_player_id) !== Number(player.user_id)) {
+        await trx.rollback();
+        return res.status(400).json({ success: false, message: "It is not your turn." });
+      }
+
+      if (Number(player.rolls || 0) < 1) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Roll once before using Extra Turn.",
+        });
+      }
+
+      let updatedPerks = parseActivePerks(player.active_perks);
+      if (!from_collectible) {
+        const extraTurnPerk = updatedPerks.find((p) => p.id === 1);
+        if (!extraTurnPerk) {
+          await trx.rollback();
+          return res.status(400).json({ success: false, message: "Extra Turn perk not active" });
+        }
+        updatedPerks = updatedPerks.filter((p) => p.id !== 1);
+      }
+
+      await trx("game_players")
+        .where({ id: player.id })
+        .update({
+          rolls: Math.max(0, Number(player.rolls || 0) - 1),
+          active_perks: from_collectible ? player.active_perks : JSON.stringify(updatedPerks),
+          updated_at: new Date(),
+        });
+
+      await trx("game_play_history").insert({
+        game_id,
+        game_player_id: player.id,
+        action: "PERK_ACTIVATED",
+        extra: JSON.stringify({ perk_id: 1, name: getPerkName(1), from_collectible: !!from_collectible }),
+        comment: from_collectible ? "Used Extra Turn (collectible)" : "Used Extra Turn perk",
+        active: 1,
+        created_at: new Date(),
+      });
+
+      await trx.commit();
+
+      return res.json({
+        success: true,
+        message: "Extra Turn granted! Roll again.",
+      });
+    } catch (error) {
+      await trx.rollback();
+      console.error("useExtraTurn error:", error);
+      return res.status(500).json({ success: false, message: "Extra Turn failed" });
+    }
+  },
+
   async applyCash(req, res) {
     const trx = await db.transaction();
     try {

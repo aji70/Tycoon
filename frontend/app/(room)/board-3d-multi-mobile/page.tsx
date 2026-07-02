@@ -966,7 +966,7 @@ function Board3DMobilePageContent() {
 
   const handleRollForLive = useCallback(() => {
     if (rollingDice || !game || !me) return;
-    const value = getDiceValues();
+    const value = getDiceValues(me.pending_exact_roll);
     pendingRollRef.current = value;
     rollingForPlayerIdRef.current = me.user_id;
     setRollingDice({ die1: value.die1, die2: value.die2 });
@@ -1000,13 +1000,25 @@ function Board3DMobilePageContent() {
       try {
         let success = false;
         switch (perk) {
-          case 1:
-            if (playerCanRoll) {
+          case 1: {
+            const res = await apiClient.post<{ success?: boolean }>("/perks/use-extra-turn", {
+              game_id: game.id,
+              from_collectible: true,
+            });
+            success = res?.data?.success ?? false;
+            if (success) {
+              setTurnEndScheduled(false);
+              setBuyPrompted(false);
+              setLandedPositionForBuy(null);
+              landedPositionThisTurnRef.current = null;
+              hasScheduledTurnEndRef.current = false;
+              pendingBuyPromptRef.current = false;
               toast.success("Extra Turn! Roll again.", { id: toastId });
+              await refetchGame();
               handleRollForLive();
-              success = true;
             }
             break;
+          }
           case 2: {
             const res = await apiClient.post<{ success?: boolean }>("/perks/use-jail-free", {
               game_id: game.id,

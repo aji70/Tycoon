@@ -1206,7 +1206,7 @@ function Board3DMobileContent() {
 
   const handleRollForLive = useCallback(() => {
     if (rollingDice || !game || !me) return;
-    const value = getDiceValues();
+    const value = getDiceValues(me.pending_exact_roll);
     pendingRollRef.current = value;
     rollingForPlayerIdRef.current = me.user_id;
     setRollingDice({ die1: value.die1, die2: value.die2 });
@@ -1240,13 +1240,25 @@ function Board3DMobileContent() {
       try {
         let success = false;
         switch (perk) {
-          case 1:
-            if (playerCanRoll) {
+          case 1: {
+            const res = await apiClient.post<{ success?: boolean }>("/perks/use-extra-turn", {
+              game_id: game.id,
+              from_collectible: true,
+            });
+            success = res?.data?.success ?? false;
+            if (success) {
+              setTurnEndScheduled(false);
+              setBuyPrompted(false);
+              setLandedPositionForBuy(null);
+              landedPositionThisTurnRef.current = null;
+              hasScheduledTurnEndRef.current = false;
+              pendingBuyPromptRef.current = false;
               toast.success("Extra Turn! Roll again.", { id: toastId });
+              await refetchGame();
               handleRollForLive();
-              success = true;
             }
             break;
+          }
           case 2: {
             const res = await apiClient.post<{ success?: boolean }>("/perks/use-jail-free", {
               game_id: game.id,
@@ -1310,7 +1322,7 @@ function Board3DMobileContent() {
           default:
             break;
         }
-        if (success || perk === 1) {
+        if (success) {
           toast.success("Perk used & collectible burned!", { id: toastId });
         } else if (perk !== 6 && perk !== 10) {
           toast.error("Effect failed", { id: toastId });

@@ -11,11 +11,13 @@ router.post(
   requireAuthOrWallet,
   dispatch(
     gamePerkController,
-    ["activatePerk", "teleport", "exactRoll", "burnForCash", "useJailFree", "applyCash"],
+    ["activatePerk", "teleport", "exactRoll", "burnForCash", "useJailFree", "useExtraTurn", "applyCash"],
     {
       // Frontend uses short paths that don't match activatePerk → activate-perk / burnForCash → burn-for-cash
       activate: "activatePerk",
       "burn-cash": "burnForCash",
+      "use-extra-turn": "useExtraTurn",
+      "apply-cash": "applyCash",
     }
   )
 );
