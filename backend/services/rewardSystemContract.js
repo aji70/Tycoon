@@ -154,7 +154,7 @@ function getRewardSystemWallet(chain = "CELO") {
   return new Wallet(pk, provider);
 }
 
-async function resolveRewardSystemAddress(chain = "CELO") {
+export async function resolveRewardSystemAddress(chain = "CELO") {
   const fromEnv = process.env.REWARD_CONTRACT_ADDRESS || process.env.TYCOON_REWARD_SYSTEM;
   if (fromEnv && String(fromEnv).trim() && fromEnv !== ZeroAddress) {
     return String(fromEnv).trim();

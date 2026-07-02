@@ -22,6 +22,7 @@ import * as adminQuestsController from "../controllers/adminQuestsController.js"
 import * as adminAlertsController from "../controllers/adminAlertsController.js";
 import * as adminNotificationsController from "../controllers/adminNotificationsController.js";
 import * as adminContractsController from "../controllers/adminContractsController.js";
+import * as adminSalesController from "../controllers/adminSalesController.js";
 import { postDashboardAdminLogin, requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
 
 const router = express.Router();
@@ -68,6 +69,7 @@ router.get("/analytics/activity", adminAnalyticsController.activity);
 router.get("/analytics/active-users", adminAnalyticsController.activeUsers);
 
 router.get("/contracts/tx-stats", adminContractsController.getTxStats);
+router.get("/sales/reward", adminSalesController.getRewardSales);
 
 router.get("/wallets", adminWalletsController.listWallets);
 router.get("/settings/summary", adminSettingsController.getSettingsSummary);
