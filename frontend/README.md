@@ -4,7 +4,7 @@
 
 ## 📌 Overview
 
-Tycoon Frontend is the user interface for the decentralized Monopoly game built on Starknet. Powered by **Next.js**, **Tailwind CSS**, **Starknet-React**, and **Cartridge**, it delivers a modern, responsive UI that connects seamlessly to the on-chain game logic implemented in Cairo and Dojo. Players can interact with the game board, buy/sell properties, roll dice, and trade digital assets (NFTs or Starknet assets) in a trustless, blockchain-powered environment
+Tycoon Frontend is the user interface for the decentralized Monopoly game built on Starknet. Powered by **Next.js**, **Tailwind CSS**, **Starknet-React**, and **Cartridge**, it delivers a modern, responsive UI that connects seamlessly to the on-chain game logic implemented in Cairo and Dojo. Players can interact with the game board, buy/sell properties, roll dice, and trade digital assets (NFTs or Starknet assets) in a trustless, blockchain-powered environment.
 
 ## ✨ Features
 
