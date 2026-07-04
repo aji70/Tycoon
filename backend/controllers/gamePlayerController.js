@@ -30,6 +30,7 @@ import {
   ACTIVITY_XP,
   awardActivityXpByGameUser,
 } from "../services/eloService.js";
+import { formatDbErrorForClient } from "../services/chatRetention.js";
 
 /** Pass to removePlayerFromGame so contract uses on-chain turnsPlayed (voluntary exit behavior). */
 const MAX_UINT256 =
@@ -1069,7 +1070,7 @@ const payRent = async (
     logger.error({ err }, "Error in payRent");
     return {
       success: false,
-      message: err.message || "Failed to process rent payment",
+      message: formatDbErrorForClient(err) || "Failed to process rent payment",
     };
   }
 };
@@ -2149,10 +2150,10 @@ const gamePlayerController = {
       } catch (e) {
         /* ignore rollback errors */
       }
-      logger.error({ err: error }, "changePosition error");
+      logger.error({ err: error, game_id: req.body?.game_id, user_id: req.body?.user_id }, "changePosition error");
       return res.status(500).json({
         success: false,
-        message: error?.message || "Internal server error",
+        message: formatDbErrorForClient(error) || "Internal server error",
       });
     }
   },
