@@ -112,14 +112,11 @@ export async function runGamePlayHistoryMaintenance(options = {}) {
   return { before, after, deleted };
 }
 
-/** Run on server boot when the table is large (frees disk so rolls work). */
+/** Manual-only — never auto-prunes. Use admin API or `npm run prune-game-history`. */
 export async function maybeRunGamePlayHistoryMaintenanceOnStartup() {
-  if (process.env.SKIP_HISTORY_PRUNE_ON_STARTUP === "true") return null;
+  if (process.env.PRUNE_GAME_HISTORY_ON_STARTUP !== "true") return null;
   try {
-    const count = await countGamePlayHistory();
-    const threshold = Number(process.env.HISTORY_PRUNE_STARTUP_THRESHOLD) || 80_000;
-    if (count < threshold) return null;
-    logger.info({ count, threshold }, "game_play_history over threshold — pruning on startup");
+    logger.info("PRUNE_GAME_HISTORY_ON_STARTUP=true — running one-time startup prune");
     return runGamePlayHistoryMaintenance({ aggressive: true });
   } catch (err) {
     logger.error({ err }, "startup game_play_history maintenance failed");

@@ -1,20 +1,16 @@
 /**
- * Free disk: prune finished-game rows from game_play_history (466k+ on prod).
- * Runs after 20260704110000 (table limits). Safe batches, no wrapping transaction.
+ * Historical: one-time emergency prune when game_play_history filled the MySQL volume (Jul 2026).
+ * Already applied on production — this is now a no-op so new deploys never auto-delete history.
+ * Manual prune only: admin POST …/maintenance/prune-game-history or npm run prune-game-history
  */
-import { runGamePlayHistoryMaintenance } from "../services/gamePlayHistoryMaintenance.js";
 
 /** @type {import('knex').Knex.MigratorConfig} */
 export const config = { transaction: false };
 
-export async function up(knex) {
-  const client = knex.client.config.client;
-  if (client !== "mysql" && client !== "mysql2") return;
-  if (!(await knex.schema.hasTable("game_play_history"))) return;
-
-  console.log("[migration] pruning game_play_history to free disk for rolls…");
-  const result = await runGamePlayHistoryMaintenance({ aggressive: true });
-  console.log("[migration] prune complete:", JSON.stringify(result));
+export async function up() {
+  console.log(
+    "[migration] 20260704120000 — skipped (historical emergency prune; manual maintenance only)"
+  );
 }
 
 export async function down() {

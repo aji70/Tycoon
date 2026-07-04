@@ -24,10 +24,10 @@ export async function getGameHistoryStats(req, res) {
   }
 }
 
-/** POST /api/admin/dashboard/maintenance/prune-game-history */
+/** POST /api/admin/dashboard/maintenance/prune-game-history — manual only; never runs automatically. */
 export async function postPruneGameHistory(req, res) {
   try {
-    const aggressive = req.body?.aggressive !== false;
+    const aggressive = req.body?.aggressive === true;
     const result = await runGamePlayHistoryMaintenance({ aggressive });
     await appendAdminAuditLog({
       action: "maintenance.prune_game_history",

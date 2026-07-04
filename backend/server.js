@@ -491,17 +491,6 @@ async function start() {
     logger.warn({ err: err?.message }, "Tournament payout recovery poller failed to start");
   }
 
-  try {
-    const { maybeRunGamePlayHistoryMaintenanceOnStartup } = await import(
-      "./services/gamePlayHistoryMaintenance.js"
-    );
-    maybeRunGamePlayHistoryMaintenanceOnStartup().catch((err) => {
-      logger.warn({ err: err?.message }, "game_play_history startup prune failed");
-    });
-  } catch (err) {
-    logger.warn({ err: err?.message }, "game_play_history maintenance module failed to load");
-  }
-
   // Step 5: Socket.io Redis adapter (when Redis is available)
   try {
     const adapter = await connectSocketRedis();
