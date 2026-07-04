@@ -58,6 +58,32 @@ import { resolveBoardIdForGame } from "../utils/boardVariant.js";
 
 const isValidEthAddress = isValidEthAddressForOnchain;
 
+/** Batch-attach settings + players to a list of games (avoids per-game N+1 queries). */
+async function attachSettingsAndPlayers(games) {
+  if (!games.length) return [];
+  const gameIds = games.map((g) => g.id);
+  const [settingsList, playersList] = await Promise.all([
+    GameSetting.findByGameIds(gameIds),
+    GamePlayer.findByGameIds(gameIds),
+  ]);
+  const settingsByGame = {};
+  for (const s of settingsList) {
+    const { game_id, ...rest } = s;
+    settingsByGame[game_id] = rest;
+  }
+  const playersByGame = {};
+  for (const p of playersList) {
+    const { game_id, ...rest } = p;
+    if (!playersByGame[game_id]) playersByGame[game_id] = [];
+    playersByGame[game_id].push(rest);
+  }
+  return games.map((g) => ({
+    ...g,
+    settings: settingsByGame[g.id] ?? null,
+    players: playersByGame[g.id] ?? [],
+  }));
+}
+
 const GAME_TYPES = {
   PVP_HUMAN: "PVP_HUMAN",
   AI_HUMAN_VS_AI: "AI_HUMAN_VS_AI",
@@ -919,10 +945,12 @@ const gameController = {
       }
       if (!game) return res.status(404).json({ error: "Game not found" });
       // Return full game data for FINISHED/CANCELLED so the board can show winner modal; no "Game ended" error that would replace the page.
-      const settings = await GameSetting.findByGameId(game.id);
-      const players = await GamePlayer.findByGameId(game.id);
-      const history = await GamePlayHistory.findByGameId(game.id);
-      const active_auction = await getActiveByGameId(game.id);
+      const [settings, players, history, active_auction] = await Promise.all([
+        GameSetting.findByGameId(game.id),
+        GamePlayer.findByGameId(game.id),
+        GamePlayHistory.findByGameId(game.id),
+        getActiveByGameId(game.id),
+      ]);
       let data = { ...game, settings, players, history, active_auction: active_auction || undefined };
       if (gamePayloadLooksLikeTournamentTable(data)) {
         data = await enrichGamePayloadWithTournamentLobbyMeta(data);
@@ -982,28 +1010,7 @@ const gameController = {
         timeframe: timeframe ? Number(timeframe) : null,
       });
 
-      const gameIds = games.map((g) => g.id);
-      const [settingsList, playersList] = await Promise.all([
-        GameSetting.findByGameIds(gameIds),
-        GamePlayer.findByGameIds(gameIds),
-      ]);
-      const settingsByGame = {};
-      for (const s of settingsList) {
-        const { game_id, ...rest } = s;
-        settingsByGame[game_id] = rest;
-      }
-      const playersByGame = {};
-      for (const p of playersList) {
-        const { game_id, ...rest } = p;
-        if (!playersByGame[game_id]) playersByGame[game_id] = [];
-        playersByGame[game_id].push(rest);
-      }
-
-      const withSettingsAndPlayers = games.map((g) => ({
-        ...g,
-        settings: settingsByGame[g.id] ?? null,
-        players: playersByGame[g.id] ?? [],
-      }));
+      const withSettingsAndPlayers = await attachSettingsAndPlayers(games);
 
       res.json({
         success: true,
@@ -1026,28 +1033,7 @@ const gameController = {
         offset: Number.parseInt(offset) || 0,
       });
 
-      const gameIds = games.map((g) => g.id);
-      const [settingsList, playersList] = await Promise.all([
-        GameSetting.findByGameIds(gameIds),
-        GamePlayer.findByGameIds(gameIds),
-      ]);
-      const settingsByGame = {};
-      for (const s of settingsList) {
-        const { game_id, ...rest } = s;
-        settingsByGame[game_id] = rest;
-      }
-      const playersByGame = {};
-      for (const p of playersList) {
-        const { game_id, ...rest } = p;
-        if (!playersByGame[game_id]) playersByGame[game_id] = [];
-        playersByGame[game_id].push(rest);
-      }
-
-      const withSettingsAndPlayers = games.map((g) => ({
-        ...g,
-        settings: settingsByGame[g.id] ?? null,
-        players: playersByGame[g.id] ?? [],
-      }));
+      const withSettingsAndPlayers = await attachSettingsAndPlayers(games);
 
       res.json({
         success: true,
@@ -1067,13 +1053,7 @@ const gameController = {
         limit: Math.min(Number.parseInt(limit) || 50, 100),
         offset: Number.parseInt(offset) || 0,
       });
-      const withSettingsAndPlayers = await Promise.all(
-        games.map(async (g) => ({
-          ...g,
-          settings: await GameSetting.findByGameId(g.id),
-          players: await GamePlayer.findByGameId(g.id),
-        }))
-      );
+      const withSettingsAndPlayers = await attachSettingsAndPlayers(games);
       res.json({ success: true, message: "successful", data: withSettingsAndPlayers });
     } catch (error) {
       res.status(200).json({ success: false, message: error.message });
@@ -1097,13 +1077,7 @@ const gameController = {
       } else if (queryAddress && String(queryAddress).trim()) {
         games = await Game.findByPlayer({ address: String(queryAddress).trim() }, opts);
       }
-      const withSettingsAndPlayers = await Promise.all(
-        games.map(async (g) => ({
-          ...g,
-          settings: await GameSetting.findByGameId(g.id),
-          players: await GamePlayer.findByGameId(g.id),
-        }))
-      );
+      const withSettingsAndPlayers = await attachSettingsAndPlayers(games);
       res.json({
         success: true,
         message: "successful",

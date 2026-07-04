@@ -3,6 +3,7 @@ import logger from "../config/logger.js";
 import User from "../models/User.js";
 import { getUserPropertyStats } from "../utils/userPropertyStats.js";
 import { appendAdminAuditLog } from "../services/adminAuditLog.js";
+import { invalidateUserCache } from "../services/userCache.js";
 
 const SENSITIVE_USER_KEYS = new Set([
   "password_hash",
@@ -245,6 +246,7 @@ export async function patchPlayerStatus(req, res) {
       await trx("users").where({ id }).update({ account_status: status, updated_at: new Date() });
       await appendAdminAuditLog({ action: "players.status", targetType: "user", targetId: String(id), payload: { username: user.username, previousStatus: prev, nextStatus: status, reason: reason || null }, req });
     });
+    await invalidateUserCache(id);
 
     res.json({ success: true, data: { id, account_status: status, previousStatus: prev } });
   } catch (err) {

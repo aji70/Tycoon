@@ -1,7 +1,10 @@
 import db from "../config/database.js";
+import redis from "../config/redis.js";
 import logger from "../config/logger.js";
 import { attachReferralByCode, ensureUserReferralCode } from "../services/referralService.js";
 import { monthUtcBounds, parseYearMonth } from "../utils/leaderboardMonth.js";
+
+const LEADERBOARD_CACHE_TTL_SECONDS = Number(process.env.REFERRAL_LEADERBOARD_CACHE_TTL_SECONDS) || 300;
 
 /**
  * GET /api/referral/leaderboard?limit=20&month=YYYY-MM
@@ -12,7 +15,13 @@ export async function getPublicLeaderboard(req, res) {
   try {
     const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit ?? "20"), 10) || 20, 1), 100);
     const monthRaw = req.query.month != null && String(req.query.month).trim() !== "" ? String(req.query.month).trim() : null;
-    const { start, end } = monthRaw ? monthUtcBounds(parseYearMonth(monthRaw)) : null;
+    const { start, end } = monthRaw ? monthUtcBounds(parseYearMonth(monthRaw)) : {};
+
+    const cacheKey = `referral:lb:${monthRaw || "all"}:${limit}`;
+    const cached = await redis.getJSON(cacheKey);
+    if (cached) {
+      return res.json({ success: true, data: cached });
+    }
 
     let q = db("users as referee")
       .join("users as referrer", "referee.referred_by_user_id", "referrer.id")
@@ -36,6 +45,8 @@ export async function getPublicLeaderboard(req, res) {
       username: row.username ?? "—",
       referral_count: Number(row.referral_count ?? 0),
     }));
+
+    await redis.setJSON(cacheKey, data, LEADERBOARD_CACHE_TTL_SECONDS);
 
     res.json({ success: true, data });
   } catch (err) {

@@ -1,5 +1,14 @@
 import db from "../config/database.js";
+import redis from "../config/redis.js";
 import logger from "../config/logger.js";
+
+export const PUBLIC_QUESTS_CACHE_KEY = "quests:public";
+const CACHE_TTL_SECONDS = 300;
+
+/** Call after admin writes to quest_definitions. */
+export async function invalidatePublicQuestsCache() {
+  await redis.del(PUBLIC_QUESTS_CACHE_KEY);
+}
 
 /**
  * GET /api/quests
@@ -8,27 +17,32 @@ import logger from "../config/logger.js";
  */
 export async function listPublicQuests(_req, res) {
   try {
+    const cached = await redis.getJSON(PUBLIC_QUESTS_CACHE_KEY);
+    if (cached) {
+      return res.json({ success: true, data: cached });
+    }
     const rows = await db("quest_definitions")
       .where("active", true)
       .select("id", "slug", "title", "description", "sort_order", "rules_json", "reward_hint", "updated_at")
       .orderBy("sort_order", "asc")
       .orderBy("id", "asc");
 
-    res.json({
-      success: true,
-      data: {
-        quests: rows.map((r) => ({
-          id: r.id,
-          slug: r.slug,
-          title: r.title,
-          description: r.description,
-          sortOrder: r.sort_order,
-          rulesJson: r.rules_json,
-          rewardHint: r.reward_hint,
-          updatedAt: r.updated_at,
-        })),
-      },
-    });
+    const data = {
+      quests: rows.map((r) => ({
+        id: r.id,
+        slug: r.slug,
+        title: r.title,
+        description: r.description,
+        sortOrder: r.sort_order,
+        rulesJson: r.rules_json,
+        rewardHint: r.reward_hint,
+        updatedAt: r.updated_at,
+      })),
+    };
+
+    await redis.setJSON(PUBLIC_QUESTS_CACHE_KEY, data, CACHE_TTL_SECONDS);
+
+    res.json({ success: true, data });
   } catch (err) {
     const missing =
       err.errno === 1146 ||

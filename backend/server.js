@@ -180,7 +180,12 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     lobbyPresenceBySocket.delete(socket.id);
     broadcastLobbyPresence(io);
-    connectionCountByIp.set(ip, Math.max(0, (connectionCountByIp.get(ip) || 0) - 1));
+    const remaining = Math.max(0, (connectionCountByIp.get(ip) || 0) - 1);
+    if (remaining === 0) {
+      connectionCountByIp.delete(ip); // don't accumulate one entry per unique IP forever
+    } else {
+      connectionCountByIp.set(ip, remaining);
+    }
     socketEventCounts.delete(socket.id);
     logger.info({ socketId: socket.id }, "User disconnected");
   });
@@ -230,10 +235,9 @@ app.get("/health", async (req, res) => {
     health.status = "DEGRADED";
   }
 
-  try {
-    await redis.get("health");
+  if (redis.isReady) {
     health.redis = "up";
-  } catch {
+  } else {
     health.redis = "down";
     if (health.db === "up") health.status = "DEGRADED";
   }
@@ -242,8 +246,22 @@ app.get("/health", async (req, res) => {
   res.status(statusCode).json(health);
 });
 
+/**
+ * Config/debug endpoints guard.
+ * These expose environment layout and (worst of all) contract writes signed with the
+ * backend controller key. Open in development; in production they require
+ * CONFIG_DEBUG_KEY to be set and passed as the x-config-debug-key header,
+ * otherwise they respond 404 as if they don't exist.
+ */
+function requireConfigDebugAccess(req, res, next) {
+  if (process.env.NODE_ENV !== "production") return next();
+  const expected = process.env.CONFIG_DEBUG_KEY;
+  if (expected && req.headers["x-config-debug-key"] === expected) return next();
+  return res.status(404).json({ success: false, error: "Endpoint not found" });
+}
+
 // Debug: which env keys are present (values not exposed). Use to verify Railway injects CELO_* etc.
-app.get("/api/config/env-check", (_req, res) => {
+app.get("/api/config/env-check", requireConfigDebugAccess, (_req, res) => {
   const keys = [
     "CELO_RPC_URL",
     "TYCOON_CELO_CONTRACT_ADDRESS",
@@ -272,7 +290,7 @@ app.get("/api/config/env-check", (_req, res) => {
 });
 
 // Test endpoint: expose chain env vars for frontend config-test. ?chain=Polygon|Celo|Base (default Polygon).
-app.get("/api/config/test", async (req, res) => {
+app.get("/api/config/test", requireConfigDebugAccess, async (req, res) => {
   const chain = (req.query.chain || "POLYGON").toString().toUpperCase();
   const norm = chain === "CELO" ? "CELO" : chain === "POLYGON" ? "POLYGON" : "BASE";
   const { rpcUrl, contractAddress, privateKey, isConfigured } = getChainConfig(norm);
@@ -308,7 +326,7 @@ app.get("/api/config/test", async (req, res) => {
 });
 
 // Starknet (Cairo/Dojo) config and connection test
-app.get("/api/config/starknet", async (_req, res) => {
+app.get("/api/config/starknet", requireConfigDebugAccess, async (_req, res) => {
   const { rpcUrl, gameAddress, playerAddress, isConfigured } = getStarknetConfig();
   const result = {
     isConfigured: !!isConfigured,
@@ -323,7 +341,7 @@ app.get("/api/config/starknet", async (_req, res) => {
 });
 
 // Call contract read/write (for config-test). Optional body.chain (CELO, POLYGON, BASE).
-app.post("/api/config/call-contract", async (req, res) => {
+app.post("/api/config/call-contract", requireConfigDebugAccess, async (req, res) => {
   try {
     const { fn, params = [], write = false, chain = "CELO" } = req.body || {};
     if (!fn || typeof fn !== "string") {
@@ -492,6 +510,42 @@ async function start() {
     }, "Server running");
   });
 }
+
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  logger.error("JWT_SECRET is not set in production — auth tokens are signed with a known default. Set JWT_SECRET now.");
+}
+
+// Graceful shutdown: Railway sends SIGTERM on redeploys. Stop accepting new
+// connections, let in-flight requests finish, then release DB/Redis resources.
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info({ signal }, "Shutting down");
+
+  const forceExit = setTimeout(() => {
+    logger.warn("Forced shutdown after timeout");
+    process.exit(1);
+  }, 10000);
+  forceExit.unref();
+
+  try {
+    io.close();
+    await new Promise((resolve) => server.close(resolve));
+    await Promise.allSettled([db.destroy(), redis.quit()]);
+    logger.info("Shutdown complete");
+    process.exit(0);
+  } catch (err) {
+    logger.error({ err }, "Shutdown error");
+    process.exit(1);
+  }
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("unhandledRejection", (reason) => {
+  logger.error({ err: reason }, "Unhandled promise rejection");
+});
 
 start().catch((err) => {
   logger.error({ err }, "Server failed to start");

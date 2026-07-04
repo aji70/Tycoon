@@ -6,6 +6,15 @@ import {
   invalidatePropertyListCaches,
 } from "../utils/boardVariant.js";
 
+const ITEM_CACHE_PREFIX = "property:";
+/** Board properties are effectively static; long TTL + explicit invalidation on writes. */
+const CACHE_TTL_SECONDS = 24 * 60 * 60;
+
+async function invalidatePropertyCaches(id) {
+  await invalidatePropertyListCaches(redis);
+  if (id != null) await redis.del(ITEM_CACHE_PREFIX + id);
+}
+
 /**
  * Property Controller
  *
@@ -19,7 +28,7 @@ const propertyController = {
   async create(req, res) {
     try {
       const property = await Property.create(req.body);
-      await invalidatePropertyListCaches(redis);
+      await invalidatePropertyCaches();
       res
         .status(201)
         .json({ success: true, message: "successful", data: property });
@@ -32,16 +41,15 @@ const propertyController = {
   async findById(req, res) {
     try {
       const { id } = req.params;
-      const cacheKey = `property:${id}`;
-      const _cached = await redis.get(cacheKey);
-      const cached = _cached ? JSON.parse(_cached) : null;
+      const cacheKey = ITEM_CACHE_PREFIX + id;
+      const cached = await redis.getJSON(cacheKey);
       if (cached) {
         return res.json({ success: true, message: "successful", data: cached });
       }
-      const property = await Property.findById(req.params.id);
+      const property = await Property.findById(id);
       if (!property)
         return res.status(404).json({ error: "Property not found" });
-      const add_to_cache = await redis.set(cacheKey, JSON.stringify(property));
+      await redis.setJSON(cacheKey, property, CACHE_TTL_SECONDS);
       res.json({ success: true, message: "successful", data: property });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
@@ -52,8 +60,7 @@ const propertyController = {
     try {
       const boardId = await resolveBoardIdForGame(req.query.board_id);
       const cacheKey = `properties:v1:${boardId}`;
-      const _cached = await redis.get(cacheKey);
-      const cached = _cached ? JSON.parse(_cached) : null;
+      const cached = await redis.getJSON(cacheKey);
       if (cached) {
         return res.json({ success: true, message: "successful", data: cached });
       }
@@ -63,7 +70,7 @@ const propertyController = {
         offset: Number.parseInt(offset) || 0,
       });
       const properties = await mergeCanonicalPropertiesWithVariant(canonical, boardId);
-      await redis.set(cacheKey, JSON.stringify(properties));
+      await redis.setJSON(cacheKey, properties, CACHE_TTL_SECONDS);
       res.json({ success: true, message: "successful", data: properties });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
@@ -73,7 +80,7 @@ const propertyController = {
   async update(req, res) {
     try {
       const property = await Property.update(req.params.id, req.body);
-      await invalidatePropertyListCaches(redis);
+      await invalidatePropertyCaches(req.params.id);
       res.json({ success: true, message: "successful", data: property });
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });
@@ -83,7 +90,7 @@ const propertyController = {
   async remove(req, res) {
     try {
       await Property.delete(req.params.id);
-      await invalidatePropertyListCaches(redis);
+      await invalidatePropertyCaches(req.params.id);
       res.json({ success: true, message: "successful", data: null });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });

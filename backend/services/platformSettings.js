@@ -12,10 +12,17 @@ export function clearPlatformSettingsCache() {
   cache.economy = { v: null, at: 0 };
 }
 
+// Memoize the schema check: once the table exists it never disappears in production,
+// so don't pay an information_schema query on every settings read.
+let tableKnown = false;
+
 async function readRow(key) {
   try {
-    const has = await db.schema.hasTable("platform_settings");
-    if (!has) return null;
+    if (!tableKnown) {
+      const has = await db.schema.hasTable("platform_settings");
+      if (!has) return null;
+      tableKnown = true;
+    }
     return await db("platform_settings").where({ setting_key: key }).first();
   } catch (err) {
     logger.warn({ err, key }, "platform_settings read failed");

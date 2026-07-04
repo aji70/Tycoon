@@ -1,6 +1,7 @@
 import db from "../config/database.js";
 import logger from "../config/logger.js";
 import { appendAdminAuditLog } from "../services/adminAuditLog.js";
+import { invalidatePublicQuestsCache } from "./questsPublicController.js";
 
 function normalizeSlug(raw) {
   return String(raw ?? "")
@@ -150,6 +151,7 @@ export async function createQuest(req, res) {
       await appendAdminAuditLog({ action: "quests.create", targetType: "quest_definition", targetId: String(insertId), payload: { slug, title, active }, req });
       return trx("quest_definitions").where({ id: insertId }).first();
     });
+    await invalidatePublicQuestsCache();
 
     res.status(201).json({ success: true, data: { quest: { id: row.id, slug: row.slug, title: row.title, description: row.description, active: !!row.active, sortOrder: row.sort_order, rulesJson: row.rules_json, rewardHint: row.reward_hint, createdAt: row.created_at, updatedAt: row.updated_at } } });
   } catch (err) {
@@ -229,6 +231,7 @@ export async function patchQuest(req, res) {
       await appendAdminAuditLog({ action: "quests.patch", targetType: "quest_definition", targetId: String(id), payload: { keys: Object.keys(patch).filter((k) => k !== "updated_at") }, req });
       return trx("quest_definitions").where({ id }).first();
     });
+    await invalidatePublicQuestsCache();
 
     res.json({ success: true, data: { quest: { id: row.id, slug: row.slug, title: row.title, description: row.description, active: !!row.active, sortOrder: row.sort_order, rulesJson: row.rules_json, rewardHint: row.reward_hint, createdAt: row.created_at, updatedAt: row.updated_at } } });
   } catch (err) {
@@ -257,6 +260,7 @@ export async function deleteQuest(req, res) {
       await trx("quest_definitions").where({ id }).delete();
       await appendAdminAuditLog({ action: "quests.delete", targetType: "quest_definition", targetId: String(id), payload: { slug: existing.slug, title: existing.title }, req });
     });
+    await invalidatePublicQuestsCache();
 
     res.json({ success: true, data: { deletedId: id } });
   } catch (err) {

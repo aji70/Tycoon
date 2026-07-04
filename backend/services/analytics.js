@@ -11,11 +11,17 @@ import db from "../config/database.js";
  * @param {string} eventType - e.g. game_created, game_started, game_finished, error
  * @param {object} options - { entityType, entityId, payload }
  */
+// Memoize the schema check so every event write doesn't pay an information_schema query.
+let eventsTableKnown = false;
+
 export async function recordEvent(eventType, options = {}) {
   const { entityType = null, entityId = null, payload = null } = options;
   try {
-    const hasTable = await db.schema.hasTable("analytics_events");
-    if (!hasTable) return;
+    if (!eventsTableKnown) {
+      const hasTable = await db.schema.hasTable("analytics_events");
+      if (!hasTable) return;
+      eventsTableKnown = true;
+    }
     await db("analytics_events").insert({
       event_type: eventType,
       entity_type: entityType,

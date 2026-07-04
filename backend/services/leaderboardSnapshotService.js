@@ -1,4 +1,5 @@
 import db from "../config/database.js";
+import redis from "../config/redis.js";
 import User from "../models/User.js";
 import logger from "../config/logger.js";
 import { parseYearMonth } from "../utils/leaderboardMonth.js";
@@ -116,6 +117,10 @@ export async function computeLeaderboard(query) {
   }
 }
 
+/** Redis front-cache for snapshot rows (they only change on daily refresh). */
+const SNAPSHOT_REDIS_TTL = Number(process.env.LEADERBOARD_SNAPSHOT_REDIS_TTL_SECONDS) || 300;
+const SNAPSHOT_REDIS_PREFIX = "lb:snap:";
+
 export async function saveSnapshot(cacheKey, snapshotDate, data) {
   const payload = JSON.stringify(data);
   const updatedAt = new Date();
@@ -128,6 +133,7 @@ export async function saveSnapshot(cacheKey, snapshotDate, data) {
     })
     .onConflict(["cache_key", "snapshot_date"])
     .merge({ payload, updated_at: updatedAt });
+  await redis.del(SNAPSHOT_REDIS_PREFIX + cacheKey);
   return updatedAt;
 }
 
@@ -144,6 +150,13 @@ async function serveLiveLeaderboard(query, clientLim) {
 }
 
 export async function loadLatestSnapshot(cacheKey, preferDate = utcDateString()) {
+  const redisKey = SNAPSHOT_REDIS_PREFIX + cacheKey;
+  // saveSnapshot invalidates this key, so a hit is always the latest saved snapshot.
+  const cached = await redis.getJSON(redisKey);
+  if (cached && Array.isArray(cached.data)) {
+    return cached;
+  }
+
   let row = await db("leaderboard_snapshots")
     .where({ cache_key: cacheKey, snapshot_date: preferDate })
     .first();
@@ -165,11 +178,13 @@ export async function loadLatestSnapshot(cacheKey, preferDate = utcDateString())
   }
   if (!Array.isArray(data)) return null;
 
-  return {
+  const result = {
     data,
     lastUpdatedAt: row.updated_at,
     snapshotDate: row.snapshot_date,
   };
+  await redis.setJSON(redisKey, result, SNAPSHOT_REDIS_TTL);
+  return result;
 }
 
 export function snapshotQueriesForRefresh() {

@@ -9,6 +9,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import { PrivyClient, verifyAccessToken } from "@privy-io/node";
 import db from "../config/database.js";
+import { invalidateUserCache } from "../services/userCache.js";
 import User from "../models/User.js";
 import {
   registerPlayerFor,
@@ -438,6 +439,7 @@ export async function privySignin(req, res) {
         const secret = crypto.randomBytes(32).toString("hex");
         const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
         await db("users").where({ id: user.id }).update({ password_hash: passwordHash });
+        await invalidateUserCache(user.id);
         user = await User.findById(user.id);
         logger.info({ userId: user.id }, "privySignin: added password_hash to existing Privy user");
       }
@@ -712,6 +714,7 @@ export async function createSmartWallet(req, res) {
       const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
       await registerPlayerFor(smartWallet, onChainU, passwordHash, chain);
       await db("users").where({ id: user.id }).update({ password_hash: passwordHash, smart_wallet_address: smartWallet || null });
+      await invalidateUserCache(user.id);
       const updated = await User.findById(user.id);
       const { password_hash: _pw, ...safe } = updated;
       logger.info({ userId: user.id, smartWallet, chain }, "createSmartWallet: wallet-first created");
@@ -881,6 +884,7 @@ export async function recreateSmartWallet(req, res) {
         updatePayload.smart_wallet_migration_report = JSON.stringify(migration);
       }
       await db("users").where({ id: user.id }).update(updatePayload);
+      await invalidateUserCache(user.id);
     }
     const updated = await User.findById(user.id);
     const { password_hash: _, ...safe } = updated;
@@ -1230,6 +1234,7 @@ export async function setBankDetails(req, res) {
       bank_account_number: accountNumber,
       bank_code: bankCode,
     });
+    await invalidateUserCache(req.user.id);
     logger.info({ userId: req.user.id }, "setBankDetails");
     return res.status(200).json({ success: true, message: "Bank details saved. Used for Naira payouts when you withdraw CELO to Naira." });
   } catch (err) {
@@ -1251,6 +1256,7 @@ export async function setWithdrawalPin(req, res) {
     }
     const hash = await bcrypt.hash(pin, 10);
     await db("users").where({ id: req.user.id }).update({ withdrawal_pin_hash: hash });
+    await invalidateUserCache(req.user.id);
     logger.info({ userId: req.user.id }, "setWithdrawalPin");
     return res.status(200).json({ success: true, message: "Withdrawal PIN set." });
   } catch (err) {
@@ -1547,6 +1553,7 @@ export async function me(req, res) {
           password_hash: passwordHash,
           smart_wallet_address: smartWallet || null,
         });
+        await invalidateUserCache(req.user.id);
         safe.smart_wallet_address = smartWallet || safe.smart_wallet_address;
         logger.info({ userId: req.user.id, wallet: smartWallet, chain: normalizedChain }, "me: wallet-first on-chain registration complete");
       }
@@ -1564,6 +1571,7 @@ export async function me(req, res) {
       if (existingWallet) {
         // Address already has a profile in registry (e.g. after transferProfileTo). Sync and skip registration.
         await db("users").where({ id: req.user.id }).update({ smart_wallet_address: existingWallet });
+        await invalidateUserCache(req.user.id);
         safe.smart_wallet_address = existingWallet;
       } else {
         const isRegistered = await callContractRead("registered", [addrForChain], normalizedChain);
@@ -1578,6 +1586,7 @@ export async function me(req, res) {
             password_hash: passwordHash,
             smart_wallet_address: smartWallet || null,
           });
+          await invalidateUserCache(req.user.id);
           safe.smart_wallet_address = smartWallet || safe.smart_wallet_address;
           logger.info({ userId: req.user.id, address: addrForChain, chain: normalizedChain }, "me: registered user on-chain and synced smart wallet");
         } else if (safe.smart_wallet_address == null || safe.smart_wallet_address === "") {

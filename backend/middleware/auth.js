@@ -5,6 +5,7 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { ensureUserForWallet } from "../services/walletUserService.js";
+import { getUserByIdCached } from "../services/userCache.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "tycoon-guest-secret-change-in-production";
 
@@ -17,7 +18,7 @@ export async function optionalAuth(req, res, next) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     if (!decoded.userId) return next();
-    const user = await User.findById(decoded.userId);
+    const user = await getUserByIdCached(decoded.userId);
     if (!user) return next();
     const st = String(user.account_status || "active").toLowerCase();
     if (st === "banned" || st === "suspended") {
@@ -51,7 +52,7 @@ export async function requireAuthOrAddress(req, res, next) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
       if (!decoded.userId) return res.status(401).json({ success: false, message: "Invalid token" });
-      const user = await User.findById(decoded.userId);
+      const user = await getUserByIdCached(decoded.userId);
       if (!user) return res.status(401).json({ success: false, message: "User not found" });
       const st = String(user.account_status || "active").toLowerCase();
       if (st === "banned" || st === "suspended") {
@@ -114,7 +115,7 @@ export async function requireAuthOrWallet(req, res, next) {
       if (!decoded.userId) {
         return res.status(401).json({ success: false, message: "Invalid token" });
       }
-      const user = await User.findById(decoded.userId);
+      const user = await getUserByIdCached(decoded.userId);
       if (!user) {
         return res.status(401).json({ success: false, message: "User not found" });
       }
@@ -176,7 +177,7 @@ export async function requireAuth(req, res, next) {
     if (!decoded.userId) {
       return res.status(401).json({ success: false, message: "Invalid token" });
     }
-    const user = await User.findById(decoded.userId);
+    const user = await getUserByIdCached(decoded.userId);
     if (!user) {
       return res.status(401).json({ success: false, message: "User not found" });
     }

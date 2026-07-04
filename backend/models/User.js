@@ -1,5 +1,6 @@
 import db from "../config/database.js";
 import { getDefaultAppChain } from "../config/chains.js";
+import { invalidateUserCache } from "../services/userCache.js";
 import { generateUniqueReferralCode } from "../services/referralService.js";
 import { monthUtcBounds, parseYearMonth } from "../utils/leaderboardMonth.js";
 
@@ -300,6 +301,7 @@ const User = {
         ...userData,
         updated_at: db.fn.now(),
       });
+    await invalidateUserCache(id);
     return this.findById(id);
   },
 
@@ -307,7 +309,9 @@ const User = {
    * Delete user
    */
   async delete(id) {
-    return await db("users").where({ id }).del();
+    const result = await db("users").where({ id }).del();
+    await invalidateUserCache(id);
+    return result;
   },
 
   // -------------------------

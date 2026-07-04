@@ -1,8 +1,8 @@
 /**
  * Helpers to emit game state updates over Socket.io so clients can refetch instead of polling.
  */
-import Game from "../models/Game.js";
 import logger from "../config/logger.js";
+import { getGameCodeById } from "./gameCache.js";
 
 /**
  * Emit game-update to a game room so all clients in that room refetch game state.
@@ -27,8 +27,8 @@ export function emitGameUpdate(io, gameCode) {
 export async function emitGameUpdateByGameId(io, gameId) {
   if (!io || !gameId) return;
   try {
-    const game = await Game.findById(gameId);
-    if (game?.code) emitGameUpdate(io, game.code);
+    const code = await getGameCodeById(gameId);
+    if (code) emitGameUpdate(io, code);
   } catch (err) {
     logger.warn({ err, gameId }, "emitGameUpdateByGameId failed");
   }

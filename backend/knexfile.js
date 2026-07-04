@@ -39,8 +39,10 @@ const config = {
       directory: "./seeds",
     },
     pool: {
-      min: 5,
-      max: 50,
+      // Railway MySQL plans have modest max_connections; keep the floor low so idle
+      // dynos don't pin connections, and tune the ceiling via env when scaling.
+      min: Number(process.env.DB_POOL_MIN) || 2,
+      max: Number(process.env.DB_POOL_MAX) || 20,
       acquireTimeoutMillis: 30000,
       idleTimeoutMillis: 30000,
       reapIntervalMillis: 1000,
