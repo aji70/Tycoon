@@ -6,6 +6,23 @@ const Chat = {
     return this.findById(id);
   },
 
+  /** Idempotent game chat row. Does not throw by default so game creation is never blocked. */
+  async ensureForGame(gameId, options = {}) {
+    const { required = false } = options;
+    if (gameId == null) return null;
+
+    const existing = await db("chats").where({ game_id: gameId }).first();
+    if (existing) return existing;
+
+    try {
+      const [id] = await db("chats").insert({ game_id: gameId, status: "open" });
+      return this.findById(id);
+    } catch (err) {
+      if (required) throw err;
+      return null;
+    }
+  },
+
   async findAll() {
     return await db("chats").orderBy("id", "asc");
   },

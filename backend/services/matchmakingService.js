@@ -415,7 +415,7 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
     });
 
     // Create chat and game settings
-    await Chat.create({ game_id: game.id, status: "open" });
+    await Chat.ensureForGame(game.id);
     await GameSetting.create({
       game_id: game.id,
       auction: true,
@@ -832,7 +832,7 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
       });
     }
 
-    await Chat.create({ game_id: game.id, status: "open" });
+    await Chat.ensureForGame(game.id);
     await GameSetting.create({
       game_id: game.id,
       auction: true,
@@ -1178,7 +1178,7 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
       });
     }
 
-    await Chat.create({ game_id: game.id, status: "open" });
+    await Chat.ensureForGame(game.id);
     await GameSetting.create({
       game_id: game.id,
       auction: true,

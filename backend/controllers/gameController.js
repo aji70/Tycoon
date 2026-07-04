@@ -6,6 +6,7 @@ import GamePlayHistory from "../models/GamePlayHistory.js";
 import Chat from "../models/Chat.js";
 import db from "../config/database.js";
 import { recordEvent } from "../services/analytics.js";
+import { formatDbErrorForClient } from "../services/chatRetention.js";
 import {
   getCachedGameByCode,
   setCachedGameByCode,
@@ -418,10 +419,7 @@ const gameController = {
         board_id,
       });
 
-      const chat = await Chat.create({
-        game_id: game.id,
-        status: "open",
-      });
+      await Chat.ensureForGame(game.id);
 
       const aiDiff = req.body.ai_difficulty || settings?.ai_difficulty || "boss";
       const aiDiffMode = req.body.ai_difficulty_mode || settings?.ai_difficulty_mode || "random";
@@ -473,7 +471,7 @@ const gameController = {
       });
     } catch (error) {
       logger.error({ err: error }, "Error creating game with settings");
-      res.status(200).json({ success: false, message: error.message });
+      res.status(200).json({ success: false, message: formatDbErrorForClient(error) });
     }
   },
 
@@ -889,7 +887,7 @@ const gameController = {
               contract_game_id: parsed.gameId,
               board_id: await resolveBoardIdForGame(null),
             });
-            await Chat.create({ game_id: game.id, status: "open" });
+            await Chat.ensureForGame(game.id);
             await GameSetting.create({
               game_id: game.id,
               auction: true,
@@ -1192,7 +1190,7 @@ export const createAgentVsAgent = async (req, res) => {
       board_id,
     });
 
-    await Chat.create({ game_id: game.id, status: "open" });
+    await Chat.ensureForGame(game.id);
 
     const gs = await GameSetting.create({
       game_id: game.id,
@@ -1346,7 +1344,7 @@ export const createAgentVsAI = async (req, res) => {
       board_id,
     });
 
-    await Chat.create({ game_id: game.id, status: "open" });
+    await Chat.ensureForGame(game.id);
 
     const gs = await GameSetting.create({
       game_id: game.id,
@@ -1564,7 +1562,7 @@ export const createOnchainAgentVsAI = async (req, res) => {
       board_id,
     });
 
-    await Chat.create({ game_id: game.id, status: "open" });
+    await Chat.ensureForGame(game.id);
 
     const aiDiffPayload = buildAiDifficultyPayload(
       settings?.ai_difficulty || "boss",
@@ -1714,7 +1712,7 @@ export const createOnchainAgentVsAgentLobby = async (req, res) => {
       board_id,
     });
 
-    await Chat.create({ game_id: game.id, status: "open" });
+    await Chat.ensureForGame(game.id);
 
     const gs = await GameSetting.create({
       game_id: game.id,
@@ -2239,7 +2237,7 @@ export const create = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, "Error creating game with settings");
-    res.status(200).json({ success: false, message: error.message });
+    res.status(200).json({ success: false, message: formatDbErrorForClient(error) });
   }
 };
 
@@ -2631,7 +2629,7 @@ export const createAsGuest = async (req, res) => {
       board_id,
     });
 
-    const chat = await Chat.create({ game_id: game.id, status: "open" });
+    const chat = await Chat.ensureForGame(game.id);
 
     const game_settings = await GameSetting.create({
       game_id: game.id,
@@ -2977,7 +2975,7 @@ export const createAIAsGuest = async (req, res) => {
       board_id,
     });
 
-    const chat = await Chat.create({ game_id: game.id, status: "open" });
+    const chat = await Chat.ensureForGame(game.id);
 
     const aiDiffPayload = buildAiDifficultyPayload(aiDifficulty, aiDiffMode, numberOfAI, true);
     await GameSetting.create({

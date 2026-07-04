@@ -1,4 +1,5 @@
 import db from "../config/database.js";
+import Chat from "./Chat.js";
 
 const Message = {
   async create(messageData) {
@@ -80,7 +81,8 @@ const Message = {
         }
       }
       if (game_player) {
-        const chat = await db("chats").where({ game_id: game.id }).first();
+        let chat = await db("chats").where({ game_id: game.id }).first();
+        if (!chat) chat = await Chat.ensureForGame(game.id);
         if (chat && chat.status === "open") {
           const insertData = {
             chat_id: chat.id,
@@ -134,7 +136,8 @@ const Message = {
       (isNumericId ? await db("games").where({ id: numericId }).first() : null) ??
       (await db("games").where({ code: String(gameIdOrCode || "").trim().toUpperCase() }).first());
     if (!game) return [];
-    const chat = await db("chats").where({ game_id: game.id }).first();
+    let chat = await db("chats").where({ game_id: game.id }).first();
+    if (!chat) chat = await Chat.ensureForGame(game.id);
     if (!chat) return [];
     const rows = await db("messages as m")
       .leftJoin("game_players as gp", db.raw("gp.id = m.player_id"))

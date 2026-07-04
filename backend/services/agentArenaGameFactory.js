@@ -109,7 +109,7 @@ export async function createTwoPlayerAgentArenaGame(opts) {
     started_at: db.fn.now(),
   });
 
-  await Chat.create({ game_id: game.id, status: "open" });
+  await Chat.ensureForGame(game.id);
 
   await GameSetting.create({
     game_id: game.id,
@@ -225,7 +225,7 @@ export async function createMultiPlayerAgentArenaGame(opts) {
     started_at: db.fn.now(),
   });
 
-  await Chat.create({ game_id: game.id, status: "open" });
+  await Chat.ensureForGame(game.id);
   await GameSetting.create({
     game_id: game.id,
     auction: settings?.auction ?? true,

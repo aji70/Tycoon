@@ -858,7 +858,7 @@ async function createTwoPlayerMatchGame(tournament, match, entryA, entryB, tourn
     ready_window_opens_at: now,
   });
 
-  await Chat.create({ game_id: game.id, status: "open" });
+  await Chat.ensureForGame(game.id);
   await GameSetting.create({
     game_id: game.id,
     auction: true,
@@ -955,7 +955,7 @@ async function createTournamentGameOnChainLobby(
     chain: tournament.chain,
     contract_game_id: String(contractGameId),
   });
-  await Chat.create({ game_id: game.id, status: "open" });
+  await Chat.ensureForGame(game.id);
   await GameSetting.create({
     game_id: game.id,
     auction: true,
@@ -1043,7 +1043,7 @@ async function createTournamentGameOnChainLobbyCreatorB(
     chain: tournament.chain,
     contract_game_id: String(contractGameId),
   });
-  await Chat.create({ game_id: game.id, status: "open" });
+  await Chat.ensureForGame(game.id);
   await GameSetting.create({
     game_id: game.id,
     auction: true,
@@ -1098,7 +1098,7 @@ async function createLobbyGame(tournament, match, userA, userB, tournamentId, ma
     chain: tournament.chain,
     contract_game_id: null,
   });
-  await Chat.create({ game_id: game.id, status: "open" });
+  await Chat.ensureForGame(game.id);
   await GameSetting.create({
     game_id: game.id,
     auction: true,
@@ -1237,7 +1237,7 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
       chain: tournament.chain,
       contract_game_id: null,
     });
-    await Chat.create({ game_id: game.id, status: "open" });
+    await Chat.ensureForGame(game.id);
     await GameSetting.create({
       game_id: game.id,
       auction: true,
@@ -1272,7 +1272,7 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
       chain: tournament.chain,
       contract_game_id: null,
     });
-    await Chat.create({ game_id: game.id, status: "open" });
+    await Chat.ensureForGame(game.id);
     await GameSetting.create({
       game_id: game.id,
       auction: true,
@@ -1329,7 +1329,7 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
         chain: tournament.chain,
         contract_game_id: String(contractGameId),
       });
-      await Chat.create({ game_id: game.id, status: "open" });
+      await Chat.ensureForGame(game.id);
       await GameSetting.create({
         game_id: game.id,
         auction: true,
@@ -1403,7 +1403,7 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
       chain: tournament.chain,
       contract_game_id: null,
     });
-    await Chat.create({ game_id: game.id, status: "open" });
+    await Chat.ensureForGame(game.id);
     await GameSetting.create({
       game_id: game.id,
       auction: true,
@@ -1478,7 +1478,7 @@ async function createMultiplayerMatchGame(tournament, match, orderedEntries, tou
     ready_window_opens_at: now,
   });
 
-  await Chat.create({ game_id: game.id, status: "open" });
+  await Chat.ensureForGame(game.id);
   await GameSetting.create({
     game_id: game.id,
     auction: true,
