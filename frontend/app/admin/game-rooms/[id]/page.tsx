@@ -48,6 +48,8 @@ export default function AdminGameRoomDetailPage({ params }: { params: { id: stri
   const [players, setPlayers] = useState<PlayerRow[]>([]);
   const [properties, setProperties] = useState<PropRow[]>([]);
   const [history, setHistory] = useState<HistRow[]>([]);
+  const [creator, setCreator] = useState<{ id: number; username: string } | null>(null);
+  const [winner, setWinner] = useState<{ id: number; username: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
@@ -73,6 +75,8 @@ export default function AdminGameRoomDetailPage({ params }: { params: { id: stri
             players: PlayerRow[];
             properties: PropRow[];
             historyTail: HistRow[];
+            creator?: { id: number; username: string } | null;
+            winner?: { id: number; username: string } | null;
           };
         }>(`admin/rooms/${id}`);
         if (cancelled) return;
@@ -85,6 +89,8 @@ export default function AdminGameRoomDetailPage({ params }: { params: { id: stri
         setPlayers(body.data.players);
         setProperties(body.data.properties);
         setHistory(body.data.historyTail);
+        setCreator(body.data.creator ?? null);
+        setWinner(body.data.winner ?? null);
       } catch (e) {
         if (cancelled) return;
         const msg =
@@ -119,6 +125,8 @@ export default function AdminGameRoomDetailPage({ params }: { params: { id: stri
         setPlayers(body.data.players);
         setProperties(body.data.properties);
         setHistory(body.data.historyTail);
+        setCreator(body.data.creator ?? null);
+        setWinner(body.data.winner ?? null);
         setCancelMsg("Game ended.");
       }
     } catch (e) {
@@ -245,12 +253,33 @@ export default function AdminGameRoomDetailPage({ params }: { params: { id: stri
                   <dd className="font-mono text-xs break-all text-right">{String(game.contract_game_id ?? "—")}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-slate-500">Creator id</dt>
-                  <dd className="tabular-nums">{String(game.creator_id ?? "—")}</dd>
+                  <dt className="text-slate-500">Creator</dt>
+                  <dd className="text-right">
+                    {creator ? (
+                      <Link href={`/admin/players/${creator.id}`} className="text-cyan-400 hover:text-cyan-300">
+                        {creator.username}
+                      </Link>
+                    ) : game.creator_id ? (
+                      <span className="tabular-nums text-slate-400">#{String(game.creator_id)}</span>
+                    ) : (
+                      "—"
+                    )}
+                    {creator && <span className="block text-xs text-slate-500 tabular-nums">#{creator.id}</span>}
+                  </dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-slate-500">Winner id</dt>
-                  <dd className="tabular-nums">{String(game.winner_id ?? "—")}</dd>
+                  <dt className="text-slate-500">Winner</dt>
+                  <dd className="text-right">
+                    {winner ? (
+                      <Link href={`/admin/players/${winner.id}`} className="text-cyan-400 hover:text-cyan-300">
+                        {winner.username}
+                      </Link>
+                    ) : game.winner_id ? (
+                      <span className="tabular-nums text-slate-400">#{String(game.winner_id)}</span>
+                    ) : (
+                      "—"
+                    )}
+                  </dd>
                 </div>
               </dl>
             </section>

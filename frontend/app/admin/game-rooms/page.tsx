@@ -7,6 +7,7 @@ import { adminApi } from "@/lib/adminApi";
 import { canCancelGameStatus, getAdminGamePlayPath } from "@/lib/adminGameRoomRoutes";
 import { ApiError } from "@/lib/api";
 import { ChevronLeft, ChevronRight, ExternalLink, Loader2, Search, Square } from "lucide-react";
+import { GameRoomDetailDrawer } from "./GameRoomDetailDrawer";
 
 type RoomRow = {
   id: number;
@@ -80,6 +81,7 @@ export default function AdminGameRoomsPage() {
 
   const [endingId, setEndingId] = useState<number | null>(null);
   const [endMsg, setEndMsg] = useState<string | null>(null);
+  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -284,9 +286,9 @@ export default function AdminGameRoomsPage() {
     <div>
       <h1 className="text-2xl font-semibold text-slate-100">Game rooms</h1>
       <p className="mt-1 text-sm text-slate-400 max-w-2xl">
-        Live games from the database. Duration is from <code className="text-slate-500">started_at</code> (or{" "}
-        <code className="text-slate-500">created_at</code>) to now for open games, or to <code className="text-slate-500">updated_at</code>{" "}
-        for finished/cancelled. Ending a game sets <code className="text-slate-500">CANCELLED</code> and does not unwind on-chain state.
+        Live games from the database. Click a row for details and to end a game. Duration is from{" "}
+        <code className="text-slate-500">started_at</code> (or <code className="text-slate-500">created_at</code>) to now for open games, or to{" "}
+        <code className="text-slate-500">updated_at</code> for finished/cancelled.
       </p>
 
       <section className="mt-6 rounded-xl border border-cyan-900/40 bg-cyan-950/20 p-4">
@@ -482,7 +484,13 @@ export default function AdminGameRoomsPage() {
               )}
               {!loading &&
                 rooms.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-800/40 transition-colors">
+                  <tr
+                    key={r.id}
+                    onClick={() => setSelectedRoomId(r.id)}
+                    className={`hover:bg-slate-800/40 transition-colors cursor-pointer ${
+                      selectedRoomId === r.id ? "bg-cyan-950/30" : ""
+                    }`}
+                  >
                     <td className="px-4 py-3">
                       <span className="font-mono text-cyan-200/90">{r.code}</span>
                       <span className="block text-xs text-slate-500">#{r.id}</span>
@@ -497,7 +505,7 @@ export default function AdminGameRoomsPage() {
                     <td className="px-4 py-3 text-slate-400 text-xs">{r.mode}</td>
                     <td className="px-4 py-3 text-slate-400 text-xs">{r.chain ?? "—"}</td>
                     <td className="px-4 py-3 text-slate-400 text-xs tabular-nums">{formatDuration(r.durationMs)}</td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="inline-flex flex-wrap items-center justify-end gap-2">
                         <a
                           href={getAdminGamePlayPath({
@@ -574,6 +582,12 @@ export default function AdminGameRoomsPage() {
           </div>
         </div>
       )}
+
+      <GameRoomDetailDrawer
+        roomId={selectedRoomId}
+        onClose={() => setSelectedRoomId(null)}
+        onCancelled={() => void load()}
+      />
     </div>
   );
 }

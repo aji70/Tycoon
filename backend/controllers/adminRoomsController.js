@@ -181,6 +181,15 @@ export async function getRoomById(req, res) {
       .orderBy("id", "desc")
       .limit(40);
 
+    const userIds = [game.creator_id, game.winner_id].filter((uid) => uid != null);
+    const userRows =
+      userIds.length > 0
+        ? await db("users").whereIn("id", userIds).select("id", "username")
+        : [];
+    const userById = Object.fromEntries(userRows.map((u) => [u.id, u]));
+    const creator = game.creator_id ? userById[game.creator_id] ?? null : null;
+    const winner = game.winner_id ? userById[game.winner_id] ?? null : null;
+
     const safeGame = { ...game };
     delete safeGame.placements;
 
@@ -195,6 +204,8 @@ export async function getRoomById(req, res) {
         players,
         properties,
         historyTail: history.reverse(),
+        creator: creator ? { id: creator.id, username: creator.username } : null,
+        winner: winner ? { id: winner.id, username: winner.username } : null,
       },
     });
   } catch (err) {
