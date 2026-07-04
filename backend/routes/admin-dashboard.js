@@ -23,6 +23,7 @@ import * as adminAlertsController from "../controllers/adminAlertsController.js"
 import * as adminNotificationsController from "../controllers/adminNotificationsController.js";
 import * as adminContractsController from "../controllers/adminContractsController.js";
 import * as adminSalesController from "../controllers/adminSalesController.js";
+import * as adminMaintenanceController from "../controllers/adminMaintenanceController.js";
 import { postDashboardAdminLogin, requireDashboardAdminSecret } from "../middleware/dashboardAdminAuth.js";
 
 const router = express.Router();
@@ -74,6 +75,9 @@ router.get("/sales/reward", adminSalesController.getRewardSales);
 router.get("/wallets", adminWalletsController.listWallets);
 router.get("/settings/summary", adminSettingsController.getSettingsSummary);
 router.patch("/settings/maintenance", adminSettingsController.patchMaintenance);
+
+router.get("/maintenance/game-history", adminMaintenanceController.getGameHistoryStats);
+router.post("/maintenance/prune-game-history", adminMaintenanceController.postPruneGameHistory);
 
 router.get("/audit-log", adminAuditLogController.listAuditLog);
 
