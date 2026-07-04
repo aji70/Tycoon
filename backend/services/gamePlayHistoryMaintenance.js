@@ -20,22 +20,23 @@ export async function deleteFinishedHistoryBatch({
   retentionDays = null,
   batchSize = DELETE_BATCH,
 } = {}) {
-  let sql = `
-    DELETE h FROM game_play_history h
-    INNER JOIN games g ON g.id = h.game_id
-    WHERE g.status IN ('FINISHED', 'CANCELLED')
-  `;
-  const bindings = [];
+  // MySQL rejects LIMIT on multi-table DELETE … JOIN — select ids, then delete.
+  let q = db("game_play_history as h")
+    .join("games as g", "g.id", "h.game_id")
+    .whereIn("g.status", ["FINISHED", "CANCELLED"])
+    .select("h.id")
+    .limit(batchSize);
+
   if (retentionDays != null) {
     const cutoff = new Date();
     cutoff.setUTCDate(cutoff.getUTCDate() - retentionDays);
-    bindings.push(cutoff.toISOString().slice(0, 19).replace("T", " "));
-    sql += ` AND g.updated_at < ?`;
+    const cutoffIso = cutoff.toISOString().slice(0, 19).replace("T", " ");
+    q = q.where("g.updated_at", "<", cutoffIso);
   }
-  sql += ` LIMIT ?`;
-  bindings.push(batchSize);
-  const [result] = await db.raw(sql, bindings);
-  return Number(result?.affectedRows ?? 0);
+
+  const ids = (await q).map((r) => r.id);
+  if (!ids.length) return 0;
+  return await db("game_play_history").whereIn("id", ids).del();
 }
 
 async function prunePhase(retentionDays, maxRows, onProgress) {

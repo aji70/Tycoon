@@ -93,18 +93,16 @@ export async function pruneOldGamePlayHistory(options = {}) {
 
   let deleted = 0;
   while (deleted < maxRows) {
-    const [result] = await db.raw(
-      `
-      DELETE h FROM game_play_history h
-      INNER JOIN games g ON g.id = h.game_id
-      WHERE g.status IN ('FINISHED', 'CANCELLED')
-        AND g.updated_at < ?
-      LIMIT ?
-    `,
-      [cutoffIso, DELETE_BATCH]
-    );
-    const n = Number(result?.affectedRows ?? 0);
-    if (n === 0) break;
+    let q = db("game_play_history as h")
+      .join("games as g", "g.id", "h.game_id")
+      .whereIn("g.status", ["FINISHED", "CANCELLED"])
+      .where("g.updated_at", "<", cutoffIso)
+      .select("h.id")
+      .limit(DELETE_BATCH);
+
+    const ids = (await q).map((r) => r.id);
+    if (!ids.length) break;
+    const n = await db("game_play_history").whereIn("id", ids).del();
     deleted += n;
   }
 
