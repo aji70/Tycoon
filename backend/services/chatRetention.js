@@ -2,6 +2,7 @@ import db from "../config/database.js";
 import logger from "../config/logger.js";
 
 const BATCH = 500;
+const DELETE_BATCH = 100;
 
 /**
  * Remove chat rows (and their messages) for old finished/cancelled games.
@@ -64,48 +65,55 @@ export async function pruneOldGameChats(options = {}) {
 }
 
 /**
- * Remove play-history rows for old finished/cancelled games (frees MyISAM row cap).
+ * Remove play-history rows for old finished/cancelled games.
+ * Uses DELETE … LIMIT batches so we never load hundreds of thousands of ids into memory
+ * or one giant undo log transaction.
  *
- * @param {{ retentionDays?: number, dryRun?: boolean }} options
+ * @param {{ retentionDays?: number, dryRun?: boolean, maxRows?: number }} options
  */
 export async function pruneOldGamePlayHistory(options = {}) {
   const retentionDays = Math.max(1, Number(options.retentionDays) || 30);
   const dryRun = Boolean(options.dryRun);
+  const maxRows = Math.max(DELETE_BATCH, Number(options.maxRows) || Infinity);
 
   const cutoff = new Date();
   cutoff.setUTCDate(cutoff.getUTCDate() - retentionDays);
   const cutoffIso = cutoff.toISOString().slice(0, 19).replace("T", " ");
 
-  const idRows = await db("game_play_history as h")
-    .join("games as g", "g.id", "h.game_id")
-    .whereIn("g.status", ["FINISHED", "CANCELLED"])
-    .where("g.updated_at", "<", cutoffIso)
-    .select("h.id");
-
-  const ids = idRows.map((r) => r.id);
-  if (!ids.length) {
-    return { retentionDays, dryRun, historyCount: 0, cutoff: cutoffIso };
-  }
-
   if (dryRun) {
-    return {
-      retentionDays,
-      dryRun: true,
-      historyCount: ids.length,
-      cutoff: cutoffIso,
-    };
+    const row = await db("game_play_history as h")
+      .join("games as g", "g.id", "h.game_id")
+      .whereIn("g.status", ["FINISHED", "CANCELLED"])
+      .where("g.updated_at", "<", cutoffIso)
+      .count("* as c")
+      .first();
+    const historyCount = Number(row?.c ?? 0);
+    return { retentionDays, dryRun: true, historyCount, cutoff: cutoffIso };
   }
 
   let deleted = 0;
-  for (let i = 0; i < ids.length; i += BATCH) {
-    const slice = ids.slice(i, i + BATCH);
-    deleted += await db("game_play_history").whereIn("id", slice).del();
+  while (deleted < maxRows) {
+    const [result] = await db.raw(
+      `
+      DELETE h FROM game_play_history h
+      INNER JOIN games g ON g.id = h.game_id
+      WHERE g.status IN ('FINISHED', 'CANCELLED')
+        AND g.updated_at < ?
+      LIMIT ?
+    `,
+      [cutoffIso, DELETE_BATCH]
+    );
+    const n = Number(result?.affectedRows ?? 0);
+    if (n === 0) break;
+    deleted += n;
   }
 
-  logger.info(
-    { retentionDays, historyCount: deleted, cutoff: cutoffIso },
-    "pruned old game play history"
-  );
+  if (deleted > 0) {
+    logger.info(
+      { retentionDays, historyCount: deleted, cutoff: cutoffIso },
+      "pruned old game play history"
+    );
+  }
 
   return {
     retentionDays,
@@ -115,10 +123,15 @@ export async function pruneOldGamePlayHistory(options = {}) {
   };
 }
 
-/** Map MySQL "table is full" to an actionable message for clients. */
+/** Map MySQL storage / undo errors to an actionable message for clients. */
 export function formatDbErrorForClient(error) {
   const msg = String(error?.message || "Database error");
-  if (error?.code === "ER_RECORD_FILE_FULL" || /table '.*' is full/i.test(msg)) {
+  if (
+    error?.code === "ER_RECORD_FILE_FULL" ||
+    /table '.*' is full/i.test(msg) ||
+    /undo log error/i.test(msg) ||
+    /undo tablespace/i.test(msg)
+  ) {
     const table = msg.match(/table '([^']+)' is full/i)?.[1] ?? "database";
     if (table === "game_play_history") {
       return "Game move log is full — rolls cannot be saved. An admin must run database maintenance (prune old game history).";
