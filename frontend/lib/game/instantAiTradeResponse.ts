@@ -5,6 +5,8 @@
 
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
+import { getApiErrorDetail, shouldSuppressTradeError } from "@/lib/utils/contractErrors";
+import { gameBoardToastError, gameBoardTradeError } from "@/lib/utils/gameBoardErrors";
 import type { Game, Player, Property, GameProperty } from "@/types/game";
 import type { ApiResponse } from "@/types/api";
 import {
@@ -52,6 +54,12 @@ export async function instantAiRespondWhenTargetIsAi(params: {
   const humanPlayer = game.players?.find((p) => p.user_id === proposerId);
   if (!humanPlayer) return;
 
+  if (!Number.isFinite(t.id) || t.id <= 0) {
+    console.error("[instantAiRespondWhenTargetIsAi] invalid trade id:", trade);
+    gameBoardToastError("Trade was created without a valid id — AI could not respond. Try again.");
+    return;
+  }
+
   const sentTrade = {
     game_id: game.id,
     player_id: proposerId,
@@ -67,6 +75,16 @@ export async function instantAiRespondWhenTargetIsAi(params: {
   let decision: "accepted" | "declined" | "countered" = "declined";
   let remark = "";
   let counterCashAdjustment: number | null = null;
+
+  function tradeErrorToast(error: unknown, fallback: string) {
+    const detail = getApiErrorDetail(error);
+    console.error("[instantAiRespondWhenTargetIsAi]", { decision, tradeId: sentTrade.id, detail, error });
+    if (shouldSuppressTradeError(error)) {
+      refreshTrades();
+      return;
+    }
+    gameBoardTradeError(error, fallback);
+  }
 
   try {
     const slot = getAiSlotFromPlayer(targetPlayer);
@@ -178,7 +196,6 @@ export async function instantAiRespondWhenTargetIsAi(params: {
         return;
       }
       try {
-        // Backend aiCounter marks the original declined and inserts the new offer — do not decline first.
         await apiClient.post("/game-trade-requests/ai-counter", {
           original_trade_id: sentTrade.id,
           counter_offer_properties: sentTrade.requested_properties ?? [],
@@ -189,14 +206,13 @@ export async function instantAiRespondWhenTargetIsAi(params: {
         refreshTrades();
         toast(remark || "AI sent a counter.");
       } catch (e: unknown) {
-        console.error("[instantAiRespondWhenTargetIsAi] AI counter failed:", e);
         try {
           await apiClient.post("/game-trade-requests/decline", { id: sentTrade.id });
         } catch {
           /* ignore */
         }
         refreshTrades();
-        toast.error("AI counter failed; trade declined.");
+        tradeErrorToast(e, "AI counter failed; trade declined.");
       }
       return;
     }
@@ -205,13 +221,12 @@ export async function instantAiRespondWhenTargetIsAi(params: {
     refreshTrades();
     toast(remark || "AI declined the trade.");
   } catch (e) {
-    console.error("[instantAiRespondWhenTargetIsAi]", e);
     try {
       await apiClient.post("/game-trade-requests/decline", { id: t.id });
       refreshTrades();
     } catch {
       /* ignore */
     }
-    toast.error("Could not resolve AI trade response.");
+    tradeErrorToast(e, "Could not resolve AI trade response.");
   }
 }

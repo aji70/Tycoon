@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
+import { gameBoardToastError } from "@/lib/utils/gameBoardErrors";
 import { Game, GameProperty, Player, Property } from "@/types/game";
 import { ApiResponse } from "@/types/api";
 
@@ -74,11 +75,11 @@ export default function RaiseFundsPanel({
         toast.success("House sold.");
         await onRefetch();
       } else {
-        toast.error(res.data?.message ?? "Failed to sell house");
+        gameBoardToastError(res.data?.message ?? "Failed to sell house");
       }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      toast.error(msg ?? "Failed to sell house");
+      gameBoardToastError(msg ?? "Failed to sell house");
     } finally {
       setBusy(false);
     }
@@ -97,11 +98,11 @@ export default function RaiseFundsPanel({
         toast.success(`Mortgaged ${prop.name} for $${Math.floor(prop.price / 2)}.`);
         await onRefetch();
       } else {
-        toast.error(res.data?.message ?? "Failed to mortgage property");
+        gameBoardToastError(res.data?.message ?? "Failed to mortgage property");
       }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      toast.error(msg ?? "Failed to mortgage property");
+      gameBoardToastError(msg ?? "Failed to mortgage property");
     } finally {
       setBusy(false);
     }

@@ -1,7 +1,8 @@
 import { useCallback } from "react";
 import { toast } from "react-hot-toast";
-import { apiClient } from "@/lib/api"; // Assuming this is the correct import path
-import { ApiResponse } from "@/types/api"; // Assuming this is the correct import path
+import { apiClient } from "@/lib/api";
+import { ApiResponse } from "@/types/api";
+import { gameBoardContractError, gameBoardToastError } from "@/lib/utils/gameBoardErrors";
 
 export const usePropertyActions = (gameId: number, userId: number | undefined, isMyTurn: boolean) => {
   const handleDevelopment = useCallback(async (id: number) => {
@@ -14,7 +15,7 @@ export const usePropertyActions = (gameId: number, userId: number | undefined, i
       });
       if (res?.data?.success) toast.success("Property developed successfully");
     } catch (error: any) {
-      toast.error(error?.message || "Failed to develop property");
+      gameBoardContractError(error, "Failed to develop property");
     }
   }, [gameId, userId, isMyTurn]);
 
@@ -27,9 +28,9 @@ export const usePropertyActions = (gameId: number, userId: number | undefined, i
         property_id: id,
       });
       if (res?.data?.success) toast.success("Property downgraded successfully");
-      else toast.error(res.data?.message ?? "Failed to downgrade property");
+      else gameBoardToastError(res.data?.message ?? "Failed to downgrade property");
     } catch (error: any) {
-      toast.error(error?.message || "Failed to downgrade property");
+      gameBoardContractError(error, "Failed to downgrade property");
     }
   }, [gameId, userId, isMyTurn]);
 
@@ -42,9 +43,9 @@ export const usePropertyActions = (gameId: number, userId: number | undefined, i
         property_id: id,
       });
       if (res?.data?.success) toast.success("Property mortgaged successfully");
-      else toast.error(res.data?.message ?? "Failed to mortgage property");
+      else gameBoardToastError(res.data?.message ?? "Failed to mortgage property");
     } catch (error: any) {
-      toast.error(error?.message || "Failed to mortgage property");
+      gameBoardContractError(error, "Failed to mortgage property");
     }
   }, [gameId, userId, isMyTurn]);
 
@@ -57,9 +58,9 @@ export const usePropertyActions = (gameId: number, userId: number | undefined, i
         property_id: id,
       });
       if (res?.data?.success) toast.success("Property unmortgaged successfully");
-      else toast.error(res.data?.message ?? "Failed to unmortgage property");
+      else gameBoardToastError(res.data?.message ?? "Failed to unmortgage property");
     } catch (error: any) {
-      toast.error(error?.message || "Failed to unmortgage property");
+      gameBoardContractError(error, "Failed to unmortgage property");
     }
   }, [gameId, userId, isMyTurn]);
 

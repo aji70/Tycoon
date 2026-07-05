@@ -2,6 +2,7 @@
 import { useEffect, useRef } from "react";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
+import { gameBoardToastError } from "@/lib/utils/gameBoardErrors";
 import { Game, GameProperty, Player, Property } from "@/types/game";
 import { isAIPlayer } from "@/utils/gameUtils";
 import { ApiResponse } from "@/types/api";
@@ -208,7 +209,7 @@ export function useAiBankruptcy({
         toast(`${currentPlayer.username} was eliminated (bankrupt).`, { duration: 4000 });
         } catch (err: any) {
           console.error("Bankruptcy handling failed:", err);
-          toast.error("AI bankruptcy process failed");
+          gameBoardToastError("AI bankruptcy process failed");
         }
       } finally {
         handlingRef.current = false;

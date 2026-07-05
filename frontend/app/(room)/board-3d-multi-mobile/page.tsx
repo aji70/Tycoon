@@ -22,7 +22,9 @@ import { getBoardCenterImageUrl } from "@/lib/boardCenterImage";
 import { getDiceValues } from "@/components/game/constants";
 import { JAIL_POSITION, MOVE_ANIMATION_MS_PER_SQUARE } from "@/components/game/constants";
 import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
-import { isBenignTurnOrderError } from "@/lib/utils/contractErrors";
+import { isBenignTurnOrderError, getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { gameBoardToastError } from "@/lib/utils/gameBoardErrors";
+import { recoverFromDoublesJailError, recoverFromRollPositionError } from "@/lib/game/recoverFromRollError";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
@@ -415,7 +417,7 @@ function Board3DMobilePageContent() {
       if (data?.message) toast.success(data.message);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
-      toast.error(err?.response?.data?.message || err?.message || "Failed to request start");
+      gameBoardToastError(err?.response?.data?.message || getContractErrorMessage(err, "Failed to request start"));
     } finally {
       setRequestStartLoading(false);
     }
@@ -668,7 +670,7 @@ function Board3DMobilePageContent() {
   const showToast = useCallback((message: string, type?: "success" | "error" | "default") => {
     if (type === "error" && isBenignTurnOrderError({ message })) return;
     if (type === "success") toast.success(message);
-    else if (type === "error") toast.error(message);
+    else if (type === "error") gameBoardToastError(message);
     else toast(message);
   }, []);
 
@@ -1085,11 +1087,11 @@ function Board3DMobilePageContent() {
         if (success || perk === 1) {
           toast.success("Perk used & collectible burned!", { id: toastId });
         } else if (perk !== 6 && perk !== 10) {
-          toast.error("Effect failed", { id: toastId });
+          gameBoardToastError("Effect failed", { id: toastId });
         }
         await refetchGame();
       } catch {
-        toast.error("Activation failed", { id: toastId });
+        gameBoardToastError("Activation failed", { id: toastId });
       } finally {
         setPendingBarPerk(null);
       }
@@ -1128,7 +1130,7 @@ function Board3DMobilePageContent() {
           toast.success("Three doubles! Go to jail.");
           await refetchGame();
         } catch (err) {
-          hotToastContractError(err as Error, "Failed to process three doubles");
+          await recoverFromDoublesJailError(err, refetchGame);
         } finally {
           doublesCountRef.current = 0;
           runningTotalRef.current = 0;
@@ -1240,43 +1242,19 @@ function Board3DMobilePageContent() {
         }
       }
     } catch (err) {
-      try {
-        setLiveMovementOverride((prev) => {
-          const next = { ...prev };
-          if (me?.user_id != null) delete next[me.user_id];
-          return next;
-        });
-        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "";
-        if (msg.includes("You already rolled this round") && me?.user_id != null && game?.id != null) {
-          try {
-            const endRes = await apiClient.post<{ data?: { success?: boolean; message?: string }; success?: boolean; message?: string }>(
-              "/game-players/end-turn",
-              { user_id: me.user_id, game_id: game.id }
-            );
-            const ok = (endRes?.data as { success?: boolean })?.success ?? (endRes as { success?: boolean })?.success;
-            const endMsg = (endRes?.data as { message?: string })?.message ?? (endRes as { message?: string })?.message ?? "";
-            if (ok || (typeof endMsg === "string" && endMsg.includes("cannot end another player"))) {
-              toast.success("Turn passed to next player.");
-              await refetchGame();
-            } else if (!ok && endMsg) {
-              if (isBenignTurnOrderError({ message: String(endMsg) })) {
-                await refetchGame();
-              } else {
-                toast.error(endMsg);
-                await refetchGame();
-              }
-            } else {
-              await refetchGame();
-            }
-          } catch (e) {
-            hotToastContractError(e, "Failed to pass turn. Try again or refresh the game if the board looks stuck.");
-            await refetchGame();
-          }
-        } else {
-          hotToastContractError(err, "Roll failed. Try again or refresh if it persists.");
-        }
-      } catch (toastErr) {
-        hotToastContractError(toastErr as unknown, "Roll failed. Check your connection and try again.");
+      setLiveMovementOverride((prev) => {
+        const next = { ...prev };
+        if (me?.user_id != null) delete next[me.user_id];
+        return next;
+      });
+      if (me?.user_id != null && game?.id != null) {
+        await recoverFromRollPositionError(
+          err,
+          { userId: me.user_id, gameId: game.id, refetchGame },
+          "Roll failed"
+        );
+      } else {
+        hotToastContractError(err, "Roll failed");
       }
     } finally {
       doublesCountRef.current = 0;
@@ -1864,7 +1842,7 @@ function Board3DMobilePageContent() {
     if (!game?.id || !me?.user_id || !activeAuction?.id || auctionSubmitting) return;
     const amount = auctionBidAmount.trim() ? parseInt(auctionBidAmount, 10) : null;
     if (amount != null && (isNaN(amount) || amount <= (activeAuction.current_high ?? 0))) {
-      toast.error("Enter a bid higher than current high");
+      gameBoardToastError("Enter a bid higher than current high", { severity: "warning" });
       return;
     }
     setAuctionSubmitting(true);
@@ -2236,7 +2214,7 @@ function Board3DMobilePageContent() {
       });
       setHasLeftGame(true);
       await refetchGame();
-      toast.error("Game over! You have declared bankruptcy.");
+      gameBoardToastError("Game over! You have declared bankruptcy.");
       setShowBankruptcyModal(true);
     } catch (err) {
       hotToastContractError(err, "Failed to end game");
@@ -2739,7 +2717,7 @@ function Board3DMobilePageContent() {
                     try {
                       await burnCollectible(pendingBarPerk.tokenId);
                     } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "Burn failed");
+                      gameBoardToastError(getContractErrorMessage(e, "Burn failed"));
                       setPendingBarPerk(null);
                     }
                   }}

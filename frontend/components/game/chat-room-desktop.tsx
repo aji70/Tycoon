@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api";
 import { Send, MessageCircle, Users, Reply, X } from "lucide-react";
 import { Player } from "@/types/game";
 import toast from "react-hot-toast";
+import { gameBoardToastError } from "@/lib/utils/gameBoardErrors";
 import { parseMessageBody } from "./chat-room";
 
 const REPLY_QUOTE_PREFIX = "> ";
@@ -121,7 +122,7 @@ const ChatRoomDesktop = ({ gameId, me }: ChatRoomDesktopProps) => {
       );
       setNewMessage(trimmed);
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to send message";
-      toast.error(msg);
+      gameBoardToastError(msg);
     } finally {
       setSending(false);
       inputRef.current?.focus();

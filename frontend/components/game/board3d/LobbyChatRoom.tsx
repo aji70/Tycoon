@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import { Send, MessageCircle, Reply, X, Users } from "lucide-react";
 import toast from "react-hot-toast";
+import { gameBoardToastError } from "@/lib/utils/gameBoardErrors";
 import { parseMessageBody } from "@/components/game/chat-room";
 
 const REPLY_QUOTE_PREFIX = "> ";
@@ -151,7 +152,7 @@ export default function LobbyChatRoom({
       setNewMessage(trimmed);
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to send message";
-      toast.error(msg);
+      gameBoardToastError(msg);
     } finally {
       setSending(false);
       inputRef.current?.focus();
