@@ -54,11 +54,12 @@ export async function activeUsers(req, res) {
  */
 export async function retention(req, res) {
   try {
-    const { startDate, endDate, days } = req.query;
+    const { startDate, endDate, days, debug } = req.query;
     const options = {};
     if (startDate) options.startDate = String(startDate);
     if (endDate) options.endDate = String(endDate);
     if (days != null && String(days).trim() !== "") options.days = Number(days);
+    if (debug === "1" || debug === "true") options.debug = true;
     const data = await getRetentionCohorts(options);
     res.json({ success: true, data });
   } catch (err) {

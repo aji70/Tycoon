@@ -5,6 +5,7 @@
  */
 
 import db from "../config/database.js";
+import logger from "../config/logger.js";
 
 /**
  * Record a single event (best-effort; does not throw).
@@ -136,6 +137,30 @@ function startOfUtcDay(d = new Date()) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
+/** mysql2 returns SQL DATE as a JS Date; String(date).slice(0,10) is locale-dependent garbage. */
+function toIsoDateString(value) {
+  if (value == null || value === "") return "";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const s = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const parsed = new Date(s);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return "";
+}
+
+function addUtcDays(date, days) {
+  const d = new Date(date);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d;
+}
+
+/** Dn rate is mature once cohort_date + n UTC calendar days has fully ended (strictly before today). */
+function isRetentionDayMature(cohortDateObj, n, today) {
+  return cohortDateObj != null && addUtcDays(cohortDateObj, n) < today;
+}
+
 /**
  * Distinct active users per period (daily / weekly / monthly).
  * A user counts as active if they played (game_play_history) or had a profile update that day.
@@ -259,11 +284,12 @@ function pct(numerator, denominator) {
  * Cohort retention from game_play_history (first play day per user via game_players.user_id).
  * Dn = user played again on exactly cohort_date + n days (UTC calendar days).
  *
- * @param {{ startDate?: string, endDate?: string, days?: number }} options
+ * @param {{ startDate?: string, endDate?: string, days?: number, debug?: boolean }} options
  */
 export async function getRetentionCohorts(options = {}) {
   const now = new Date();
   const today = startOfUtcDay(now);
+  const debug = options.debug === true || process.env.RETENTION_DEBUG === "true";
 
   let rangeEnd = options.endDate ? startOfUtcDay(new Date(options.endDate)) : new Date(today);
   let rangeStart = options.startDate
@@ -274,13 +300,6 @@ export async function getRetentionCohorts(options = {}) {
 
   const rangeStartIso = rangeStart.toISOString().slice(0, 10);
   const rangeEndIso = rangeEnd.toISOString().slice(0, 10);
-
-  const matureD1Cutoff = new Date(today);
-  matureD1Cutoff.setUTCDate(matureD1Cutoff.getUTCDate() - 1);
-  const matureD3Cutoff = new Date(today);
-  matureD3Cutoff.setUTCDate(matureD3Cutoff.getUTCDate() - 3);
-  const matureD7Cutoff = new Date(today);
-  matureD7Cutoff.setUTCDate(matureD7Cutoff.getUTCDate() - 7);
 
   const rows = await db.raw(
     `
@@ -319,16 +338,16 @@ export async function getRetentionCohorts(options = {}) {
   );
 
   const cohorts = (rows[0] || []).map((r) => {
-    const cohortDate = r.cohort_date ? String(r.cohort_date).slice(0, 10) : "";
+    const cohortDate = toIsoDateString(r.cohort_date);
     const cohortDateObj = cohortDate ? startOfUtcDay(new Date(`${cohortDate}T00:00:00.000Z`)) : null;
     const cohortSize = Number(r.cohort_size ?? 0);
     const d1Retained = Number(r.d1_retained ?? 0);
     const d3Retained = Number(r.d3_retained ?? 0);
     const d7Retained = Number(r.d7_retained ?? 0);
 
-    const matureD1 = cohortDateObj != null && cohortDateObj <= matureD1Cutoff;
-    const matureD3 = cohortDateObj != null && cohortDateObj <= matureD3Cutoff;
-    const matureD7 = cohortDateObj != null && cohortDateObj <= matureD7Cutoff;
+    const matureD1 = isRetentionDayMature(cohortDateObj, 1, today);
+    const matureD3 = isRetentionDayMature(cohortDateObj, 3, today);
+    const matureD7 = isRetentionDayMature(cohortDateObj, 7, today);
 
     return {
       cohortDate,
@@ -344,6 +363,55 @@ export async function getRetentionCohorts(options = {}) {
       matureD7,
     };
   });
+
+  if (debug) {
+    const probeCohort = "2026-07-03";
+    const probeD1Day = "2026-07-04";
+    try {
+      const probeUsers = await db.raw(
+        `
+        WITH user_first_seen AS (
+          SELECT gp.user_id, DATE(MIN(gph.created_at)) AS cohort_date
+          FROM game_play_history gph
+          INNER JOIN game_players gp ON gp.id = gph.game_player_id
+          WHERE gp.user_id IS NOT NULL
+          GROUP BY gp.user_id
+        )
+        SELECT user_id FROM user_first_seen WHERE cohort_date = ?
+        `,
+        [probeCohort]
+      );
+      const userIds = (probeUsers[0] || []).map((u) => u.user_id);
+      let probeActivity = null;
+      if (userIds.length) {
+        const placeholders = userIds.map(() => "?").join(",");
+        const act = await db.raw(
+          `
+          SELECT COUNT(*) AS history_rows, COUNT(DISTINCT gp.user_id) AS distinct_users
+          FROM game_play_history gph
+          INNER JOIN game_players gp ON gp.id = gph.game_player_id
+          WHERE gp.user_id IN (${placeholders}) AND DATE(gph.created_at) = ?
+          `,
+          [...userIds, probeD1Day]
+        );
+        probeActivity = act[0]?.[0] ?? null;
+      }
+      const jul3 = cohorts.find((c) => c.cohortDate === probeCohort);
+      logger.info(
+        {
+          today: today.toISOString(),
+          probeCohort,
+          probeD1Day,
+          probeUserIds: userIds,
+          probeActivity,
+          jul3Cohort: jul3 ?? null,
+        },
+        "retention cohort debug"
+      );
+    } catch (err) {
+      logger.warn({ err }, "retention cohort debug probe failed");
+    }
+  }
 
   function weightedAvgRate(matureKey, retainedKey) {
     let retained = 0;
