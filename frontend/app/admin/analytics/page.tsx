@@ -31,11 +31,20 @@ type ActivityRow = {
 };
 
 type ActiveUsersPeriod = "daily" | "weekly" | "monthly";
+type UserMetric = "active" | "new";
 
 type ActiveUsersData = {
   period: ActiveUsersPeriod;
   series: { period: string; periodStart: string; activeUsers: number }[];
   summary: { dauToday: number; wauLast7Days: number; mauThisMonth: number };
+  generatedAt: string;
+};
+
+type NewUsersData = {
+  period: ActiveUsersPeriod;
+  series: { period: string; periodStart: string; newUsers: number }[];
+  summary: { newToday: number; newThisWeek: number; newThisMonth: number };
+  source: string;
   generatedAt: string;
 };
 
@@ -72,6 +81,11 @@ function formatRate(rate: number | null) {
   return `${rate.toFixed(1)}%`;
 }
 
+const USER_METRIC_TABS: { value: UserMetric; label: string; hint: string }[] = [
+  { value: "active", label: "Active users", hint: "Played or updated profile" },
+  { value: "new", label: "New users", hint: "Account signups (users.created_at)" },
+];
+
 const ACTIVE_PERIOD_TABS: { value: ActiveUsersPeriod; label: string; hint: string }[] = [
   { value: "daily", label: "Daily", hint: "Last 30 days" },
   { value: "weekly", label: "Weekly", hint: "Last 12 weeks (WAU)" },
@@ -92,8 +106,10 @@ export default function AdminAnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [userMetric, setUserMetric] = useState<UserMetric>("active");
   const [activePeriod, setActivePeriod] = useState<ActiveUsersPeriod>("daily");
   const [activeUsers, setActiveUsers] = useState<ActiveUsersData | null>(null);
+  const [newUsers, setNewUsers] = useState<NewUsersData | null>(null);
   const [activeLoading, setActiveLoading] = useState(true);
   const [activeError, setActiveError] = useState<string | null>(null);
 
@@ -141,6 +157,21 @@ export default function AdminAnalyticsPage() {
     setActiveLoading(true);
     setActiveError(null);
     try {
+      if (userMetric === "new") {
+        const { data: body } = await adminApi.get<{ success: boolean; data?: NewUsersData }>(
+          "admin/analytics/new-users",
+          { params: { period: activePeriod } }
+        );
+        if (!body?.success || !body.data) {
+          setActiveError("Unexpected new users response");
+          setNewUsers(null);
+          return;
+        }
+        setNewUsers(body.data);
+        setActiveUsers(null);
+        return;
+      }
+
       const { data: body } = await adminApi.get<{ success: boolean; data?: ActiveUsersData }>(
         "admin/analytics/active-users",
         { params: { period: activePeriod } }
@@ -151,13 +182,17 @@ export default function AdminAnalyticsPage() {
         return;
       }
       setActiveUsers(body.data);
+      setNewUsers(null);
     } catch (e) {
-      setActiveError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Failed to load active users");
+      setActiveError(
+        e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Failed to load user metrics"
+      );
       setActiveUsers(null);
+      setNewUsers(null);
     } finally {
       setActiveLoading(false);
     }
-  }, [activePeriod]);
+  }, [activePeriod, userMetric]);
 
   useEffect(() => {
     loadActiveUsers();
@@ -254,23 +289,56 @@ export default function AdminAnalyticsPage() {
       )}
 
       <section className="mt-8 rounded-xl border border-violet-900/40 bg-violet-950/15 p-4 sm:p-5">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-violet-100/95">Active users</h2>
-            <p className="mt-1 text-xs text-violet-200/60 max-w-2xl">
-              Distinct users per period who played a move (<code className="text-violet-100/50">game_play_history</code>)
-              or had a profile update (<code className="text-violet-100/50">users.updated_at</code>). UTC day boundaries.
-            </p>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-violet-100/95">
+                {userMetric === "active" ? "Active users" : "New users"}
+              </h2>
+              <p className="mt-1 text-xs text-violet-200/60 max-w-2xl">
+                {userMetric === "active" ? (
+                  <>
+                    Distinct users per period who played a move (
+                    <code className="text-violet-100/50">game_play_history</code>) or had a profile update (
+                    <code className="text-violet-100/50">users.updated_at</code>). UTC day boundaries.
+                  </>
+                ) : (
+                  <>
+                    New account signups per period from <code className="text-violet-100/50">users.created_at</code>.
+                    UTC day boundaries. (First-time players by first move are in retention cohort sizes.)
+                  </>
+                )}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {ACTIVE_PERIOD_TABS.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setActivePeriod(tab.value)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition-colors ${
+                    activePeriod === tab.value
+                      ? "bg-violet-950/80 text-violet-100 border-violet-700/60"
+                      : "bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-600"
+                  }`}
+                  title={tab.hint}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {ACTIVE_PERIOD_TABS.map((tab) => (
+            {USER_METRIC_TABS.map((tab) => (
               <button
                 key={tab.value}
                 type="button"
-                onClick={() => setActivePeriod(tab.value)}
+                onClick={() => setUserMetric(tab.value)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition-colors ${
-                  activePeriod === tab.value
-                    ? "bg-violet-950/80 text-violet-100 border-violet-700/60"
+                  userMetric === tab.value
+                    ? tab.value === "new"
+                      ? "bg-sky-950/80 text-sky-100 border-sky-700/60"
+                      : "bg-violet-950/80 text-violet-100 border-violet-700/60"
                     : "bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-600"
                 }`}
                 title={tab.hint}
@@ -284,7 +352,7 @@ export default function AdminAnalyticsPage() {
         {activeLoading && (
           <div className="mt-4 flex items-center gap-2 text-slate-400 text-sm">
             <Loader2 className="w-5 h-5 animate-spin text-violet-400" />
-            Loading active users…
+            Loading user metrics…
           </div>
         )}
 
@@ -294,7 +362,7 @@ export default function AdminAnalyticsPage() {
           </p>
         )}
 
-        {activeUsers && !activeLoading && (
+        {activeUsers && !activeLoading && userMetric === "active" && (
           <>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
@@ -334,6 +402,54 @@ export default function AdminAnalyticsPage() {
                     <tr key={`${row.period}-${row.periodStart}`} className="text-slate-400">
                       <td className="px-3 py-1.5 font-mono text-slate-300">{row.periodStart}</td>
                       <td className="px-3 py-1.5 text-right tabular-nums">{row.activeUsers}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {newUsers && !activeLoading && userMetric === "new" && (
+          <>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+                <p className="text-[10px] uppercase text-slate-500">New today</p>
+                <p className="text-xl font-semibold text-sky-100 tabular-nums">{newUsers.summary.newToday}</p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+                <p className="text-[10px] uppercase text-slate-500">New (7 days)</p>
+                <p className="text-xl font-semibold text-slate-200 tabular-nums">{newUsers.summary.newThisWeek}</p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+                <p className="text-[10px] uppercase text-slate-500">New (this month)</p>
+                <p className="text-xl font-semibold text-slate-200 tabular-nums">{newUsers.summary.newThisMonth}</p>
+              </div>
+            </div>
+
+            <AdminBarChart
+              series={newUsers.series.map((row) => ({
+                label: formatPeriodLabel(activePeriod, row),
+                value: row.newUsers,
+                title: `${row.periodStart}: ${row.newUsers.toLocaleString()} new users`,
+              }))}
+              valueLabel="new users"
+              barClassName="bg-sky-600/80"
+            />
+
+            <div className="mt-4 rounded-xl border border-slate-800 overflow-hidden bg-slate-900/30 max-h-56 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-900/90 text-slate-500 text-left sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Period</th>
+                    <th className="px-3 py-2 font-medium text-right">New users</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {[...newUsers.series].reverse().map((row) => (
+                    <tr key={`${row.period}-${row.periodStart}`} className="text-slate-400">
+                      <td className="px-3 py-1.5 font-mono text-slate-300">{row.periodStart}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{row.newUsers}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -274,6 +274,87 @@ export async function getActiveUsersSeries(period = "daily") {
   };
 }
 
+/**
+ * New user signups per period (daily / weekly / monthly) from users.created_at.
+ * @param {'daily'|'weekly'|'monthly'} period
+ */
+export async function getNewUsersSeries(period = "daily") {
+  const now = new Date();
+  const today = startOfUtcDay(now);
+  let rangeStart = new Date(today);
+
+  if (period === "weekly") {
+    rangeStart.setUTCDate(rangeStart.getUTCDate() - 12 * 7);
+  } else if (period === "monthly") {
+    rangeStart.setUTCMonth(rangeStart.getUTCMonth() - 12);
+  } else {
+    rangeStart.setUTCDate(rangeStart.getUTCDate() - 30);
+  }
+
+  const rangeStartIso = rangeStart.toISOString().slice(0, 19).replace("T", " ");
+
+  let groupExpr;
+  let periodLabelExpr;
+  if (period === "weekly") {
+    groupExpr = "DATE_FORMAT(signup_date, '%x-W%v')";
+    periodLabelExpr = "DATE_FORMAT(MIN(signup_date), '%Y-%m-%d')";
+  } else if (period === "monthly") {
+    groupExpr = "DATE_FORMAT(signup_date, '%Y-%m')";
+    periodLabelExpr = "DATE_FORMAT(MIN(signup_date), '%Y-%m-01')";
+  } else {
+    groupExpr = "signup_date";
+    periodLabelExpr = "signup_date";
+  }
+
+  const rows = await db.raw(
+    `
+    SELECT
+      ${groupExpr} AS period_key,
+      ${periodLabelExpr} AS period_start,
+      COUNT(*) AS new_users
+    FROM (
+      SELECT DATE(created_at) AS signup_date
+      FROM users
+      WHERE created_at >= ?
+    ) signups
+    GROUP BY period_key
+    ORDER BY period_start ASC
+    `,
+    [rangeStartIso]
+  );
+
+  const series = (rows[0] || []).map((r) => ({
+    period: String(r.period_key),
+    periodStart: toIsoDateString(r.period_start) || String(r.period_key),
+    newUsers: Number(r.new_users ?? 0),
+  }));
+
+  const weekStart = new Date(today);
+  weekStart.setUTCDate(weekStart.getUTCDate() - 6);
+  const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const weekStartIso = weekStart.toISOString().slice(0, 19).replace("T", " ");
+  const monthStartIso = monthStart.toISOString().slice(0, 19).replace("T", " ");
+  const todayIso = today.toISOString().slice(0, 19).replace("T", " ");
+
+  const [[todayRow], [weekRow], [monthRow]] = await Promise.all([
+    db.raw(`SELECT COUNT(*) AS c FROM users WHERE created_at >= ?`, [todayIso]),
+    db.raw(`SELECT COUNT(*) AS c FROM users WHERE created_at >= ?`, [weekStartIso]),
+    db.raw(`SELECT COUNT(*) AS c FROM users WHERE created_at >= ?`, [monthStartIso]),
+  ]);
+
+  return {
+    period,
+    series,
+    summary: {
+      newToday: Number(todayRow?.[0]?.c ?? 0),
+      newThisWeek: Number(weekRow?.[0]?.c ?? 0),
+      newThisMonth: Number(monthRow?.[0]?.c ?? 0),
+    },
+    source: "users.created_at",
+    generatedAt: now.toISOString(),
+  };
+}
+
 function pct(numerator, denominator) {
   const d = Number(denominator);
   if (!d || d <= 0) return null;

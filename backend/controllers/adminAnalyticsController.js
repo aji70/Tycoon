@@ -1,5 +1,5 @@
 import logger from "../config/logger.js";
-import { getDashboard, getRecentActivity, getActiveUsersSeries, getRetentionCohorts } from "../services/analytics.js";
+import { getDashboard, getRecentActivity, getActiveUsersSeries, getNewUsersSeries, getRetentionCohorts } from "../services/analytics.js";
 
 /**
  * GET /api/admin/analytics/dashboard
@@ -45,6 +45,22 @@ export async function activeUsers(req, res) {
   } catch (err) {
     logger.error({ err }, "admin analytics activeUsers error");
     res.status(500).json({ success: false, error: "Failed to load active users series" });
+  }
+}
+
+/**
+ * GET /api/admin/analytics/new-users
+ * Query: period = daily | weekly | monthly
+ */
+export async function newUsers(req, res) {
+  try {
+    const raw = String(req.query.period || "daily").toLowerCase();
+    const period = raw === "weekly" || raw === "monthly" ? raw : "daily";
+    const data = await getNewUsersSeries(period);
+    res.json({ success: true, data });
+  } catch (err) {
+    logger.error({ err }, "admin analytics newUsers error");
+    res.status(500).json({ success: false, error: "Failed to load new users series" });
   }
 }
 
