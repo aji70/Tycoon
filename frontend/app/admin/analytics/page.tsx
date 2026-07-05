@@ -39,6 +39,39 @@ type ActiveUsersData = {
   generatedAt: string;
 };
 
+type RetentionCohort = {
+  cohortDate: string;
+  cohortSize: number;
+  d1Retained: number;
+  d3Retained: number;
+  d7Retained: number;
+  d1Rate: number | null;
+  d3Rate: number | null;
+  d7Rate: number | null;
+  matureD1: boolean;
+  matureD3: boolean;
+  matureD7: boolean;
+};
+
+type RetentionData = {
+  range: { start: string; end: string };
+  cohorts: RetentionCohort[];
+  summary: {
+    avgD1Rate: number | null;
+    avgD3Rate: number | null;
+    avgD7Rate: number | null;
+    matureCohortCount: { d1: number; d3: number; d7: number };
+  };
+  source: string;
+  definition: string;
+  generatedAt: string;
+};
+
+function formatRate(rate: number | null) {
+  if (rate == null) return "—";
+  return `${rate.toFixed(1)}%`;
+}
+
 const ACTIVE_PERIOD_TABS: { value: ActiveUsersPeriod; label: string; hint: string }[] = [
   { value: "daily", label: "Daily", hint: "Last 30 days" },
   { value: "weekly", label: "Weekly", hint: "Last 12 weeks (WAU)" },
@@ -63,6 +96,11 @@ export default function AdminAnalyticsPage() {
   const [activeUsers, setActiveUsers] = useState<ActiveUsersData | null>(null);
   const [activeLoading, setActiveLoading] = useState(true);
   const [activeError, setActiveError] = useState<string | null>(null);
+
+  const [retentionDays, setRetentionDays] = useState("30");
+  const [retention, setRetention] = useState<RetentionData | null>(null);
+  const [retentionLoading, setRetentionLoading] = useState(true);
+  const [retentionError, setRetentionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -124,6 +162,40 @@ export default function AdminAnalyticsPage() {
   useEffect(() => {
     loadActiveUsers();
   }, [loadActiveUsers]);
+
+  const loadRetention = useCallback(async () => {
+    setRetentionLoading(true);
+    setRetentionError(null);
+    try {
+      const params: Record<string, string> = {};
+      const days = Number(retentionDays);
+      if (startDate.trim()) params.startDate = startDate.trim();
+      if (endDate.trim()) params.endDate = endDate.trim();
+      if (!startDate.trim() && !endDate.trim() && Number.isFinite(days) && days > 0) {
+        params.days = String(days);
+      }
+
+      const { data: body } = await adminApi.get<{ success: boolean; data?: RetentionData }>(
+        "admin/analytics/retention",
+        { params }
+      );
+      if (!body?.success || !body.data) {
+        setRetentionError("Unexpected retention response");
+        setRetention(null);
+        return;
+      }
+      setRetention(body.data);
+    } catch (e) {
+      setRetentionError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Failed to load retention");
+      setRetention(null);
+    } finally {
+      setRetentionLoading(false);
+    }
+  }, [retentionDays, startDate, endDate]);
+
+  useEffect(() => {
+    loadRetention();
+  }, [loadRetention]);
 
   const maxDayTotal = dash?.gamesOverTime?.length
     ? Math.max(
@@ -267,6 +339,119 @@ export default function AdminAnalyticsPage() {
                 </tbody>
               </table>
             </div>
+          </>
+        )}
+      </section>
+
+      <section className="mt-8 rounded-xl border border-emerald-900/40 bg-emerald-950/15 p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-emerald-100/95">Player retention (D1 / D3 / D7)</h2>
+            <p className="mt-1 text-xs text-emerald-200/60 max-w-2xl">
+              Cohorts by each user&apos;s first <code className="text-emerald-100/50">game_play_history</code> day
+              (via <code className="text-emerald-100/50">game_players.user_id</code>). Dn = played again on cohort day + n
+              (UTC). Rates show — until that day has fully passed.
+            </p>
+          </div>
+          <label className="block text-sm shrink-0">
+            <span className="text-xs text-slate-500 block mb-1">Cohort window (days)</span>
+            <select
+              value={retentionDays}
+              onChange={(e) => setRetentionDays(e.target.value)}
+              className="rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-200 text-sm"
+            >
+              <option value="14">14 days</option>
+              <option value="30">30 days</option>
+              <option value="60">60 days</option>
+              <option value="90">90 days</option>
+            </select>
+          </label>
+        </div>
+
+        {retentionLoading && (
+          <div className="mt-4 flex items-center gap-2 text-slate-400 text-sm">
+            <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
+            Loading retention…
+          </div>
+        )}
+
+        {retentionError && !retentionLoading && (
+          <p className="mt-4 text-sm text-red-400 border border-red-900/50 bg-red-950/30 rounded-lg px-3 py-2 max-w-xl">
+            {retentionError}
+          </p>
+        )}
+
+        {retention && !retentionLoading && (
+          <>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+                <p className="text-[10px] uppercase text-slate-500">Avg D1 ({retention.summary.matureCohortCount.d1} cohorts)</p>
+                <p className="text-xl font-semibold text-emerald-100 tabular-nums">{formatRate(retention.summary.avgD1Rate)}</p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+                <p className="text-[10px] uppercase text-slate-500">Avg D3 ({retention.summary.matureCohortCount.d3} cohorts)</p>
+                <p className="text-xl font-semibold text-slate-200 tabular-nums">{formatRate(retention.summary.avgD3Rate)}</p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+                <p className="text-[10px] uppercase text-slate-500">Avg D7 ({retention.summary.matureCohortCount.d7} cohorts)</p>
+                <p className="text-xl font-semibold text-slate-200 tabular-nums">{formatRate(retention.summary.avgD7Rate)}</p>
+              </div>
+            </div>
+
+            <AdminBarChart
+              series={[...retention.cohorts]
+                .reverse()
+                .filter((row) => row.matureD7 && row.d7Rate != null)
+                .map((row) => ({
+                  label: row.cohortDate.slice(5),
+                  value: row.d7Rate ?? 0,
+                  title: `${row.cohortDate}: D7 ${formatRate(row.d7Rate)} (${row.d7Retained}/${row.cohortSize})`,
+                }))}
+              valueLabel="% D7"
+              barClassName="bg-emerald-600/80"
+            />
+
+            <div className="mt-4 rounded-xl border border-slate-800 overflow-hidden bg-slate-900/30 max-h-72 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-900/90 text-slate-500 text-left sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Cohort (first play)</th>
+                    <th className="px-3 py-2 font-medium text-right">Users</th>
+                    <th className="px-3 py-2 font-medium text-right">D1</th>
+                    <th className="px-3 py-2 font-medium text-right">D3</th>
+                    <th className="px-3 py-2 font-medium text-right">D7</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {retention.cohorts.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-8 text-center text-slate-500">
+                        No cohorts in range.
+                      </td>
+                    </tr>
+                  )}
+                  {retention.cohorts.map((row) => (
+                    <tr key={row.cohortDate} className="text-slate-400">
+                      <td className="px-3 py-1.5 font-mono text-slate-300">{row.cohortDate}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{row.cohortSize}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums" title={`${row.d1Retained} retained`}>
+                        {formatRate(row.d1Rate)}
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums" title={`${row.d3Retained} retained`}>
+                        {formatRate(row.d3Rate)}
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums" title={`${row.d7Retained} retained`}>
+                        {formatRate(row.d7Rate)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="mt-3 text-[10px] text-slate-600">
+              Range {retention.range.start} → {retention.range.end}. Generated {retention.generatedAt}.
+            </p>
           </>
         )}
       </section>

@@ -1,5 +1,5 @@
 import logger from "../config/logger.js";
-import { getDashboard, getRecentActivity, getActiveUsersSeries } from "../services/analytics.js";
+import { getDashboard, getRecentActivity, getActiveUsersSeries, getRetentionCohorts } from "../services/analytics.js";
 
 /**
  * GET /api/admin/analytics/dashboard
@@ -45,5 +45,24 @@ export async function activeUsers(req, res) {
   } catch (err) {
     logger.error({ err }, "admin analytics activeUsers error");
     res.status(500).json({ success: false, error: "Failed to load active users series" });
+  }
+}
+
+/**
+ * GET /api/admin/analytics/retention
+ * Query: startDate, endDate (ISO dates), or days (default 30) for cohort window.
+ */
+export async function retention(req, res) {
+  try {
+    const { startDate, endDate, days } = req.query;
+    const options = {};
+    if (startDate) options.startDate = String(startDate);
+    if (endDate) options.endDate = String(endDate);
+    if (days != null && String(days).trim() !== "") options.days = Number(days);
+    const data = await getRetentionCohorts(options);
+    res.json({ success: true, data });
+  } catch (err) {
+    logger.error({ err }, "admin analytics retention error");
+    res.status(500).json({ success: false, error: "Failed to load retention cohorts" });
   }
 }

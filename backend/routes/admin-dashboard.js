@@ -68,6 +68,7 @@ router.get("/leaderboard", adminLeaderboardController.getLeaderboard);
 router.get("/analytics/dashboard", adminAnalyticsController.dashboard);
 router.get("/analytics/activity", adminAnalyticsController.activity);
 router.get("/analytics/active-users", adminAnalyticsController.activeUsers);
+router.get("/analytics/retention", adminAnalyticsController.retention);
 
 router.get("/contracts/tx-stats", adminContractsController.getTxStats);
 router.get("/sales/reward", adminSalesController.getRewardSales);

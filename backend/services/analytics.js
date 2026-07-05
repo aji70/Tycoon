@@ -249,6 +249,135 @@ export async function getActiveUsersSeries(period = "daily") {
   };
 }
 
+function pct(numerator, denominator) {
+  const d = Number(denominator);
+  if (!d || d <= 0) return null;
+  return Math.round((Number(numerator) / d) * 1000) / 10;
+}
+
+/**
+ * Cohort retention from game_play_history (first play day per user via game_players.user_id).
+ * Dn = user played again on exactly cohort_date + n days (UTC calendar days).
+ *
+ * @param {{ startDate?: string, endDate?: string, days?: number }} options
+ */
+export async function getRetentionCohorts(options = {}) {
+  const now = new Date();
+  const today = startOfUtcDay(now);
+
+  let rangeEnd = options.endDate ? startOfUtcDay(new Date(options.endDate)) : new Date(today);
+  let rangeStart = options.startDate
+    ? startOfUtcDay(new Date(options.startDate))
+    : new Date(today.getTime() - (Math.max(1, Number(options.days) || 30) - 1) * 24 * 60 * 60 * 1000);
+
+  if (rangeEnd < rangeStart) [rangeStart, rangeEnd] = [rangeEnd, rangeStart];
+
+  const rangeStartIso = rangeStart.toISOString().slice(0, 10);
+  const rangeEndIso = rangeEnd.toISOString().slice(0, 10);
+
+  const matureD1Cutoff = new Date(today);
+  matureD1Cutoff.setUTCDate(matureD1Cutoff.getUTCDate() - 1);
+  const matureD3Cutoff = new Date(today);
+  matureD3Cutoff.setUTCDate(matureD3Cutoff.getUTCDate() - 3);
+  const matureD7Cutoff = new Date(today);
+  matureD7Cutoff.setUTCDate(matureD7Cutoff.getUTCDate() - 7);
+
+  const rows = await db.raw(
+    `
+    WITH user_first_seen AS (
+      SELECT gp.user_id, DATE(MIN(gph.created_at)) AS cohort_date
+      FROM game_play_history gph
+      INNER JOIN game_players gp ON gp.id = gph.game_player_id
+      WHERE gp.user_id IS NOT NULL
+      GROUP BY gp.user_id
+    ),
+    user_activity_days AS (
+      SELECT DISTINCT gp.user_id, DATE(gph.created_at) AS activity_date
+      FROM game_play_history gph
+      INNER JOIN game_players gp ON gp.id = gph.game_player_id
+      WHERE gp.user_id IS NOT NULL
+    )
+    SELECT
+      ufs.cohort_date,
+      COUNT(DISTINCT ufs.user_id) AS cohort_size,
+      COUNT(DISTINCT CASE
+        WHEN uad.activity_date = DATE_ADD(ufs.cohort_date, INTERVAL 1 DAY) THEN ufs.user_id
+      END) AS d1_retained,
+      COUNT(DISTINCT CASE
+        WHEN uad.activity_date = DATE_ADD(ufs.cohort_date, INTERVAL 3 DAY) THEN ufs.user_id
+      END) AS d3_retained,
+      COUNT(DISTINCT CASE
+        WHEN uad.activity_date = DATE_ADD(ufs.cohort_date, INTERVAL 7 DAY) THEN ufs.user_id
+      END) AS d7_retained
+    FROM user_first_seen ufs
+    LEFT JOIN user_activity_days uad ON uad.user_id = ufs.user_id
+    WHERE ufs.cohort_date >= ? AND ufs.cohort_date <= ?
+    GROUP BY ufs.cohort_date
+    ORDER BY ufs.cohort_date DESC
+    `,
+    [rangeStartIso, rangeEndIso]
+  );
+
+  const cohorts = (rows[0] || []).map((r) => {
+    const cohortDate = r.cohort_date ? String(r.cohort_date).slice(0, 10) : "";
+    const cohortDateObj = cohortDate ? startOfUtcDay(new Date(`${cohortDate}T00:00:00.000Z`)) : null;
+    const cohortSize = Number(r.cohort_size ?? 0);
+    const d1Retained = Number(r.d1_retained ?? 0);
+    const d3Retained = Number(r.d3_retained ?? 0);
+    const d7Retained = Number(r.d7_retained ?? 0);
+
+    const matureD1 = cohortDateObj != null && cohortDateObj <= matureD1Cutoff;
+    const matureD3 = cohortDateObj != null && cohortDateObj <= matureD3Cutoff;
+    const matureD7 = cohortDateObj != null && cohortDateObj <= matureD7Cutoff;
+
+    return {
+      cohortDate,
+      cohortSize,
+      d1Retained,
+      d3Retained,
+      d7Retained,
+      d1Rate: matureD1 ? pct(d1Retained, cohortSize) : null,
+      d3Rate: matureD3 ? pct(d3Retained, cohortSize) : null,
+      d7Rate: matureD7 ? pct(d7Retained, cohortSize) : null,
+      matureD1,
+      matureD3,
+      matureD7,
+    };
+  });
+
+  function weightedAvgRate(matureKey, retainedKey) {
+    let retained = 0;
+    let size = 0;
+    for (const c of cohorts) {
+      if (!c[matureKey]) continue;
+      retained += c[retainedKey];
+      size += c.cohortSize;
+    }
+    return pct(retained, size);
+  }
+
+  const summary = {
+    avgD1Rate: weightedAvgRate("matureD1", "d1Retained"),
+    avgD3Rate: weightedAvgRate("matureD3", "d3Retained"),
+    avgD7Rate: weightedAvgRate("matureD7", "d7Retained"),
+    matureCohortCount: {
+      d1: cohorts.filter((c) => c.matureD1).length,
+      d3: cohorts.filter((c) => c.matureD3).length,
+      d7: cohorts.filter((c) => c.matureD7).length,
+    },
+  };
+
+  return {
+    range: { start: rangeStartIso, end: rangeEndIso },
+    cohorts,
+    summary,
+    source: "game_play_history",
+    definition:
+      "First-seen = earliest game_play_history row per user (via game_players). Dn = distinct user played on cohort_date + n UTC days.",
+    generatedAt: now.toISOString(),
+  };
+}
+
 /**
  * Get recent analytics events for "recent activity" / errors tab.
  * @param {number} limit - Max rows (default 50, max 200).
