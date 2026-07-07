@@ -5,7 +5,7 @@
 **Tycoon** is an exciting blockchain tycoon game inspired by the classic **Monopoly** board game, built on **Base**, **Stacks**, and **Celo**.  
 Players can **buy, sell, and trade virtual properties**, collect rent, build monopolies, and compete in a **decentralized on-chain economy**.
 
-This project combines **strategic gameplay** with **true ownership** and **transparent mechanics** using smart contracts.
+This project combines **strategic gameplay** with **true ownership** and **transparent mechanics** using smart contracts
 
 > 🚧 Currently in active development — Frontend (React + Next.js) and smart contracts are being actively improved. Join the journey!
 
