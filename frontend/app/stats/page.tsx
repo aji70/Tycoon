@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ApiError, apiClient } from "@/lib/api";
 
@@ -23,12 +23,12 @@ type PublicStatsData = {
     totalPropertiesOwned: number;
   };
   engagement?: {
+    totalPlayers: number;
     uniquePlayers: number;
     gamesPerPlayer: number;
     mostActivePlayer: MostActivePlayer | null;
-    perkShopRevenueUsdc: number | null;
+    perkShopRevenueUsdt: number | null;
   };
-  dailyGames?: { day: string; count: number }[];
 };
 
 function periodLabel(period: Period) {
@@ -43,76 +43,83 @@ function formatUsd(value: number | null | undefined) {
   })}`;
 }
 
-/** "2026-07-08" → "Jul 8" for the trend chart axis. */
-function shortDayLabel(iso: string) {
-  const d = new Date(`${iso}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
-}
+type StatCard = {
+  key: string;
+  label: string;
+  value: string;
+  sub?: ReactNode;
+};
 
-function metricLabel(key: keyof PublicStatsData["totals"]) {
-  switch (key) {
-    case "totalTransactions":
-      return "Transactions";
-    case "totalTokenTransfers":
-      return "Token transfers";
-    case "totalGames":
-      return "Games created";
-    case "totalTrades":
-      return "Accepted trades";
-    case "totalPlayHistoryEvents":
-      return "Play history events";
-    case "totalPropertiesOwned":
-      return "Property ownership rows";
-    default:
-      return key;
+/** Ordered cards — most relevant traction stats first, technical/DB rows last. */
+function buildStatCards(data: PublicStatsData): StatCard[] {
+  const t = data.totals;
+  const e = data.engagement;
+  const cards: StatCard[] = [];
+
+  if (e) {
+    cards.push({
+      key: "totalPlayers",
+      label: "Total players",
+      value: e.totalPlayers.toLocaleString(),
+    });
   }
-}
 
-/** 7-day games-created trend. Simple CSS bar chart (no chart lib) matching the dark card theme. */
-function ActivityTrend({ data }: { data: { day: string; count: number }[] }) {
-  const max = Math.max(1, ...data.map((d) => d.count));
-  const total = data.reduce((sum, d) => sum + d.count, 0);
+  cards.push({
+    key: "totalGames",
+    label: "Games created",
+    value: t.totalGames.toLocaleString(),
+  });
 
-  return (
-    <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/40 px-5 py-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-wide text-slate-500">
-          7-day activity trend
-        </p>
-        <p className="text-xs text-slate-500">
-          Games created · {total.toLocaleString()} this week
-        </p>
-      </div>
+  if (e) {
+    cards.push({
+      key: "perkRevenue",
+      label: "Perk shop revenue",
+      value: formatUsd(e.perkShopRevenueUsdt),
+      sub: "USDT balance",
+    });
+    cards.push({
+      key: "gamesPerPlayer",
+      label: "Games per player",
+      value: e.gamesPerPlayer.toLocaleString(undefined, { maximumFractionDigits: 1 }),
+      sub: e.mostActivePlayer ? (
+        <>
+          Most active:{" "}
+          <span className="text-slate-300">
+            {e.mostActivePlayer.username ?? "Anonymous"}
+          </span>{" "}
+          · {e.mostActivePlayer.games.toLocaleString()} games
+        </>
+      ) : undefined,
+    });
+  }
 
-      <div className="mt-5 flex h-40 items-end gap-2 sm:gap-3">
-        {data.map((d) => {
-          const heightPct = Math.round((d.count / max) * 100);
-          return (
-            <div key={d.day} className="flex flex-1 flex-col items-center gap-2">
-              <div className="flex w-full flex-1 items-end">
-                <div
-                  className="w-full rounded-t-md bg-gradient-to-t from-cyan-800/60 to-cyan-400/80 transition-all"
-                  style={{ height: `${Math.max(heightPct, 2)}%` }}
-                  title={`${d.day}: ${d.count} games`}
-                />
-              </div>
-              <span className="text-[11px] font-semibold tabular-nums text-cyan-100">
-                {d.count.toLocaleString()}
-              </span>
-              <span className="text-[10px] uppercase tracking-wide text-slate-500">
-                {shortDayLabel(d.day)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
+  cards.push({
+    key: "totalTransactions",
+    label: "Transactions",
+    value: t.totalTransactions.toLocaleString(),
+  });
+  cards.push({
+    key: "totalTrades",
+    label: "Accepted trades",
+    value: t.totalTrades.toLocaleString(),
+  });
+  cards.push({
+    key: "totalTokenTransfers",
+    label: "Token transfers",
+    value: t.totalTokenTransfers.toLocaleString(),
+  });
+  cards.push({
+    key: "totalPlayHistoryEvents",
+    label: "Play history events",
+    value: t.totalPlayHistoryEvents.toLocaleString(),
+  });
+  cards.push({
+    key: "totalPropertiesOwned",
+    label: "Property ownership rows",
+    value: t.totalPropertiesOwned.toLocaleString(),
+  });
+
+  return cards;
 }
 
 export default function PublicStatsPage() {
@@ -191,67 +198,23 @@ export default function PublicStatsPage() {
             </p>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {Object.entries(data.totals).map(([key, value]) => (
+              {buildStatCards(data).map((card) => (
                 <div
-                  key={key}
+                  key={card.key}
                   className="rounded-2xl border border-slate-800 bg-slate-900/40 px-5 py-4 shadow-sm"
                 >
                   <p className="text-xs uppercase tracking-wide text-slate-500">
-                    {metricLabel(key as keyof PublicStatsData["totals"])}
+                    {card.label}
                   </p>
                   <p className="mt-2 text-3xl font-semibold text-cyan-100 tabular-nums">
-                    {value.toLocaleString()}
+                    {card.value}
                   </p>
+                  {card.sub && (
+                    <p className="mt-1 text-xs text-slate-500">{card.sub}</p>
+                  )}
                 </div>
               ))}
-
-              {data.engagement && (
-                <>
-                  <div className="rounded-2xl border border-slate-800 bg-slate-900/40 px-5 py-4 shadow-sm">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">
-                      Unique players
-                    </p>
-                    <p className="mt-2 text-3xl font-semibold text-cyan-100 tabular-nums">
-                      {data.engagement.uniquePlayers.toLocaleString()}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-800 bg-slate-900/40 px-5 py-4 shadow-sm">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">
-                      Perk shop revenue
-                    </p>
-                    <p className="mt-2 text-3xl font-semibold text-cyan-100 tabular-nums">
-                      {formatUsd(data.engagement.perkShopRevenueUsdc)}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">USDC volume</p>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-800 bg-slate-900/40 px-5 py-4 shadow-sm">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">
-                      Games per player
-                    </p>
-                    <p className="mt-2 text-3xl font-semibold text-cyan-100 tabular-nums">
-                      {data.engagement.gamesPerPlayer.toLocaleString(undefined, {
-                        maximumFractionDigits: 1,
-                      })}
-                    </p>
-                    {data.engagement.mostActivePlayer && (
-                      <p className="mt-1 text-xs text-slate-500">
-                        Most active:{" "}
-                        <span className="text-slate-300">
-                          {data.engagement.mostActivePlayer.username ?? "Anonymous"}
-                        </span>{" "}
-                        · {data.engagement.mostActivePlayer.games.toLocaleString()} games
-                      </p>
-                    )}
-                  </div>
-                </>
-              )}
             </div>
-
-            {data.dailyGames && data.dailyGames.length > 0 && (
-              <ActivityTrend data={data.dailyGames} />
-            )}
           </>
         )}
       </div>
