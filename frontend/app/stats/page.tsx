@@ -6,6 +6,11 @@ import { ApiError, apiClient } from "@/lib/api";
 
 type Period = "all" | "day" | "week" | "month";
 
+type MostActivePlayer = {
+  username: string | null;
+  games: number;
+};
+
 type PublicStatsData = {
   period: Period;
   generatedAt: string;
@@ -17,10 +22,36 @@ type PublicStatsData = {
     totalPlayHistoryEvents: number;
     totalPropertiesOwned: number;
   };
+  engagement?: {
+    uniquePlayers: number;
+    gamesPerPlayer: number;
+    mostActivePlayer: MostActivePlayer | null;
+    perkShopRevenueUsdc: number | null;
+  };
+  dailyGames?: { day: string; count: number }[];
 };
 
 function periodLabel(period: Period) {
   return period === "all" ? "All time" : `Last ${period}`;
+}
+
+function formatUsd(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `$${value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/** "2026-07-08" → "Jul 8" for the trend chart axis. */
+function shortDayLabel(iso: string) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 function metricLabel(key: keyof PublicStatsData["totals"]) {
@@ -40,6 +71,48 @@ function metricLabel(key: keyof PublicStatsData["totals"]) {
     default:
       return key;
   }
+}
+
+/** 7-day games-created trend. Simple CSS bar chart (no chart lib) matching the dark card theme. */
+function ActivityTrend({ data }: { data: { day: string; count: number }[] }) {
+  const max = Math.max(1, ...data.map((d) => d.count));
+  const total = data.reduce((sum, d) => sum + d.count, 0);
+
+  return (
+    <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/40 px-5 py-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <p className="text-xs uppercase tracking-wide text-slate-500">
+          7-day activity trend
+        </p>
+        <p className="text-xs text-slate-500">
+          Games created · {total.toLocaleString()} this week
+        </p>
+      </div>
+
+      <div className="mt-5 flex h-40 items-end gap-2 sm:gap-3">
+        {data.map((d) => {
+          const heightPct = Math.round((d.count / max) * 100);
+          return (
+            <div key={d.day} className="flex flex-1 flex-col items-center gap-2">
+              <div className="flex w-full flex-1 items-end">
+                <div
+                  className="w-full rounded-t-md bg-gradient-to-t from-cyan-800/60 to-cyan-400/80 transition-all"
+                  style={{ height: `${Math.max(heightPct, 2)}%` }}
+                  title={`${d.day}: ${d.count} games`}
+                />
+              </div>
+              <span className="text-[11px] font-semibold tabular-nums text-cyan-100">
+                {d.count.toLocaleString()}
+              </span>
+              <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                {shortDayLabel(d.day)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 export default function PublicStatsPage() {
@@ -131,7 +204,54 @@ export default function PublicStatsPage() {
                   </p>
                 </div>
               ))}
+
+              {data.engagement && (
+                <>
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/40 px-5 py-4 shadow-sm">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">
+                      Unique players
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-cyan-100 tabular-nums">
+                      {data.engagement.uniquePlayers.toLocaleString()}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/40 px-5 py-4 shadow-sm">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">
+                      Perk shop revenue
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-cyan-100 tabular-nums">
+                      {formatUsd(data.engagement.perkShopRevenueUsdc)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">USDC volume</p>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/40 px-5 py-4 shadow-sm">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">
+                      Games per player
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-cyan-100 tabular-nums">
+                      {data.engagement.gamesPerPlayer.toLocaleString(undefined, {
+                        maximumFractionDigits: 1,
+                      })}
+                    </p>
+                    {data.engagement.mostActivePlayer && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Most active:{" "}
+                        <span className="text-slate-300">
+                          {data.engagement.mostActivePlayer.username ?? "Anonymous"}
+                        </span>{" "}
+                        · {data.engagement.mostActivePlayer.games.toLocaleString()} games
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
+
+            {data.dailyGames && data.dailyGames.length > 0 && (
+              <ActivityTrend data={data.dailyGames} />
+            )}
           </>
         )}
       </div>
