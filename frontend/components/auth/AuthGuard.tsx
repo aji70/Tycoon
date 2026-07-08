@@ -10,6 +10,7 @@ import { Wallet, User } from "lucide-react";
 const PUBLIC_PATHS = [
   "/",
   "/join-room-3d",
+  "/win",
   "/rooms",
   "/leaderboard",
   "/terms",

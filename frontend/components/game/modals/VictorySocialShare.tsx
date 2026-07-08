@@ -43,6 +43,17 @@ export function buildWinnerChallengeUrl(
   return `${origin}${base}`;
 }
 
+/**
+ * Public "I won" page. Unfurls into a rich card (winner name + OG image) in chats/social, then routes
+ * clickers into the join page. Used for the win variant so shares read as a win, not a bare join link.
+ */
+export function buildWinnerWinPageUrl(winnerUsername?: string): string {
+  const origin = getShareOrigin();
+  if (!origin) return "";
+  const handle = (winnerUsername ?? "").trim();
+  return `${origin}/win/${encodeURIComponent(handle || "A Tycoon")}`;
+}
+
 export function buildWinnerShareCaption(inviteUrl: string, winnerUsername?: string): string {
   const tag = winnerUsername?.trim();
   const opener = tag
@@ -91,10 +102,14 @@ export function VictorySocialShare({
 }: VictorySocialShareProps) {
   const [copied, setCopied] = useState<"link" | "ig" | null>(null);
 
-  const challengeUrl = useMemo(
-    () => buildWinnerChallengeUrl(gameCode, joinPagePath),
-    [gameCode, joinPagePath]
-  );
+  const challengeUrl = useMemo(() => {
+    // Win: share the public "I won" page so it unfurls as a win card. Loss: rematch/join link.
+    if (variant === "win") {
+      const winUrl = buildWinnerWinPageUrl(winnerUsername);
+      if (winUrl) return winUrl;
+    }
+    return buildWinnerChallengeUrl(gameCode, joinPagePath);
+  }, [variant, winnerUsername, gameCode, joinPagePath]);
 
   const caption = useMemo(
     () =>
@@ -180,7 +195,7 @@ export function VictorySocialShare({
       <p className="text-xs text-slate-400 mb-3 leading-relaxed">
         {variant === "loss"
           ? "One tap to post — link opens the join page so friends can enter a new code or start a game."
-          : "One tap to post — link opens the join page (your finished match isn't deep-linked so the URL stays good)."}
+          : "One tap to post — your link unfurls as a win card and sends friends to a game."}
       </p>
 
       <div className="grid grid-cols-2 gap-2 mb-2">
