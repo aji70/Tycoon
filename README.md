@@ -9,7 +9,7 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 
 > 🚧 Currently in active development — Frontend (React + Next.js) and smart contracts are being actively improved. Join the journey!
 
-📖 **For a complete technical reference** of all game rules, formulas, and calculations, see [GAME_MECHANICS.md](./GAME_MECHANICS.md).
+📖 **For a complete technical reference** of all game rules, formulas, and calculations, see [GAME_MECHANICS.md](./GAME_MECHANICS.md)
 
 📘 **GoodDollar (G$) integration plan** (GoodBuilders Season 4): [GOODDOLLAR_INTEGRATION.md](./GOODDOLLAR_INTEGRATION.md)
 
