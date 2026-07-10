@@ -389,7 +389,11 @@ function Board3DPageContent() {
 
   const currentPlayerId = game?.next_player_id ?? null;
   const isUntimed = !game?.duration || Number(game.duration) === 0;
-  const isMyTurn = !!(me && currentPlayerId !== null && me.user_id === currentPlayerId);
+  const isMyTurn = !!(
+    me &&
+    currentPlayerId !== null &&
+    Number(me.user_id) === Number(currentPlayerId)
+  );
   const isGuest = !!guestUser;
   const gameTimeUp = game?.status === "FINISHED" || gameTimeUpLocal;
   const meInJail = !!(me && Number(me.position) === JAIL_POSITION && me.in_jail);
@@ -442,7 +446,7 @@ function Board3DPageContent() {
 
   const currentPlayer = useMemo(() => {
     if (!livePlayers || currentPlayerId == null) return null;
-    return livePlayers.find((p: Player) => p.user_id === currentPlayerId) ?? null;
+    return livePlayers.find((p: Player) => Number(p.user_id) === Number(currentPlayerId)) ?? null;
   }, [livePlayers, currentPlayerId]);
 
   const liveDevelopmentByPropertyId = useMemo(() => {

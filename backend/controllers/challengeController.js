@@ -232,7 +232,7 @@ async function createPrivateLobbyForChallenger(user, req) {
   return game;
 }
 
-async function joinOpponentToLobby(user, game, symbol, { stake = 0, playerSignedJoin = false } = {}) {
+async function joinOpponentToLobby(user, game, symbol, { stake = 0, playerSignedJoin = false, joinAddress = null } = {}) {
   const chainForJoin = User.normalizeChain(game.chain || "CELO");
   if (!game.contract_game_id) {
     const err = new Error("Game is not ready to join");
@@ -251,11 +251,9 @@ async function joinOpponentToLobby(user, game, symbol, { stake = 0, playerSigned
     throw err;
   }
 
-  const contractUser = {
-    address: rPlay.address,
-    username: rPlay.username,
-    password_hash: rPlay.password_hash,
-  };
+  const bodyAddr = joinAddress != null ? String(joinAddress).trim() : "";
+  const playAddress =
+    bodyAddr && /^0x[a-fA-F0-9]{40}$/i.test(bodyAddr) ? bodyAddr : rPlay.address;
 
   // Challenge accepts always require the opponent to sign joinGame on-chain.
   if (!playerSignedJoin) {
@@ -266,7 +264,7 @@ async function joinOpponentToLobby(user, game, symbol, { stake = 0, playerSigned
 
   const settings = await GameSetting.findByGameId(game.id);
   await GamePlayer.join({
-    address: contractUser.address,
+    address: playAddress,
     symbol,
     user_id: user.id,
     game_id: game.id,
@@ -499,6 +497,7 @@ const challengeController = {
       await joinOpponentToLobby(user, game, symbol, {
         stake: stakeNum,
         playerSignedJoin,
+        joinAddress: req.body?.address,
       });
 
       const updated = await PlayerChallenge.update(id, { status: "accepted" });
@@ -517,8 +516,6 @@ const challengeController = {
       // Both seats filled — start like a normal multiplayer lobby so turn/roll UI works.
       if (updatedPlayers.length >= game.number_of_players) {
         await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
-        await invalidateGameById(game.id);
-        await invalidateGameByCode(game.code);
         liveGame = await Game.findById(game.id);
         const firstUserId = liveGame?.next_player_id || challenge.challenger_id;
         if (firstUserId) {
@@ -528,6 +525,9 @@ const challengeController = {
             liveGame = await Game.findById(game.id);
           }
         }
+        await invalidateGameById(game.id);
+        await invalidateGameByCode(game.code);
+        liveGame = await Game.findById(game.id);
         await recordEvent("game_started", {
           entityType: "game",
           entityId: game.id,

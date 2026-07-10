@@ -73,6 +73,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
   const [copySuccessFarcaster, setCopySuccessFarcaster] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [redirectingToBoard, setRedirectingToBoard] = useState(false);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const actionGuardRef = useRef<boolean>(false);
 
@@ -318,7 +319,9 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
         const gameData = res.data.data;
 
         if (gameData.status === "RUNNING") {
-          router.push(`${getRedirectBoardUrl()}?gameCode=${encodeURIComponent(gameCode)}`);
+          setRedirectingToBoard(true);
+          setLoading(true);
+          router.replace(`${getRedirectBoardUrl()}?gameCode=${encodeURIComponent(gameCode)}`);
           return;
         }
 
@@ -344,8 +347,11 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
           const updateRes = await apiClient.put<ApiResponse>(`/games/${gameData.id}`, {
             status: "RUNNING",
           });
-          if (updateRes?.data?.success)
-            router.push(`${getRedirectBoardUrl()}?gameCode=${encodeURIComponent(gameCode)}`);
+          if (updateRes?.data?.success) {
+            setRedirectingToBoard(true);
+            setLoading(true);
+            router.replace(`${getRedirectBoardUrl()}?gameCode=${encodeURIComponent(gameCode)}`);
+          }
         }
       } catch (err: unknown) {
         if (!mountedRef.current) return;
@@ -669,6 +675,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     error,
     setError,
     loading,
+    redirectingToBoard,
     actionLoading,
     contractGame,
     contractGameLoading,

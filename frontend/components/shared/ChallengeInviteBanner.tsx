@@ -202,7 +202,7 @@ export default function ChallengeInviteBanner({ username }: { username?: string 
         { timeout: 120000 }
       );
       const body = res?.data as
-        | { data?: { gameCode?: string }; success?: boolean; message?: string }
+        | { data?: { gameCode?: string; status?: string }; success?: boolean; message?: string }
         | undefined;
       if (body && body.success === false) {
         throw new Error(body.message || "Could not accept challenge");
@@ -216,7 +216,12 @@ export default function ChallengeInviteBanner({ username }: { username?: string 
         autoClose: 2500,
       });
       if (code) {
-        router.push(`/game-waiting-3d?gameCode=${encodeURIComponent(code)}`);
+        const status = String(body?.data?.status || "").toUpperCase();
+        if (status === "RUNNING") {
+          router.replace(`/board-3d-multi-mobile?gameCode=${encodeURIComponent(code)}`);
+        } else {
+          router.push(`/game-waiting-3d?gameCode=${encodeURIComponent(code)}`);
+        }
       }
       void refreshChallenges();
     } catch (err: unknown) {
