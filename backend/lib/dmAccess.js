@@ -1,4 +1,4 @@
-/** Soft-launch: only these usernames may use DMs / challenges. */
+/** Soft-launch: DMs only. Challenges are open to all signed-in users. */
 export const DM_PREVIEW_USERNAMES = ["ajisabo", "jaibois"];
 
 export function canAccessDirectMessages(username) {
@@ -8,6 +8,6 @@ export function canAccessDirectMessages(username) {
   return DM_PREVIEW_USERNAMES.includes(key);
 }
 
-export function canAccessChallenges(username) {
-  return canAccessDirectMessages(username);
+export function canAccessChallenges(_username) {
+  return true;
 }

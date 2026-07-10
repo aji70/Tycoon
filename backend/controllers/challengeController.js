@@ -82,6 +82,7 @@ function serializeChallenge(row, extras = {}) {
     gameId: row.game_id,
     gameCode: row.game_code,
     status: row.status,
+    stake: row.stake != null ? Number(row.stake) : Number(extras.stake ?? 0) || 0,
     expiresAt: row.expires_at,
     createdAt: row.created_at,
     challengerUsername: row.challenger_username ?? extras.challengerUsername ?? null,
@@ -89,6 +90,37 @@ function serializeChallenge(row, extras = {}) {
     opponentUsername: row.opponent_username ?? extras.opponentUsername ?? null,
     opponentAddress: row.opponent_address ?? extras.opponentAddress ?? null,
   };
+}
+
+async function cancelPendingPair(io, userA, userB) {
+  const pending = await PlayerChallenge.listPendingBetweenPair(userA, userB);
+  for (const row of pending) {
+    await PlayerChallenge.update(row.id, { status: "cancelled" });
+    if (row.game_id) {
+      const g = await Game.findById(row.game_id);
+      if (g && !["FINISHED", "CANCELLED"].includes(String(g.status).toUpperCase())) {
+        await Game.update(g.id, { status: "CANCELLED" });
+        await invalidateGameById(g.id);
+        if (g.code) {
+          await invalidateGameByCode(g.code);
+          if (io) {
+            emitGameUpdate(io, g.code);
+            io.to(g.code).emit("game-ended", { gameCode: g.code, reason: "cancelled" });
+          }
+        }
+      }
+    }
+    const payload = serializeChallenge({ ...row, status: "cancelled" });
+    emitChallenge(io, row.challenger_id, "player-challenge", {
+      type: "cancelled",
+      challenge: payload,
+    });
+    emitChallenge(io, row.opponent_id, "player-challenge", {
+      type: "cancelled",
+      challenge: payload,
+    });
+  }
+  return pending.length;
 }
 
 async function createPrivateLobbyForChallenger(user, req) {
@@ -324,24 +356,21 @@ const challengeController = {
       if (!opponent?.id) {
         return res.status(404).json({ success: false, message: "Opponent not found" });
       }
-      if (!canAccessChallenges(opponent.username)) {
-        return res.status(403).json({
+
+      const getUserPresence = req.app.get("getUserPresence");
+      const opponentPresence = typeof getUserPresence === "function" ? getUserPresence(opponentId) : null;
+      if (opponentPresence?.status === "game") {
+        return res.status(409).json({
           success: false,
-          message: "That player is not in the challenge preview.",
+          message: "That player is on the board and can't receive challenges right now",
         });
       }
 
-      const existing = await PlayerChallenge.findPendingBetween(me, opponentId);
-      if (existing) {
-        return res.status(409).json({
-          success: false,
-          message: "You already have a pending challenge with this player",
-          data: serializeChallenge(existing, {
-            challengerUsername: user.username,
-            opponentUsername: opponent.username,
-          }),
-        });
-      }
+      const stakeNum = Math.max(0, Number(req.body?.stake) || 0);
+
+      const io = req.app.get("io");
+      // New challenge replaces any pending challenge between these two players.
+      await cancelPendingPair(io, me, opponentId);
 
       const game = await Game.findByCode(gameCode);
       if (!game) {
@@ -377,6 +406,7 @@ const challengeController = {
         game_id: game.id,
         game_code: game.code,
         status: "pending",
+        stake: stakeNum,
         expires_at: expiresAt,
       });
 
@@ -385,9 +415,9 @@ const challengeController = {
         challengerAddress: user.address,
         opponentUsername: opponent.username,
         opponentAddress: opponent.address,
+        stake: stakeNum,
       });
 
-      const io = req.app.get("io");
       if (io) {
         io.to(game.code).emit("game-created", {
           game: { ...game, players: await GamePlayer.findByGameId(game.id) },

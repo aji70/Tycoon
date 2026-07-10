@@ -85,6 +85,7 @@ const io = new Server(server, {
 });
 
 app.set("io", io);
+app.set("getUserPresence", getUserPresence);
 
 // Step 7: Connection limits (per-IP) and socket event rate limiting
 const CONNECTIONS_PER_IP = 5;
@@ -118,6 +119,26 @@ function buildOnlineUsersList() {
     }
   }
   return Array.from(byKey.values());
+}
+
+/** Best presence for a user id (game > waiting > lobby). Used to block challenges mid-game. */
+function getUserPresence(userId) {
+  const id = Number(userId);
+  if (!Number.isFinite(id)) return null;
+  let best = null;
+  for (const entry of lobbyPresenceBySocket.values()) {
+    if (entry.userId == null || Number(entry.userId) !== id) continue;
+    if (!best || presenceRank(entry.status) >= presenceRank(best.status)) {
+      best = entry;
+    }
+  }
+  return best
+    ? {
+        userId: best.userId,
+        status: best.status === "game" || best.status === "waiting" ? best.status : "lobby",
+        gameCode: best.gameCode || null,
+      }
+    : null;
 }
 
 function getClientIp(socket) {

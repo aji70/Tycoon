@@ -21,6 +21,21 @@ const PlayerChallenge = {
       .first();
   },
 
+  /** Any pending challenge between two users (either direction). */
+  async listPendingBetweenPair(userA, userB) {
+    const a = Number(userA);
+    const b = Number(userB);
+    return db("player_challenges")
+      .where({ status: "pending" })
+      .andWhere(function () {
+        this.where({ challenger_id: a, opponent_id: b }).orWhere({
+          challenger_id: b,
+          opponent_id: a,
+        });
+      })
+      .orderBy("id", "desc");
+  },
+
   async listIncoming(userId, { limit = 20 } = {}) {
     return db("player_challenges as c")
       .leftJoin("users as u", "c.challenger_id", "u.id")
@@ -34,6 +49,7 @@ const PlayerChallenge = {
         "c.game_id",
         "c.game_code",
         "c.status",
+        "c.stake",
         "c.expires_at",
         "c.created_at",
         "u.username as challenger_username",
@@ -54,6 +70,7 @@ const PlayerChallenge = {
         "c.game_id",
         "c.game_code",
         "c.status",
+        "c.stake",
         "c.expires_at",
         "c.created_at",
         "u.username as opponent_username",

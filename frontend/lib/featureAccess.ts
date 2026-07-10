@@ -16,7 +16,7 @@ export function canAccessDirectMessages(username?: string | null): boolean {
   return canAccessMultiplayerPreview(username);
 }
 
-/** Soft-launch gate for online player challenges. */
-export function canAccessChallenges(username?: string | null): boolean {
-  return canAccessMultiplayerPreview(username);
+/** Online player challenges — open to all signed-in users. */
+export function canAccessChallenges(_username?: string | null): boolean {
+  return true;
 }

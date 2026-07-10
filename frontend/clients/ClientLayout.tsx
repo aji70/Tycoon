@@ -9,6 +9,7 @@ import { dmSans, kronaOne, orbitron } from "@/components/shared/fonts"; // Adjus
 import { ProfileProvider } from "@/context/ProfileContext";
 import AuthGuard from "@/components/auth/AuthGuard";
 import LobbyPresenceBeacon from "@/components/shared/LobbyPresenceBeacon";
+import ChallengeInviteBanner from "@/components/shared/ChallengeInviteBanner";
 import { MessageNotificationsProvider } from "@/context/MessageNotificationsContext";
 
 interface ClientLayoutProps {
@@ -45,6 +46,7 @@ export default function ClientLayout({ children, cookies }: ClientLayoutProps) {
       <MessageNotificationsProvider>
         <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
           <LobbyPresenceBeacon />
+          <ChallengeInviteBanner />
           {!isAdmin && (isMobile ? <NavBarMobile minimal={isBoard3DMobile} /> : <NavBar />)}
           <AuthGuard>{children}</AuthGuard>
         </div>

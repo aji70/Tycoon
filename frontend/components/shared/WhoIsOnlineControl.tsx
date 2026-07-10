@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, Globe, Loader2, MessageCircle, Swords, X } from "lucide-react";
-import { useAccount, useChainId, usePublicClient, useWriteContract } from "wagmi";
+import { useAccount, useChainId, usePublicClient, useWriteContract, useReadContract } from "wagmi";
 import { useAppKitAccount } from "@reown/appkit/react";
 import { useOnlineUsers, type OnlineUser } from "@/hooks/useOnlineUsers";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
@@ -17,10 +17,17 @@ import { useMessageNotifications } from "@/context/MessageNotificationsContext";
 import { presenceStatusLabel, resolvePresenceFromPath } from "@/lib/presenceStatus";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-toastify";
-import { useGetUsername, useIsRegistered } from "@/context/ContractProvider";
+import {
+  useGetUsername,
+  useIsRegistered,
+  useApprove,
+  useRewardTokenAddresses,
+} from "@/context/ContractProvider";
 import { createSignedChallengeLobby } from "@/lib/createSignedChallengeLobby";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
-import { isAddress } from "viem";
+import { isAddress, type Address } from "viem";
+import Erc20Abi from "@/context/abi/ERC20abi.json";
+import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 
 const DISMISS_KEY = "tycoon_who_is_online_pill_dismissed";
 
@@ -123,7 +130,29 @@ export default function WhoIsOnlineControl({
   const [statsError, setStatsError] = useState(false);
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [challengeBusy, setChallengeBusy] = useState(false);
+  const [stakePrompt, setStakePrompt] = useState<{
+    opponentUserId: number;
+    label: string;
+  } | null>(null);
+  const [stakeMode, setStakeMode] = useState<"free" | "staked">("free");
+  const [stakeAmount, setStakeAmount] = useState(5);
   const { setLobbyOpen, setActiveDmConversationId } = useMessageNotifications();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[
+    chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES
+  ] as Address | undefined;
+  const { usdcAddress, usdtAddress } = useRewardTokenAddresses();
+  const stakeTokenAddress =
+    (usdcAddress as Address | undefined) ??
+    (usdtAddress as Address | undefined) ??
+    USDC_TOKEN_ADDRESS[chainId];
+  const { approve: approveUSDC } = useApprove();
+  const { data: stakeAllowance, refetch: refetchAllowance } = useReadContract({
+    address: stakeTokenAddress,
+    abi: Erc20Abi,
+    functionName: "allowance",
+    args: safeAddress && contractAddress ? [safeAddress, contractAddress] : undefined,
+    query: { enabled: !!safeAddress && !!stakeTokenAddress && !!contractAddress },
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -196,7 +225,29 @@ export default function WhoIsOnlineControl({
   const canChallenge =
     canAccessChallenges(username) || canAccessChallenges(guestUser?.username);
 
-  const sendChallenge = async (opponentUserId?: number | null) => {
+  const openStakePrompt = (opponentUserId?: number | null, label?: string) => {
+    if (!opponentUserId) return;
+    if (guestUser?.id != null && Number(guestUser.id) === Number(opponentUserId)) {
+      toast.error("You can't challenge yourself");
+      return;
+    }
+    if (selected?.status === "game") {
+      toast.error("That player is on the board and can't receive challenges");
+      return;
+    }
+    if (!safeAddress) {
+      toast.error("Connect your wallet to challenge — you'll sign create game");
+      return;
+    }
+    setStakeMode("free");
+    setStakeAmount(5);
+    setStakePrompt({
+      opponentUserId,
+      label: label || "Player",
+    });
+  };
+
+  const sendChallenge = async (opponentUserId?: number | null, stake = 0) => {
     if (!opponentUserId || challengeBusy) return;
     if (guestUser?.id != null && Number(guestUser.id) === Number(opponentUserId)) {
       toast.error("You can't challenge yourself");
@@ -225,7 +276,10 @@ export default function WhoIsOnlineControl({
     }
 
     setChallengeBusy(true);
-    const toastId = toast.loading("Sign create game in your wallet…");
+    setStakePrompt(null);
+    const toastId = toast.loading(
+      stake > 0 ? `Sign staked challenge (${stake} USDT)…` : "Sign create game in your wallet…"
+    );
     try {
       const { code, contractGameId } = await createSignedChallengeLobby({
         address: safeAddress,
@@ -233,6 +287,18 @@ export default function WhoIsOnlineControl({
         chainId,
         publicClient,
         writeContractAsync: writeContractAsync as never,
+        stake,
+        stakeTokenAddress: stakeTokenAddress ?? null,
+        approveUsdc: async (token, spender, amount) => {
+          toast.update(toastId, { render: "Approve USDT…", isLoading: true });
+          await approveUSDC(token, spender, amount);
+        },
+        readAllowance: async () => {
+          const r = await refetchAllowance();
+          if (r.data != null) return BigInt(r.data.toString());
+          if (stakeAllowance != null) return BigInt(stakeAllowance.toString());
+          return 0n;
+        },
       });
 
       toast.update(toastId, { render: "Sending challenge…", type: "default", isLoading: true });
@@ -242,6 +308,7 @@ export default function WhoIsOnlineControl({
           opponentId: opponentUserId,
           gameCode: code,
           contractGameId,
+          stake,
           chain: "CELO",
           address: safeAddress,
         },
@@ -508,11 +575,16 @@ export default function WhoIsOnlineControl({
                             Message anyway
                           </button>
                         )}
-                        {canChallenge && selected.userId && (
+                        {canChallenge && selected.userId && selected.status !== "game" && (
                           <button
                             type="button"
                             disabled={challengeBusy}
-                            onClick={() => void sendChallenge(selected.userId)}
+                            onClick={() =>
+                              openStakePrompt(
+                                selected.userId,
+                                selected.username?.trim() || shortAddress(selected.address)
+                              )
+                            }
                             className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-400/45 bg-rose-500/15 px-4 font-orbitron text-xs font-bold uppercase tracking-wider text-rose-200 disabled:opacity-50"
                           >
                             {challengeBusy ? (
@@ -523,6 +595,11 @@ export default function WhoIsOnlineControl({
                             Challenge anyway
                           </button>
                         )}
+                        {canChallenge && selected.userId && selected.status === "game" ? (
+                          <p className="mt-3 font-dmSans text-xs text-amber-200/90">
+                            In a game — can&apos;t challenge right now
+                          </p>
+                        ) : null}
                       </div>
                     ) : (
                       <>
@@ -582,11 +659,16 @@ export default function WhoIsOnlineControl({
                             Message
                           </button>
                         )}
-                        {canChallenge && !selectedIsSelf && (stats.userId || selected.userId) && (
+                        {canChallenge && !selectedIsSelf && (stats.userId || selected.userId) && selected.status !== "game" && (
                           <button
                             type="button"
                             disabled={challengeBusy}
-                            onClick={() => void sendChallenge(stats.userId ?? selected.userId)}
+                            onClick={() =>
+                              openStakePrompt(
+                                stats.userId ?? selected.userId,
+                                stats.username || selected.username?.trim() || shortAddress(selected.address)
+                              )
+                            }
                             className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-rose-400/45 bg-rose-500/15 font-orbitron text-xs font-bold uppercase tracking-wider text-rose-100 transition hover:bg-rose-500/25 disabled:opacity-50"
                           >
                             {challengeBusy ? (
@@ -597,6 +679,11 @@ export default function WhoIsOnlineControl({
                             Challenge
                           </button>
                         )}
+                        {canChallenge && !selectedIsSelf && selected.status === "game" ? (
+                          <p className="mt-3 text-center font-dmSans text-xs text-amber-200/90">
+                            In a game — can&apos;t challenge right now
+                          </p>
+                        ) : null}
                       </>
                     )}
                   </div>
@@ -673,6 +760,93 @@ export default function WhoIsOnlineControl({
                   {view === "dm" ? "Back to stats" : selected ? "Back to list" : "Close"}
                 </button>
               </div>
+
+              {stakePrompt ? (
+                <div
+                  className="fixed inset-0 z-[1300] flex items-end justify-center bg-black/60 p-3 sm:items-center"
+                  onClick={() => {
+                    if (!challengeBusy) setStakePrompt(null);
+                  }}
+                >
+                  <div
+                    className="w-full max-w-sm rounded-2xl border border-rose-400/30 bg-[#0c1520] p-4 shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="font-orbitron text-sm font-bold uppercase tracking-wider text-rose-200">
+                      Challenge {stakePrompt.label}
+                    </p>
+                    <p className="mt-1 font-dmSans text-xs text-[#8aa4b0]">
+                      Free games need no stake. Staked games lock cUSD for both players.
+                    </p>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        disabled={challengeBusy}
+                        onClick={() => void sendChallenge(stakePrompt.opponentUserId, 0)}
+                        className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 font-orbitron text-xs font-bold uppercase tracking-wider text-white hover:bg-white/10 disabled:opacity-50"
+                      >
+                        Free
+                      </button>
+                      <button
+                        type="button"
+                        disabled={challengeBusy}
+                        onClick={() => setStakeMode("staked")}
+                        className={`rounded-xl border px-3 py-3 font-orbitron text-xs font-bold uppercase tracking-wider disabled:opacity-50 ${
+                          stakeMode === "staked"
+                            ? "border-amber-400/50 bg-amber-500/20 text-amber-100"
+                            : "border-white/15 bg-white/5 text-white hover:bg-white/10"
+                        }`}
+                      >
+                        Staked
+                      </button>
+                    </div>
+                    {stakeMode === "staked" ? (
+                      <div className="mt-3 space-y-2">
+                        <label className="block font-dmSans text-[11px] font-medium text-[#8aa4b0]">
+                          Stake amount (cUSD)
+                          <input
+                            type="number"
+                            min={0.1}
+                            step={0.1}
+                            value={stakeAmount}
+                            onChange={(e) => setStakeAmount(Number(e.target.value) || 0)}
+                            className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 font-dmSans text-sm text-white outline-none focus:border-amber-400/50"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          disabled={challengeBusy || !(stakeAmount > 0)}
+                          onClick={() => {
+                            if (!(stakeAmount > 0)) {
+                              toast.error("Enter a valid stake amount");
+                              return;
+                            }
+                            void sendChallenge(stakePrompt.opponentUserId, stakeAmount);
+                          }}
+                          className="flex min-h-11 w-full items-center justify-center rounded-xl bg-amber-500/90 font-orbitron text-xs font-bold uppercase tracking-wider text-black disabled:opacity-50"
+                        >
+                          {challengeBusy ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            `Send ${stakeAmount} cUSD challenge`
+                          )}
+                        </button>
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      disabled={challengeBusy}
+                      onClick={() => {
+                        setStakePrompt(null);
+                        setStakeMode("free");
+                      }}
+                      className="mt-3 w-full rounded-lg px-3 py-2 font-dmSans text-xs text-[#8aa4b0] hover:bg-white/5 hover:text-white/80"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </motion.div>
           </>
         )}
