@@ -147,8 +147,7 @@ export default function OnlineLobbyPanel({ address, userId, username }: OnlineLo
               General room
             </p>
             <p className="truncate font-dmSans text-[10px] text-[#7ec8d4]">
-              Chatting as{" "}
-              <span className="font-semibold text-cyan-100">{myLabel}</span>
+              You
             </p>
           </div>
         </div>
@@ -172,8 +171,8 @@ export default function OnlineLobbyPanel({ address, userId, username }: OnlineLo
               (!!address &&
                 !!m.address &&
                 String(m.address).toLowerCase() === String(address).toLowerCase());
-            const label = mine ? `You · ${displayNameFor(m)}` : displayNameFor(m);
-            const initial = (displayNameFor(m)[0] || "?").toUpperCase();
+            const label = mine ? "You" : displayNameFor(m);
+            const initial = (mine ? "Y" : displayNameFor(m)[0] || "?").toUpperCase();
             return (
               <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                 <div
@@ -236,7 +235,7 @@ export default function OnlineLobbyPanel({ address, userId, username }: OnlineLo
               void send();
             }
           }}
-          placeholder={canSend ? `Message as ${myLabel}…` : "Sign in to chat"}
+          placeholder={canSend ? "Message the lobby…" : "Sign in to chat"}
           className="min-h-11 min-w-0 flex-1 rounded-xl border border-cyan-500/30 bg-[#0a1a26] px-3 font-dmSans text-sm text-[#e8f4f7] outline-none placeholder:text-[#5a7380] focus:border-cyan-400/60 disabled:opacity-50"
         />
         <button

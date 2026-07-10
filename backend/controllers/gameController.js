@@ -558,6 +558,14 @@ const gameController = {
       await Game.update(req.params.id, payload);
       if (payload.status === "RUNNING") {
         await recordEvent("game_started", { entityType: "game", entityId: Number(req.params.id), payload: {} });
+        const started = await Game.findById(req.params.id);
+        if (started?.next_player_id) {
+          try {
+            await GamePlayer.setTurnStart(started.id, started.next_player_id);
+          } catch (err) {
+            logger.warn({ err: err?.message, gameId: started.id }, "setTurnStart on RUNNING update failed");
+          }
+        }
       }
       if (payload.status === "FINISHED") {
         await recordEvent("game_finished", { entityType: "game", entityId: Number(req.params.id), payload: { winner_id: payload.winner_id ?? null } });
@@ -2154,6 +2162,12 @@ export const create = async (req, res) => {
       chain,
       game_type: game_type || (is_ai ? GAME_TYPES.AI_HUMAN_VS_AI : GAME_TYPES.PVP_HUMAN),
       board_id,
+      contract_game_id:
+        req.body?.id != null && String(req.body.id).trim()
+          ? String(req.body.id).trim()
+          : req.body?.contract_game_id != null && String(req.body.contract_game_id).trim()
+            ? String(req.body.contract_game_id).trim()
+            : null,
     });
 
     const aiDiff = req.body.ai_difficulty || settings?.ai_difficulty || "boss";

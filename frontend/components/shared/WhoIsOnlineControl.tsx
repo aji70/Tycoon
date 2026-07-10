@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, Globe, Loader2, MessageCircle, Swords, X } from "lucide-react";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId, usePublicClient, useWriteContract } from "wagmi";
 import { useAppKitAccount } from "@reown/appkit/react";
 import { useOnlineUsers, type OnlineUser } from "@/hooks/useOnlineUsers";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
@@ -17,6 +17,10 @@ import { useMessageNotifications } from "@/context/MessageNotificationsContext";
 import { presenceStatusLabel, resolvePresenceFromPath } from "@/lib/presenceStatus";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-toastify";
+import { useGetUsername, useIsRegistered } from "@/context/ContractProvider";
+import { createSignedChallengeLobby } from "@/lib/createSignedChallengeLobby";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { isAddress } from "viem";
 
 const DISMISS_KEY = "tycoon_who_is_online_pill_dismissed";
 
@@ -97,6 +101,12 @@ export default function WhoIsOnlineControl({
   const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount();
   const address = wagmiAddress ?? appKitAddress;
   const isConnected = wagmiConnected || appKitConnected;
+  const chainId = useChainId();
+  const publicClient = usePublicClient();
+  const { writeContractAsync } = useWriteContract();
+  const safeAddress = address && isAddress(address) ? address : undefined;
+  const { data: onChainUsername } = useGetUsername(safeAddress);
+  const { data: isUserRegistered } = useIsRegistered(safeAddress);
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const presenceWhere = useMemo(
@@ -192,26 +202,61 @@ export default function WhoIsOnlineControl({
       toast.error("You can't challenge yourself");
       return;
     }
+    if (!safeAddress) {
+      toast.error("Connect your wallet to challenge — you'll sign create game");
+      return;
+    }
+    if (!isUserRegistered) {
+      toast.error("Register on-chain on the home page before challenging");
+      return;
+    }
+    const creatorUsername =
+      (typeof onChainUsername === "string" && onChainUsername.trim()) ||
+      guestUser?.username?.trim() ||
+      username?.trim() ||
+      "";
+    if (!creatorUsername) {
+      toast.error("Set a username before challenging");
+      return;
+    }
+    if (!publicClient) {
+      toast.error("Network unavailable");
+      return;
+    }
+
     setChallengeBusy(true);
-    const toastId = toast.loading("Sending challenge…");
+    const toastId = toast.loading("Sign create game in your wallet…");
     try {
+      const { code, contractGameId } = await createSignedChallengeLobby({
+        address: safeAddress,
+        username: creatorUsername,
+        chainId,
+        publicClient,
+        writeContractAsync: writeContractAsync as never,
+      });
+
+      toast.update(toastId, { render: "Sending challenge…", type: "default", isLoading: true });
       const res = await apiClient.post(
         "/challenges",
         {
           opponentId: opponentUserId,
+          gameCode: code,
+          contractGameId,
           chain: "CELO",
-          ...(presenceAddress ? { address: presenceAddress } : {}),
+          address: safeAddress,
         },
-        { timeout: 120000 }
+        { timeout: 60000 }
       );
       const body = res?.data as {
         data?: { game?: { code?: string }; challenge?: { gameCode?: string } };
         message?: string;
+        success?: boolean;
       };
-      const code =
-        body?.data?.game?.code ||
-        body?.data?.challenge?.gameCode ||
-        "";
+      if (body && body.success === false) {
+        throw new Error(body.message || "Challenge failed");
+      }
+      const gameCode =
+        body?.data?.game?.code || body?.data?.challenge?.gameCode || code;
       toast.update(toastId, {
         render: "Challenge sent — waiting in lobby",
         type: "success",
@@ -220,16 +265,17 @@ export default function WhoIsOnlineControl({
       });
       setOpen(false);
       setSelected(null);
-      if (code) {
-        router.push(`/game-waiting-3d?gameCode=${encodeURIComponent(code)}`);
+      if (gameCode) {
+        router.push(`/game-waiting-3d?gameCode=${encodeURIComponent(gameCode)}`);
       }
     } catch (err: unknown) {
       const msg =
+        getContractErrorMessage(err, "") ||
         (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data
           ?.message ||
         (err as Error)?.message ||
         "Challenge failed";
-      toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 6000 });
+      toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 8000 });
     } finally {
       setChallengeBusy(false);
     }
@@ -306,9 +352,26 @@ export default function WhoIsOnlineControl({
 
   if (!allowed || pillDismissed) return null;
 
+  const myUsername = (guestUser?.username ?? username ?? "").trim().toLowerCase();
+  const myAddress = (presenceAddress ?? "").trim().toLowerCase();
+  const myUserId = guestUser?.id ?? null;
+
+  const isSelfUser = (u: {
+    userId?: number | null;
+    username?: string | null;
+    address?: string | null;
+  }) => {
+    if (myUserId != null && u.userId != null && Number(u.userId) === Number(myUserId)) return true;
+    if (myUsername && u.username?.trim() && u.username.trim().toLowerCase() === myUsername) return true;
+    if (myAddress && u.address?.trim() && u.address.trim().toLowerCase() === myAddress) return true;
+    return false;
+  };
+
   const isPage = variant === "page";
-  const selectedLabel =
-    selected?.username?.trim() || shortAddress(selected?.address) || "Player";
+  const selectedIsSelf = selected ? isSelfUser(selected) : false;
+  const selectedLabel = selectedIsSelf
+    ? "You"
+    : selected?.username?.trim() || shortAddress(selected?.address) || "Player";
 
   const sheet =
     mounted &&
@@ -465,7 +528,7 @@ export default function WhoIsOnlineControl({
                       <>
                         <div className="mb-4 border-b border-emerald-500/20 pb-3">
                           <p className="font-orbitron text-lg font-bold text-[#e8f4f7] break-all">
-                            {stats.username}
+                            {selectedIsSelf ? "You" : stats.username}
                           </p>
                           {stats.shortAddress !== "—" ? (
                             <p className="mt-1 font-mono text-xs text-[#8aa4b0]">{stats.shortAddress}</p>
@@ -509,7 +572,7 @@ export default function WhoIsOnlineControl({
                             </dd>
                           </div>
                         </dl>
-                        {canDm && (
+                        {canDm && !selectedIsSelf && (
                           <button
                             type="button"
                             onClick={() => setView("dm")}
@@ -519,7 +582,7 @@ export default function WhoIsOnlineControl({
                             Message
                           </button>
                         )}
-                        {canChallenge && (stats.userId || selected.userId) && (
+                        {canChallenge && !selectedIsSelf && (stats.userId || selected.userId) && (
                           <button
                             type="button"
                             disabled={challengeBusy}
@@ -553,8 +616,10 @@ export default function WhoIsOnlineControl({
                 ) : (
                   <ul className="space-y-2">
                     {onlineUsers.map((u, idx) => {
-                      const label =
-                        u.username?.trim() || shortAddress(u.address) || `Player ${idx + 1}`;
+                      const self = isSelfUser(u);
+                      const label = self
+                        ? "You"
+                        : u.username?.trim() || shortAddress(u.address) || `Player ${idx + 1}`;
                       const canOpenStats = !!(u.username?.trim() || u.address?.trim());
                       return (
                         <li key={u.userId ?? u.address ?? `online-${idx}`}>
@@ -565,7 +630,7 @@ export default function WhoIsOnlineControl({
                             className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/8 px-3 py-2.5 text-left transition hover:border-emerald-400/45 hover:bg-emerald-500/15 active:scale-[0.99] disabled:opacity-60"
                           >
                             <div className="relative flex h-11 w-11 items-center justify-center rounded-lg border border-emerald-500/35 bg-[#0a1a26] font-orbitron text-sm font-bold text-emerald-300">
-                              {(label[0] || "?").toUpperCase()}
+                              {(self ? "Y" : label[0] || "?").toUpperCase()}
                               <motion.span
                                 className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#071018] bg-emerald-400"
                                 animate={{ opacity: [1, 0.45, 1] }}

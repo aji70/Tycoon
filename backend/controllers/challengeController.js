@@ -289,7 +289,7 @@ const challengeController = {
     }
   },
 
-  /** POST /api/challenges — { opponentId } create challenge + private 2p lobby */
+  /** POST /api/challenges — { opponentId, gameCode } after challenger signed createGame on-chain */
   async create(req, res) {
     try {
       if (!forbidUnlessChallengePreview(req, res)) return;
@@ -308,6 +308,16 @@ const challengeController = {
       }
       if (opponentId === me) {
         return res.status(400).json({ success: false, message: "Cannot challenge yourself" });
+      }
+
+      const gameCode = String(req.body?.gameCode || req.body?.code || "")
+        .trim()
+        .toUpperCase();
+      if (!gameCode) {
+        return res.status(400).json({
+          success: false,
+          message: "gameCode required — create and sign the game in your wallet first",
+        });
       }
 
       const opponent = await User.findById(opponentId);
@@ -333,7 +343,33 @@ const challengeController = {
         });
       }
 
-      const game = await createPrivateLobbyForChallenger(user, req);
+      const game = await Game.findByCode(gameCode);
+      if (!game) {
+        return res.status(404).json({
+          success: false,
+          message: "Game not found. Sign createGame in your wallet and save it first.",
+        });
+      }
+      if (Number(game.creator_id) !== me) {
+        return res.status(403).json({
+          success: false,
+          message: "Only the wallet that created this game can send the challenge",
+        });
+      }
+      if (String(game.status).toUpperCase() !== "PENDING") {
+        return res.status(400).json({ success: false, message: "Game is not open for a challenge" });
+      }
+      if (Number(game.number_of_players) !== 2) {
+        return res.status(400).json({ success: false, message: "Challenge games must be 2 players" });
+      }
+
+      // Attach on-chain id if client signed create and passed it with the challenge
+      const contractIdRaw = req.body?.contractGameId ?? req.body?.id;
+      if (contractIdRaw != null && String(contractIdRaw).trim() && !game.contract_game_id) {
+        await Game.update(game.id, { contract_game_id: String(contractIdRaw).trim() });
+        game.contract_game_id = String(contractIdRaw).trim();
+      }
+
       const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS);
       const challenge = await PlayerChallenge.create({
         challenger_id: me,
@@ -372,15 +408,6 @@ const challengeController = {
         data: { challenge: payload, game },
       });
     } catch (error) {
-      if (error?.code === "ONCHAIN_PLAYER_SETUP_FAILED") {
-        return res.status(403).json({
-          success: false,
-          code: "ONCHAIN_PLAYER_SETUP_FAILED",
-          message:
-            "Your account could not be prepared to create games on this network. Open Profile once and try again.",
-          reason: error.reason || error.message,
-        });
-      }
       logger.error({ err: error }, "challenge create error");
       return res.status(500).json({ success: false, message: error.message || "Failed to create challenge" });
     }
@@ -450,14 +477,42 @@ const challengeController = {
       });
 
       const io = req.app.get("io");
+      const updatedPlayers = await GamePlayer.findByGameId(game.id);
+      let liveGame = game;
+
+      // Both seats filled — start like a normal multiplayer lobby so turn/roll UI works.
+      if (updatedPlayers.length >= game.number_of_players) {
+        await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
+        await invalidateGameById(game.id);
+        await invalidateGameByCode(game.code);
+        liveGame = await Game.findById(game.id);
+        const firstUserId = liveGame?.next_player_id || challenge.challenger_id;
+        if (firstUserId) {
+          await GamePlayer.setTurnStart(game.id, firstUserId);
+          if (Number(liveGame?.next_player_id) !== Number(firstUserId)) {
+            await Game.update(game.id, { next_player_id: firstUserId });
+            liveGame = await Game.findById(game.id);
+          }
+        }
+        await recordEvent("game_started", {
+          entityType: "game",
+          entityId: game.id,
+          payload: { source: "player_challenge" },
+        });
+      }
+
       if (io) {
-        const updatedPlayers = await GamePlayer.findByGameId(game.id);
+        const playersWithTurn = await GamePlayer.findByGameId(game.id);
         emitGameUpdate(io, game.code);
         io.to(game.code).emit("player-joined", {
-          player: updatedPlayers[updatedPlayers.length - 1],
-          players: updatedPlayers,
-          game,
+          player: playersWithTurn[playersWithTurn.length - 1],
+          players: playersWithTurn,
+          game: liveGame,
         });
+        if (String(liveGame?.status).toUpperCase() === "RUNNING") {
+          io.to(game.code).emit("game-ready", { game: liveGame, players: playersWithTurn });
+          io.to(game.code).emit("game-started", { game: liveGame });
+        }
         emitChallenge(io, challenge.challenger_id, "player-challenge", {
           type: "accepted",
           challenge: payload,
@@ -471,7 +526,7 @@ const challengeController = {
       return res.json({
         success: true,
         message: "Challenge accepted",
-        data: { challenge: payload, gameCode: game.code },
+        data: { challenge: payload, gameCode: game.code, status: liveGame?.status },
       });
     } catch (error) {
       if (error?.code === "ONCHAIN_PLAYER_SETUP_FAILED") {
