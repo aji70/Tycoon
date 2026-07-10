@@ -10,7 +10,7 @@ import {
   upsertSetting,
   clearPlatformSettingsCache,
 } from "../services/platformSettings.js";
-import { listAdminCollectibleOptions, resolveShopTokenIdForPerk, stockOrRestockAllInitialPerks } from "../services/rewardSystemContract.js";
+import { listAdminCollectibleOptions, resolveShopTokenIdForPerk, stockOrRestockAllInitialPerks, stockOrRestockOneInitialPerk } from "../services/rewardSystemContract.js";
 
 function startOfUtcDay(d = new Date()) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -507,5 +507,62 @@ export async function addAllShopPerks(req, res) {
   } catch (err) {
     logger.error({ err }, "admin addAllShopPerks error");
     res.status(500).json({ success: false, error: err?.message || "Failed to add perks to shop" });
+  }
+}
+
+/**
+ * POST /api/admin/economy/shop-add-perk
+ * Body: { perk, strength?, amount?, chain? } — restock/stock one catalog perk.
+ */
+export async function addOneShopPerk(req, res) {
+  try {
+    const chain = normalizeRewardChain(req.body?.chain, "CELO");
+    const perk = Number(req.body?.perk);
+    const strength = req.body?.strength != null ? Number(req.body.strength) : 1;
+    const amount = req.body?.amount != null ? Number(req.body.amount) : 200;
+
+    if (!Number.isFinite(perk) || perk < 1) {
+      return res.status(400).json({ success: false, error: "perk is required (catalog perk id)" });
+    }
+    if (!Number.isFinite(strength) || strength < 1) {
+      return res.status(400).json({ success: false, error: "strength must be a positive number" });
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ success: false, error: "amount must be a positive number" });
+    }
+    if (!isContractConfigured(chain)) {
+      return res.status(400).json({
+        success: false,
+        error: `Reward contract not configured for chain ${chain}`,
+      });
+    }
+
+    const result = await stockOrRestockOneInitialPerk(perk, strength, amount, chain);
+
+    await appendAdminAuditLog({
+      action: "economy.shop_add_perk",
+      targetType: "collectible",
+      targetId: `${result.perk}:${result.strength}`,
+      payload: {
+        chain,
+        amount,
+        method: result.method,
+        tokenId: result.tokenId,
+        txHash: result.txHash,
+      },
+      req,
+    });
+
+    return res.json({
+      success: true,
+      data: result,
+      message:
+        result.method === "restock"
+          ? `Restocked ${amount} × ${result.label} (token #${result.tokenId}).`
+          : `Stocked ${amount} × ${result.label} (new shop listing).`,
+    });
+  } catch (err) {
+    logger.error({ err }, "admin addOneShopPerk error");
+    res.status(500).json({ success: false, error: err?.message || "Failed to add perk to shop" });
   }
 }

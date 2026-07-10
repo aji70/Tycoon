@@ -62,6 +62,7 @@ router.post("/economy/grant-voucher", adminEconomyController.grantVoucher);
 router.get("/economy/collectible-options", adminEconomyController.listCollectibleOptions);
 router.post("/economy/deliver-collectible", adminEconomyController.deliverCollectible);
 router.post("/economy/shop-add-all-perks", adminEconomyController.addAllShopPerks);
+router.post("/economy/shop-add-perk", adminEconomyController.addOneShopPerk);
 
 router.get("/leaderboard", adminLeaderboardController.getLeaderboard);
 

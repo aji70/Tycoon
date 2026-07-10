@@ -343,6 +343,85 @@ export async function stockOrRestockAllInitialPerks(chain = "CELO", amount = 200
 }
 
 /**
+ * Add `amount` units for one catalog perk:strength (restock if in shop, else stockShop).
+ */
+export async function stockOrRestockOneInitialPerk(perk, strength, amount = 200, chain = "CELO") {
+  const perkNum = Number(perk);
+  const strengthNum = Number(strength);
+  const catalog = INITIAL_COLLECTIBLES.find(
+    (item) => item.perk === perkNum && item.strength === strengthNum
+  );
+  if (!catalog) {
+    throw new Error(`Unknown catalog perk ${perkNum} strength ${strengthNum}`);
+  }
+  if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+    throw new Error("amount must be a positive number");
+  }
+
+  return withTxQueue(async () => {
+    const contract = await getRewardSystemContract(chain);
+    const map = await buildPerkStrengthTokenMap(contract);
+    const amt = BigInt(amount);
+    const key = `${catalog.perk}:${catalog.strength}`;
+    const tycWei = parseUnits(catalog.tycPrice, 18);
+    const usdcUnits = parseUnits(catalog.usdcPrice, 6);
+    const existingTokenId = map.get(key);
+
+    if (existingTokenId !== undefined) {
+      logger.info(
+        {
+          chain,
+          tokenId: existingTokenId.toString(),
+          amount: amt.toString(),
+          perk: catalog.perk,
+          strength: catalog.strength,
+        },
+        "stockOrRestockOneInitialPerk: restockCollectible"
+      );
+      const tx = await contract.restockCollectible(existingTokenId, amt);
+      const receipt = await tx.wait();
+      return {
+        success: true,
+        method: "restock",
+        perk: catalog.perk,
+        strength: catalog.strength,
+        label: formatCollectibleLabel(catalog.perk, catalog.strength),
+        tokenId: existingTokenId.toString(),
+        amount: Number(amount),
+        txHash: receiptHash(receipt),
+        blockNumber: receipt.blockNumber,
+      };
+    }
+
+    logger.info(
+      { chain, perk: catalog.perk, strength: catalog.strength, amount: amt.toString() },
+      "stockOrRestockOneInitialPerk: stockShop"
+    );
+    const tx = await contract.stockShop(
+      amt,
+      catalog.perk,
+      catalog.strength,
+      tycWei,
+      usdcUnits,
+      usdcUnits,
+      usdcUnits
+    );
+    const receipt = await tx.wait();
+    return {
+      success: true,
+      method: "stock",
+      perk: catalog.perk,
+      strength: catalog.strength,
+      label: formatCollectibleLabel(catalog.perk, catalog.strength),
+      tokenId: null,
+      amount: Number(amount),
+      txHash: receiptHash(receipt),
+      blockNumber: receipt.blockNumber,
+    };
+  });
+}
+
+/**
  * Register all BUNDLE_DEFS_FOR_STOCK on-chain (perks must exist in shop first).
  */
 export async function stockAllBundlesFromDefs(chain = "CELO") {
