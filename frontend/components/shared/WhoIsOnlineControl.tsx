@@ -3,19 +3,58 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Globe, X } from "lucide-react";
+import { ChevronLeft, Globe, Loader2, X } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useAppKitAccount } from "@reown/appkit/react";
-import { useOnlineUsers } from "@/hooks/useOnlineUsers";
+import { useOnlineUsers, type OnlineUser } from "@/hooks/useOnlineUsers";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { canAccessMultiplayerPreview } from "@/lib/featureAccess";
+import { apiClient } from "@/lib/api";
 
 const DISMISS_KEY = "tycoon_who_is_online_pill_dismissed";
 
 function shortAddress(addr?: string | null): string {
   if (!addr || addr.length < 10) return "Player";
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+function formatStakeOrEarned(value: number): string {
+  if (value >= 1e18) return (value / 1e18).toFixed(2);
+  if (value >= 1e15) return (value / 1e18).toFixed(4);
+  return String(value);
+}
+
+type PlayerStats = {
+  username: string;
+  shortAddress: string;
+  gamesPlayed: number;
+  gamesWon: number;
+  gamesLost: number;
+  winRate: string;
+  totalStaked: number;
+  totalEarned: number;
+};
+
+function parseStatsRow(row: Record<string, unknown> | null, fallbackLabel: string): PlayerStats | null {
+  if (!row) return null;
+  const playerAddress = String(row.address ?? "");
+  const gamesPlayed = Number(row.celo_games_played ?? row.games_played ?? 0);
+  const gamesWon = Number(row.celo_games_won ?? row.game_won ?? 0);
+  const gamesLost = Number(row.game_lost ?? 0);
+  return {
+    username: String(row.username ?? fallbackLabel),
+    shortAddress:
+      playerAddress && playerAddress.length > 10
+        ? `${playerAddress.slice(0, 6)}…${playerAddress.slice(-4)}`
+        : playerAddress || "—",
+    gamesPlayed,
+    gamesWon,
+    gamesLost,
+    winRate: gamesPlayed > 0 ? ((gamesWon / gamesPlayed) * 100).toFixed(1) : "0",
+    totalStaked: Number(row.total_staked ?? 0),
+    totalEarned: Number(row.total_earned ?? 0),
+  };
 }
 
 type WhoIsOnlineControlProps = {
@@ -32,6 +71,7 @@ type WhoIsOnlineControlProps = {
 
 /**
  * Live global online count + sheet. Soft-launch: Ajisabo / Jaibois only unless forceShow.
+ * Tap a player to view their public stats.
  */
 export default function WhoIsOnlineControl({
   className = "",
@@ -47,6 +87,10 @@ export default function WhoIsOnlineControl({
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [pillDismissed, setPillDismissed] = useState(false);
+  const [selected, setSelected] = useState<OnlineUser | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState(false);
+  const [stats, setStats] = useState<PlayerStats | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -74,6 +118,72 @@ export default function WhoIsOnlineControl({
     username: guestUser?.username ?? username ?? undefined,
   });
 
+  useEffect(() => {
+    if (!open) {
+      setSelected(null);
+      setStats(null);
+      setStatsError(false);
+      setStatsLoading(false);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!selected) {
+      setStats(null);
+      setStatsError(false);
+      setStatsLoading(false);
+      return;
+    }
+
+    const uname = selected.username?.trim();
+    const addr = selected.address?.trim();
+    if (!uname && !addr) {
+      setStats(null);
+      setStatsError(true);
+      return;
+    }
+
+    let cancelled = false;
+    setStatsLoading(true);
+    setStatsError(false);
+    setStats(null);
+
+    void (async () => {
+      try {
+        const res = uname
+          ? await apiClient.get(`/users/by-username/${encodeURIComponent(uname)}`, {
+              chain: "CELO",
+              period: "all",
+            })
+          : await apiClient.get(`/users/by-address/${addr}`, { chain: "CELO" });
+        const body = res?.data as Record<string, unknown> | { data?: Record<string, unknown> } | null;
+        const row =
+          body && typeof body === "object" && "data" in body && body.data && typeof body.data === "object"
+            ? (body.data as Record<string, unknown>)
+            : (body as Record<string, unknown> | null);
+        if (cancelled) return;
+        const parsed = parseStatsRow(row, uname || shortAddress(addr));
+        if (!parsed) {
+          setStatsError(true);
+          setStats(null);
+        } else {
+          setStats(parsed);
+        }
+      } catch {
+        if (!cancelled) {
+          setStatsError(true);
+          setStats(null);
+        }
+      } finally {
+        if (!cancelled) setStatsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selected]);
+
   const dismissPill = () => {
     setOpen(false);
     setPillDismissed(true);
@@ -84,9 +194,13 @@ export default function WhoIsOnlineControl({
     }
   };
 
+  const closeSheet = () => setOpen(false);
+
   if (!allowed || pillDismissed) return null;
 
   const isPage = variant === "page";
+  const selectedLabel =
+    selected?.username?.trim() || shortAddress(selected?.address) || "Player";
 
   const sheet =
     mounted &&
@@ -101,7 +215,7 @@ export default function WhoIsOnlineControl({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setOpen(false)}
+              onClick={closeSheet}
             />
             <motion.div
               role="dialog"
@@ -119,22 +233,40 @@ export default function WhoIsOnlineControl({
                 </div>
 
                 <div className="mb-4 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3
-                      id="who-online-sheet-title"
-                      className="font-orbitron text-sm font-bold uppercase tracking-wider text-emerald-300"
-                    >
-                      Who&apos;s online
-                    </h3>
-                    <p className="mt-0.5 font-dmSans text-xs text-[#8aa4b0]">
-                      <span className="font-orbitron font-bold text-emerald-300">{onlineCount}</span>
-                      {" "}
-                      {onlineCount === 1 ? "player" : "players"} on Tycoon right now
-                    </p>
+                  <div className="min-w-0 flex items-start gap-2">
+                    {selected && (
+                      <button
+                        type="button"
+                        onClick={() => setSelected(null)}
+                        className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-400/40 text-emerald-200 transition hover:bg-emerald-500/15"
+                        aria-label="Back to online list"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                    )}
+                    <div className="min-w-0">
+                      <h3
+                        id="who-online-sheet-title"
+                        className="font-orbitron text-sm font-bold uppercase tracking-wider text-emerald-300"
+                      >
+                        {selected ? selectedLabel : "Who's online"}
+                      </h3>
+                      <p className="mt-0.5 font-dmSans text-xs text-[#8aa4b0]">
+                        {selected ? (
+                          "Player stats"
+                        ) : (
+                          <>
+                            <span className="font-orbitron font-bold text-emerald-300">{onlineCount}</span>
+                            {" "}
+                            {onlineCount === 1 ? "player" : "players"} on Tycoon right now
+                          </>
+                        )}
+                      </p>
+                    </div>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setOpen(false)}
+                    onClick={closeSheet}
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 border-emerald-400/50 bg-emerald-500/15 text-emerald-200 transition hover:border-emerald-300 hover:bg-emerald-500/25"
                     aria-label="Close"
                   >
@@ -142,7 +274,72 @@ export default function WhoIsOnlineControl({
                   </button>
                 </div>
 
-                {onlineUsers.length === 0 ? (
+                {selected ? (
+                  <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/8 px-4 py-4">
+                    {statsLoading ? (
+                      <div className="flex flex-col items-center justify-center gap-3 py-10">
+                        <Loader2 className="h-8 w-8 animate-spin text-emerald-300" />
+                        <p className="font-dmSans text-sm text-[#8aa4b0]">Loading stats…</p>
+                      </div>
+                    ) : statsError || !stats ? (
+                      <div className="py-8 text-center">
+                        <p className="font-dmSans text-sm text-[#e8f4f7]">Stats unavailable</p>
+                        <p className="mt-1 font-dmSans text-xs text-[#8aa4b0]">
+                          No profile found for this player yet.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mb-4 border-b border-emerald-500/20 pb-3">
+                          <p className="font-orbitron text-lg font-bold text-[#e8f4f7] break-all">
+                            {stats.username}
+                          </p>
+                          {stats.shortAddress !== "—" ? (
+                            <p className="mt-1 font-mono text-xs text-[#8aa4b0]">{stats.shortAddress}</p>
+                          ) : null}
+                        </div>
+                        <dl className="space-y-3 font-dmSans text-sm">
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-[#8aa4b0]">Games played</dt>
+                            <dd className="font-orbitron font-bold tabular-nums text-emerald-200">
+                              {stats.gamesPlayed}
+                            </dd>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-[#8aa4b0]">Wins</dt>
+                            <dd className="font-orbitron font-bold tabular-nums text-emerald-300">
+                              {stats.gamesWon}
+                            </dd>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-[#8aa4b0]">Losses</dt>
+                            <dd className="font-orbitron font-bold tabular-nums text-[#c8d8de]">
+                              {stats.gamesLost}
+                            </dd>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-[#8aa4b0]">Win rate</dt>
+                            <dd className="font-orbitron font-bold tabular-nums text-cyan-200">
+                              {stats.winRate}%
+                            </dd>
+                          </div>
+                          <div className="flex justify-between gap-3 border-t border-emerald-500/15 pt-3">
+                            <dt className="text-[#8aa4b0]">Total staked</dt>
+                            <dd className="font-orbitron font-bold tabular-nums text-[#e8f4f7]">
+                              {formatStakeOrEarned(stats.totalStaked)}
+                            </dd>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-[#8aa4b0]">Total earned</dt>
+                            <dd className="font-orbitron font-bold tabular-nums text-emerald-200">
+                              {formatStakeOrEarned(stats.totalEarned)}
+                            </dd>
+                          </div>
+                        </dl>
+                      </>
+                    )}
+                  </div>
+                ) : onlineUsers.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-emerald-500/25 bg-emerald-950/10 px-4 py-8 text-center">
                     <Globe className="mx-auto mb-2 h-6 w-6 text-emerald-400/50" />
                     <p className="font-dmSans text-sm text-[#8aa4b0]">
@@ -154,25 +351,32 @@ export default function WhoIsOnlineControl({
                     {onlineUsers.map((u, idx) => {
                       const label =
                         u.username?.trim() || shortAddress(u.address) || `Player ${idx + 1}`;
+                      const canOpenStats = !!(u.username?.trim() || u.address?.trim());
                       return (
-                        <li
-                          key={u.userId ?? u.address ?? `online-${idx}`}
-                          className="flex min-h-14 items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/8 px-3 py-2.5"
-                        >
-                          <div className="relative flex h-11 w-11 items-center justify-center rounded-lg border border-emerald-500/35 bg-[#0a1a26] font-orbitron text-sm font-bold text-emerald-300">
-                            {(label[0] || "?").toUpperCase()}
-                            <motion.span
-                              className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#071018] bg-emerald-400"
-                              animate={{ opacity: [1, 0.45, 1] }}
-                              transition={{ repeat: Infinity, duration: 1.4 }}
-                            />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate font-dmSans text-sm font-semibold text-[#e8f4f7]">
-                              {label}
-                            </p>
-                            <p className="font-dmSans text-[11px] text-[#8aa4b0]">Online on Tycoon</p>
-                          </div>
+                        <li key={u.userId ?? u.address ?? `online-${idx}`}>
+                          <button
+                            type="button"
+                            disabled={!canOpenStats}
+                            onClick={() => setSelected(u)}
+                            className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/8 px-3 py-2.5 text-left transition hover:border-emerald-400/45 hover:bg-emerald-500/15 active:scale-[0.99] disabled:opacity-60"
+                          >
+                            <div className="relative flex h-11 w-11 items-center justify-center rounded-lg border border-emerald-500/35 bg-[#0a1a26] font-orbitron text-sm font-bold text-emerald-300">
+                              {(label[0] || "?").toUpperCase()}
+                              <motion.span
+                                className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#071018] bg-emerald-400"
+                                animate={{ opacity: [1, 0.45, 1] }}
+                                transition={{ repeat: Infinity, duration: 1.4 }}
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate font-dmSans text-sm font-semibold text-[#e8f4f7]">
+                                {label}
+                              </p>
+                              <p className="font-dmSans text-[11px] text-[#8aa4b0]">
+                                {canOpenStats ? "Tap to view stats" : "Online on Tycoon"}
+                              </p>
+                            </div>
+                          </button>
                         </li>
                       );
                     })}
@@ -181,10 +385,10 @@ export default function WhoIsOnlineControl({
 
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
+                  onClick={selected ? () => setSelected(null) : closeSheet}
                   className="mt-5 flex min-h-12 w-full items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-500/10 font-orbitron text-xs font-bold uppercase tracking-wider text-emerald-200 transition hover:bg-emerald-500/20"
                 >
-                  Close
+                  {selected ? "Back to list" : "Close"}
                 </button>
               </div>
             </motion.div>
