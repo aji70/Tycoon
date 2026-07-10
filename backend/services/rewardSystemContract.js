@@ -442,9 +442,19 @@ export async function updateCollectiblePrices(tokenId, newTycPrice, newUsdcPrice
   return withTxQueue(async () => {
     try {
       const contract = await getRewardSystemContract(chain);
-      logger.info(`Updating prices: tokenId=${tokenId}, tycPrice=${newTycPrice}, usdcPrice=${newUsdcPrice}`);
+      // Mirror USDC into cUSD + USDT so MiniPay (USDT) matches catalog.
+      const stable = newUsdcPrice;
+      logger.info(
+        `Updating prices: tokenId=${tokenId}, tycPrice=${newTycPrice}, usdc/cusdc/usdt=${newUsdcPrice}`
+      );
 
-      const tx = await contract.updateCollectiblePrices(tokenId, newTycPrice, newUsdcPrice);
+      const tx = await contract.updateCollectiblePrices(
+        tokenId,
+        newTycPrice,
+        newUsdcPrice,
+        stable,
+        stable
+      );
       const receipt = await tx.wait();
 
       logger.info(`updateCollectiblePrices tx confirmed: ${receiptHash(receipt)}`);

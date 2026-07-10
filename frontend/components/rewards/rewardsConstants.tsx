@@ -70,7 +70,7 @@ export const INITIAL_COLLECTIBLES: readonly {
   usdcPrice: string;
   icon: React.ReactNode;
 }[] = [
-  { perk: CollectiblePerk.EXTRA_TURN, name: "Extra Turn", strength: 1, tycPrice: "0.75", usdcPrice: "0.08", icon: <Zap className="w-8 h-8" /> },
+  { perk: CollectiblePerk.EXTRA_TURN, name: "Extra Turn", strength: 1, tycPrice: "0.75", usdcPrice: "0.10", icon: <Zap className="w-8 h-8" /> },
   { perk: CollectiblePerk.JAIL_FREE, name: "Get Out of Jail Free", strength: 1, tycPrice: "1.0", usdcPrice: "0.12", icon: <KeyRound className="w-8 h-8" /> },
   { perk: CollectiblePerk.DOUBLE_RENT, name: "Double Rent", strength: 1, tycPrice: "1.4", usdcPrice: "0.30", icon: <Coins className="w-8 h-8" /> },
   { perk: CollectiblePerk.ROLL_BOOST, name: "Roll Boost", strength: 1, tycPrice: "1.0", usdcPrice: "0.10", icon: <Sparkles className="w-8 h-8" /> },

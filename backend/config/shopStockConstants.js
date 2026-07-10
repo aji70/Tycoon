@@ -26,7 +26,7 @@ export const PERK_NAMES = {
 
 /** @type {readonly { perk: number; strength: number; tycPrice: string; usdcPrice: string }[]} */
 export const INITIAL_COLLECTIBLES = [
-  { perk: 1, strength: 1, tycPrice: "0.75", usdcPrice: "0.08" },
+  { perk: 1, strength: 1, tycPrice: "0.75", usdcPrice: "0.10" },
   { perk: 2, strength: 1, tycPrice: "1.0", usdcPrice: "0.12" },
   { perk: 3, strength: 1, tycPrice: "1.4", usdcPrice: "0.30" },
   { perk: 4, strength: 1, tycPrice: "1.0", usdcPrice: "0.10" },
