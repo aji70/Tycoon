@@ -15,7 +15,6 @@ import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import WhoIsOnlineControl from "@/components/shared/WhoIsOnlineControl";
 import { useGetUsername } from "@/context/ContractProvider";
-import { canAccessMultiplayerPreview } from "@/lib/featureAccess";
 
 interface JoinRoomMobileProps {
   /** When game is RUNNING, redirect here (default: /game-play). e.g. /board-3d-multi for 3D. */
@@ -40,7 +39,7 @@ export default function JoinRoom({
   const { data: onChainUsername } = useGetUsername(address);
   const previewUsername =
     guestUser?.username ?? (onChainUsername != null ? String(onChainUsername).trim() : null);
-  const showWhoIsOnline = canAccessMultiplayerPreview(previewUsername);
+  const showWhoIsOnline = true;
   const { modalOpen, modalHint, queueAfterAuth, cancelModal } = useJoinRoomAuthContinuation(canAct);
 
   const [code, setCode] = useState<string>("");

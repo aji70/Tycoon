@@ -22,10 +22,8 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 import WhoIsOnlineControl from '@/components/shared/WhoIsOnlineControl';
-import LobbyChatControl from '@/components/shared/LobbyChatControl';
 import MessageNotificationBell from '@/components/shared/MessageNotificationBell';
 import { useGetUsername } from '@/context/ContractProvider';
-import { canAccessMultiplayerPreview } from '@/lib/featureAccess';
 import { isAddress } from 'viem';
 
 /** Skip /profile here — prefetching it on the home shell pulls a large unused chunk (Lighthouse). Hover still prefetches profile. */
@@ -98,7 +96,7 @@ const NavBar = () => {
   const headerUsername =
     guestUser?.username ??
     (onChainUsername != null ? String(onChainUsername).trim() : null);
-  const showWhoIsOnline = canAccessMultiplayerPreview(headerUsername);
+  const showWhoIsOnline = isSignedIn;
   const { onlineCount } = useOnlineUsers(isConnected || guestUser ? address : undefined, {
     enabled: showWhoIsOnline,
     userId: guestUser?.id,
@@ -141,14 +139,10 @@ const NavBar = () => {
         <Logo className="cursor-pointer md:w-[50px] w-[45px]" image={LogoIcon} href="/" />
 
         <div className="flex items-center gap-[4px]">
-          {/* Soft-launch online list, or lobby chat for everyone else signed in */}
-          {showWhoIsOnline ? (
+          {/* Online list + lobby for all signed-in users */}
+          {isSignedIn ? (
             <div className="hidden md:block">
               <WhoIsOnlineControl username={headerUsername} />
-            </div>
-          ) : isSignedIn ? (
-            <div className="hidden md:block">
-              <LobbyChatControl username={headerUsername} />
             </div>
           ) : null}
 

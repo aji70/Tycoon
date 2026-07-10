@@ -25,9 +25,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 import WhoIsOnlineControl from '@/components/shared/WhoIsOnlineControl';
-import LobbyChatControl from '@/components/shared/LobbyChatControl';
 import MessageNotificationBell from '@/components/shared/MessageNotificationBell';
-import { canAccessMultiplayerPreview } from '@/lib/featureAccess';
 
 const SCROLL_TOP_THRESHOLD = 40;
 const SCROLL_SENSITIVITY = 8;
@@ -215,11 +213,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
             <div className="flex-1 flex items-center gap-1.5 px-3 sm:px-4 bg-gradient-to-b from-[#021a1b]/95 to-[#010F10]/98 backdrop-blur-xl border-b-2 border-[#00F0FF]/20 shadow-[0_4px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(0,240,255,0.08)]">
               <Logo className="w-[40px] sm:w-[44px] shrink-0 drop-shadow-[0_0_8px_rgba(0,240,255,0.2)]" image={LogoIcon} href="/" />
               <div className="min-w-0 flex-1 flex items-center justify-center px-0.5">
-                {canAccessMultiplayerPreview(displayName) ? (
-                  <WhoIsOnlineControl username={displayName} />
-                ) : (
-                  <LobbyChatControl username={displayName} />
-                )}
+                <WhoIsOnlineControl username={displayName} />
               </div>
               <div className="flex shrink-0 items-center gap-1 sm:gap-2">
                 <MessageNotificationBell username={displayName} />
