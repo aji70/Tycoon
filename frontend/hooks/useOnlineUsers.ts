@@ -3,8 +3,15 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { socketService } from "@/lib/socket";
 import { apiClient } from "@/lib/api";
+import type { PresenceStatus } from "@/lib/presenceStatus";
 
-export type OnlineUser = { userId?: number; username?: string | null; address?: string | null };
+export type OnlineUser = {
+  userId?: number;
+  username?: string | null;
+  address?: string | null;
+  status?: PresenceStatus | null;
+  gameCode?: string | null;
+};
 
 function getSocketUrl(): string {
   if (typeof window === "undefined") return "";
@@ -25,6 +32,11 @@ export interface UseOnlineUsersOptions {
   username?: string | null;
   /** Poll REST as a safety net (ms). 0 disables. Default 8000. */
   pollIntervalMs?: number;
+  /** Where this client currently is. Default lobby. */
+  status?: PresenceStatus;
+  gameCode?: string | null;
+  /** When false, only subscribe to the online list (don't announce presence). Default true. */
+  registerPresence?: boolean;
 }
 
 /**
@@ -36,11 +48,19 @@ export function useOnlineUsers(
   address: string | undefined,
   options: UseOnlineUsersOptions = {}
 ) {
-  const { enabled = true, userId, username, pollIntervalMs = 8000 } = options;
+  const {
+    enabled = true,
+    userId,
+    username,
+    pollIntervalMs = 8000,
+    status = "lobby",
+    gameCode,
+    registerPresence = true,
+  } = options;
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [onlineCount, setOnlineCount] = useState(0);
-  const identityRef = useRef({ address, userId, username });
-  identityRef.current = { address, userId, username };
+  const identityRef = useRef({ address, userId, username, status, gameCode });
+  identityRef.current = { address, userId, username, status, gameCode };
 
   const applyList = useCallback((users?: OnlineUser[], count?: number) => {
     if (!Array.isArray(users)) return;
@@ -71,18 +91,21 @@ export function useOnlineUsers(
   }, [enabled, applyList]);
 
   const emitPresence = useCallback(() => {
-    const { address: addr, userId: uid, username: uname } = identityRef.current;
+    const { address: addr, userId: uid, username: uname, status: st, gameCode: code } =
+      identityRef.current;
     if (!addr && uid == null && !uname) return;
     socketService.registerLobbyPresence({
       userId: typeof uid === "number" ? uid : undefined,
       username: uname?.trim() || undefined,
       address: addr,
+      status: st,
+      gameCode: code?.trim() || undefined,
     });
   }, []);
 
   // Connect, register presence immediately, enrich username in background
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !registerPresence) return;
     if (!address && userId == null && !username) return;
     const SOCKET_URL = getSocketUrl();
     if (!SOCKET_URL) return;
@@ -91,10 +114,8 @@ export function useOnlineUsers(
       const socket = socketService.connect(SOCKET_URL);
 
       const register = () => {
-        // Announce immediately — don't block on profile lookup
         emitPresence();
 
-        // Enrich with DB username when we only have an address
         if (address && userId == null && !username) {
           apiClient
             .get<{ id: number; username?: string }>(`/users/by-address/${address}`, {
@@ -106,10 +127,13 @@ export function useOnlineUsers(
                 | undefined;
               const user = body?.data ?? body;
               if (user?.id != null || user?.username) {
+                const { status: st, gameCode: code } = identityRef.current;
                 socketService.registerLobbyPresence({
                   userId: typeof user?.id === "number" ? user.id : undefined,
                   username: user?.username ?? undefined,
                   address,
+                  status: st,
+                  gameCode: code?.trim() || undefined,
                 });
               }
             })
@@ -128,7 +152,7 @@ export function useOnlineUsers(
     } catch {
       // ignore
     }
-  }, [enabled, address, userId, username, emitPresence]);
+  }, [enabled, registerPresence, address, userId, username, status, gameCode, emitPresence]);
 
   // Live updates + initial fetch + light poll backup
   useEffect(() => {

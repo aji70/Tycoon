@@ -90,9 +90,34 @@ const CONNECTIONS_PER_IP = 5;
 const EVENTS_PER_SOCKET_PER_MINUTE = 60;
 const connectionCountByIp = new Map();
 const socketEventCounts = new Map(); // socketId -> { count, resetAt }
-// Lobby presence: socketId -> { userId, username }; used to broadcast "online-users" to lobby room
+// Lobby presence: socketId -> { userId, username, address, status, gameCode }
 const lobbyPresenceBySocket = new Map();
 const LOBBY_ROOM = "lobby";
+
+function presenceRank(status) {
+  if (status === "game") return 3;
+  if (status === "waiting") return 2;
+  return 1;
+}
+
+function buildOnlineUsersList() {
+  const byKey = new Map();
+  for (const entry of lobbyPresenceBySocket.values()) {
+    const key =
+      entry.userId != null ? `u:${entry.userId}` : entry.address || `n:${entry.username || "anon"}`;
+    const prev = byKey.get(key);
+    if (!prev || presenceRank(entry.status) >= presenceRank(prev.status)) {
+      byKey.set(key, {
+        userId: entry.userId,
+        username: entry.username || null,
+        address: entry.address || null,
+        status: entry.status === "game" || entry.status === "waiting" ? entry.status : "lobby",
+        gameCode: entry.gameCode || null,
+      });
+    }
+  }
+  return Array.from(byKey.values());
+}
 
 function getClientIp(socket) {
   const forwarded = socket.handshake.headers["x-forwarded-for"];
@@ -123,14 +148,7 @@ function checkSocketEventRate(socket) {
 }
 
 function broadcastLobbyPresence(socketIo) {
-  const list = [];
-  const seen = new Set();
-  for (const entry of lobbyPresenceBySocket.values()) {
-    const key = entry.userId != null ? `u:${entry.userId}` : (entry.address || `n:${entry.username || "anon"}`);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    list.push({ userId: entry.userId, username: entry.username || null, address: entry.address || null });
-  }
+  const list = buildOnlineUsersList();
   socketIo.to(LOBBY_ROOM).emit("online-users", { users: list, count: list.length });
 }
 
@@ -169,8 +187,19 @@ io.on("connection", (socket) => {
       socket.emit("error", { message: "Too many actions; slow down." });
       return;
     }
-    const { userId, username, address } = payload || {};
-    const entry = { userId: userId != null ? Number(userId) : null, username: username != null ? String(username).trim() : null, address: address != null ? String(address).trim() : null };
+    const { userId, username, address, status, gameCode } = payload || {};
+    const normalizedStatus =
+      status === "game" || status === "waiting" || status === "lobby" ? status : "lobby";
+    const entry = {
+      userId: userId != null ? Number(userId) : null,
+      username: username != null ? String(username).trim() : null,
+      address: address != null ? String(address).trim() : null,
+      status: normalizedStatus,
+      gameCode:
+        gameCode != null && String(gameCode).trim()
+          ? String(gameCode).trim().toUpperCase()
+          : null,
+    };
     if (entry.userId || entry.username || entry.address) {
       lobbyPresenceBySocket.set(socket.id, entry);
       socket.join(LOBBY_ROOM);
@@ -179,14 +208,7 @@ io.on("connection", (socket) => {
       }
       broadcastLobbyPresence(io);
       // Immediate ack to the registrant so they don't wait on room fan-out / missed broadcast
-      const list = [];
-      const seen = new Set();
-      for (const e of lobbyPresenceBySocket.values()) {
-        const key = e.userId != null ? `u:${e.userId}` : (e.address || `n:${e.username || "anon"}`);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        list.push({ userId: e.userId, username: e.username || null, address: e.address || null });
-      }
+      const list = buildOnlineUsersList();
       socket.emit("online-users", { users: list, count: list.length });
     }
   });
@@ -376,14 +398,7 @@ app.post("/api/config/call-contract", requireConfigDebugAccess, async (req, res)
 
 // Online users (from socket lobby presence)
 app.get("/api/users/online", (_req, res) => {
-  const list = [];
-  const seen = new Set();
-  for (const entry of lobbyPresenceBySocket.values()) {
-    const key = entry.userId != null ? `u:${entry.userId}` : (entry.address || `n:${entry.username || "anon"}`);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    list.push({ userId: entry.userId, username: entry.username || null, address: entry.address || null });
-  }
+  const list = buildOnlineUsersList();
   res.json({ success: true, data: { users: list, count: list.length } });
 });
 

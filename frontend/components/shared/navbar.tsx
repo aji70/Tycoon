@@ -103,6 +103,7 @@ const NavBar = () => {
     enabled: showWhoIsOnline,
     userId: guestUser?.id,
     username: headerUsername,
+    registerPresence: false,
   });
   const signOutGuestAndPrivy = () => {
     guestAuth?.logoutGuest();

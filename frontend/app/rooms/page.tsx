@@ -39,7 +39,7 @@ export default function RoomsPage() {
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const onlineAddress = mounted && (isConnected || !!guestUser) ? (guestUser?.address ?? address ?? undefined) : undefined;
-  const { onlineCount } = useOnlineUsers(onlineAddress, { enabled: mounted });
+  const { onlineCount } = useOnlineUsers(onlineAddress, { enabled: mounted, registerPresence: false });
   const isMobile = useMediaQuery("(max-width: 768px)");
 
   useEffect(() => {

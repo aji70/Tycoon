@@ -225,13 +225,6 @@ export function MessageNotificationsProvider({
     if (url) {
       try {
         socketService.connect(url);
-        if (presenceAddress || myUserId || myUsername) {
-          socketService.registerLobbyPresence({
-            userId: typeof myUserId === "number" ? myUserId : undefined,
-            username: myUsername ?? undefined,
-            address: presenceAddress,
-          });
-        }
       } catch {
         // ignore
       }
