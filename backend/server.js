@@ -174,6 +174,16 @@ io.on("connection", (socket) => {
       lobbyPresenceBySocket.set(socket.id, entry);
       socket.join(LOBBY_ROOM);
       broadcastLobbyPresence(io);
+      // Immediate ack to the registrant so they don't wait on room fan-out / missed broadcast
+      const list = [];
+      const seen = new Set();
+      for (const e of lobbyPresenceBySocket.values()) {
+        const key = e.userId != null ? `u:${e.userId}` : (e.address || `n:${e.username || "anon"}`);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        list.push({ userId: e.userId, username: e.username || null, address: e.address || null });
+      }
+      socket.emit("online-users", { users: list, count: list.length });
     }
   });
 

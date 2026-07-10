@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { socketService } from "@/lib/socket";
 import { apiClient } from "@/lib/api";
-import { ApiResponse } from "@/types/api";
 
 export type OnlineUser = { userId?: number; username?: string | null; address?: string | null };
 
@@ -20,81 +19,157 @@ function getSocketUrl(): string {
 }
 
 export interface UseOnlineUsersOptions {
-  /** When false, skips API fetch and socket subscription (e.g. until client mounted). Default true. */
+  /** When false, skips API fetch and socket subscription. Default true. */
   enabled?: boolean;
+  userId?: number;
+  username?: string | null;
+  /** Poll REST as a safety net (ms). 0 disables. Default 8000. */
+  pollIntervalMs?: number;
 }
 
+/**
+ * Registers lobby presence + live online list.
+ * Presence is registered as soon as we have any identity (address/username/id) —
+ * we do not wait on /users/by-address before announcing "I'm online".
+ */
 export function useOnlineUsers(
   address: string | undefined,
   options: UseOnlineUsersOptions = {}
 ) {
-  const { enabled = true } = options;
+  const { enabled = true, userId, username, pollIntervalMs = 8000 } = options;
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [onlineCount, setOnlineCount] = useState(0);
+  const identityRef = useRef({ address, userId, username });
+  identityRef.current = { address, userId, username };
+
+  const applyList = useCallback((users?: OnlineUser[], count?: number) => {
+    if (!Array.isArray(users)) return;
+    setOnlineUsers(users);
+    setOnlineCount(typeof count === "number" ? count : users.length);
+  }, []);
 
   const fetchOnlineFromApi = useCallback(async () => {
     if (!enabled) return;
     try {
-      const res = await apiClient.get<ApiResponse<{ users: OnlineUser[]; count: number }>>("/users/online");
-      if (res?.data?.success && res.data.data) {
-        setOnlineUsers(res.data.data.users ?? []);
-        setOnlineCount(res.data.data.count ?? 0);
-      }
+      const res = await apiClient.get<
+        | { users: OnlineUser[]; count: number }
+        | { success?: boolean; data?: { users: OnlineUser[]; count: number } }
+      >("/users/online");
+      const body = res?.data as
+        | {
+            success?: boolean;
+            data?: { users?: OnlineUser[]; count?: number };
+            users?: OnlineUser[];
+            count?: number;
+          }
+        | undefined;
+      const payload = body?.data ?? body;
+      applyList(payload?.users, payload?.count);
     } catch {
       // ignore
     }
-  }, [enabled]);
+  }, [enabled, applyList]);
 
-  // Register presence when wallet is connected and socket is ready (only when enabled and client-side)
-  useEffect(() => {
-    if (!enabled || !address) return;
-    const SOCKET_URL = getSocketUrl();
-    if (!SOCKET_URL) return;
-    try {
-      const socket = socketService.connect(SOCKET_URL);
-      const register = () => {
-        apiClient
-          .get<{ id: number; username?: string }>(`/users/by-address/${address}?chain=BASE`)
-          .then((res) => {
-            const user = (res as { data?: { id?: number; username?: string } })?.data;
-            socketService.registerLobbyPresence({
-              userId: typeof user?.id === "number" ? user.id : undefined,
-              username: user?.username ?? undefined,
-              address,
-            });
-          })
-          .catch(() => {
-            socketService.registerLobbyPresence({ address });
-          });
-      };
-      if (socket.connected) register();
-      else socket.once("connect", register);
-    } catch {
-      // ignore socket errors (e.g. on mobile when not ready)
-    }
-  }, [enabled, address]);
+  const emitPresence = useCallback(() => {
+    const { address: addr, userId: uid, username: uname } = identityRef.current;
+    if (!addr && uid == null && !uname) return;
+    socketService.registerLobbyPresence({
+      userId: typeof uid === "number" ? uid : undefined,
+      username: uname?.trim() || undefined,
+      address: addr,
+    });
+  }, []);
 
-  // Subscribe to online-users and fetch once from API (only when enabled)
+  // Connect, register presence immediately, enrich username in background
   useEffect(() => {
     if (!enabled) return;
+    if (!address && userId == null && !username) return;
+    const SOCKET_URL = getSocketUrl();
+    if (!SOCKET_URL) return;
+
+    try {
+      const socket = socketService.connect(SOCKET_URL);
+
+      const register = () => {
+        // Announce immediately — don't block on profile lookup
+        emitPresence();
+
+        // Enrich with DB username when we only have an address
+        if (address && userId == null && !username) {
+          apiClient
+            .get<{ id: number; username?: string }>(`/users/by-address/${address}`, {
+              params: { chain: "CELO" },
+            })
+            .then((res) => {
+              const body = res?.data as
+                | { id?: number; username?: string; data?: { id?: number; username?: string } }
+                | undefined;
+              const user = body?.data ?? body;
+              if (user?.id != null || user?.username) {
+                socketService.registerLobbyPresence({
+                  userId: typeof user?.id === "number" ? user.id : undefined,
+                  username: user?.username ?? undefined,
+                  address,
+                });
+              }
+            })
+            .catch(() => {
+              // already registered with address
+            });
+        }
+      };
+
+      if (socket.connected) register();
+      socket.on("connect", register);
+
+      return () => {
+        socket.off("connect", register);
+      };
+    } catch {
+      // ignore
+    }
+  }, [enabled, address, userId, username, emitPresence]);
+
+  // Live updates + initial fetch + light poll backup
+  useEffect(() => {
+    if (!enabled) return;
+    const SOCKET_URL = getSocketUrl();
+    if (SOCKET_URL) {
+      try {
+        socketService.connect(SOCKET_URL);
+      } catch {
+        // ignore
+      }
+    }
+
     fetchOnlineFromApi();
+
     const handler = (data: { users?: OnlineUser[]; count?: number }) => {
-      setOnlineUsers(Array.isArray(data?.users) ? data.users : []);
-      setOnlineCount(typeof data?.count === "number" ? data.count : 0);
+      applyList(data?.users, data?.count);
     };
+
     try {
       socketService.onOnlineUsers(handler);
     } catch {
       // ignore
     }
+
+    const poll =
+      pollIntervalMs > 0
+        ? window.setInterval(() => {
+            fetchOnlineFromApi();
+          }, pollIntervalMs)
+        : null;
+
     return () => {
       try {
         socketService.removeListener("online-users", handler);
       } catch {
         // ignore
       }
+      if (poll) window.clearInterval(poll);
     };
-  }, [enabled, fetchOnlineFromApi]);
+  }, [enabled, fetchOnlineFromApi, applyList, pollIntervalMs]);
 
   return { onlineUsers, onlineCount };
 }

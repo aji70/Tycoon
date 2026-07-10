@@ -9,7 +9,6 @@ import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet, BookOpen, Bot, MoreVertical, FileText, Shield, LifeBuoy } from 'lucide-react';
 import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
-import { PiUserCircle } from 'react-icons/pi';
 import Image from 'next/image';
 import avatar from '@/public/avatar.jpg';
 import ThemeSoundPlayer from './ThemeSoundPlayer';
@@ -22,6 +21,10 @@ import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
+import WhoIsOnlineControl from '@/components/shared/WhoIsOnlineControl';
+import { useGetUsername } from '@/context/ContractProvider';
+import { canAccessMultiplayerPreview } from '@/lib/featureAccess';
+import { isAddress } from 'viem';
 
 /** Skip /profile here — prefetching it on the home shell pulls a large unused chunk (Lighthouse). Hover still prefetches profile. */
 const PREFETCH_ROUTES = ['/game-shop', '/arena', '/leaderboard'] as const;
@@ -45,17 +48,14 @@ const NavBar = () => {
   const { open } = useAppKit();
   const { address, isConnected } = useAppKitAccount();
   const { caipNetwork, chainId } = useAppKitNetwork();
-  const { onlineCount, onlineUsers } = useOnlineUsers(isConnected ? address : undefined);
-  const [onlineDropdownOpen, setOnlineDropdownOpen] = useState(false);
-  const onlineDropdownRef = useRef<HTMLDivElement>(null);
+  const safeAddress =
+    address && isAddress(address) ? (address as `0x${string}`) : undefined;
+  const { data: onChainUsername } = useGetUsername(safeAddress);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
-      if (onlineDropdownRef.current && !onlineDropdownRef.current.contains(e.target as Node)) {
-        setOnlineDropdownOpen(false);
-      }
       if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
         setMoreMenuOpen(false);
       }
@@ -93,6 +93,15 @@ const NavBar = () => {
   const isPrivyAuthed = ready && authenticated;
   /** Game APIs use the backend JWT — Privy alone is not a session until privy-signin completes. */
   const isSignedIn = isConnected || !!guestUser;
+  const headerUsername =
+    guestUser?.username ??
+    (onChainUsername != null ? String(onChainUsername).trim() : null);
+  const showWhoIsOnline = canAccessMultiplayerPreview(headerUsername);
+  const { onlineCount } = useOnlineUsers(isConnected || guestUser ? address : undefined, {
+    enabled: showWhoIsOnline,
+    userId: guestUser?.id,
+    username: headerUsername,
+  });
   const signOutGuestAndPrivy = () => {
     guestAuth?.logoutGuest();
     if (isPrivyAuthed) void logout();
@@ -129,36 +138,10 @@ const NavBar = () => {
         <Logo className="cursor-pointer md:w-[50px] w-[45px]" image={LogoIcon} href="/" />
 
         <div className="flex items-center gap-[4px]">
-          {/* Online players (when wallet connected) */}
-          {isConnected && (
-            <div className="relative hidden md:block" ref={onlineDropdownRef}>
-              <button
-                type="button"
-                onClick={() => setOnlineDropdownOpen((o) => !o)}
-                className="w-[133px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] flex justify-center items-center gap-2 bg-[#011112] text-[#AFBAC0]"
-              >
-                <PiUserCircle className="w-[16px] h-[16px]" />
-                <span className="text-[12px] font-[400] font-dmSans">
-                  {onlineCount} {onlineCount === 1 ? 'player' : 'players'} online
-                </span>
-              </button>
-              {onlineDropdownOpen && (
-                <div className="absolute top-full right-0 mt-1 w-56 max-h-64 overflow-y-auto rounded-xl border border-[#0E282A] bg-[#011112] shadow-xl z-50 py-2">
-                  <p className="px-3 py-1 text-[11px] text-[#869298] uppercase tracking-wide">Online now</p>
-                  {onlineUsers.length === 0 ? (
-                    <p className="px-3 py-2 text-[12px] text-[#AFBAC0]">No one else online</p>
-                  ) : (
-                    onlineUsers.map((u, i) => (
-                      <div key={u.userId ?? u.address ?? i} className="px-3 py-1.5 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                        <span className="text-[12px] text-[#F0F7F7] truncate">
-                          {u.username || (u.address ? `${u.address.slice(0, 6)}...${u.address.slice(-4)}` : 'Anonymous')}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
+          {/* Soft-launch: Who's online for Ajisabo / Jaibois */}
+          {showWhoIsOnline && (
+            <div className="hidden md:block">
+              <WhoIsOnlineControl username={headerUsername} />
             </div>
           )}
 
@@ -337,8 +320,8 @@ const NavBar = () => {
                   )}
                 </button>
 
-                {/* Online Players */}
-                {isConnected && (
+                {/* Online Players (soft-launch) */}
+                {showWhoIsOnline && (
                   <div className="px-4 py-2.5 flex items-center gap-2 text-[#AFBAC0] text-sm border-t border-[#0E282A] mt-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                     <span className="font-dmSans">{onlineCount} online</span>

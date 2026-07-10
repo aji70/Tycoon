@@ -24,6 +24,7 @@ import { isAddress } from 'viem';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
+import WhoIsOnlineControl from '@/components/shared/WhoIsOnlineControl';
 
 const SCROLL_TOP_THRESHOLD = 40;
 const SCROLL_SENSITIVITY = 8;
@@ -208,9 +209,14 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
               className="h-1 origin-left shrink-0 rounded-r-full bg-gradient-to-r from-[#00F0FF] to-[#0FF0FC] shadow-[0_0_12px_rgba(0,240,255,0.6)]"
               style={{ scaleX }}
             />
-            <div className="flex-1 flex items-center justify-between px-4 bg-gradient-to-b from-[#021a1b]/95 to-[#010F10]/98 backdrop-blur-xl border-b-2 border-[#00F0FF]/20 shadow-[0_4px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(0,240,255,0.08)]">
-              <Logo className="w-[44px] drop-shadow-[0_0_8px_rgba(0,240,255,0.2)]" image={LogoIcon} href="/" />
-              <div className="flex items-center gap-2">
+            <div className="flex-1 flex items-center justify-between px-4 bg-gradient-to-b from-[#021a1b]/95 to-[#010F10]/98 backdrop-blur-xl border-b-2 border-[#00F0FF]/20 shadow-[0_4px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(0,240,255,0.08)] relative">
+              <Logo className="w-[44px] drop-shadow-[0_0_8px_rgba(0,240,255,0.2)] relative z-[1]" image={LogoIcon} href="/" />
+              <div className="pointer-events-none absolute inset-x-0 top-0 bottom-0 flex items-center justify-center z-[1]">
+                <div className="pointer-events-auto">
+                  <WhoIsOnlineControl username={displayName} />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 relative z-[1]">
                 <button
                   type="button"
                   onClick={toggleSound}
