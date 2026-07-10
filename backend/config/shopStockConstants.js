@@ -37,12 +37,12 @@ export const INITIAL_COLLECTIBLES = [
   { perk: 11, strength: 1, tycPrice: "1.2", usdcPrice: "0.25" },
   { perk: 12, strength: 1, tycPrice: "1.0", usdcPrice: "0.20" },
   { perk: 13, strength: 1, tycPrice: "1.1", usdcPrice: "0.22" },
-  { perk: 5, strength: 1, tycPrice: "0.5", usdcPrice: "0.05" },
+  { perk: 5, strength: 1, tycPrice: "0.5", usdcPrice: "0.10" },
   { perk: 5, strength: 2, tycPrice: "0.8", usdcPrice: "0.15" },
   { perk: 5, strength: 3, tycPrice: "1.2", usdcPrice: "0.30" },
   { perk: 5, strength: 4, tycPrice: "1.6", usdcPrice: "0.50" },
   { perk: 5, strength: 5, tycPrice: "2.0", usdcPrice: "0.90" },
-  { perk: 9, strength: 1, tycPrice: "0.6", usdcPrice: "0.08" },
+  { perk: 9, strength: 1, tycPrice: "0.6", usdcPrice: "0.10" },
   { perk: 14, strength: 1, tycPrice: "1.0", usdcPrice: "0.20" },
 ];
 

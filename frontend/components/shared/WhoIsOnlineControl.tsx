@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, Globe, Loader2, MessageCircle, Swords, X } from "lucide-react";
@@ -204,6 +204,48 @@ export default function WhoIsOnlineControl({
     gameCode: presenceWhere.gameCode,
     registerPresence: false,
   });
+
+  const openPlayerProfile = useCallback(
+    (player: { userId?: number | null; username?: string | null; address?: string | null }) => {
+      const uid = player.userId != null ? Number(player.userId) : null;
+      const uname = player.username?.trim() || null;
+      const addr = player.address?.trim() || null;
+      if (uid == null && !uname && !addr) return;
+
+      const match = onlineUsers.find((u) => {
+        if (uid != null && u.userId != null && Number(u.userId) === uid) return true;
+        if (uname && u.username && u.username.trim().toLowerCase() === uname.toLowerCase()) return true;
+        if (addr && u.address && u.address.toLowerCase() === addr.toLowerCase()) return true;
+        return false;
+      });
+
+      setOpen(true);
+      setView("stats");
+      setSelected(
+        match ?? {
+          userId: uid ?? undefined,
+          username: uname,
+          address: addr,
+          status: null,
+        }
+      );
+    },
+    [onlineUsers]
+  );
+
+  useEffect(() => {
+    const onOpenProfile = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail as {
+        userId?: number | null;
+        username?: string | null;
+        address?: string | null;
+      } | null;
+      if (!detail) return;
+      openPlayerProfile(detail);
+    };
+    window.addEventListener("tycoon-open-player-profile", onOpenProfile);
+    return () => window.removeEventListener("tycoon-open-player-profile", onOpenProfile);
+  }, [openPlayerProfile]);
 
   useEffect(() => {
     if (!open) {
@@ -439,6 +481,14 @@ export default function WhoIsOnlineControl({
   const selectedLabel = selectedIsSelf
     ? "You"
     : selected?.username?.trim() || shortAddress(selected?.address) || "Player";
+  const canChallengeSelected =
+    canChallenge &&
+    !selectedIsSelf &&
+    !!(selected?.userId || stats?.userId) &&
+    !!selected?.status &&
+    selected.status !== "game";
+  const selectedOffline = !!(selected && !selectedIsSelf && !selected.status);
+  const selectedInGame = !!(selected && !selectedIsSelf && selected.status === "game");
 
   const sheet =
     mounted &&
@@ -575,7 +625,7 @@ export default function WhoIsOnlineControl({
                             Message anyway
                           </button>
                         )}
-                        {canChallenge && selected.userId && selected.status !== "game" && (
+                        {canChallengeSelected && (
                           <button
                             type="button"
                             disabled={challengeBusy}
@@ -592,12 +642,17 @@ export default function WhoIsOnlineControl({
                             ) : (
                               <Swords className="h-4 w-4" />
                             )}
-                            Challenge anyway
+                            Challenge
                           </button>
                         )}
-                        {canChallenge && selected.userId && selected.status === "game" ? (
+                        {canChallenge && selected.userId && selectedInGame ? (
                           <p className="mt-3 font-dmSans text-xs text-amber-200/90">
                             In a game — can&apos;t challenge right now
+                          </p>
+                        ) : null}
+                        {canChallenge && selected.userId && selectedOffline ? (
+                          <p className="mt-3 font-dmSans text-xs text-[#8aa4b0]">
+                            Offline — challenge when they&apos;re online
                           </p>
                         ) : null}
                       </div>
@@ -659,7 +714,7 @@ export default function WhoIsOnlineControl({
                             Message
                           </button>
                         )}
-                        {canChallenge && !selectedIsSelf && (stats.userId || selected.userId) && selected.status !== "game" && (
+                        {canChallengeSelected && (
                           <button
                             type="button"
                             disabled={challengeBusy}
@@ -679,9 +734,14 @@ export default function WhoIsOnlineControl({
                             Challenge
                           </button>
                         )}
-                        {canChallenge && !selectedIsSelf && selected.status === "game" ? (
+                        {canChallenge && selectedInGame ? (
                           <p className="mt-3 text-center font-dmSans text-xs text-amber-200/90">
                             In a game — can&apos;t challenge right now
+                          </p>
+                        ) : null}
+                        {canChallenge && selectedOffline ? (
+                          <p className="mt-3 text-center font-dmSans text-xs text-[#8aa4b0]">
+                            Offline — challenge when they&apos;re online
                           </p>
                         ) : null}
                       </>
@@ -692,6 +752,7 @@ export default function WhoIsOnlineControl({
                     address={presenceAddress}
                     userId={guestUser?.id}
                     username={guestUser?.username ?? username}
+                    onPlayerClick={openPlayerProfile}
                   />
                 ) : onlineUsers.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-emerald-500/25 bg-emerald-950/10 px-4 py-8 text-center">

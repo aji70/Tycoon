@@ -115,6 +115,16 @@ export default function LobbyChatControl({
                   address={presenceAddress}
                   userId={guestUser?.id}
                   username={guestUser?.username ?? username}
+                  onPlayerClick={(player) => {
+                    setOpen(false);
+                    try {
+                      window.dispatchEvent(
+                        new CustomEvent("tycoon-open-player-profile", { detail: player })
+                      );
+                    } catch {
+                      // ignore
+                    }
+                  }}
                 />
 
                 <button
