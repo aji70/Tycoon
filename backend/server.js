@@ -40,6 +40,7 @@ import agentApiRoutes from "./routes/agent-api.js";
 import waitlistsRoutes from "./routes/waitlists.js";
 import chatsRoutes from "./routes/chats.js";
 import messagesRoutes from "./routes/messages.js";
+import dmsRoutes from "./routes/dms.js";
 import analyticsRoutes from "./routes/analytics.js";
 import authRoutes from "./routes/auth.js";
 import tournamentsRoutes from "./routes/tournaments.js";
@@ -173,6 +174,9 @@ io.on("connection", (socket) => {
     if (entry.userId || entry.username || entry.address) {
       lobbyPresenceBySocket.set(socket.id, entry);
       socket.join(LOBBY_ROOM);
+      if (entry.userId != null && Number.isFinite(entry.userId)) {
+        socket.join(`user:${entry.userId}`);
+      }
       broadcastLobbyPresence(io);
       // Immediate ack to the registrant so they don't wait on room fan-out / missed broadcast
       const list = [];
@@ -406,6 +410,7 @@ app.use("/api/agent-api", agentApiRoutes);
 app.use("/api/waitlist", waitlistsRoutes);
 app.use("/api/chats", chatsRoutes);
 app.use("/api/messages", messagesRoutes);
+app.use("/api/dms", dmsRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/tournaments", tournamentsRoutes);
 app.use("/api/arena", arenaRoutes);

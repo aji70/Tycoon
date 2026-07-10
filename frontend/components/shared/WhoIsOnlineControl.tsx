@@ -3,14 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, Globe, Loader2, X } from "lucide-react";
+import { ChevronLeft, Globe, Loader2, MessageCircle, X } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useAppKitAccount } from "@reown/appkit/react";
 import { useOnlineUsers, type OnlineUser } from "@/hooks/useOnlineUsers";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
-import { canAccessMultiplayerPreview } from "@/lib/featureAccess";
+import { canAccessMultiplayerPreview, canAccessDirectMessages } from "@/lib/featureAccess";
 import { apiClient } from "@/lib/api";
+import OnlineDmPanel from "@/components/shared/OnlineDmPanel";
+import OnlineLobbyPanel from "@/components/shared/OnlineLobbyPanel";
 
 const DISMISS_KEY = "tycoon_who_is_online_pill_dismissed";
 
@@ -26,8 +28,10 @@ function formatStakeOrEarned(value: number): string {
 }
 
 type PlayerStats = {
+  userId?: number;
   username: string;
   shortAddress: string;
+  address?: string;
   gamesPlayed: number;
   gamesWon: number;
   gamesLost: number;
@@ -42,12 +46,15 @@ function parseStatsRow(row: Record<string, unknown> | null, fallbackLabel: strin
   const gamesPlayed = Number(row.celo_games_played ?? row.games_played ?? 0);
   const gamesWon = Number(row.celo_games_won ?? row.game_won ?? 0);
   const gamesLost = Number(row.game_lost ?? 0);
+  const idNum = Number(row.id);
   return {
+    userId: Number.isInteger(idNum) && idNum > 0 ? idNum : undefined,
     username: String(row.username ?? fallbackLabel),
     shortAddress:
       playerAddress && playerAddress.length > 10
         ? `${playerAddress.slice(0, 6)}…${playerAddress.slice(-4)}`
         : playerAddress || "—",
+    address: playerAddress || undefined,
     gamesPlayed,
     gamesWon,
     gamesLost,
@@ -88,6 +95,8 @@ export default function WhoIsOnlineControl({
   const [mounted, setMounted] = useState(false);
   const [pillDismissed, setPillDismissed] = useState(false);
   const [selected, setSelected] = useState<OnlineUser | null>(null);
+  const [view, setView] = useState<"stats" | "dm">("stats");
+  const [mainTab, setMainTab] = useState<"online" | "lobby">("online");
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState(false);
   const [stats, setStats] = useState<PlayerStats | null>(null);
@@ -121,11 +130,20 @@ export default function WhoIsOnlineControl({
   useEffect(() => {
     if (!open) {
       setSelected(null);
+      setView("stats");
+      setMainTab("online");
       setStats(null);
       setStatsError(false);
       setStatsLoading(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    setView("stats");
+  }, [selected]);
+
+  const canDm =
+    canAccessDirectMessages(username) || canAccessDirectMessages(guestUser?.username);
 
   useEffect(() => {
     if (!selected) {
@@ -237,9 +255,12 @@ export default function WhoIsOnlineControl({
                     {selected && (
                       <button
                         type="button"
-                        onClick={() => setSelected(null)}
+                        onClick={() => {
+                          if (view === "dm") setView("stats");
+                          else setSelected(null);
+                        }}
                         className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-400/40 text-emerald-200 transition hover:bg-emerald-500/15"
-                        aria-label="Back to online list"
+                        aria-label="Back"
                       >
                         <ChevronLeft className="h-5 w-5" />
                       </button>
@@ -253,7 +274,9 @@ export default function WhoIsOnlineControl({
                       </h3>
                       <p className="mt-0.5 font-dmSans text-xs text-[#8aa4b0]">
                         {selected ? (
-                          "Player stats"
+                          view === "dm" ? "Direct message" : "Player stats"
+                        ) : mainTab === "lobby" ? (
+                          "Public lobby · everyone can chat"
                         ) : (
                           <>
                             <span className="font-orbitron font-bold text-emerald-300">{onlineCount}</span>
@@ -274,7 +297,42 @@ export default function WhoIsOnlineControl({
                   </button>
                 </div>
 
-                {selected ? (
+                {!selected && (
+                  <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-emerald-500/20 bg-black/20 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setMainTab("online")}
+                      className={`min-h-10 rounded-lg font-orbitron text-[11px] font-bold uppercase tracking-wider transition ${
+                        mainTab === "online"
+                          ? "bg-emerald-500/25 text-emerald-200"
+                          : "text-[#8aa4b0] hover:text-emerald-200"
+                      }`}
+                    >
+                      Online
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMainTab("lobby")}
+                      className={`min-h-10 rounded-lg font-orbitron text-[11px] font-bold uppercase tracking-wider transition ${
+                        mainTab === "lobby"
+                          ? "bg-cyan-500/25 text-cyan-200"
+                          : "text-[#8aa4b0] hover:text-cyan-200"
+                      }`}
+                    >
+                      Lobby
+                    </button>
+                  </div>
+                )}
+
+                {selected && view === "dm" && canDm ? (
+                  <OnlineDmPanel
+                    otherUserId={stats?.userId ?? selected.userId}
+                    otherUsername={stats?.username ?? selected.username}
+                    otherAddress={stats?.address ?? selected.address}
+                    myUserId={guestUser?.id}
+                    myUsername={guestUser?.username ?? username}
+                  />
+                ) : selected ? (
                   <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/8 px-4 py-4">
                     {statsLoading ? (
                       <div className="flex flex-col items-center justify-center gap-3 py-10">
@@ -287,6 +345,16 @@ export default function WhoIsOnlineControl({
                         <p className="mt-1 font-dmSans text-xs text-[#8aa4b0]">
                           No profile found for this player yet.
                         </p>
+                        {(selected.userId || selected.username || selected.address) && canDm && (
+                          <button
+                            type="button"
+                            onClick={() => setView("dm")}
+                            className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-400/45 bg-emerald-500/15 px-4 font-orbitron text-xs font-bold uppercase tracking-wider text-emerald-200"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                            Message anyway
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <>
@@ -336,9 +404,25 @@ export default function WhoIsOnlineControl({
                             </dd>
                           </div>
                         </dl>
+                        {canDm && (
+                          <button
+                            type="button"
+                            onClick={() => setView("dm")}
+                            className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-cyan-400/45 bg-cyan-500/15 font-orbitron text-xs font-bold uppercase tracking-wider text-cyan-100 transition hover:bg-cyan-500/25"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                            Message
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
+                ) : mainTab === "lobby" ? (
+                  <OnlineLobbyPanel
+                    address={presenceAddress}
+                    userId={guestUser?.id}
+                    username={guestUser?.username ?? username}
+                  />
                 ) : onlineUsers.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-emerald-500/25 bg-emerald-950/10 px-4 py-8 text-center">
                     <Globe className="mx-auto mb-2 h-6 w-6 text-emerald-400/50" />
@@ -385,10 +469,14 @@ export default function WhoIsOnlineControl({
 
                 <button
                   type="button"
-                  onClick={selected ? () => setSelected(null) : closeSheet}
+                  onClick={() => {
+                    if (view === "dm") setView("stats");
+                    else if (selected) setSelected(null);
+                    else closeSheet();
+                  }}
                   className="mt-5 flex min-h-12 w-full items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-500/10 font-orbitron text-xs font-bold uppercase tracking-wider text-emerald-200 transition hover:bg-emerald-500/20"
                 >
-                  {selected ? "Back to list" : "Close"}
+                  {view === "dm" ? "Back to stats" : selected ? "Back to list" : "Close"}
                 </button>
               </div>
             </motion.div>

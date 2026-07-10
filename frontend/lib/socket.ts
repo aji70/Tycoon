@@ -76,6 +76,13 @@ class SocketService {
     }
   }
 
+  /** Direct message realtime delivery. */
+  onDmMessage(callback: (data: { conversationId?: number; message?: { id: number; body: string; senderId: number; username?: string | null; createdAt?: string } }) => void): void {
+    if (this.socket) {
+      this.socket.on("dm-message", callback);
+    }
+  }
+
   // Event listeners with proper typing
   onGameCreated(callback: (data: GameCreatedData) => void): void {
     if (this.socket) {

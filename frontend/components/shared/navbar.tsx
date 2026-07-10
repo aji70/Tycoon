@@ -22,6 +22,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 import WhoIsOnlineControl from '@/components/shared/WhoIsOnlineControl';
+import LobbyChatControl from '@/components/shared/LobbyChatControl';
 import { useGetUsername } from '@/context/ContractProvider';
 import { canAccessMultiplayerPreview } from '@/lib/featureAccess';
 import { isAddress } from 'viem';
@@ -138,12 +139,16 @@ const NavBar = () => {
         <Logo className="cursor-pointer md:w-[50px] w-[45px]" image={LogoIcon} href="/" />
 
         <div className="flex items-center gap-[4px]">
-          {/* Soft-launch: Who's online for Ajisabo / Jaibois */}
-          {showWhoIsOnline && (
+          {/* Soft-launch online list, or lobby chat for everyone else signed in */}
+          {showWhoIsOnline ? (
             <div className="hidden md:block">
               <WhoIsOnlineControl username={headerUsername} />
             </div>
-          )}
+          ) : isSignedIn ? (
+            <div className="hidden md:block">
+              <LobbyChatControl username={headerUsername} />
+            </div>
+          ) : null}
 
           {/* Agents → Agent Arena */}
           {isSignedIn && (
