@@ -16,9 +16,32 @@ const messageController = {
       if (result.error) {
         return res.status(400).json({ success: false, message: result.message });
       }
+      const created = result.data;
+      const isLobby =
+        req.body?.room === "lobby" ||
+        req.body?.game_id === "lobby" ||
+        String(req.body?.game_id || "").toLowerCase() === "lobby";
+      if (isLobby && created) {
+        try {
+          const io = req.app.get("io");
+          if (io) {
+            io.to("lobby").emit("lobby-message", {
+              message: {
+                id: created.id,
+                body: created.body,
+                user_id: created.user_id ?? null,
+                username: req.user?.username ?? created.username ?? null,
+                created_at: created.created_at,
+              },
+            });
+          }
+        } catch (_) {
+          // non-fatal
+        }
+      }
       res
         .status(201)
-        .json({ success: true, message: "successful", data: result.data });
+        .json({ success: true, message: "successful", data: created });
     } catch (error) {
       console.error("Error creating message:", error);
       res.status(400).json({ success: false, message: error.message });

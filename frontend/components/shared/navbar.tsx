@@ -23,6 +23,7 @@ import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 import WhoIsOnlineControl from '@/components/shared/WhoIsOnlineControl';
 import LobbyChatControl from '@/components/shared/LobbyChatControl';
+import MessageNotificationBell from '@/components/shared/MessageNotificationBell';
 import { useGetUsername } from '@/context/ContractProvider';
 import { canAccessMultiplayerPreview } from '@/lib/featureAccess';
 import { isAddress } from 'viem';
@@ -149,6 +150,12 @@ const NavBar = () => {
               <LobbyChatControl username={headerUsername} />
             </div>
           ) : null}
+
+          {isSignedIn && (
+            <div className="hidden md:block">
+              <MessageNotificationBell username={headerUsername} />
+            </div>
+          )}
 
           {/* Agents → Agent Arena */}
           {isSignedIn && (

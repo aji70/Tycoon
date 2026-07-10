@@ -9,6 +9,7 @@ import { useAppKitAccount } from "@reown/appkit/react";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import OnlineLobbyPanel from "@/components/shared/OnlineLobbyPanel";
+import { useMessageNotifications } from "@/context/MessageNotificationsContext";
 
 type LobbyChatControlProps = {
   className?: string;
@@ -31,12 +32,24 @@ export default function LobbyChatControl({
   const isConnected = wagmiConnected || appKitConnected;
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
+  const { setLobbyOpen } = useMessageNotifications();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener("tycoon-open-lobby-chat", onOpen);
+    return () => window.removeEventListener("tycoon-open-lobby-chat", onOpen);
+  }, []);
+
+  useEffect(() => {
+    setLobbyOpen(open);
+    return () => setLobbyOpen(false);
+  }, [open, setLobbyOpen]);
 
   const presenceAddress = useMemo(() => {
     if (address) return address;

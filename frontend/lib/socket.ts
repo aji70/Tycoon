@@ -83,6 +83,13 @@ class SocketService {
     }
   }
 
+  /** Global lobby chat realtime delivery. */
+  onLobbyMessage(callback: (data: { message?: { id: number | string; body: string; user_id?: number | null; username?: string | null; created_at?: string } }) => void): void {
+    if (this.socket) {
+      this.socket.on("lobby-message", callback);
+    }
+  }
+
   // Event listeners with proper typing
   onGameCreated(callback: (data: GameCreatedData) => void): void {
     if (this.socket) {

@@ -26,6 +26,7 @@ import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 import WhoIsOnlineControl from '@/components/shared/WhoIsOnlineControl';
 import LobbyChatControl from '@/components/shared/LobbyChatControl';
+import MessageNotificationBell from '@/components/shared/MessageNotificationBell';
 import { canAccessMultiplayerPreview } from '@/lib/featureAccess';
 
 const SCROLL_TOP_THRESHOLD = 40;
@@ -223,6 +224,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
                 </div>
               </div>
               <div className="flex items-center gap-2 relative z-[1]">
+                <MessageNotificationBell username={displayName} />
                 <button
                   type="button"
                   onClick={toggleSound}
