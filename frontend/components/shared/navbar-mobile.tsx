@@ -212,24 +212,22 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
               className="h-1 origin-left shrink-0 rounded-r-full bg-gradient-to-r from-[#00F0FF] to-[#0FF0FC] shadow-[0_0_12px_rgba(0,240,255,0.6)]"
               style={{ scaleX }}
             />
-            <div className="flex-1 flex items-center justify-between px-4 bg-gradient-to-b from-[#021a1b]/95 to-[#010F10]/98 backdrop-blur-xl border-b-2 border-[#00F0FF]/20 shadow-[0_4px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(0,240,255,0.08)] relative">
-              <Logo className="w-[44px] drop-shadow-[0_0_8px_rgba(0,240,255,0.2)] relative z-[1]" image={LogoIcon} href="/" />
-              <div className="pointer-events-none absolute inset-x-0 top-0 bottom-0 flex items-center justify-center z-[1]">
-                <div className="pointer-events-auto">
-                  {canAccessMultiplayerPreview(displayName) ? (
-                    <WhoIsOnlineControl username={displayName} />
-                  ) : (
-                    <LobbyChatControl username={displayName} />
-                  )}
-                </div>
+            <div className="flex-1 flex items-center gap-1.5 px-3 sm:px-4 bg-gradient-to-b from-[#021a1b]/95 to-[#010F10]/98 backdrop-blur-xl border-b-2 border-[#00F0FF]/20 shadow-[0_4px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(0,240,255,0.08)]">
+              <Logo className="w-[40px] sm:w-[44px] shrink-0 drop-shadow-[0_0_8px_rgba(0,240,255,0.2)]" image={LogoIcon} href="/" />
+              <div className="min-w-0 flex-1 flex items-center justify-center px-0.5">
+                {canAccessMultiplayerPreview(displayName) ? (
+                  <WhoIsOnlineControl username={displayName} />
+                ) : (
+                  <LobbyChatControl username={displayName} />
+                )}
               </div>
-              <div className="flex items-center gap-2 relative z-[1]">
+              <div className="flex shrink-0 items-center gap-1 sm:gap-2">
                 <MessageNotificationBell username={displayName} />
                 <button
                   type="button"
                   onClick={toggleSound}
                   aria-label={isSoundPlaying ? 'Sound on' : 'Sound off'}
-                  className="w-11 h-11 rounded-xl bg-gradient-to-b from-[#03383a] to-[#011112] border border-[#00F0FF]/25 flex items-center justify-center text-white/90 hover:border-[#00F0FF]/40 hover:shadow-[0_0_16px_rgba(0,240,255,0.12)] active:scale-[0.97] transition-all duration-200"
+                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-b from-[#03383a] to-[#011112] border border-[#00F0FF]/25 flex items-center justify-center text-white/90 hover:border-[#00F0FF]/40 hover:shadow-[0_0_16px_rgba(0,240,255,0.12)] active:scale-[0.97] transition-all duration-200"
                 >
                   {isSoundPlaying ? <Volume2 size={20} /> : <VolumeOff size={20} />}
                 </button>
@@ -237,7 +235,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
                   type="button"
                   onClick={() => setIsMobileMenuOpen(true)}
                   aria-label="Open main menu"
-                  className="w-11 h-11 rounded-xl bg-gradient-to-b from-[#03383a] to-[#011112] border border-[#00F0FF]/35 flex items-center justify-center text-[#00F0FF] hover:border-[#00F0FF]/55 hover:shadow-[0_0_18px_rgba(0,240,255,0.2)] active:scale-[0.97] transition-all duration-200"
+                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-b from-[#03383a] to-[#011112] border border-[#00F0FF]/35 flex items-center justify-center text-[#00F0FF] hover:border-[#00F0FF]/55 hover:shadow-[0_0_18px_rgba(0,240,255,0.2)] active:scale-[0.97] transition-all duration-200"
                 >
                   <Menu size={21} strokeWidth={2.5} aria-hidden />
                 </button>

@@ -137,7 +137,7 @@ export default function LobbyChatControl({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`inline-flex min-h-9 max-w-[9.5rem] items-center gap-1.5 rounded-full border border-[#00F0FF]/35 bg-[#00F0FF]/10 px-2.5 py-1.5 font-dmSans text-[11px] text-[#9ad8e4] shadow-[0_0_14px_rgba(0,240,255,0.12)] transition hover:border-[#00F0FF]/55 hover:text-[#00F0FF] active:scale-[0.98] ${className}`}
+        className={`inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border border-[#00F0FF]/35 bg-[#00F0FF]/10 px-2 py-1.5 font-dmSans text-[11px] text-[#9ad8e4] shadow-[0_0_14px_rgba(0,240,255,0.12)] transition hover:border-[#00F0FF]/55 hover:text-[#00F0FF] active:scale-[0.98] sm:px-2.5 ${className}`}
         aria-label="Open lobby chat"
       >
         <MessageCircle className="h-3.5 w-3.5 shrink-0 text-[#00F0FF]" />

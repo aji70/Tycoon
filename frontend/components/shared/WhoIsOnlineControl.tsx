@@ -3,19 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, Globe, Loader2, MessageCircle, X } from "lucide-react";
+import { ChevronLeft, Globe, Loader2, MessageCircle, Swords, X } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useAppKitAccount } from "@reown/appkit/react";
 import { useOnlineUsers, type OnlineUser } from "@/hooks/useOnlineUsers";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
-import { canAccessMultiplayerPreview, canAccessDirectMessages } from "@/lib/featureAccess";
+import { canAccessMultiplayerPreview, canAccessDirectMessages, canAccessChallenges } from "@/lib/featureAccess";
 import { apiClient } from "@/lib/api";
 import OnlineDmPanel from "@/components/shared/OnlineDmPanel";
 import OnlineLobbyPanel from "@/components/shared/OnlineLobbyPanel";
 import { useMessageNotifications } from "@/context/MessageNotificationsContext";
 import { presenceStatusLabel, resolvePresenceFromPath } from "@/lib/presenceStatus";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { toast } from "react-toastify";
 
 const DISMISS_KEY = "tycoon_who_is_online_pill_dismissed";
 
@@ -91,6 +92,7 @@ export default function WhoIsOnlineControl({
 }: WhoIsOnlineControlProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { address: wagmiAddress } = useAccount();
   const { address: appKitAddress } = useAppKitAccount();
   const address = wagmiAddress ?? appKitAddress;
@@ -109,6 +111,7 @@ export default function WhoIsOnlineControl({
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState(false);
   const [stats, setStats] = useState<PlayerStats | null>(null);
+  const [challengeBusy, setChallengeBusy] = useState(false);
   const { setLobbyOpen, setActiveDmConversationId } = useMessageNotifications();
 
   useEffect(() => {
@@ -181,6 +184,56 @@ export default function WhoIsOnlineControl({
 
   const canDm =
     canAccessDirectMessages(username) || canAccessDirectMessages(guestUser?.username);
+  const canChallenge =
+    canAccessChallenges(username) || canAccessChallenges(guestUser?.username);
+
+  const sendChallenge = async (opponentUserId?: number | null) => {
+    if (!opponentUserId || challengeBusy) return;
+    if (guestUser?.id != null && Number(guestUser.id) === Number(opponentUserId)) {
+      toast.error("You can't challenge yourself");
+      return;
+    }
+    setChallengeBusy(true);
+    const toastId = toast.loading("Sending challenge…");
+    try {
+      const res = await apiClient.post(
+        "/challenges",
+        {
+          opponentId: opponentUserId,
+          chain: "CELO",
+        },
+        { timeout: 120000 }
+      );
+      const body = res?.data as {
+        data?: { game?: { code?: string }; challenge?: { gameCode?: string } };
+        message?: string;
+      };
+      const code =
+        body?.data?.game?.code ||
+        body?.data?.challenge?.gameCode ||
+        "";
+      toast.update(toastId, {
+        render: "Challenge sent — waiting in lobby",
+        type: "success",
+        isLoading: false,
+        autoClose: 2500,
+      });
+      setOpen(false);
+      setSelected(null);
+      if (code) {
+        router.push(`/game-waiting-3d?gameCode=${encodeURIComponent(code)}`);
+      }
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data
+          ?.message ||
+        (err as Error)?.message ||
+        "Challenge failed";
+      toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 6000 });
+    } finally {
+      setChallengeBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!selected) {
@@ -392,6 +445,21 @@ export default function WhoIsOnlineControl({
                             Message anyway
                           </button>
                         )}
+                        {canChallenge && selected.userId && (
+                          <button
+                            type="button"
+                            disabled={challengeBusy}
+                            onClick={() => void sendChallenge(selected.userId)}
+                            className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-400/45 bg-rose-500/15 px-4 font-orbitron text-xs font-bold uppercase tracking-wider text-rose-200 disabled:opacity-50"
+                          >
+                            {challengeBusy ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Swords className="h-4 w-4" />
+                            )}
+                            Challenge anyway
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <>
@@ -449,6 +517,21 @@ export default function WhoIsOnlineControl({
                           >
                             <MessageCircle className="h-4 w-4" />
                             Message
+                          </button>
+                        )}
+                        {canChallenge && (stats.userId || selected.userId) && (
+                          <button
+                            type="button"
+                            disabled={challengeBusy}
+                            onClick={() => void sendChallenge(stats.userId ?? selected.userId)}
+                            className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-rose-400/45 bg-rose-500/15 font-orbitron text-xs font-bold uppercase tracking-wider text-rose-100 transition hover:bg-rose-500/25 disabled:opacity-50"
+                          >
+                            {challengeBusy ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Swords className="h-4 w-4" />
+                            )}
+                            Challenge
                           </button>
                         )}
                       </>
@@ -544,10 +627,10 @@ export default function WhoIsOnlineControl({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className={`inline-flex min-h-9 items-center gap-1.5 font-dmSans text-[11px] text-[#9ad8e4] transition hover:text-[#00F0FF] active:scale-[0.98] ${
+          className={`inline-flex min-h-9 max-w-full items-center gap-1.5 font-dmSans text-[11px] text-[#9ad8e4] transition hover:text-[#00F0FF] active:scale-[0.98] ${
             isPage
               ? "rounded-full px-2.5 py-1.5"
-              : "max-w-[9.5rem] rounded-full border border-[#00F0FF]/35 bg-[#00F0FF]/10 px-2.5 py-1.5 shadow-[0_0_14px_rgba(0,240,255,0.12)] hover:border-[#00F0FF]/55"
+              : "rounded-full border border-[#00F0FF]/35 bg-[#00F0FF]/10 px-2 py-1.5 shadow-[0_0_14px_rgba(0,240,255,0.12)] hover:border-[#00F0FF]/55 sm:px-2.5"
           }`}
           aria-label={`${onlineCount} players online — tap to view`}
         >
@@ -557,7 +640,7 @@ export default function WhoIsOnlineControl({
             transition={{ repeat: Infinity, duration: 1.2 }}
           />
           <Globe className="h-3.5 w-3.5 shrink-0 text-[#00F0FF]" />
-          <span className="truncate">
+          <span className="min-w-0 truncate">
             <span className="font-orbitron font-bold text-[#00F0FF]">{onlineCount}</span>
             <span className="text-[#8aa4b0]"> online</span>
           </span>

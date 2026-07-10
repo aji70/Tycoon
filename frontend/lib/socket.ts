@@ -105,6 +105,25 @@ class SocketService {
     }
   }
 
+  /** Online PvP challenge invite / accept / reject. */
+  onPlayerChallenge(callback: (data: {
+    type?: "incoming" | "outgoing" | "accepted" | "rejected" | "cancelled" | "expired";
+    challenge?: {
+      id: number;
+      challengerId: number;
+      opponentId: number;
+      gameId?: number | null;
+      gameCode: string;
+      status: string;
+      challengerUsername?: string | null;
+      opponentUsername?: string | null;
+    };
+  }) => void): void {
+    if (this.socket) {
+      this.socket.on("player-challenge", callback);
+    }
+  }
+
   // Event listeners with proper typing
   onGameCreated(callback: (data: GameCreatedData) => void): void {
     if (this.socket) {
