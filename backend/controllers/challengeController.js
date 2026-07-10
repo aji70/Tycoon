@@ -43,7 +43,9 @@ function forbidUnlessChallengePreview(req, res) {
 function canUseGuestFlow(user, req) {
   if (!user) return false;
   if (req?.resolvedByAddress) return true;
-  return user.is_guest === true || (user.privy_did && String(user.privy_did).trim());
+  if (user.is_guest === true || (user.privy_did && String(user.privy_did).trim())) return true;
+  // Wallet / JWT sessions (not only guest accounts)
+  return Number(user.id) > 0;
 }
 
 function generateChallengeCode() {
@@ -294,7 +296,10 @@ const challengeController = {
       const me = Number(req.userId);
       const user = req.user;
       if (!canUseGuestFlow(user, req)) {
-        return res.status(403).json({ success: false, message: "Guest authentication required" });
+        return res.status(403).json({
+          success: false,
+          message: "Sign in or connect your wallet to challenge a player",
+        });
       }
 
       const opponentId = Number(req.body?.opponentId ?? req.body?.userId);
@@ -388,7 +393,10 @@ const challengeController = {
       const me = Number(req.userId);
       const user = req.user;
       if (!canUseGuestFlow(user, req)) {
-        return res.status(403).json({ success: false, message: "Guest authentication required" });
+        return res.status(403).json({
+          success: false,
+          message: "Sign in or connect your wallet to challenge a player",
+        });
       }
 
       const id = Number(req.params.id);

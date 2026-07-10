@@ -23,6 +23,23 @@ const messageController = {
         String(req.body?.game_id || "").toLowerCase() === "lobby";
       if (isLobby && created) {
         try {
+          let username = created.username ?? null;
+          let address = created.address ?? null;
+          let displayName = created.display_name ?? null;
+          if (created.user_id && (!username || !displayName)) {
+            const User = (await import("../models/User.js")).default;
+            const u = await User.findById(created.user_id);
+            username = u?.username ?? username;
+            address = u?.address ?? address;
+            if (!displayName) {
+              displayName =
+                (username && String(username).trim()) ||
+                (address && address.length >= 10
+                  ? `${address.slice(0, 6)}…${address.slice(-4)}`
+                  : null) ||
+                `Player #${created.user_id}`;
+            }
+          }
           const io = req.app.get("io");
           if (io) {
             io.to("lobby").emit("lobby-message", {
@@ -30,7 +47,9 @@ const messageController = {
                 id: created.id,
                 body: created.body,
                 user_id: created.user_id ?? null,
-                username: req.user?.username ?? created.username ?? null,
+                username,
+                address,
+                display_name: displayName,
                 created_at: created.created_at,
               },
             });

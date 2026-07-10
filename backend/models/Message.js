@@ -161,15 +161,34 @@ const Message = {
       .leftJoin("users as u", "m.user_id", "u.id")
       .where({ "m.chat_id": lobbyChat.id })
       .orderBy("m.id", "asc")
-      .select("m.id", "m.body", "m.player_id", "m.user_id", "m.created_at", "u.username");
-    return rows.map((r) => ({
-      id: r.id,
-      body: r.body,
-      player_id: String(r.player_id ?? ""),
-      user_id: r.user_id ?? null,
-      created_at: r.created_at,
-      username: r.username ?? null,
-    }));
+      .select(
+        "m.id",
+        "m.body",
+        "m.player_id",
+        "m.user_id",
+        "m.created_at",
+        "u.username",
+        "u.address"
+      );
+    return rows.map((r) => {
+      const username = r.username != null && String(r.username).trim() ? String(r.username).trim() : null;
+      const address = r.address != null && String(r.address).trim() ? String(r.address).trim() : null;
+      let displayName = username;
+      if (!displayName && address && address.length >= 10) {
+        displayName = `${address.slice(0, 6)}…${address.slice(-4)}`;
+      }
+      if (!displayName) displayName = r.user_id != null ? `Player #${r.user_id}` : "Player";
+      return {
+        id: r.id,
+        body: r.body,
+        player_id: String(r.player_id ?? ""),
+        user_id: r.user_id ?? null,
+        created_at: r.created_at,
+        username,
+        address,
+        display_name: displayName,
+      };
+    });
   },
 
   async update(id, messageData) {
