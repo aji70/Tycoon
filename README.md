@@ -11,7 +11,7 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 
 📖 **For a complete technical reference** of all game rules, formulas, and calculations, see [GAME_MECHANICS.md](./GAME_MECHANICS.md)
 
-📘 **GoodDollar (G$) integration plan** (GoodBuilders Season 4): [GOODDOLLAR_INTEGRATION.md](./GOODDOLLAR_INTEGRATION.md)
+📘 **GoodDollar (G$) integration plan** (GoodBuilders Season 4): [GOODDOLLAR_INTEGRATION.md]
 
 ---
 
