@@ -1,13 +1,14 @@
 "use client";
 
+import { useWriteContract } from '@/hooks/useTaggedWriteContract';
+
 import { useCallback } from "react";
 import {
   useChainId,
   useAccount,
   usePublicClient,
-  useWriteContract,
   useWaitForTransactionReceipt,
-} from "wagmi";
+} from 'wagmi';
 import { encodeFunctionData, type Address } from "viem";
 import { TOURNAMENT_ESCROW_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 import TycoonTournamentEscrowAbi from "@/context/abi/TycoonTournamentEscrow.json";

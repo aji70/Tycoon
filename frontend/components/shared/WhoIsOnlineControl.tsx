@@ -1,10 +1,12 @@
 "use client";
 
+import { useWriteContract } from '@/hooks/useTaggedWriteContract';
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, Globe, Loader2, MessageCircle, Swords, X } from "lucide-react";
-import { useAccount, useChainId, usePublicClient, useWriteContract, useReadContract } from "wagmi";
+import { useAccount, useChainId, usePublicClient, useReadContract } from 'wagmi';
 import { useAppKitAccount } from "@reown/appkit/react";
 import { useOnlineUsers, type OnlineUser } from "@/hooks/useOnlineUsers";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";

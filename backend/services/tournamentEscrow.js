@@ -3,7 +3,8 @@
  * Uses same backend wallet and tx queue as tycoonContract to avoid nonce collisions.
  * Env per chain: TOURNAMENT_ESCROW_ADDRESS_POLYGON (or TOURNAMENT_ESCROW_POLYGON), etc.
  */
-import { JsonRpcProvider, Wallet, Contract, Network } from "ethers";
+import { JsonRpcProvider, Contract, Network } from "ethers";
+import { createAttributedWallet } from "./celoAttribution.js";
 import { getChainConfig } from "../config/chains.js";
 import { withTxQueue } from "./tycoonContract.js";
 import logger from "../config/logger.js";
@@ -101,7 +102,7 @@ async function assertEscrowSignerAuthorized(chain) {
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
   const network = new Network(networkName, cfg.chainId);
   const provider = new JsonRpcProvider(cfg.rpcUrl, network);
-  const wallet = new Wallet(pk, provider);
+  const wallet = createAttributedWallet(pk, provider);
   const read = new Contract(cfg.tournamentEscrowAddress, ESCROW_READ_ABI, provider);
 
   const [onChainBackend, onChainOwner] = await Promise.all([read.backend(), read.owner()]);
@@ -137,7 +138,7 @@ function getEscrowContract(chain) {
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
   const network = new Network(networkName, chainId);
   const provider = new JsonRpcProvider(rpcUrl, network);
-  const wallet = new Wallet(pk, provider);
+  const wallet = createAttributedWallet(pk, provider);
   return new Contract(tournamentEscrowAddress, ESCROW_ABI, wallet);
 }
 

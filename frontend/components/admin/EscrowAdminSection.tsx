@@ -1,5 +1,7 @@
 "use client";
 
+import { useWriteContract } from '@/hooks/useTaggedWriteContract';
+
 import React, { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
@@ -14,7 +16,7 @@ import {
   Settings2,
   Wallet,
 } from "lucide-react";
-import { useAccount, useChainId, usePublicClient, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount, useChainId, usePublicClient, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
 import { REWARD_CONTRACT_ADDRESSES, TOURNAMENT_ESCROW_ADDRESSES } from "@/constants/contracts";
 import TycoonTournamentEscrowAbi from "@/context/abi/TycoonTournamentEscrow.json";
 

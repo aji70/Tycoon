@@ -1,6 +1,7 @@
-import { createWalletClient, custom, getAddress, type Address, type Chain } from "viem";
+import { createWalletClient, custom, encodeFunctionData, getAddress, type Address, type Chain } from "viem";
 import { celo, celoAlfajores } from "viem/chains";
 import type { Abi } from "viem";
+import { appendAttributionTag } from "@/lib/celoAttribution";
 
 type EthereumProvider = {
   request: (args: { method: string; params?: readonly unknown[] }) => Promise<unknown>;
@@ -119,11 +120,17 @@ export async function registerErc8004AgentViaInjectedEoa(params: {
     // Already on chain or wallet will prompt on send
   }
 
-  const hash = await walletClient.writeContract({
-    address: params.contractAddress,
-    abi: params.abi,
-    functionName: "register",
-    args: [params.agentURI],
+  const data = appendAttributionTag(
+    encodeFunctionData({
+      abi: params.abi,
+      functionName: "register",
+      args: [params.agentURI],
+    })
+  );
+
+  const hash = await walletClient.sendTransaction({
+    to: params.contractAddress,
+    data,
     account,
     chain,
   });

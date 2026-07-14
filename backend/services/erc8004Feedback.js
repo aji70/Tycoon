@@ -13,7 +13,8 @@
  * - Watches: Platform-level (users following agent on 8004scan). Not controllable from backend.
  */
 
-import { Contract, JsonRpcProvider, Wallet } from "ethers";
+import { Contract, JsonRpcProvider } from "ethers";
+import { createAttributedWallet } from "./celoAttribution.js";
 import { getChainConfig } from "../config/chains.js";
 import logger from "../config/logger.js";
 
@@ -62,7 +63,7 @@ export async function submitErc8004Feedback(agentId, score, tag2 = "gameResult",
   const registryAddress = CELO_REPUTATION_ADDRESS;
   const provider = new JsonRpcProvider(rpcUrl);
   const pk = String(privateKey).startsWith("0x") ? privateKey : `0x${privateKey}`;
-  const wallet = new Wallet(pk, provider);
+  const wallet = createAttributedWallet(pk, provider);
   const contract = new Contract(registryAddress, REPUTATION_REGISTRY_ABI, wallet);
 
   const id = typeof agentId === "bigint" ? agentId : BigInt(agentIdStr);

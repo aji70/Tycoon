@@ -4,7 +4,8 @@
  *
  * Keys: AI_PLAYER_{slot}_PRIVATE_KEY (slots 1–8), same addresses as frontend AI_ADDRESSES when generated via scripts/generate-ai-keys.js.
  */
-import { JsonRpcProvider, Wallet, Contract, Network } from "ethers";
+import { JsonRpcProvider, Contract, Network } from "ethers";
+import { createAttributedWallet } from "./celoAttribution.js";
 import { getChainConfig } from "../config/chains.js";
 import logger from "../config/logger.js";
 
@@ -94,7 +95,7 @@ export async function recordPropertySaleByAgentWallet({
   const network = new Network(networkName, chainId);
   const provider = new JsonRpcProvider(rpcUrl, network);
   const pk = String(privateKey).startsWith("0x") ? privateKey : `0x${privateKey}`;
-  const wallet = new Wallet(pk, provider);
+  const wallet = createAttributedWallet(pk, provider);
 
   const allowed = await new Contract(gameFaucetAddress, GAME_FAUCET_AGENT_ABI, provider).authorizedAgentWriters(
     wallet.address

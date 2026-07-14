@@ -1,8 +1,10 @@
 "use client";
 
+import { useWriteContract } from '@/hooks/useTaggedWriteContract';
+
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useAccount, useBalance, useChainId, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount, useBalance, useChainId, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useUserRegistryWallet, useProfileOwner, useTransferProfileTo } from "@/context/ContractProvider";
 import { useRewardTokenAddresses } from "@/context/ContractProvider";

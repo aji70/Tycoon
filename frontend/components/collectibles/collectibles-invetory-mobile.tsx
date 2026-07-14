@@ -1,15 +1,16 @@
 'use client';
 
+import { useWriteContract } from '@/hooks/useTaggedWriteContract';
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   useAccount,
   useChainId,
   useReadContract,
   useReadContracts,
-  useWriteContract,
   useWaitForTransactionReceipt,
   useBalance,
-} from "wagmi";
+} from 'wagmi';
 import { formatUnits, type Address, type Abi, erc20Abi } from "viem";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";

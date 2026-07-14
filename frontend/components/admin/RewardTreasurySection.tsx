@@ -1,5 +1,7 @@
 "use client";
 
+import { useWriteContract } from '@/hooks/useTaggedWriteContract';
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   useAccount,
@@ -7,8 +9,7 @@ import {
   useChainId,
   usePublicClient,
   useReadContract,
-  useWriteContract,
-} from "wagmi";
+} from 'wagmi';
 import { useAppKit } from "@reown/appkit/react";
 import { formatUnits, isAddress, parseUnits, type Address } from "viem";
 import {

@@ -1,5 +1,7 @@
 'use client';
 
+import { useWriteContract } from '@/hooks/useTaggedWriteContract';
+
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import {
@@ -8,7 +10,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import avatar from '@/public/avatar.jpg';
-import { useAccount, useBalance, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useBalance, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
 import { type Address } from 'viem';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';

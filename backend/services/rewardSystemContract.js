@@ -6,7 +6,8 @@
  *
  * Shares the global tx queue with tycoonContract when using the same wallet, avoiding nonce collisions.
  */
-import { JsonRpcProvider, Wallet, Contract, parseUnits, ZeroAddress } from "ethers";
+import { JsonRpcProvider, Contract, parseUnits, ZeroAddress } from "ethers";
+import { createAttributedWallet } from "./celoAttribution.js";
 import { getChainConfig } from "../config/chains.js";
 import { INITIAL_COLLECTIBLES, BUNDLE_DEFS_FOR_STOCK, PERK_NAMES } from "../config/shopStockConstants.js";
 import logger from "../config/logger.js";
@@ -151,7 +152,7 @@ function getRewardSystemWallet(chain = "CELO") {
   }
   const pk = getRewardStockPrivateKey(chain);
   const provider = new JsonRpcProvider(config.rpcUrl);
-  return new Wallet(pk, provider);
+  return createAttributedWallet(pk, provider);
 }
 
 export async function resolveRewardSystemAddress(chain = "CELO") {

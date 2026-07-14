@@ -1,5 +1,7 @@
 "use client";
 
+import { useWriteContract } from '@/hooks/useTaggedWriteContract';
+
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -9,9 +11,8 @@ import {
   useAccount,
   useChainId,
   usePublicClient,
-  useWriteContract,
   useReadContract,
-} from "wagmi";
+} from 'wagmi';
 import { useAppKitAccount } from "@reown/appkit/react";
 import { isAddress, type Address } from "viem";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";

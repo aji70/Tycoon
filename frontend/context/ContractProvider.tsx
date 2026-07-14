@@ -1,10 +1,11 @@
 'use client';
 
+import { useWriteContract } from '@/hooks/useTaggedWriteContract';
+
 import { createContext, useContext, useCallback, useMemo, useState } from 'react';
 import {
   useReadContract,
   useReadContracts,
-  useWriteContract,
   useAccount,
   useWaitForTransactionReceipt,
   useChainId,

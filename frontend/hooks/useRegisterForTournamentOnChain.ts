@@ -1,13 +1,14 @@
 "use client";
 
+import { useWriteContract } from '@/hooks/useTaggedWriteContract';
+
 import { useCallback } from "react";
 import {
   useChainId,
   useAccount,
   usePublicClient,
-  useWriteContract,
   useWaitForTransactionReceipt,
-} from "wagmi";
+} from 'wagmi';
 import {
   TOURNAMENT_ESCROW_ADDRESSES,
   USDC_TOKEN_ADDRESS,

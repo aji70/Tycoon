@@ -1,5 +1,7 @@
 "use client";
 
+import { useWriteContract } from '@/hooks/useTaggedWriteContract';
+
 import { useState, useEffect } from "react";
 import {
   useAccount,
@@ -7,9 +9,8 @@ import {
   usePublicClient,
   useReadContract,
   useReadContracts,
-  useWriteContract,
   useWaitForTransactionReceipt,
-} from "wagmi";
+} from 'wagmi';
 import { parseUnits, formatUnits, type Address, type Abi } from "viem";
 import RewardABI from "@/context/abi/rewardabi.json";
 import {
