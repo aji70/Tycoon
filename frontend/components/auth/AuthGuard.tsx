@@ -13,6 +13,7 @@ const PUBLIC_PATHS = [
   "/win",
   "/rooms",
   "/leaderboard",
+  "/stats",
   "/terms",
   "/privacy",
   "/cookies",
