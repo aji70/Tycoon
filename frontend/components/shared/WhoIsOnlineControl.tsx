@@ -30,6 +30,7 @@ import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { isAddress, type Address } from "viem";
 import Erc20Abi from "@/context/abi/ERC20abi.json";
 import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
+import { useMediaQuery } from "@/components/useMediaQuery";
 
 const DISMISS_KEY = "tycoon_who_is_online_pill_dismissed";
 
@@ -103,6 +104,7 @@ export default function WhoIsOnlineControl({
   forceShow = false,
   variant = "nav",
 }: WhoIsOnlineControlProps) {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -511,16 +513,22 @@ export default function WhoIsOnlineControl({
               role="dialog"
               aria-modal="true"
               aria-labelledby="who-online-sheet-title"
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
+              initial={isMobile ? { y: "100%" } : { opacity: 0, scale: 0.96 }}
+              animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1 }}
+              exit={isMobile ? { y: "100%" } : { opacity: 0, scale: 0.96 }}
               transition={{ type: "spring", damping: 30, stiffness: 320 }}
-              className="fixed bottom-0 left-0 right-0 z-[1201] max-h-[80dvh] overflow-y-auto rounded-t-2xl border-t-2 border-emerald-500/35 bg-gradient-to-b from-[#0c1c28] to-[#071018] pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_40px_rgba(0,0,0,0.55)]"
+              className={
+                isMobile
+                  ? "fixed bottom-0 left-0 right-0 z-[1201] max-h-[80dvh] overflow-y-auto rounded-t-2xl border-t-2 border-emerald-500/35 bg-gradient-to-b from-[#0c1c28] to-[#071018] pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_40px_rgba(0,0,0,0.55)]"
+                  : "fixed left-1/2 top-1/2 z-[1201] w-[min(100%,32rem)] max-h-[min(85vh,680px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border-2 border-emerald-500/35 bg-gradient-to-b from-[#0c1c28] to-[#071018] shadow-2xl"
+              }
             >
-              <div className="mx-auto max-w-md px-4 pb-6 pt-3">
+              <div className={`mx-auto px-4 pb-6 pt-3 ${isMobile ? "max-w-md" : ""}`}>
+                {isMobile ? (
                 <div className="mb-3 flex justify-center">
                   <div className="h-1.5 w-12 rounded-full bg-emerald-400/60" />
                 </div>
+                ) : null}
 
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="min-w-0 flex items-start gap-2">

@@ -1,23 +1,28 @@
-// hooks/useMediaQuery.ts
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
-export function useMediaQuery(query: string) {
-  const [matches, setMatches] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
+/**
+ * SSR-safe media query hook. Reads matchMedia synchronously on the client so
+ * desktop/mobile layouts resolve correctly on first paint (no false → mobile flash).
+ */
+export function useMediaQuery(query: string): boolean {
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      if (typeof window === "undefined") return () => {};
       const media = window.matchMedia(query);
-      const listener = () => setMatches(media.matches);
-      listener();
-      media.addEventListener("change", listener);
-      return () => media.removeEventListener("change", listener);
-    } catch {
-      setMatches(false);
-    }
+      media.addEventListener("change", onStoreChange);
+      return () => media.removeEventListener("change", onStoreChange);
+    },
+    [query]
+  );
+
+  const getSnapshot = useCallback(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(query).matches;
   }, [query]);
 
-  return matches;
+  const getServerSnapshot = useCallback(() => false, []);
+
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

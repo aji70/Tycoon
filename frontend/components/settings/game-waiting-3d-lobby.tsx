@@ -52,9 +52,6 @@ function SectionLabel({ children, icon }: { children: React.ReactNode; icon?: Re
   );
 }
 
-/**
- * 3D game waiting room. Uses same useWaitingRoom logic; redirects to board-3d-multi when game starts.
- */
 export default function GameWaiting3DLobby(): React.ReactElement {
   const {
     router,
@@ -157,7 +154,7 @@ export default function GameWaiting3DLobby(): React.ReactElement {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45 }}
-        className="relative z-20 w-full max-w-md"
+        className="relative z-20 w-full max-w-md lg:max-w-6xl"
       >
         {/* Header */}
         <motion.div
@@ -185,9 +182,11 @@ export default function GameWaiting3DLobby(): React.ReactElement {
           </p>
         </motion.div>
 
-        <div className="rounded-2xl border border-cyan-500/30 bg-slate-950/80 backdrop-blur-md p-5 sm:p-6 shadow-[0_0_40px_rgba(0,240,255,0.08)]">
+        <div className="rounded-2xl border border-cyan-500/30 bg-slate-950/80 backdrop-blur-md p-5 sm:p-6 lg:p-8 shadow-[0_0_40px_rgba(0,240,255,0.08)]">
+          <div className="lg:grid lg:grid-cols-2 lg:gap-8 lg:items-start">
+            <div className="lg:sticky lg:top-8">
           {/* QR + access code */}
-          <div className="mb-6 p-4 rounded-xl bg-[#0a1516]/90 border border-cyan-500/40 shadow-[inset_0_0_30px_rgba(0,240,255,0.06),0_0_20px_rgba(0,240,255,0.12)]">
+          <div className="mb-6 lg:mb-0 p-4 rounded-xl bg-[#0a1516]/90 border border-cyan-500/40 shadow-[inset_0_0_30px_rgba(0,240,255,0.06),0_0_20px_rgba(0,240,255,0.12)]">
             <SectionLabel icon={<Scan className="w-3.5 h-3.5" />}>Scan to join battle</SectionLabel>
             <motion.div
               className="relative flex flex-col items-center gap-4"
@@ -253,7 +252,9 @@ export default function GameWaiting3DLobby(): React.ReactElement {
               <p className="text-emerald-400 text-xs text-center mt-2 font-orbitron">{copySuccess}</p>
             )}
           </motion.div>
+            </div>
 
+            <div>
           {/* Combatants */}
           <motion.div className="mb-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}>
             <SectionLabel>Combatants</SectionLabel>
@@ -419,6 +420,8 @@ export default function GameWaiting3DLobby(): React.ReactElement {
             >
               JOIN ANOTHER
             </a>
+          </div>
+            </div>
           </div>
         </div>
       </motion.div>
