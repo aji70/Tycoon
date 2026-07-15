@@ -81,15 +81,6 @@ function buildStatCards(data: PublicStatsData): StatCard[] {
       key: "gamesPerPlayer",
       label: "Games per player",
       value: e.gamesPerPlayer.toLocaleString(undefined, { maximumFractionDigits: 1 }),
-      sub: e.mostActivePlayer ? (
-        <>
-          Most active:{" "}
-          <span className="text-slate-300">
-            {e.mostActivePlayer.username ?? "Anonymous"}
-          </span>{" "}
-          · {e.mostActivePlayer.games.toLocaleString()} games
-        </>
-      ) : undefined,
     });
   }
 
