@@ -43,3 +43,5 @@ MINIPAY_SUBMISSION_CHECKLIST.local.md
 !**/Readme.md
 doc/
 docs/
+.vercel
+.env*
