@@ -56,6 +56,17 @@ async function tryPrivyReferralAttach(userId, body) {
     logger.warn({ userId, err: e?.message }, "privy referral attach exception");
   }
 }
+
+async function trySocialReferralAttach(userId, body, source = "web3auth_signin") {
+  const raw = body?.referralCode ?? body?.referral_code ?? body?.ref;
+  if (raw == null || String(raw).trim() === "") return;
+  try {
+    const r = await attachReferralByCode(userId, raw, { source });
+    if (!r.ok) logger.debug({ userId, error: r.error }, `${source} referral attach skipped`);
+  } catch (e) {
+    logger.warn({ userId, err: e?.message }, `${source} referral attach exception`);
+  }
+}
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "../constants/ngnPayments.js";
 import {
   transferToBankAccount,
@@ -64,6 +75,11 @@ import {
   FLW_CHECKOUT_EMAIL,
 } from "../services/flutterwave.js";
 import { celoToNgn, ngnToCelo } from "../services/rates.js";
+import { createRemoteJWKSet, jwtVerify } from "jose";
+import {
+  getSocialAuthId,
+  placeholderAddressForAuthId,
+} from "../utils/onchainUserAddress.js";
 
 /** User-facing message for smart-wallet shop contract reverts. */
 function shopTxErrorMessage(err, fallback) {
@@ -109,10 +125,80 @@ export function privyCheck(_req, res) {
   });
 }
 
-/** Placeholder address for Privy-only users (unique per privy_did, valid 0x hex). */
-function placeholderAddressForPrivyDid(privyDid) {
-  const hash = crypto.createHash("sha256").update(privyDid).digest("hex").slice(0, 40);
-  return `0x${hash}`;
+/** Placeholder address for social-auth-only users (unique per auth id, valid 0x hex). */
+function placeholderAddressForPrivyDid(authId) {
+  return placeholderAddressForAuthId(authId);
+}
+
+const WEB3AUTH_CLIENT_ID = process.env.WEB3AUTH_CLIENT_ID || process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID;
+const WEB3AUTH_JWKS_SOCIAL = createRemoteJWKSet(new URL("https://api-auth.web3auth.io/jwks"));
+const WEB3AUTH_JWKS_EXTERNAL = createRemoteJWKSet(new URL("https://authjs.web3auth.io/jwks"));
+
+/**
+ * Stable Web3Auth subject for users table. Prefer groupedAuthConnectionId + userId.
+ */
+function buildWeb3AuthId(payload) {
+  const userId = payload?.userId ?? payload?.email ?? payload?.sub;
+  if (!userId || typeof userId !== "string") return null;
+  const group = payload?.groupedAuthConnectionId || payload?.authConnection || "web3auth";
+  return `${String(group).trim()}:${String(userId).trim()}`.slice(0, 512);
+}
+
+/**
+ * GET /auth/web3auth-check
+ * Confirms WEB3AUTH_CLIENT_ID is set (must match frontend NEXT_PUBLIC_WEB3AUTH_CLIENT_ID).
+ */
+export function web3authCheck(_req, res) {
+  const configured = !!WEB3AUTH_CLIENT_ID;
+  const masked =
+    WEB3AUTH_CLIENT_ID && WEB3AUTH_CLIENT_ID.length > 12
+      ? `${WEB3AUTH_CLIENT_ID.slice(0, 6)}...${WEB3AUTH_CLIENT_ID.slice(-4)}`
+      : configured
+        ? "***"
+        : null;
+  res.json({
+    web3authConfigured: configured,
+    web3authClientIdMasked: masked,
+    hint: configured
+      ? "Backend WEB3AUTH_CLIENT_ID should match frontend NEXT_PUBLIC_WEB3AUTH_CLIENT_ID (same Embedded Wallets project)."
+      : "Set WEB3AUTH_CLIENT_ID in backend env (same Client ID as the frontend).",
+  });
+}
+
+/**
+ * Verify Web3Auth identity token (social or external-wallet issuer).
+ * @returns {Promise<object>} JWT payload
+ */
+async function verifyWeb3AuthIdToken(idToken) {
+  if (!WEB3AUTH_CLIENT_ID) {
+    const err = new Error("Web3Auth not configured");
+    err.status = 503;
+    throw err;
+  }
+  const verifyOpts = {
+    algorithms: ["ES256"],
+    audience: WEB3AUTH_CLIENT_ID,
+  };
+  try {
+    const { payload } = await jwtVerify(idToken, WEB3AUTH_JWKS_SOCIAL, {
+      ...verifyOpts,
+      issuer: "https://api-auth.web3auth.io",
+    });
+    return payload;
+  } catch (socialErr) {
+    try {
+      const { payload } = await jwtVerify(idToken, WEB3AUTH_JWKS_EXTERNAL, {
+        ...verifyOpts,
+        issuer: "https://authjs.web3auth.io",
+      });
+      return payload;
+    } catch (extErr) {
+      const msg = socialErr?.message || extErr?.message || "Invalid Web3Auth token";
+      const err = new Error(msg);
+      err.status = 401;
+      throw err;
+    }
+  }
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || "tycoon-guest-secret-change-in-production";
@@ -575,6 +661,210 @@ export async function privySignin(req, res) {
 }
 
 /**
+ * POST /auth/web3auth-signin
+ * Body: { username } (required on first sign-in for this Web3Auth user)
+ * Authorization: Bearer <web3auth_id_token>
+ *
+ * Same guest-auth JWT shape as Privy. Verifies Web3Auth ID token (audience = WEB3AUTH_CLIENT_ID),
+ * finds/creates user by web3auth_id, and links existing accounts by email when possible.
+ */
+export async function web3authSignin(req, res) {
+  try {
+    if (!WEB3AUTH_CLIENT_ID) {
+      return res.status(503).json({ success: false, message: "Web3Auth not configured" });
+    }
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ success: false, message: "Authorization required (Bearer <web3auth_id_token>)" });
+    }
+    const idToken = authHeader.slice(7);
+
+    let payload;
+    try {
+      payload = await verifyWeb3AuthIdToken(idToken);
+    } catch (err) {
+      const status = err?.status === 503 ? 503 : 401;
+      logger.warn({ err: err?.message }, "Web3Auth token verification failed");
+      return res.status(status).json({
+        success: false,
+        message: status === 503 ? "Web3Auth not configured" : `Invalid or expired Web3Auth token. (${err?.message || "verify failed"})`,
+      });
+    }
+
+    const web3authId = buildWeb3AuthId(payload);
+    if (!web3authId) {
+      return res.status(401).json({ success: false, message: "Invalid Web3Auth token payload (missing userId)" });
+    }
+
+    const tokenEmail =
+      payload?.email && typeof payload.email === "string"
+        ? String(payload.email).trim().toLowerCase()
+        : null;
+
+    let user = await User.findByWeb3AuthId(web3authId);
+    if (user) {
+      if (!user.password_hash) {
+        const secret = crypto.randomBytes(32).toString("hex");
+        const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
+        await db("users").where({ id: user.id }).update({ password_hash: passwordHash });
+        await invalidateUserCache(user.id);
+        user = await User.findById(user.id);
+      }
+      if (tokenEmail && !user.email) {
+        await User.update(user.id, { email: tokenEmail, email_verified: true });
+        user = await User.findById(user.id);
+      }
+      await trySocialReferralAttach(user.id, req.body, "web3auth_signin");
+      const token = jwt.sign(
+        { userId: user.id, address: user.address, username: user.username, isGuest: true },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRY }
+      );
+      const { password_hash, password_hash_email, email_verification_token, ...safe } = user;
+      return res.status(200).json({
+        success: true,
+        data: {
+          token,
+          user: {
+            id: safe.id,
+            username: safe.username,
+            address: safe.address,
+            is_guest: true,
+            web3auth_id: safe.web3auth_id,
+            privy_did: safe.privy_did,
+            email: safe.email,
+            email_verified: safe.email_verified,
+          },
+        },
+      });
+    }
+
+    // Link existing account by email (covers Privy → Web3Auth migration).
+    if (tokenEmail) {
+      const existingByEmail = await User.findByEmail(tokenEmail);
+      if (existingByEmail && !existingByEmail.web3auth_id) {
+        await User.update(existingByEmail.id, {
+          web3auth_id: web3authId,
+          email_verified: true,
+          ...(existingByEmail.email ? {} : { email: tokenEmail }),
+        });
+        user = await User.findById(existingByEmail.id);
+        await trySocialReferralAttach(user.id, req.body, "web3auth_signin");
+        const token = jwt.sign(
+          { userId: user.id, address: user.address, username: user.username, isGuest: !!user.is_guest },
+          JWT_SECRET,
+          { expiresIn: JWT_EXPIRY }
+        );
+        const { password_hash, password_hash_email, email_verification_token, ...safe } = user;
+        return res.status(200).json({
+          success: true,
+          message: "Existing account linked with Web3Auth.",
+          data: {
+            token,
+            user: {
+              id: safe.id,
+              username: safe.username,
+              address: safe.address,
+              is_guest: !!safe.is_guest,
+              web3auth_id: safe.web3auth_id,
+              privy_did: safe.privy_did,
+              email: safe.email,
+              email_verified: safe.email_verified,
+            },
+          },
+        });
+      }
+    }
+
+    const username = req.body?.username;
+    if (!username || typeof username !== "string" || username.trim().length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: "Username required (min 2 characters) for first-time Web3Auth sign-in",
+      });
+    }
+    const trimmedUsername = username.trim();
+    const existing = await User.findByUsernameIgnoreCase(trimmedUsername);
+    if (existing) {
+      return res.status(409).json({ success: false, message: "Username already taken" });
+    }
+
+    const address = placeholderAddressForAuthId(web3authId);
+    const chain = "CELO";
+    const secret = crypto.randomBytes(32).toString("hex");
+    const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
+
+    user = await User.create({
+      username: trimmedUsername,
+      address,
+      chain,
+      web3auth_id: web3authId,
+      is_guest: true,
+      password_hash: passwordHash,
+      ...(tokenEmail ? { email: tokenEmail, email_verified: true } : {}),
+    });
+
+    const normalizedChain = User.normalizeChain(chain);
+    if (isContractConfigured(normalizedChain) && !isWalletFirstConfigured(normalizedChain)) {
+      logger.warn(
+        { chain: normalizedChain, userId: user.id },
+        "web3authSignin: skipping wallet creation — set TYCOON_USER_REGISTRY_CELO and TYCOON_OWNER_PRIVATE_KEY in backend .env"
+      );
+    }
+    try {
+      if (isWalletFirstConfigured(normalizedChain)) {
+        const onChainU = buildContractUsername(user.id, trimmedUsername);
+        const { wallet: smartWallet } = await createWalletForUserByBackend(onChainU, normalizedChain);
+        await registerPlayerFor(smartWallet, onChainU, passwordHash, normalizedChain);
+        await db("users")
+          .where({ id: user.id })
+          .update({ smart_wallet_address: smartWallet || null });
+        user = await User.findById(user.id);
+        logger.info(
+          { userId: user.id, smartWallet, chain: normalizedChain },
+          "web3authSignin: wallet-first on-chain registration complete"
+        );
+      }
+    } catch (e) {
+      logger.warn(
+        { userId: user.id, err: e?.message ?? String(e), chain: normalizedChain },
+        "web3authSignin: wallet-first on-chain registration failed (continuing)"
+      );
+    }
+
+    await trySocialReferralAttach(user.id, req.body, "web3auth_signin");
+    const token = jwt.sign(
+      { userId: user.id, address: user.address, username: user.username, isGuest: true },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+    const { password_hash, password_hash_email, email_verification_token, ...safe } = user;
+    return res.status(201).json({
+      success: true,
+      message: "Account created. You can link a wallet and email in profile.",
+      data: {
+        token,
+        on_chain_registered: Boolean(safe.smart_wallet_address),
+        user: {
+          id: safe.id,
+          username: safe.username,
+          address: safe.address,
+          is_guest: true,
+          web3auth_id: safe.web3auth_id,
+          privy_did: safe.privy_did,
+          email: safe.email,
+          email_verified: safe.email_verified,
+          smart_wallet_address: safe.smart_wallet_address ?? undefined,
+        },
+      },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message, stack: err?.stack }, "web3authSignin failed");
+    return res.status(500).json({ success: false, message: err?.message || "Sign-in failed" });
+  }
+}
+
+/**
  * POST /auth/register-on-chain
  * Registers the authenticated user on the game contract (backend signs as game controller).
  * Use when the user has a backend account but is not registered on-chain (e.g. "Not registered" on create game).
@@ -586,7 +876,8 @@ export async function registerOnChain(req, res) {
       return res.status(401).json({ success: false, message: "Authentication required" });
     }
     const user = req.user;
-    const placeholderAddr = user.privy_did ? placeholderAddressForPrivyDid(user.privy_did) : null;
+    const socialId = getSocialAuthId(user);
+    const placeholderAddr = socialId ? placeholderAddressForAuthId(socialId) : null;
     const primaryIsPlaceholder = placeholderAddr && user.address && String(user.address).toLowerCase() === String(placeholderAddr).toLowerCase();
     const addrForChain = user.linked_wallet_address && String(user.linked_wallet_address).trim()
       ? String(user.linked_wallet_address).trim()
@@ -649,7 +940,8 @@ export async function createSmartWallet(req, res) {
       return res.status(503).json({ success: false, message: "Contract not configured for this network" });
     }
 
-    const placeholderAddr = user.privy_did ? placeholderAddressForPrivyDid(user.privy_did) : null;
+    const socialId = getSocialAuthId(user);
+    const placeholderAddr = socialId ? placeholderAddressForAuthId(socialId) : null;
     const primaryIsPlaceholder = placeholderAddr && user.address && String(user.address).toLowerCase() === String(placeholderAddr).toLowerCase();
     const addrForChain = user.linked_wallet_address && String(user.linked_wallet_address).trim()
       ? String(user.linked_wallet_address).trim()
@@ -1529,15 +1821,16 @@ export async function me(req, res) {
   const chain = req.user.chain || "CELO";
   const normalizedChain = User.normalizeChain(chain);
 
-  // Real address for on-chain: prefer linked wallet; else primary address only if not Privy placeholder
-  const placeholderAddr = req.user.privy_did ? placeholderAddressForPrivyDid(req.user.privy_did) : null;
+  // Real address for on-chain: prefer linked wallet; else primary address only if not social-auth placeholder
+  const socialId = getSocialAuthId(req.user);
+  const placeholderAddr = socialId ? placeholderAddressForAuthId(socialId) : null;
   const primaryIsPlaceholder = placeholderAddr && req.user.address && String(req.user.address).toLowerCase() === String(placeholderAddr).toLowerCase();
   const addrForChain = safe.linked_wallet_address && String(safe.linked_wallet_address).trim()
     ? String(safe.linked_wallet_address).trim()
     : primaryIsPlaceholder ? null : req.user.address;
 
-  // Wallet-first users (Privy placeholder with no linked wallet): ensure they have an on-chain wallet identity and smart wallet.
-  if (!addrForChain && req.user?.privy_did && isContractConfigured(normalizedChain)) {
+  // Wallet-first users (social placeholder with no linked wallet): ensure they have an on-chain wallet identity and smart wallet.
+  if (!addrForChain && socialId && isContractConfigured(normalizedChain)) {
     try {
       const existingSmartWallet = safe.smart_wallet_address && String(safe.smart_wallet_address).trim()
         ? String(safe.smart_wallet_address).trim()
@@ -1661,7 +1954,7 @@ export async function linkWallet(req, res) {
     if (!req.user) {
       return res.status(401).json({ success: false, message: "Authentication required" });
     }
-    const canLink = req.user.is_guest === true || (req.user.privy_did && String(req.user.privy_did).trim());
+    const canLink = req.user.is_guest === true || !!getSocialAuthId(req.user);
     if (!canLink) {
       return res.status(400).json({ success: false, message: "Only guest or Privy accounts can link a wallet" });
     }
@@ -1732,13 +2025,18 @@ export async function linkWallet(req, res) {
           await trx("users").where({ id: walletUserId }).increment("games_played", gp).increment("game_won", gw).increment("game_lost", gl).update({ updated_at: db.fn.now() });
         }
         const privyDid = sourceUser.privy_did && String(sourceUser.privy_did).trim() ? sourceUser.privy_did.trim() : null;
+        const web3authId = sourceUser.web3auth_id && String(sourceUser.web3auth_id).trim() ? sourceUser.web3auth_id.trim() : null;
         const emailUpdate = sourceUser.email && String(sourceUser.email).trim() && !existingByPrimary.email
           ? { email: sourceUser.email.trim().toLowerCase(), ...(sourceUser.email_verified ? { email_verified: true } : {}) }
           : null;
-        // Clear source user's privy_did first to avoid unique constraint violation, then assign to wallet user
+        // Clear source social ids first to avoid unique constraint violation, then assign to wallet user
         if (privyDid) {
           await trx("users").where({ id: sourceId }).update({ privy_did: null, updated_at: db.fn.now() });
           await trx("users").where({ id: walletUserId }).update({ privy_did: privyDid, updated_at: db.fn.now() });
+        }
+        if (web3authId) {
+          await trx("users").where({ id: sourceId }).update({ web3auth_id: null, updated_at: db.fn.now() });
+          await trx("users").where({ id: walletUserId }).update({ web3auth_id: web3authId, updated_at: db.fn.now() });
         }
         if (emailUpdate) {
           await trx("users").where({ id: walletUserId }).update({ ...emailUpdate, updated_at: db.fn.now() });

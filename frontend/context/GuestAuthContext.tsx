@@ -9,8 +9,9 @@ export type GuestUser = {
   username: string;
   address: string;
   is_guest: boolean;
-  /** Set when this account is linked to Privy (sign out should clear Privy + backend JWT). */
+  /** Set when this account is linked to Web3Auth or legacy Privy (sign out should clear provider + backend JWT). */
   privy_did?: string | null;
+  web3auth_id?: string | null;
   linked_wallet_address?: string | null;
   linked_wallet_chain?: string | null;
   email?: string | null;
@@ -87,6 +88,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
           address: d.address as string,
           is_guest: (d.is_guest ?? true) as boolean,
           privy_did: (d.privy_did as string | null | undefined) ?? null,
+          web3auth_id: (d.web3auth_id as string | null | undefined) ?? null,
           linked_wallet_address: d.linked_wallet_address as string | null | undefined,
           linked_wallet_chain: d.linked_wallet_chain as string | null | undefined,
           email: d.email as string | null | undefined,
@@ -135,6 +137,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
             address: u.address,
             is_guest: u.is_guest ?? false,
             privy_did: u.privy_did ?? null,
+            web3auth_id: u.web3auth_id ?? null,
             linked_wallet_address: u.linked_wallet_address ?? null,
             linked_wallet_chain: u.linked_wallet_chain ?? null,
             email: u.email,
@@ -153,6 +156,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
           address: u.address,
           is_guest: u.is_guest ?? true,
           privy_did: u.privy_did ?? null,
+            web3auth_id: u.web3auth_id ?? null,
           linked_wallet_address: u.linked_wallet_address ?? null,
           linked_wallet_chain: u.linked_wallet_chain ?? null,
           email: u.email,
@@ -180,6 +184,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
           address: data.data.address,
           is_guest: data.data.is_guest ?? true,
           privy_did: data.data.privy_did ?? null,
+          web3auth_id: data.data.web3auth_id ?? null,
           linked_wallet_address: null,
           linked_wallet_chain: null,
           email: data.data.email,
@@ -206,6 +211,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
             address: data.data.address,
             is_guest: data.data.is_guest ?? true,
             privy_did: data.data.privy_did ?? null,
+          web3auth_id: data.data.web3auth_id ?? null,
             linked_wallet_address: data.data.linked_wallet_address ?? null,
             linked_wallet_chain: data.data.linked_wallet_chain ?? null,
             email: data.data.email,

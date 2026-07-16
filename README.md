@@ -118,7 +118,7 @@ Address values are in the [Contract addresses](#-contract-addresses) table above
 | Purpose | Where | Description |
 |---------|--------|-------------|
 | WalletConnect / App Kit | Frontend env (see `.env.example`) | Project ID from WalletConnect Cloud. |
-| Privy (embedded wallet, social login) | Frontend env (see `.env.example`) | App ID and optional client ID from Privy dashboard. |
+| Web3Auth (social / email login) | Frontend + backend env | Client ID from [dashboard.web3auth.io](https://dashboard.web3auth.io/). `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` must match `WEB3AUTH_CLIENT_ID`. |
 
 Keep all auth and wallet keys in `.env.local`; never commit them.
 
@@ -194,7 +194,7 @@ See [Contract addresses](#-contract-addresses) for addresses. In `frontend/.env.
 
 ### Auth & wallets
 
-- **Privy** — Sign in with Privy (embedded wallet, social login); app ID in env.
+- **Web3Auth** — Sign in with Web3Auth (email / social); Client ID in env. Backend verifies ID token on `POST /auth/web3auth-signin`.
 - **WalletConnect** — MetaMask, App Kit (project ID in env).
 - **Guest accounts** — Email/social sign-up; backend creates custodial/smart wallet and registers on-chain (user registry + game contract).
 - **Smart wallets** — User registry creates TycoonUserWallet per player; operator/withdrawal authority for off-line withdrawals when configured.

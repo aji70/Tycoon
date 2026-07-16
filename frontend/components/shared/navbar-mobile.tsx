@@ -21,7 +21,7 @@ import NetworkSwitcherModal from './network-switcher-modal';
 import { useGetUsername } from '@/context/ContractProvider';
 import { useProfileAvatar } from '@/context/ProfileContext';
 import { isAddress } from 'viem';
-import { usePrivy } from '@privy-io/react-auth';
+import { usePrivy } from '@/hooks/usePrivy';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 import WhoIsOnlineControl from '@/components/shared/WhoIsOnlineControl';

@@ -333,16 +333,21 @@ app.get("/api/config/env-check", requireConfigDebugAccess, (_req, res) => {
     "PRIVY_APP_ID",
     "PRIVY_APP_SECRET",
     "PRIVY_JWT_VERIFICATION_KEY",
+    "WEB3AUTH_CLIENT_ID",
   ];
   const present = {};
   keys.forEach((k) => {
     present[k] = typeof process.env[k] === "string" && process.env[k].trim().length > 0;
   });
   const payload = { envKeysPresent: present };
-  // In development, show masked PRIVY_APP_ID so you can confirm it matches frontend NEXT_PUBLIC_PRIVY_APP_ID
+  // In development, show masked IDs so you can confirm frontend/backend match
   if (process.env.NODE_ENV !== "production" && present.PRIVY_APP_ID) {
     const id = process.env.PRIVY_APP_ID;
     payload.privyAppIdMasked = id.length > 8 ? `${id.slice(0, 4)}...${id.slice(-4)}` : "***";
+  }
+  if (process.env.NODE_ENV !== "production" && present.WEB3AUTH_CLIENT_ID) {
+    const id = process.env.WEB3AUTH_CLIENT_ID;
+    payload.web3authClientIdMasked = id.length > 12 ? `${id.slice(0, 6)}...${id.slice(-4)}` : "***";
   }
   res.json(payload);
 });

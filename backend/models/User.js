@@ -228,11 +228,19 @@ const User = {
   },
 
   /**
-   * Find by Privy DID (for Privy sign-in).
+   * Find by Privy DID (for Privy sign-in — legacy).
    */
   async findByPrivyDid(privyDid) {
     if (!privyDid || typeof privyDid !== "string") return null;
     return await db("users").where({ privy_did: privyDid.trim() }).first();
+  },
+
+  /**
+   * Find by Web3Auth stable id (for Web3Auth sign-in).
+   */
+  async findByWeb3AuthId(web3authId) {
+    if (!web3authId || typeof web3authId !== "string") return null;
+    return await db("users").where({ web3auth_id: web3authId.trim() }).first();
   },
 
   /**

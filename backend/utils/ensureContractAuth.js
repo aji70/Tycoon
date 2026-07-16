@@ -179,7 +179,7 @@ export async function ensureUserHasContractAuthResult(db, userId, chain = "CELO"
 
   const user = await db("users")
     .where({ id: uid })
-    .select("address", "linked_wallet_address", "username", "password_hash", "privy_did", "smart_wallet_address")
+    .select("address", "linked_wallet_address", "username", "password_hash", "privy_did", "web3auth_id", "smart_wallet_address")
     .first();
 
   if (!user) {
@@ -199,6 +199,7 @@ export async function ensureUserHasContractAuthResult(db, userId, chain = "CELO"
   else if (isValidEthAddress(user?.linked_wallet_address)) effectiveAddress = String(user.linked_wallet_address).trim();
   else if (isValidEthAddress(user?.smart_wallet_address)) effectiveAddress = String(user.smart_wallet_address).trim();
   else if (isValidEthAddress(user?.address)) effectiveAddress = String(user.address).trim();
+  else if (user?.web3auth_id) effectiveAddress = privyPlaceholderAddress(user.web3auth_id);
   else if (user?.privy_did) effectiveAddress = privyPlaceholderAddress(user.privy_did);
 
   if (!effectiveAddress) {

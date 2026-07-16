@@ -18,7 +18,7 @@ const WalletDisconnectModal = dynamic(() => import('./wallet-disconnect-modal'),
 import NetworkSwitcherModal from './network-switcher-modal';
 import { useProfileAvatar } from '@/context/ProfileContext';
 import { useOnlineUsers } from '@/hooks/useOnlineUsers';
-import { usePrivy } from '@privy-io/react-auth';
+import { usePrivy } from '@/hooks/usePrivy';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 import WhoIsOnlineControl from '@/components/shared/WhoIsOnlineControl';

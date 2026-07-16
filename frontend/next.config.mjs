@@ -32,7 +32,7 @@ const nextConfig = {
       "@goodsdks/identity-sdk",
     ],
   },
-  transpilePackages: ["@goodsdks/citizen-sdk", "@goodsdks/identity-sdk"],
+  transpilePackages: ["@goodsdks/citizen-sdk", "@goodsdks/identity-sdk", "@web3auth/modal", "@web3auth/no-modal", "@web3auth/auth"],
   async redirects() {
     return [
       {

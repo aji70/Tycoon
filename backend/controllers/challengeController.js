@@ -42,7 +42,13 @@ function forbidUnlessChallengePreview(req, res) {
 function canUseGuestFlow(user, req) {
   if (!user) return false;
   if (req?.resolvedByAddress) return true;
-  if (user.is_guest === true || (user.privy_did && String(user.privy_did).trim())) return true;
+  if (
+    user.is_guest === true ||
+    (user.web3auth_id && String(user.web3auth_id).trim()) ||
+    (user.privy_did && String(user.privy_did).trim())
+  ) {
+    return true;
+  }
   // Wallet / JWT sessions (not only guest accounts)
   return Number(user.id) > 0;
 }

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useAppKit } from "@reown/appkit/react";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@/hooks/usePrivy";
 import { X, Wallet, Gamepad2, Dices, Sparkles } from "lucide-react";
 
 const ONBOARDING_STORAGE_KEY = "tycoon_onboarding_done";

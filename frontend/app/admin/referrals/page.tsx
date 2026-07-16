@@ -130,7 +130,7 @@ export default function AdminReferralsPage() {
         Attribution is stored on <code className="text-slate-500">users</code> (<code className="text-slate-500">referral_code</code>,{" "}
         <code className="text-slate-500">referred_by_user_id</code>). Players:{" "}
         <code className="text-slate-500">GET /api/referral/me</code>, <code className="text-slate-500">POST /api/referral/attach</code>, or{" "}
-        <code className="text-slate-500">POST /auth/privy-signin</code> with <code className="text-slate-500">referralCode</code> /{" "}
+        <code className="text-slate-500">POST /auth/web3auth-signin</code> with <code className="text-slate-500">referralCode</code> /{" "}
         <code className="text-slate-500">ref</code>. Attach attempts are logged to <code className="text-slate-500">referral_events</code> (run
         migrations). Rewards are still TBD.
       </p>

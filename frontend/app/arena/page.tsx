@@ -134,7 +134,7 @@ export default function ArenaPage() {
   const guestCtx = useGuestAuthOptional();
   const guestUser = guestCtx?.guestUser ?? null;
   const authLoading = guestCtx?.isLoading ?? false;
-  /** Backend JWT session (guest, wallet login, or after Privy → privy-signin). Not the same as usePrivy().authenticated. */
+  /** Backend JWT session (guest, wallet login, or after Web3Auth → web3auth-signin). Not the same as usePrivy().authenticated. */
   const isAuthed = Boolean(guestUser);
   const [activeTab, setActiveTab] = useState<ArenaTab>("discover");
 

@@ -17,7 +17,7 @@ import {
   useProfileOwner,
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@/hooks/usePrivy";
 import { useAppKit } from "@reown/appkit/react";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";

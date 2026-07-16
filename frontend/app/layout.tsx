@@ -5,8 +5,8 @@ import "@/styles/globals.css";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
 import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
-import PrivyProviderWrapper from "@/components/PrivyProviderWrapper";
-import PrivyBackendSync from "@/components/PrivyBackendSync";
+import Web3AuthProviderWrapper from "@/components/Web3AuthProviderWrapper";
+import Web3AuthBackendSync from "@/components/Web3AuthBackendSync";
 import ReferralCapture from "@/components/ReferralCapture";
 import AddWalletPromptModal from "@/components/guest/AddWalletPromptModal";
 import { TycoonProvider } from "@/context/ContractProvider";
@@ -109,7 +109,8 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="dns-prefetch" href="https://auth.privy.io" />
+        <link rel="dns-prefetch" href="https://auth.web3auth.io" />
+        <link rel="dns-prefetch" href="https://api-auth.web3auth.io" />
         <link rel="dns-prefetch" href="https://api.web3modal.org" />
         <link rel="dns-prefetch" href="https://pulse.walletconnect.org" />
         <link rel="dns-prefetch" href="https://fonts.reown.com" />
@@ -118,12 +119,12 @@ export default async function RootLayout({
       <body className="antialiased bg-[#010F10] w-full">
         <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
         <FarcasterReady />
-        <PrivyProviderWrapper>
+        <Web3AuthProviderWrapper>
           <ContextProvider cookies={cookies}>
             <TycoonProvider>
               <GuestAuthProvider>
               <ReferralCapture />
-              <PrivyBackendSync />
+              <Web3AuthBackendSync />
               <AddWalletPromptModal />
               <TournamentProvider>
               <AppKitProviderWrapper>
@@ -165,7 +166,7 @@ export default async function RootLayout({
               </GuestAuthProvider>
             </TycoonProvider>
           </ContextProvider>
-        </PrivyProviderWrapper>
+        </Web3AuthProviderWrapper>
       </body>
     </html>
   );

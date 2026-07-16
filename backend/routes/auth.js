@@ -7,6 +7,8 @@ const router = express.Router();
 
 router.get("/privy-check", guestAuthController.privyCheck);
 router.post("/privy-signin", guestAuthController.privySignin);
+router.get("/web3auth-check", guestAuthController.web3authCheck);
+router.post("/web3auth-signin", guestAuthController.web3authSignin);
 router.get("/me", requireAuth, guestAuthController.me);
 router.get("/vault-balances", guestAuthController.vaultBalances);
 router.get("/verify-email", guestAuthController.verifyEmail);

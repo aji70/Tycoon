@@ -2343,7 +2343,11 @@ export const join = async (req, res) => {
 function canUseGuestFlow(user, req) {
   if (!user) return false;
   if (req?.resolvedByAddress) return true;
-  return user.is_guest === true || (user.privy_did && String(user.privy_did).trim());
+  return (
+    user.is_guest === true ||
+    !!(user.web3auth_id && String(user.web3auth_id).trim()) ||
+    !!(user.privy_did && String(user.privy_did).trim())
+  );
 }
 
 /** 403 when ensureGuestContractPlayReady fails — includes `reason` for debugging (RPC, env, registration). */
