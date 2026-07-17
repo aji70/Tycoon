@@ -78,23 +78,31 @@ function buildPropertyPrompt(context) {
 
 function buildTradePrompt(context) {
   const trade = context.tradeOffer || {};
-  const { myBalance = 0, myProperties = [], opponents = [], opponentMonopolies } = context;
+  const { myBalance = 0, myProperties = [], opponents = [], opponentMonopolies, properties = [] } = context;
   const monopolies = getMonopolies(myProperties || []).join(", ") || "None";
   const oppMonos = opponentMonopolies != null ? ` Opponent monopolies: ${opponentMonopolies}.` : "";
 
-  // Resolve property names from myProperties or from the trade offer ids directly
-  const allKnownProps = [...(myProperties || [])];
-  const resolvePropName = (id) => {
-    const found = allKnownProps.find((p) => (p.id ?? p.property_id) === id);
-    return found?.name ? `${found.name}($${found.price ?? "?"})` : `#${id}`;
+  // Full board catalog first, then owned props — so offer/request ids resolve to names + prices.
+  const catalog = [
+    ...(Array.isArray(properties) ? properties : []),
+    ...(myProperties || []),
+  ];
+  const resolveProp = (id) => {
+    const n = Number(id);
+    const found = catalog.find((p) => Number(p.id ?? p.property_id) === n);
+    if (found?.name) {
+      const price = found.price != null ? Number(found.price) : null;
+      return price != null && Number.isFinite(price) ? `${found.name}($${price})` : String(found.name);
+    }
+    return `property ${n}`;
   };
 
-  const receiveProps = (trade.offer_properties || []).map(resolvePropName).join(", ") || "none";
-  const giveProps = (trade.requested_properties || []).map(resolvePropName).join(", ") || "none";
+  const receiveProps = (trade.offer_properties || []).map(resolveProp).join(", ") || "none";
+  const giveProps = (trade.requested_properties || []).map(resolveProp).join(", ") || "none";
   const receiveCash = trade.offer_amount ?? 0;
   const giveCash = trade.requested_amount ?? 0;
 
-  return `Monopoly trade offer received. You (AI) are evaluating whether to accept. Receive: $${receiveCash} cash + properties [${receiveProps}]. Give: $${giveCash} cash + properties [${giveProps}]. Your balance: $${myBalance}. Your monopolies: ${monopolies}.${oppMonos} Key questions: Does receiving these properties complete or progress YOUR monopoly? Does giving away these properties help the OPPONENT complete theirs? Is the cash fair for the property values? Accept if you gain more value than you give, or if it completes your set. Decline if it would hand them a monopoly or costs too much. Counter if roughly fair but slightly off. If you counter, cashAdjustment > 0 means you want more cash from them, < 0 means you add cash to sweeten the deal. JSON only: {"action":"accept"|"decline"|"counter","reasoning":"brief","confidence":85,"counterOffer":{"cashAdjustment":0}} (counterOffer only if action is "counter")`;
+  return `Monopoly trade offer received. You (AI) are evaluating whether to accept. Receive: $${receiveCash} cash + properties [${receiveProps}]. Give: $${giveCash} cash + properties [${giveProps}]. Your balance: $${myBalance}. Your monopolies: ${monopolies}.${oppMonos} Key questions: Does receiving these properties complete or progress YOUR monopoly? Does giving away these properties help the OPPONENT complete theirs? Is the cash fair for the property values? Accept if you gain more value than you give, or if it completes your set. Decline if it would hand them a monopoly or costs too much. Counter if roughly fair but slightly off. If you counter, cashAdjustment > 0 means you want more cash from them, < 0 means you add cash to sweeten the deal. IMPORTANT: reasoning must be one short player-facing sentence (max 12 words). Never mention property IDs, "#", "unknown", or "board data". JSON only: {"action":"accept"|"decline"|"counter","reasoning":"brief","confidence":85,"counterOffer":{"cashAdjustment":0}} (counterOffer only if action is "counter")`;
 }
 
 function buildBuildingPrompt(context) {
@@ -224,6 +232,21 @@ async function runDecisionWithClient(anthropic, decisionType, context, opts = {}
   if (decisionType === "tip") {
     const r = (reasoning && String(reasoning).trim()) || "";
     if (r.length < 4 || /^\s*AI\s*$/i.test(r)) reasoning = fallback.reasoning;
+  }
+  // Trade: drop technical / incomplete-board reasoning so UI can use clean fallback lines
+  if (decisionType === "trade") {
+    const r = (reasoning && String(reasoning).trim()) || "";
+    if (
+      !r ||
+      /#\d+|property\s*#|unknown|full board|without (full )?board|missing (data|price|value)|property_id/i.test(r)
+    ) {
+      reasoning =
+        String(parsed.action || "").toLowerCase() === "accept"
+          ? "Fair enough."
+          : String(parsed.action || "").toLowerCase() === "counter"
+            ? "Close — adjust cash."
+            : "Too one-sided.";
+    }
   }
 
   let action = String(parsed.action || fallback.action).toLowerCase();

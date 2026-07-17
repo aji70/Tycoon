@@ -117,6 +117,13 @@ export async function instantAiRespondWhenTargetIsAi(params: {
                 ...(properties ?? []).find((p) => p.id === gp.property_id),
                 ...gp,
               })),
+            // Full board so offer/request property ids resolve to names + prices
+            properties: (properties ?? []).map((p) => ({
+              id: p.id,
+              name: p.name,
+              price: p.price,
+              color: p.color,
+            })),
             opponents: (game.players ?? []).filter((p) => p.user_id !== targetPlayer.user_id),
           },
         });

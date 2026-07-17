@@ -32,7 +32,14 @@ function pick<T>(list: T[]): T {
   return list[Math.floor(Math.random() * list.length)] ?? list[0];
 }
 
-/** Clean agent reasoning for a toast (keep short). */
+/** Drop technical LLM junk (e.g. "property #3 value unknown…"). */
+function isJunkTradeReasoning(text: string): boolean {
+  return /#\d+|property\s*#|unknown|full board|without (full )?board|missing (data|price|value)|property_id|n\/a/i.test(
+    text
+  );
+}
+
+/** Clean agent reasoning for a toast (keep short). Returns null if unusable. */
 export function formatAgentTradeReasoning(reasoning: unknown, maxLen = 48): string | null {
   if (typeof reasoning !== "string") return null;
   const cleaned = reasoning
@@ -40,6 +47,7 @@ export function formatAgentTradeReasoning(reasoning: unknown, maxLen = 48): stri
     .replace(/^["']|["']$/g, "")
     .trim();
   if (cleaned.length < 4) return null;
+  if (isJunkTradeReasoning(cleaned)) return null;
   if (cleaned.length <= maxLen) return cleaned;
   return `${cleaned.slice(0, maxLen - 1).trimEnd()}…`;
 }

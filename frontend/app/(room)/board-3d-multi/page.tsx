@@ -1676,6 +1676,7 @@ function Board3DPageContent() {
             myProperties: freshGameProperties
               .filter((gp) => gp.address?.toLowerCase() === freshMe?.address?.toLowerCase())
               .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+            properties: properties.map((p) => ({ id: p.id, name: p.name, price: p.price, color: p.color })),
             opponents: (freshGame?.players ?? []).filter((p: Player) => p.user_id !== me.user_id),
             tradeOffer: trade,
           };

@@ -402,6 +402,7 @@ export function useMobileAiLogic({
             context: {
               myBalance: currentPlayer.balance ?? 0,
               myProperties: game_properties.filter((gp) => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase()).map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+              properties: properties.map((p) => ({ id: p.id, name: p.name, price: p.price, color: p.color })),
               opponents: players.filter((p) => p.user_id !== currentPlayer.user_id),
               tradeOffer: trade,
             },
