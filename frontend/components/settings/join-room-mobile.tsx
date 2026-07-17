@@ -7,6 +7,7 @@ import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { Game } from "@/lib/types/games";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { usePrivy } from "@/hooks/usePrivy";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { SkeletonGameGrid } from "@/components/ui/SkeletonCard";
 import { JoinRoomAuthModal, JoinRoomAuthStickyBar } from "@/components/settings/join-room-auth-ui";
@@ -35,6 +36,8 @@ export default function JoinRoom({
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const authLoading = guestAuth?.isLoading ?? true;
+  const { ready, authenticated } = usePrivy();
+  const authSyncPending = ready && authenticated && !guestUser && !isConnected;
   const canAct = isConnected || !!guestUser;
   const { data: onChainUsername } = useGetUsername(address);
   const previewUsername =
@@ -259,8 +262,8 @@ export default function JoinRoom({
             </div>
           </div>
 
-          <JoinRoomAuthStickyBar canAct={canAct} authLoading={authLoading} />
-          <JoinRoomAuthModal open={modalOpen} hint={modalHint} onDismiss={cancelModal} />
+          <JoinRoomAuthStickyBar canAct={canAct} authLoading={authLoading} authSyncPending={authSyncPending} />
+          <JoinRoomAuthModal open={modalOpen} hint={modalHint} onDismiss={cancelModal} authSyncPending={authSyncPending} />
 
           <div className="space-y-6">
 

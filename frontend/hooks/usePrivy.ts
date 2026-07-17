@@ -14,18 +14,20 @@ import {
 } from "@web3auth/modal/react";
 
 export function usePrivy() {
-  const { isInitialized, isConnected: providerConnected } = useWeb3Auth();
+  const { isInitialized, isConnected: providerConnected, isAuthorized } = useWeb3Auth();
   const { connect, isConnected, loading: connectLoading } = useWeb3AuthConnect();
   const { disconnect } = useWeb3AuthDisconnect();
   const { userInfo } = useWeb3AuthUser();
-  const { getAuthTokenInfo } = useAuthTokenInfo();
+  const { getAuthTokenInfo, token: cachedToken } = useAuthTokenInfo();
 
   const ready = Boolean(isInitialized);
-  const authenticated = Boolean(isConnected || providerConnected);
+  /** CONNECT_AND_SIGN mode issues idToken on AUTHORIZED, not only CONNECTED. */
+  const authenticated = Boolean(isConnected || providerConnected || isAuthorized);
 
   const login = useCallback(async () => {
+    if (isAuthorized || isConnected || providerConnected) return;
     await connect();
-  }, [connect]);
+  }, [connect, isAuthorized, isConnected, providerConnected]);
 
   const logout = useCallback(async () => {
     await disconnect();
@@ -33,18 +35,22 @@ export function usePrivy() {
 
   /** Returns Web3Auth identity token for POST /auth/web3auth-signin. */
   const getAccessToken = useCallback(async (): Promise<string | null> => {
+    if (typeof cachedToken === "string" && cachedToken.length > 0) {
+      return cachedToken;
+    }
     try {
       const token = await getAuthTokenInfo();
       return typeof token === "string" && token.length > 0 ? token : null;
     } catch {
       return null;
     }
-  }, [getAuthTokenInfo]);
+  }, [cachedToken, getAuthTokenInfo]);
 
   /** Opens Web3Auth connect modal (external wallets live there / AppKit separately). */
   const connectWallet = useCallback(async () => {
+    if (isAuthorized || isConnected || providerConnected) return;
     await connect();
-  }, [connect]);
+  }, [connect, isAuthorized, isConnected, providerConnected]);
 
   const user = useMemo(() => {
     if (!userInfo) return null;
@@ -59,6 +65,8 @@ export function usePrivy() {
   return {
     ready,
     authenticated,
+    /** True once Web3Auth has issued an id token (CONNECT_AND_SIGN terminal state). */
+    isAuthorized: Boolean(isAuthorized),
     login,
     logout,
     user,

@@ -2,19 +2,31 @@
 
 import { useAppKit } from "@reown/appkit/react";
 import { usePrivy } from "@/hooks/usePrivy";
-import { Wallet, LogIn, X } from "lucide-react";
+import { Wallet, LogIn, Loader2, X } from "lucide-react";
 
 type StickyBarProps = {
   canAct: boolean;
   authLoading: boolean;
+  authSyncPending?: boolean;
 };
 
 /** Shown at top of join flow when visitor has no wallet session and no guest JWT. */
-export function JoinRoomAuthStickyBar({ canAct, authLoading }: StickyBarProps) {
+export function JoinRoomAuthStickyBar({ canAct, authLoading, authSyncPending = false }: StickyBarProps) {
   const { open } = useAppKit();
   const { ready, login } = usePrivy();
 
   if (authLoading || canAct) return null;
+
+  if (authSyncPending) {
+    return (
+      <div className="sticky top-0 z-30 -mx-6 sm:-mx-8 lg:-mx-12 mb-6 rounded-xl border border-cyan-500/40 bg-[#0A1214]/95 backdrop-blur-md px-4 py-3 shadow-lg shadow-black/40">
+        <p className="text-cyan-100/95 text-xs sm:text-sm font-orbitron text-center flex items-center justify-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+          Finishing sign-in with the game server…
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="sticky top-0 z-30 -mx-6 sm:-mx-8 lg:-mx-12 mb-6 rounded-xl border border-amber-500/40 bg-[#0A1214]/95 backdrop-blur-md px-4 py-3 shadow-lg shadow-black/40">
@@ -49,9 +61,10 @@ type ModalProps = {
   open: boolean;
   hint: string;
   onDismiss: () => void;
+  authSyncPending?: boolean;
 };
 
-export function JoinRoomAuthModal({ open, hint, onDismiss }: ModalProps) {
+export function JoinRoomAuthModal({ open, hint, onDismiss, authSyncPending = false }: ModalProps) {
   const { open: openWallet } = useAppKit();
   const { ready, login } = usePrivy();
 
@@ -77,27 +90,38 @@ export function JoinRoomAuthModal({ open, hint, onDismiss }: ModalProps) {
           Sign in to continue
         </h2>
         <p className="text-sm text-slate-300 mb-5 leading-relaxed">{hint}</p>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <button
-            type="button"
-            onClick={() => openWallet()}
-            className="inline-flex flex-1 items-center justify-center gap-2 min-h-[44px] rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] px-4 py-2.5 font-orbitron font-bold text-black"
-          >
-            <Wallet className="w-4 h-4" />
-            Connect wallet
-          </button>
-          <button
-            type="button"
-            disabled={!ready}
-            onClick={() => void login()}
-            className="inline-flex flex-1 items-center justify-center gap-2 min-h-[44px] rounded-xl border border-[#00F0FF]/50 px-4 py-2.5 font-orbitron font-bold text-[#00F0FF] hover:bg-[#00F0FF]/10 disabled:opacity-50"
-          >
-            <LogIn className="w-4 h-4" />
-            Sign in free
-          </button>
-        </div>
+        {authSyncPending ? (
+          <div className="flex flex-col items-center gap-3 py-4 text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[#00F0FF]" />
+            <p className="text-sm text-slate-300 font-orbitron">
+              Email sign-in succeeded. Linking your game account…
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={() => openWallet()}
+              className="inline-flex flex-1 items-center justify-center gap-2 min-h-[44px] rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] px-4 py-2.5 font-orbitron font-bold text-black"
+            >
+              <Wallet className="w-4 h-4" />
+              Connect wallet
+            </button>
+            <button
+              type="button"
+              disabled={!ready}
+              onClick={() => void login()}
+              className="inline-flex flex-1 items-center justify-center gap-2 min-h-[44px] rounded-xl border border-[#00F0FF]/50 px-4 py-2.5 font-orbitron font-bold text-[#00F0FF] hover:bg-[#00F0FF]/10 disabled:opacity-50"
+            >
+              <LogIn className="w-4 h-4" />
+              Sign in free
+            </button>
+          </div>
+        )}
         <p className="text-[0.65rem] text-slate-500 mt-4 leading-snug">
-          After you connect or sign in, we continue what you started. Cancel clears this step.
+          {authSyncPending
+            ? "This usually takes a few seconds. If it stalls, close and try again."
+            : "After you connect or sign in, we continue what you started. Cancel clears this step."}
         </p>
       </div>
     </div>

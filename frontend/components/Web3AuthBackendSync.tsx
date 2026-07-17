@@ -19,7 +19,7 @@ type SyncState = "idle" | "checking" | "needs_username" | "submitting" | "done" 
  * First-time users pick a username via POST /auth/web3auth-signin.
  */
 export default function Web3AuthBackendSync() {
-  const { ready, authenticated, getAccessToken } = usePrivy();
+  const { ready, authenticated, isAuthorized, getAccessToken } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const refetchGuest = guestAuth?.refetchGuest;
   const guestUser = guestAuth?.guestUser ?? null;
@@ -27,7 +27,7 @@ export default function Web3AuthBackendSync() {
   const retryCountRef = useRef(0);
   const requestIdRef = useRef(0);
   const RETRY_DELAY_MS = 1500;
-  const MAX_TOKEN_RETRIES = 2;
+  const MAX_TOKEN_RETRIES = 5;
 
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const [username, setUsername] = useState("");
@@ -154,7 +154,7 @@ export default function Web3AuthBackendSync() {
   }, [authenticated]);
 
   useEffect(() => {
-    if (!ready || !authenticated || !refetchGuest) return;
+    if (!ready || !authenticated || !isAuthorized || !refetchGuest) return;
     if (guestLoading) return;
 
     if (guestUser) {
@@ -175,7 +175,7 @@ export default function Web3AuthBackendSync() {
     queueMicrotask(() => {
       void callWeb3AuthSignin();
     });
-  }, [ready, authenticated, refetchGuest, guestLoading, guestUser, syncState, callWeb3AuthSignin]);
+  }, [ready, authenticated, isAuthorized, refetchGuest, guestLoading, guestUser, syncState, callWeb3AuthSignin]);
 
   const handleRetry = useCallback(() => {
     setError(null);
@@ -210,6 +210,14 @@ export default function Web3AuthBackendSync() {
         >
           Retry
         </button>
+      </div>
+    );
+  }
+
+  if (syncState === "checking") {
+    return (
+      <div className="fixed bottom-4 left-4 right-4 z-[10000] md:left-auto md:right-4 md:max-w-sm rounded-xl bg-[#0E1415] border border-[#003B3E] p-4 shadow-xl">
+        <p className="text-sm text-[#869298] font-orbitron text-center">Linking your game account…</p>
       </div>
     );
   }

@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { Game } from "@/lib/types/games";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { usePrivy } from "@/hooks/usePrivy";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { SkeletonGameGrid } from "@/components/ui/SkeletonCard";
 import { Loader2 } from "lucide-react";
@@ -35,6 +36,8 @@ export default function JoinRoom({
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const authLoading = guestAuth?.isLoading ?? true;
+  const { ready, authenticated } = usePrivy();
+  const authSyncPending = ready && authenticated && !guestUser && !isConnected;
   const canAct = isConnected || !!guestUser;
   const { modalOpen, modalHint, queueAfterAuth, cancelModal } = useJoinRoomAuthContinuation(canAct);
 
@@ -246,8 +249,8 @@ export default function JoinRoom({
           </div>
 
           {/* Auth bars */}
-          <JoinRoomAuthStickyBar canAct={canAct} authLoading={authLoading} />
-          <JoinRoomAuthModal open={modalOpen} hint={modalHint} onDismiss={cancelModal} />
+          <JoinRoomAuthStickyBar canAct={canAct} authLoading={authLoading} authSyncPending={authSyncPending} />
+          <JoinRoomAuthModal open={modalOpen} hint={modalHint} onDismiss={cancelModal} authSyncPending={authSyncPending} />
 
           {/* Two Column: Enter Code + Create New */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-8">
