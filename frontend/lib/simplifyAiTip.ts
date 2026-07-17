@@ -2,7 +2,7 @@
  * Shortens AI tip text so it's direct and easy to read.
  * Keeps one short sentence, max length, no jargon.
  */
-const MAX_TIP_LENGTH = 90;
+const MAX_TIP_LENGTH = 120;
 
 export function simplifyAiTip(raw: string | null | undefined): string | null {
   if (raw == null || typeof raw !== "string") return null;
@@ -24,7 +24,7 @@ export function simplifyAiTip(raw: string | null | undefined): string | null {
 }
 
 /** Fallback when API returns no tip or invalid content (e.g. "AI"). */
-export const AI_TIP_FALLBACK = "Buy if it completes a set; otherwise save cash.";
+export const AI_TIP_FALLBACK = "Buy if it completes a set; otherwise keep a cash cushion.";
 
 /** Returns tip to display: simplified, or raw if valid, or null (e.g. rejects "AI"). */
 export function normalizeAiTip(raw: string | null | undefined): string | null {

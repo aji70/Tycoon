@@ -10,6 +10,7 @@ import UserAgent from "../models/UserAgent.js";
 import * as hostedAgentUsage from "../services/hostedAgentUsage.js";
 import * as hostedAgentCredits from "../services/hostedAgentCredits.js";
 import * as tipPackPurchase from "../services/tipPackPurchase.js";
+import { getBuiltinBuySkipTip } from "../services/builtinTip.js";
 import GamePlayer from "../models/GamePlayer.js";
 import { requireAuth } from "../middleware/auth.js";
 import { submitErc8004Feedback } from "../services/erc8004Feedback.js";
@@ -70,11 +71,12 @@ router.post("/decision", async (req, res) => {
       });
     }
 
-    // Tips: always use local fallback — no Claude, no tip quota
+    // Tips: rule-based heuristic only (no Anthropic, no quota)
     if (decisionType === "tip") {
+      const tip = getBuiltinBuySkipTip(context || {}) || TIP_FALLBACK;
       return res.json({
         success: true,
-        data: TIP_FALLBACK,
+        data: tip,
         useBuiltIn: true,
       });
     }
@@ -136,9 +138,10 @@ router.post("/decision-paid", async (req, res) => {
     });
   }
 
-  // Tips are free built-in fallback (no Anthropic, no x402)
+  // Tips are free built-in heuristics (no Anthropic, no x402)
   if (decisionType === "tip") {
-    return res.json({ success: true, data: TIP_FALLBACK, useBuiltIn: true });
+    const tip = getBuiltinBuySkipTip(context || {}) || TIP_FALLBACK;
+    return res.json({ success: true, data: tip, useBuiltIn: true });
   }
 
   const resourceUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
