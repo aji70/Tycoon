@@ -19,6 +19,8 @@ type OnlineDmPanelProps = {
   otherAddress?: string | null;
   myUserId?: number | null;
   myUsername?: string | null;
+  /** Mobile full-screen sheet: message list grows to fill viewport. */
+  fillHeight?: boolean;
 };
 
 function formatTime(createdAt?: string) {
@@ -50,6 +52,7 @@ export default function OnlineDmPanel({
   otherAddress,
   myUserId,
   myUsername,
+  fillHeight = false,
 }: OnlineDmPanelProps) {
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [peerLabel, setPeerLabel] = useState(otherUsername?.trim() || "Player");
@@ -170,7 +173,9 @@ export default function OnlineDmPanel({
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-12">
+      <div
+        className={`flex flex-col items-center justify-center gap-3 ${fillHeight ? "min-h-0 flex-1 py-8" : "py-12"}`}
+      >
         <Loader2 className="h-8 w-8 animate-spin text-emerald-300" />
         <p className="font-dmSans text-sm text-[#8aa4b0]">Opening chat with {peerLabel}…</p>
       </div>
@@ -187,8 +192,20 @@ export default function OnlineDmPanel({
   }
 
   return (
-    <div className="flex flex-col rounded-xl border border-emerald-500/25 bg-emerald-500/5 overflow-hidden">
-      <div className="max-h-[42vh] min-h-[12rem] space-y-2 overflow-y-auto px-3 py-3">
+    <div
+      className={
+        fillHeight
+          ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+          : "flex flex-col overflow-hidden rounded-xl border border-emerald-500/25 bg-emerald-500/5"
+      }
+    >
+      <div
+        className={
+          fillHeight
+            ? "min-h-0 flex-1 space-y-2 overflow-y-auto px-1 py-2"
+            : "max-h-[42vh] min-h-[12rem] space-y-2 overflow-y-auto px-3 py-3"
+        }
+      >
         {messages.length === 0 ? (
           <p className="py-8 text-center font-dmSans text-sm text-[#8aa4b0]">
             Say hi to {peerLabel}. Messages are private.

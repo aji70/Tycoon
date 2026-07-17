@@ -493,6 +493,9 @@ export default function WhoIsOnlineControl({
     selected.status !== "game";
   const selectedOffline = !!(selected && !selectedIsSelf && !selected.status);
   const selectedInGame = !!(selected && !selectedIsSelf && selected.status === "game");
+  const mobileChatFill =
+    isMobile &&
+    ((selected && view === "dm" && canDm) || (!selected && mainTab === "lobby"));
 
   const sheet =
     mounted &&
@@ -519,18 +522,18 @@ export default function WhoIsOnlineControl({
               transition={{ type: "spring", damping: 30, stiffness: 320 }}
               className={
                 isMobile
-                  ? "fixed bottom-0 left-0 right-0 z-[1201] max-h-[80dvh] overflow-y-auto rounded-t-2xl border-t-2 border-emerald-500/35 bg-gradient-to-b from-[#0c1c28] to-[#071018] pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_40px_rgba(0,0,0,0.55)]"
+                  ? "fixed inset-0 z-[1201] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-gradient-to-b from-[#0c1c28] to-[#071018] pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]"
                   : "fixed left-1/2 top-1/2 z-[1201] w-[min(100%,32rem)] max-h-[min(85vh,680px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border-2 border-emerald-500/35 bg-gradient-to-b from-[#0c1c28] to-[#071018] shadow-2xl"
               }
             >
-              <div className={`mx-auto px-4 pb-6 pt-3 ${isMobile ? "max-w-md" : ""}`}>
-                {isMobile ? (
-                <div className="mb-3 flex justify-center">
-                  <div className="h-1.5 w-12 rounded-full bg-emerald-400/60" />
-                </div>
-                ) : null}
-
-                <div className="mb-4 flex items-start justify-between gap-3">
+              <div
+                className={
+                  isMobile
+                    ? "mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col px-4 pb-4 pt-3"
+                    : "mx-auto px-4 pb-6 pt-3"
+                }
+              >
+                <div className="mb-4 flex shrink-0 items-start justify-between gap-3">
                   <div className="min-w-0 flex items-start gap-2">
                     {selected && (
                       <button
@@ -578,7 +581,7 @@ export default function WhoIsOnlineControl({
                 </div>
 
                 {!selected && (
-                  <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-emerald-500/20 bg-black/20 p-1">
+                  <div className="mb-4 grid shrink-0 grid-cols-2 gap-2 rounded-xl border border-emerald-500/20 bg-black/20 p-1">
                     <button
                       type="button"
                       onClick={() => setMainTab("online")}
@@ -604,6 +607,13 @@ export default function WhoIsOnlineControl({
                   </div>
                 )}
 
+                <div
+                  className={
+                    isMobile
+                      ? `flex min-h-0 flex-1 flex-col ${mobileChatFill ? "" : "overflow-y-auto"}`
+                      : undefined
+                  }
+                >
                 {selected && view === "dm" && canDm ? (
                   <OnlineDmPanel
                     otherUserId={stats?.userId ?? selected.userId}
@@ -611,6 +621,7 @@ export default function WhoIsOnlineControl({
                     otherAddress={stats?.address ?? selected.address}
                     myUserId={guestUser?.id}
                     myUsername={guestUser?.username ?? username}
+                    fillHeight={mobileChatFill}
                   />
                 ) : selected ? (
                   <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/8 px-4 py-4">
@@ -763,6 +774,7 @@ export default function WhoIsOnlineControl({
                     userId={guestUser?.id}
                     username={guestUser?.username ?? username}
                     onPlayerClick={openPlayerProfile}
+                    fillHeight={mobileChatFill}
                   />
                 ) : onlineUsers.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-emerald-500/25 bg-emerald-950/10 px-4 py-8 text-center">
@@ -819,6 +831,9 @@ export default function WhoIsOnlineControl({
                   </ul>
                 )}
 
+                </div>
+
+                {(!isMobile || !mobileChatFill) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -826,10 +841,11 @@ export default function WhoIsOnlineControl({
                     else if (selected) setSelected(null);
                     else closeSheet();
                   }}
-                  className="mt-5 flex min-h-12 w-full items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-500/10 font-orbitron text-xs font-bold uppercase tracking-wider text-emerald-200 transition hover:bg-emerald-500/20"
+                  className="mt-5 flex min-h-12 w-full shrink-0 items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-500/10 font-orbitron text-xs font-bold uppercase tracking-wider text-emerald-200 transition hover:bg-emerald-500/20"
                 >
                   {view === "dm" ? "Back to stats" : selected ? "Back to list" : "Close"}
                 </button>
+                )}
               </div>
 
               {stakePrompt ? (

@@ -28,6 +28,8 @@ type OnlineLobbyPanelProps = {
     username?: string | null;
     address?: string | null;
   }) => void;
+  /** Mobile full-screen sheet: message list grows to fill viewport. */
+  fillHeight?: boolean;
 };
 
 type ReplyingTo = { id: string | number; name: string; body: string };
@@ -106,6 +108,7 @@ export default function OnlineLobbyPanel({
   userId,
   username,
   onPlayerClick,
+  fillHeight = false,
 }: OnlineLobbyPanelProps) {
   const [messages, setMessages] = useState<LobbyMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -210,8 +213,14 @@ export default function OnlineLobbyPanel({
   };
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-cyan-500/30 bg-cyan-500/5">
-      <div className="flex items-center justify-between gap-2 border-b border-cyan-500/20 px-3 py-2.5">
+    <div
+      className={
+        fillHeight
+          ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+          : "flex flex-col overflow-hidden rounded-xl border border-cyan-500/30 bg-cyan-500/5"
+      }
+    >
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-cyan-500/20 px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <Users className="h-4 w-4 shrink-0 text-cyan-300" />
           <div className="min-w-0">
@@ -223,7 +232,13 @@ export default function OnlineLobbyPanel({
         </div>
       </div>
 
-      <div className="max-h-[42vh] min-h-[12rem] space-y-2.5 overflow-y-auto px-3 py-3">
+      <div
+        className={
+          fillHeight
+            ? "min-h-0 flex-1 space-y-2.5 overflow-y-auto px-1 py-2"
+            : "max-h-[42vh] min-h-[12rem] space-y-2.5 overflow-y-auto px-3 py-3"
+        }
+      >
         {loading && messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-10">
             <Loader2 className="h-7 w-7 animate-spin text-cyan-300" />

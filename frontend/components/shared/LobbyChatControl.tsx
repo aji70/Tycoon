@@ -87,17 +87,18 @@ export default function LobbyChatControl({
               transition={{ type: "spring", damping: 30, stiffness: 320 }}
               className={
                 isMobile
-                  ? "fixed bottom-0 left-0 right-0 z-[1201] max-h-[80dvh] overflow-y-auto rounded-t-2xl border-t-2 border-cyan-500/35 bg-gradient-to-b from-[#0c1c28] to-[#071018] pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_40px_rgba(0,0,0,0.55)]"
+                  ? "fixed inset-0 z-[1201] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-gradient-to-b from-[#0c1c28] to-[#071018] pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]"
                   : "fixed left-1/2 top-1/2 z-[1201] w-[min(100%,32rem)] max-h-[min(85vh,680px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border-2 border-cyan-500/35 bg-gradient-to-b from-[#0c1c28] to-[#071018] shadow-2xl"
               }
             >
-              <div className={`mx-auto px-4 pb-6 pt-3 ${isMobile ? "max-w-md" : ""}`}>
-                {isMobile ? (
-                <div className="mb-3 flex justify-center">
-                  <div className="h-1.5 w-12 rounded-full bg-cyan-400/60" />
-                </div>
-                ) : null}
-                <div className="mb-4 flex items-start justify-between gap-3">
+              <div
+                className={
+                  isMobile
+                    ? "mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col px-4 pb-4 pt-3"
+                    : "mx-auto px-4 pb-6 pt-3"
+                }
+              >
+                <div className="mb-4 flex shrink-0 items-start justify-between gap-3">
                   <div>
                     <h3
                       id="lobby-chat-title"
@@ -123,6 +124,7 @@ export default function LobbyChatControl({
                   address={presenceAddress}
                   userId={guestUser?.id}
                   username={guestUser?.username ?? username}
+                  fillHeight={isMobile}
                   onPlayerClick={(player) => {
                     setOpen(false);
                     try {
@@ -135,6 +137,7 @@ export default function LobbyChatControl({
                   }}
                 />
 
+                {!isMobile && (
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
@@ -142,6 +145,7 @@ export default function LobbyChatControl({
                 >
                   Close
                 </button>
+                )}
               </div>
             </motion.div>
           </>
