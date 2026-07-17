@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { toast, Toaster } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { Game, GameProperty, Property, Player, PROPERTY_ACTION } from "@/types/game";
 import { useGameTrades } from "@/hooks/useGameTrades";
@@ -1246,38 +1246,6 @@ const endTime =
         setShowBankruptcyModal={setShowBankruptcyModal}
         fetchUpdatedGame={fetchUpdatedGame}
         showToast={showToast}
-      />
-
-      <Toaster
-        position="top-center"
-        reverseOrder={false}
-        gutter={8}
-        containerClassName="z-50"
-        toastOptions={{
-          duration: 2000,
-          style: {
-            background: "#010F10",
-            color: "#e0f7fa",
-            border: "1px solid rgba(34, 211, 238, 0.25)",
-            borderRadius: "6px",
-            padding: "6px 12px",
-            fontSize: "12px",
-            fontWeight: "500",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
-          },
-          success: {
-            icon: "✓",
-            duration: 2000,
-            style: {
-              borderColor: "rgba(34, 211, 238, 0.7)",
-              background: "rgba(6, 78, 99, 0.35)",
-              boxShadow: "0 4px 16px rgba(0, 240, 255, 0.2)",
-              color: "#a5f3fc",
-            },
-          },
-          error: { icon: "!", duration: 2500 },
-          loading: { duration: Infinity },
-        }}
       />
     </div>
   );

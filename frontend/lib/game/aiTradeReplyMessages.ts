@@ -1,47 +1,45 @@
 /**
- * Clear, player-facing lines when the AI accepts / declines / counters a trade.
- * Prefer the agent's `reasoning` when present; otherwise pick from these pools.
+ * Short player-facing lines when the AI accepts / declines / counters a trade.
  */
 
-/** Decline — tell the player *why* so they can adjust the offer. */
 export const DECLINE_LINES = [
-  "That deal favors you more than me — offer more cash.",
-  "Not enough cash for the properties you're asking for.",
-  "I won't give up a property that completes your color set.",
-  "Those properties are worth more than you're offering.",
-  "Too one-sided. Add cash or swap in a better property for me.",
-  "I'm hanging onto that color group — come back with a fairer offer.",
-  "Cash helps, but the property swap still isn't worth it for me.",
-  "That would hurt my monopoly chances — try a different property.",
-  "Offer is too low relative to board value — bump the cash.",
-  "I'd rather keep what I have than take that trade.",
+  "Offer more cash.",
+  "Not enough for those properties.",
+  "Won't complete your set.",
+  "Properties worth more than that.",
+  "Too one-sided.",
+  "Keeping that color group.",
+  "Swap isn't worth it.",
+  "Try a different property.",
+  "Bump the cash.",
+  "I'd rather keep mine.",
 ];
 
 export const ACCEPT_LINES = [
-  "Deal — that trade works for me.",
-  "Accepted — fair value on both sides.",
-  "I'll take it. Good trade.",
-  "Yes. The cash and properties line up.",
+  "Deal.",
+  "Fair trade — accepted.",
+  "I'll take it.",
+  "Yes.",
 ];
 
 export const COUNTER_LINES = [
-  "Close, but not quite — here's my counter.",
-  "Almost. Adjust the cash and we might have a deal.",
-  "I'll counter — meet me in the middle on cash.",
+  "Here's my counter.",
+  "Close — adjust cash.",
+  "Meet me in the middle.",
 ];
 
 function pick<T>(list: T[]): T {
   return list[Math.floor(Math.random() * list.length)] ?? list[0];
 }
 
-/** Clean agent reasoning for a toast (short, no JSON junk). */
-export function formatAgentTradeReasoning(reasoning: unknown, maxLen = 140): string | null {
+/** Clean agent reasoning for a toast (keep short). */
+export function formatAgentTradeReasoning(reasoning: unknown, maxLen = 48): string | null {
   if (typeof reasoning !== "string") return null;
   const cleaned = reasoning
     .replace(/\s+/g, " ")
     .replace(/^["']|["']$/g, "")
     .trim();
-  if (cleaned.length < 8) return null;
+  if (cleaned.length < 4) return null;
   if (cleaned.length <= maxLen) return cleaned;
   return `${cleaned.slice(0, maxLen - 1).trimEnd()}…`;
 }
@@ -51,7 +49,7 @@ export function aiTradeDeclineMessage(opts?: {
   isYourAgent?: boolean;
 }): string {
   const why = formatAgentTradeReasoning(opts?.reasoning);
-  const prefix = opts?.isYourAgent ? "Your agent declined" : "AI declined";
+  const prefix = opts?.isYourAgent ? "Agent declined" : "AI declined";
   if (why) return `${prefix}: ${why}`;
   return `${prefix}: ${pick(DECLINE_LINES)}`;
 }
@@ -61,9 +59,9 @@ export function aiTradeAcceptMessage(opts?: {
   isYourAgent?: boolean;
 }): string {
   const why = formatAgentTradeReasoning(opts?.reasoning);
-  const prefix = opts?.isYourAgent ? "Your agent accepted" : "AI accepted";
+  const prefix = opts?.isYourAgent ? "Agent accepted" : "AI accepted";
   if (why) return `${prefix}: ${why}`;
-  return `${prefix}. ${pick(ACCEPT_LINES)}`;
+  return `${prefix}: ${pick(ACCEPT_LINES)}`;
 }
 
 export function aiTradeCounterMessage(opts?: {
@@ -75,27 +73,25 @@ export function aiTradeCounterMessage(opts?: {
   const cashHint =
     adj != null && adj !== 0
       ? adj > 0
-        ? `Wants +$${adj} from you.`
-        : `Will add $${Math.abs(adj)}.`
+        ? `+$${adj} from you`
+        : `AI adds $${Math.abs(adj)}`
       : null;
-  const why = formatAgentTradeReasoning(opts?.reasoning);
-  const prefix = opts?.isYourAgent ? "Your agent countered" : "AI countered";
-  if (why && cashHint) return `${prefix}: ${why} (${cashHint})`;
-  if (why) return `${prefix}: ${why}`;
+  const why = formatAgentTradeReasoning(opts?.reasoning, 40);
+  const prefix = opts?.isYourAgent ? "Agent countered" : "AI countered";
   if (cashHint) return `${prefix}: ${cashHint}`;
-  return `${prefix}. ${pick(COUNTER_LINES)}`;
+  if (why) return `${prefix}: ${why}`;
+  return `${prefix}: ${pick(COUNTER_LINES)}`;
 }
 
-/** Favorability-based fallbacks (old heuristic path). */
 export function aiTradeHeuristicDeclineMessage(favorability: number): string {
-  if (favorability >= 10) return "AI declined: close, but still not good enough — add a bit more cash.";
-  if (favorability >= 0) return "AI declined: too weak — offer more cash or a better property.";
-  if (favorability >= -15) return "AI declined: that trade is lopsided against me.";
-  return "AI declined: this deal is terrible for me.";
+  if (favorability >= 10) return "AI declined: add a bit more cash.";
+  if (favorability >= 0) return "AI declined: offer more cash.";
+  if (favorability >= -15) return "AI declined: too lopsided.";
+  return "AI declined: terrible deal.";
 }
 
 export function aiTradeHeuristicAcceptMessage(favorability: number): string {
-  if (favorability >= 30) return "AI accepted: fantastic deal for me!";
-  if (favorability >= 10) return "AI accepted: fair enough, I'll take it.";
-  return "AI accepted: okay, deal.";
+  if (favorability >= 30) return "AI accepted: great deal.";
+  if (favorability >= 10) return "AI accepted: fair enough.";
+  return "AI accepted: deal.";
 }

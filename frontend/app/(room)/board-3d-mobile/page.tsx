@@ -29,7 +29,7 @@ import { useAgentAutoLiquidate } from "@/hooks/useAgentAutoLiquidate";
 import { useAgentBindings } from "@/hooks/useAgentBindings";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import { useGetGameByCode, useRewardBurnCollectible } from "@/context/ContractProvider";
-import { Toaster, toast } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import {
   isAIPlayer,
   getAiSlotFromPlayer,
@@ -2381,10 +2381,11 @@ function Board3DMobileContent() {
     const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
     const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
     apiClient
-      .post<{ success?: boolean; data?: { reasoning?: string }; fallbackReason?: string }>("/agent-registry/decision", {
+      .post<{ success?: boolean; data?: { reasoning?: string }; fallbackReason?: string; tipLimitReached?: boolean }>("/agent-registry/decision", {
         gameId: game?.id,
         slot: 1,
         decisionType: "tip",
+        userId: currentPlayer.user_id,
         context: {
           myBalance: currentPlayer.balance ?? 0,
           myProperties: gameProperties
@@ -3411,14 +3412,6 @@ function Board3DMobileContent() {
           bottomClass="bottom-24"
         />
       )}
-
-      <Toaster
-        position="top-center"
-        containerStyle={{
-          zIndex: 2147483647,
-          top: "max(3.25rem, calc(env(safe-area-inset-top) + 2.75rem))",
-        }}
-      />
     </div>
   );
 }

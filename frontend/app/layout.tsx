@@ -157,7 +157,13 @@ export default async function RootLayout({
                     border: "1px solid #003B3E",
                   }}
                 />
-                <Toaster position="top-center" />
+                <Toaster
+                  position="top-center"
+                  containerStyle={{
+                    zIndex: 2147483647,
+                    top: "max(1rem, calc(env(safe-area-inset-top) + 0.5rem))",
+                  }}
+                />
                 </QueryProvider>
                 
                 {/* </SocketProvider> */}

@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { toast, Toaster } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 
 import {
   Game,
@@ -1228,10 +1228,11 @@ const endTurnAfterSpecialMove = useCallback(() => {
     const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
     const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
     apiClient
-      .post<{ success?: boolean; data?: { reasoning?: string }; useBuiltIn?: boolean; fallbackReason?: string }>("/agent-registry/decision", {
+      .post<{ success?: boolean; data?: { reasoning?: string }; useBuiltIn?: boolean; fallbackReason?: string; tipLimitReached?: boolean }>("/agent-registry/decision", {
         gameId: game.id,
         slot: 1,
         decisionType: "tip",
+        userId: currentPlayer.user_id,
         context: {
           myBalance: currentPlayer.balance ?? 0,
           myProperties: game_properties
@@ -1943,29 +1944,6 @@ const endTurnAfterSpecialMove = useCallback(() => {
           </motion.div>
         </motion.div>
       )}
-
-      <Toaster
-        position="top-center"
-        reverseOrder={false}
-        gutter={12}
-        containerClassName="z-50"
-        toastOptions={{
-          duration: 3200,
-          style: {
-            background: "rgba(15, 23, 42, 0.95)",
-            color: "#fff",
-            border: "1px solid rgba(34, 211, 238, 0.3)",
-            borderRadius: "12px",
-            padding: "12px 20px",
-            fontSize: "16px",
-            fontWeight: "600",
-            boxShadow: "0 10px 30px rgba(0, 255, 255, 0.15)",
-            backdropFilter: "blur(10px)",
-          },
-          success: { icon: "✔", style: { borderColor: "#10b981" } },
-          error: { icon: "✖", style: { borderColor: "#ef4444" } },
-        }}
-      />
     </div>
   );
 };

@@ -31,7 +31,7 @@ import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import { useRewardBurnCollectible, useGetGameByCode } from "@/context/ContractProvider";
-import { Toaster, toast } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { MONOPOLY_STATS } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
@@ -2064,10 +2064,11 @@ function Board3DMobilePageContent() {
     const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
     const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
     apiClient
-      .post<{ success?: boolean; data?: { reasoning?: string }; fallbackReason?: string }>("/agent-registry/decision", {
+      .post<{ success?: boolean; data?: { reasoning?: string }; fallbackReason?: string; tipLimitReached?: boolean }>("/agent-registry/decision", {
         gameId: game.id,
         slot: 1,
         decisionType: "tip",
+        userId: me.user_id,
         context: {
           myBalance: me.balance ?? 0,
           myProperties: gameProperties
@@ -3243,14 +3244,6 @@ function Board3DMobilePageContent() {
           bottomClass="bottom-24"
         />
       )}
-
-      <Toaster
-        position="top-center"
-        containerStyle={{
-          zIndex: 2147483647,
-          top: "max(3.25rem, calc(env(safe-area-inset-top) + 2.75rem))",
-        }}
-      />
     </div>
   );
 }

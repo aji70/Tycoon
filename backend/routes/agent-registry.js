@@ -9,12 +9,19 @@ import internalAgent from "../services/internalAgent.js";
 import UserAgent from "../models/UserAgent.js";
 import * as hostedAgentUsage from "../services/hostedAgentUsage.js";
 import * as hostedAgentCredits from "../services/hostedAgentCredits.js";
+import * as gameAiTipQuota from "../services/gameAiTipQuota.js";
 import GamePlayer from "../models/GamePlayer.js";
 import { requireAuth } from "../middleware/auth.js";
 import { submitErc8004Feedback } from "../services/erc8004Feedback.js";
 import * as x402Service from "../services/x402Service.js";
 
 const router = express.Router();
+
+const TIP_FALLBACK = {
+  action: "buy",
+  reasoning: "Buy it — owning properties wins.",
+  confidence: 50,
+};
 
 /** List all registered agents */
 router.get("/", (req, res) => {
@@ -49,12 +56,12 @@ router.post("/unregister", async (req, res) => {
 
 /**
  * Get AI decision from agent if registered; otherwise returns { useBuiltIn: true }.
- * Body: { gameId, slot, decisionType, context }
- * Used by frontend or backend to "try agent first, then use built-in logic".
+ * Body: { gameId, slot, decisionType, context, userId? }
+ * Tips: max AI_TIPS_PER_GAME (default 3) LLM tips per player per game.
  */
 router.post("/decision", async (req, res) => {
   try {
-    const { gameId, slot, decisionType, context } = req.body || {};
+    const { gameId, slot, decisionType, context, userId: bodyUserId } = req.body || {};
     console.log("[agent-registry] Decision request:", { gameId, slot, decisionType });
     if (!gameId || !slot || !decisionType) {
       return res.status(400).json({
@@ -62,6 +69,56 @@ router.post("/decision", async (req, res) => {
         message: "gameId, slot, and decisionType required",
       });
     }
+
+    // Tips: enforce per-game quota before calling Claude
+    if (decisionType === "tip") {
+      const userId = Number(bodyUserId || context?.userId || 0);
+      if (!userId) {
+        return res.json({
+          success: true,
+          data: { action: "buy", reasoning: "Buy if you can afford it.", confidence: 40 },
+          useBuiltIn: true,
+        });
+      }
+      const consumed = await gameAiTipQuota.tryConsumeTip(Number(gameId), userId);
+      if (!consumed.ok) {
+        return res.json({
+          success: true,
+          data: {
+            action: "skip",
+            reasoning: `No tips left (${consumed.limit}/game).`,
+            confidence: 50,
+          },
+          useBuiltIn: true,
+          tipLimitReached: true,
+          tipsRemaining: 0,
+          tipLimit: consumed.limit,
+        });
+      }
+      const decision = await agentRegistry.getAIDecision(
+        Number(gameId),
+        Number(slot),
+        decisionType,
+        context
+      );
+      if (decision) {
+        return res.json({
+          success: true,
+          data: decision,
+          useBuiltIn: false,
+          tipsRemaining: consumed.remaining,
+          tipLimit: consumed.limit,
+        });
+      }
+      return res.json({
+        success: true,
+        data: TIP_FALLBACK,
+        useBuiltIn: true,
+        tipsRemaining: consumed.remaining,
+        tipLimit: consumed.limit,
+      });
+    }
+
     const decision = await agentRegistry.getAIDecision(
       Number(gameId),
       Number(slot),
@@ -71,14 +128,6 @@ router.post("/decision", async (req, res) => {
     console.log("[agent-registry] Decision result:", decision ? "from agent" : "useBuiltIn");
     if (decision) {
       return res.json({ success: true, data: decision, useBuiltIn: false });
-    }
-    // For tips, return a sensible default tip (buy by default — properties win games)
-    if (decisionType === "tip") {
-      return res.json({
-        success: true,
-        data: { action: "buy", reasoning: "Buy it — owning properties is how you win!", confidence: 50 },
-        useBuiltIn: true,
-      });
     }
     res.json({ success: true, data: null, useBuiltIn: true });
   } catch (err) {

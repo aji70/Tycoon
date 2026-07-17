@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { toast, Toaster } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { Game, GameProperty, Property, Player } from "@/types/game";
 import { useGameTrades } from "@/hooks/useGameTrades";
@@ -916,36 +916,6 @@ const MobileGameLayout = ({
         tokensAwarded={0.5}
         onConfirmBankruptcy={handleBankruptcy}
         onReturnHome={() => window.location.href = "/"}
-      />
-
-      <Toaster
-        position="top-center"
-        reverseOrder={false}
-        gutter={12}
-        containerClassName="z-[100]"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: "rgba(15, 23, 42, 0.95)",
-            color: "#fff",
-            border: "1px solid rgba(34, 211, 238, 0.3)",
-            borderRadius: "12px",
-            padding: "8px 16px",
-            fontSize: "14px",
-            fontWeight: "600",
-            boxShadow: "0 10px 30px rgba(0, 255, 255, 0.15)",
-            backdropFilter: "blur(10px)",
-          },
-          success: {
-            icon: "✓",
-            style: {
-              borderColor: "rgba(34, 211, 238, 0.7)",
-              background: "rgba(6, 78, 99, 0.4)",
-              boxShadow: "0 10px 30px rgba(0, 240, 255, 0.25)",
-            },
-          },
-          error: { icon: "", style: { borderColor: "#ef4444" } },
-        }}
       />
     </div>
   );

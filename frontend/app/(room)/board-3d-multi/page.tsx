@@ -31,7 +31,7 @@ import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import TradeAlertPill from "@/components/game/TradeAlertPill";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
-import { Toaster, toast } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
 import { VictorySocialShare } from "@/components/game/modals/VictorySocialShare";
@@ -1132,10 +1132,11 @@ function Board3DPageContent() {
     const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
     const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
     apiClient
-      .post<{ success?: boolean; data?: { reasoning?: string }; fallbackReason?: string }>("/agent-registry/decision", {
+      .post<{ success?: boolean; data?: { reasoning?: string }; fallbackReason?: string; tipLimitReached?: boolean }>("/agent-registry/decision", {
         gameId: game.id,
         slot: 1,
         decisionType: "tip",
+        userId: me.user_id,
         context: {
           myBalance: me.balance ?? 0,
           myProperties: gameProperties
@@ -3150,8 +3151,6 @@ function Board3DPageContent() {
         </aside>
       )}
       </div>
-
-      <Toaster position="top-center" />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Toaster, toast } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
 import { Game, GameProperty, Property, Player } from "@/types/game";
@@ -162,10 +162,11 @@ const Board = ({
     const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
     const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
     apiClient
-      .post<{ success?: boolean; data?: { reasoning?: string }; useBuiltIn?: boolean; fallbackReason?: string }>("/agent-registry/decision", {
+      .post<{ success?: boolean; data?: { reasoning?: string }; useBuiltIn?: boolean; fallbackReason?: string; tipLimitReached?: boolean }>("/agent-registry/decision", {
         gameId: game.id,
         slot: 1,
         decisionType: "tip",
+        userId: currentPlayer.user_id,
         context: {
           myBalance: currentPlayer.balance ?? 0,
           myProperties: game_properties
@@ -486,31 +487,6 @@ const Board = ({
           onUnmortgage={(id) => { touchActivity(); handleUnmortgage(id); }}
         />
       )}
-
-      <Toaster
-        position="top-center"
-        reverseOrder={false}
-        gutter={12}
-        containerClassName="z-50"
-        toastOptions={{
-          duration: 3200,
-          style: {
-            fontFamily: "Orbitron, sans-serif",
-            background: "#0A1A1B",
-            color: "#00F0FF",
-            border: "1px solid rgba(0, 240, 255, 0.4)",
-            borderRadius: "12px",
-            padding: "12px 20px",
-            fontSize: "16px",
-            fontWeight: "600",
-            boxShadow: "0 10px 30px rgba(0, 240, 255, 0.2)",
-            backdropFilter: "blur(10px)",
-          },
-          success: { icon: "✔", style: { borderColor: "rgba(0, 240, 255, 0.5)", color: "#00F0FF" } },
-          error: { icon: "✖", style: { borderColor: "rgba(255, 107, 107, 0.5)", color: "#00F0FF" } },
-          loading: { style: { borderColor: "rgba(0, 240, 255, 0.4)", color: "#00F0FF" } },
-        }}
-      />
     </div>
   );
 };

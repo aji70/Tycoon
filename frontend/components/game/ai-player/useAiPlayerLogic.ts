@@ -153,7 +153,7 @@ export function useAiPlayerLogic({
 
       const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
       if (res?.data?.success) {
-        toast.success("Trade sent successfully!");
+        if (!isAI) toast.success("Trade sent!");
         setTradeModal({ open: false, target: null });
         resetTradeFields();
         refreshTrades();
