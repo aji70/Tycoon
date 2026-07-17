@@ -272,7 +272,7 @@ export default function AccountLinkWallet() {
               )}
             </p>
           ) : isPrivySignedIn ? (
-            <p className="text-sm text-white/70">You signed in with Privy — same account on any device.</p>
+            <p className="text-sm text-white/70">You signed in — same account on any device.</p>
           ) : !guestUser.linked_wallet_address && auth?.connectEmail ? (
             <>
               <p className="text-sm text-white/70 mb-2">Link your email to use the same profile from any device.</p>

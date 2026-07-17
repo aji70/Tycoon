@@ -2,9 +2,26 @@
 
 import { WEB3AUTH_NETWORK, type Web3AuthOptions } from '@web3auth/modal';
 import { type Web3AuthContextConfig, Web3AuthProvider } from '@web3auth/modal/react';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 const clientId = (process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID || '').trim();
+
+/** Web3Auth/Torus logs every iframe JSON-RPC at info level; suppress in the browser console. */
+function suppressEmbeddedWalletRpcLogs(): void {
+  if (typeof window === 'undefined') return;
+  const flag = '__tycoon_web3auth_rpc_log_filter__';
+  if ((window as Window & { [key: string]: boolean })[flag]) return;
+  (window as Window & { [key: string]: boolean })[flag] = true;
+
+  (['info', 'log', 'debug'] as const).forEach((method) => {
+    const original = console[method].bind(console);
+    console[method] = (...args: unknown[]) => {
+      const first = args[0];
+      if (typeof first === 'string' && first.startsWith('RPC (')) return;
+      original(...args);
+    };
+  });
+}
 
 /**
  * Email passwordless by default (same UX as previous Privy email magic link).
@@ -20,6 +37,7 @@ const web3AuthNetwork =
 const web3AuthOptions: Web3AuthOptions = {
   clientId: clientId || 'WEB3AUTH_CLIENT_ID_MISSING',
   web3AuthNetwork,
+  enableLogging: false,
   uiConfig: {
     appName: 'Tycoon',
     mode: 'dark',
@@ -37,6 +55,10 @@ type Props = {
 };
 
 export default function Web3AuthProviderWrapper({ children }: Props) {
+  useEffect(() => {
+    suppressEmbeddedWalletRpcLogs();
+  }, []);
+
   if (!clientId) {
     if (typeof window !== 'undefined') {
       console.warn(

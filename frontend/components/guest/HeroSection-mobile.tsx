@@ -550,14 +550,14 @@ const HeroSectionMobile: React.FC = () => {
           {address && !isPrivyAuthed && !loading && (
             <div className="w-full flex flex-col gap-3 items-center">
               <p className="text-[#869298] text-sm text-center font-dmSans">
-                Sign in with Privy to continue
+                Sign in to continue
               </p>
               <GlowButton
                 onClick={() => login()}
                 variant="primary"
                 size="lg"
               >
-                Sign in with Privy
+                Sign in
               </GlowButton>
             </div>
           )}

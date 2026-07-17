@@ -481,7 +481,7 @@ export function CreateTournamentClient({
                 onClick={() => login()}
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-200 font-medium hover:bg-cyan-500/35 transition"
               >
-                Sign in with Privy
+                Sign in
               </button>
               {canUseWallet && (
                 <button

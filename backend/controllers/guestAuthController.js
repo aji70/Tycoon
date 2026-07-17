@@ -133,6 +133,37 @@ function placeholderAddressForPrivyDid(authId) {
 const WEB3AUTH_CLIENT_ID = process.env.WEB3AUTH_CLIENT_ID || process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID;
 const WEB3AUTH_JWKS_SOCIAL = createRemoteJWKSet(new URL("https://api-auth.web3auth.io/jwks"));
 const WEB3AUTH_JWKS_EXTERNAL = createRemoteJWKSet(new URL("https://authjs.web3auth.io/jwks"));
+/** Web3Auth v11 / Sapphire (email & social) — kid often only present here, not api-auth.web3auth.io/jwks */
+const WEB3AUTH_JWKS_CITADEL = createRemoteJWKSet(
+  new URL("https://api.web3auth.io/citadel-service/.well-known/jwks.json")
+);
+
+function web3AuthProjectJwks(clientId) {
+  return createRemoteJWKSet(
+    new URL(`https://api.web3auth.io/jwks?project_id=${encodeURIComponent(clientId)}`)
+  );
+}
+
+/** JWKS + issuer pairs tried in order until signature verifies (v11 Sapphire uses citadel + iss web3auth.io). */
+function web3AuthVerifyProfiles(clientId) {
+  const profiles = [
+    {
+      jwks: WEB3AUTH_JWKS_CITADEL,
+      issuers: ["web3auth.io", "https://web3auth.io"],
+    },
+  ];
+  if (clientId) {
+    profiles.push({
+      jwks: web3AuthProjectJwks(clientId),
+      issuers: ["web3auth.io", "https://web3auth.io", "https://api-auth.web3auth.io"],
+    });
+  }
+  profiles.push(
+    { jwks: WEB3AUTH_JWKS_SOCIAL, issuers: ["https://api-auth.web3auth.io"] },
+    { jwks: WEB3AUTH_JWKS_EXTERNAL, issuers: ["https://authjs.web3auth.io"] }
+  );
+  return profiles;
+}
 
 /**
  * Stable Web3Auth subject for users table. Prefer groupedAuthConnectionId + userId.
@@ -175,30 +206,37 @@ async function verifyWeb3AuthIdToken(idToken) {
     err.status = 503;
     throw err;
   }
-  const verifyOpts = {
+  const token = String(idToken || "").trim();
+  if (!token || token.split(".").length !== 3) {
+    const err = new Error("Invalid Web3Auth token format");
+    err.status = 401;
+    throw err;
+  }
+  const verifyOptsBase = {
     algorithms: ["ES256"],
     audience: WEB3AUTH_CLIENT_ID,
+    /** Mobile devices occasionally drift from NTP — avoid false "expired" rejects. */
+    clockTolerance: 90,
   };
-  try {
-    const { payload } = await jwtVerify(idToken, WEB3AUTH_JWKS_SOCIAL, {
-      ...verifyOpts,
-      issuer: "https://api-auth.web3auth.io",
-    });
-    return payload;
-  } catch (socialErr) {
-    try {
-      const { payload } = await jwtVerify(idToken, WEB3AUTH_JWKS_EXTERNAL, {
-        ...verifyOpts,
-        issuer: "https://authjs.web3auth.io",
-      });
-      return payload;
-    } catch (extErr) {
-      const msg = socialErr?.message || extErr?.message || "Invalid Web3Auth token";
-      const err = new Error(msg);
-      err.status = 401;
-      throw err;
+  const profiles = web3AuthVerifyProfiles(WEB3AUTH_CLIENT_ID);
+  const failures = [];
+  for (const profile of profiles) {
+    for (const issuer of profile.issuers) {
+      try {
+        const { payload } = await jwtVerify(token, profile.jwks, {
+          ...verifyOptsBase,
+          issuer,
+        });
+        return payload;
+      } catch (e) {
+        failures.push(`${issuer}: ${e?.message || "verify failed"}`);
+      }
     }
   }
+  const msg = failures[0] || "Invalid Web3Auth token";
+  const err = new Error(msg);
+  err.status = 401;
+  throw err;
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || "tycoon-guest-secret-change-in-production";
