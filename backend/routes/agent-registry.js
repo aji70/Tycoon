@@ -9,7 +9,6 @@ import internalAgent from "../services/internalAgent.js";
 import UserAgent from "../models/UserAgent.js";
 import * as hostedAgentUsage from "../services/hostedAgentUsage.js";
 import * as hostedAgentCredits from "../services/hostedAgentCredits.js";
-import * as gameAiTipQuota from "../services/gameAiTipQuota.js";
 import * as tipPackPurchase from "../services/tipPackPurchase.js";
 import GamePlayer from "../models/GamePlayer.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -58,7 +57,7 @@ router.post("/unregister", async (req, res) => {
 /**
  * Get AI decision from agent if registered; otherwise returns { useBuiltIn: true }.
  * Body: { gameId, slot, decisionType, context, userId? }
- * Tips: max AI_TIPS_PER_GAME (default 3) free LLM tips per player per game; packs +5 for $0.05 USDC.
+ * Tips: unlimited built-in fallback only (no Anthropic, no per-game quota).
  */
 router.post("/decision", async (req, res) => {
   try {
@@ -71,54 +70,12 @@ router.post("/decision", async (req, res) => {
       });
     }
 
-    // Tips: enforce per-game quota before calling Claude
+    // Tips: always use local fallback — no Claude, no tip quota
     if (decisionType === "tip") {
-      const userId = Number(bodyUserId || context?.userId || 0);
-      if (!userId) {
-        return res.json({
-          success: true,
-          data: { action: "buy", reasoning: "Buy if you can afford it.", confidence: 40 },
-          useBuiltIn: true,
-        });
-      }
-      const consumed = await gameAiTipQuota.tryConsumeTip(Number(gameId), userId);
-      if (!consumed.ok) {
-        const tipPack = gameAiTipQuota.getTipPackOffer();
-        return res.json({
-          success: true,
-          data: {
-            action: "skip",
-            reasoning: `No tips left. Get ${tipPack.tips} for $${tipPack.usdc}.`,
-            confidence: 50,
-          },
-          useBuiltIn: true,
-          tipLimitReached: true,
-          tipsRemaining: 0,
-          tipLimit: consumed.limit,
-          tipPack,
-        });
-      }
-      const decision = await agentRegistry.getAIDecision(
-        Number(gameId),
-        Number(slot),
-        decisionType,
-        context
-      );
-      if (decision) {
-        return res.json({
-          success: true,
-          data: decision,
-          useBuiltIn: false,
-          tipsRemaining: consumed.remaining,
-          tipLimit: consumed.limit,
-        });
-      }
       return res.json({
         success: true,
         data: TIP_FALLBACK,
         useBuiltIn: true,
-        tipsRemaining: consumed.remaining,
-        tipLimit: consumed.limit,
       });
     }
 
@@ -179,6 +136,11 @@ router.post("/decision-paid", async (req, res) => {
     });
   }
 
+  // Tips are free built-in fallback (no Anthropic, no x402)
+  if (decisionType === "tip") {
+    return res.json({ success: true, data: TIP_FALLBACK, useBuiltIn: true });
+  }
+
   const resourceUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
   const paymentData = req.headers["payment-signature"] || req.headers["x-payment"];
 
@@ -204,13 +166,6 @@ router.post("/decision-paid", async (req, res) => {
   );
   if (decision) {
     return res.json({ success: true, data: decision, useBuiltIn: false });
-  }
-  if (decisionType === "tip") {
-    return res.json({
-      success: true,
-      data: { action: "buy", reasoning: "Buy it — owning properties is how you win!", confidence: 50 },
-      useBuiltIn: true,
-    });
   }
   res.json({ success: true, data: null, useBuiltIn: true });
 });

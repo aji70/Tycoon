@@ -210,6 +210,9 @@ async function getAIDecision(gameId, slot, decisionType, context) {
 }
 
 async function getAIDecisionInner(gameId, slot, decisionType, context) {
+  // Tips never use Anthropic — callers use built-in TIP_FALLBACK
+  if (decisionType === "tip") return null;
+
   const agent = getAgentForSlot(gameId, slot);
   logger.debug({
     gameId,
@@ -352,7 +355,7 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
   if (USE_INTERNAL_AGENT) {
     try {
       const game = await Game.findById(Number(gameId));
-      const useInternal = game && (game.is_ai || decisionType === "tip");
+      const useInternal = game && game.is_ai && decisionType !== "tip";
       if (useInternal) {
         const gs = game?.is_ai ? await GameSetting.findByGameId(Number(gameId)) : null;
         let diff = (gs?.ai_difficulty || "easy").toLowerCase();
@@ -362,8 +365,8 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
             diff = String(slotDiff).toLowerCase();
           }
         }
-        // Tips can still use Claude even on easy/hard; gameplay decisions only use LLM on boss.
-        if (decisionType !== "tip" && game.is_ai && diff !== "boss") {
+        // Gameplay LLM only on boss; tips never use Claude (route returns built-in fallback).
+        if (game.is_ai && diff !== "boss") {
           logger.debug(
             { gameId, slot, decisionType, ai_difficulty: diff },
             diff === "hard" ? "Hard: using stricter built-in rules" : "Easy: using built-in rules"
