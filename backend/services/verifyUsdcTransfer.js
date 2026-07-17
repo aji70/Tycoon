@@ -23,12 +23,14 @@ export function isUsdcCreditsConfigured() {
 /**
  * Verify a USDC transfer tx and extract from + amount.
  * @param {string} txHash - On-chain transaction hash
+ * @param {{ minAmount?: bigint }} [opts] - Default min $1 USDC (1e6). Tip packs use 0.05 USDC (5e4).
  * @returns {Promise<{ ok: boolean, from?: string, amount?: bigint, error?: string }>}
  */
-export async function verifyUsdcTransfer(txHash) {
+export async function verifyUsdcTransfer(txHash, opts = {}) {
   const recipient = process.env.HOSTED_AGENT_CREDITS_USDC_RECIPIENT;
   const usdcAddress = process.env.CELO_USDC_ADDRESS || process.env.NEXT_PUBLIC_CELO_USDC;
   const celo = getChainConfig("CELO");
+  const minAmount = opts.minAmount != null ? BigInt(opts.minAmount) : 1_000_000n;
 
   if (!recipient || !usdcAddress || !celo.rpcUrl) {
     return { ok: false, error: "USDC credits not configured" };
@@ -47,6 +49,7 @@ export async function verifyUsdcTransfer(txHash) {
     const recipientLower = recipient.toLowerCase().replace(/^0x/, "");
     const usdcLower = usdcAddress.toLowerCase().replace(/^0x/, "");
     const iface = new Interface(ERC20_ABI);
+    const minLabel = Number(minAmount) / 1_000_000;
 
     for (const log of receipt.logs) {
       if (log.address.toLowerCase() !== usdcLower) continue;
@@ -59,8 +62,9 @@ export async function verifyUsdcTransfer(txHash) {
       if (to !== recipientLower && to !== `0x${recipientLower}`) continue;
 
       const amount = decoded.args.value;
-      const minAmount = 1_000_000n; // 1 USDC (6 decimals)
-      if (amount < minAmount) return { ok: false, error: "Amount less than $1 USDC" };
+      if (amount < minAmount) {
+        return { ok: false, error: `Amount less than $${minLabel} USDC` };
+      }
 
       const from = decoded.args.from;
       return { ok: true, from: from?.toString?.() || from, amount };

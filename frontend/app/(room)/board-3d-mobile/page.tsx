@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
 import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
+import { AiTipPackCta, type TipPackOffer } from "@/components/game/ai-tip-pack-cta";
 import { socketService } from "@/lib/socket";
 import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
@@ -422,6 +423,8 @@ function Board3DMobileContent() {
     }
   }, []);
   const [aiTipLoading, setAiTipLoading] = useState(false);
+  const [tipPackOffer, setTipPackOffer] = useState<TipPackOffer | null>(null);
+  const [tipFetchNonce, setTipFetchNonce] = useState(0);
   const lastTipPropertyIdRef = useRef<number | null>(null);
   const lastTipActionRef = useRef<"buy" | "skip" | null>(null);
 
@@ -2354,9 +2357,17 @@ function Board3DMobileContent() {
   useEffect(() => {
     if (!buyPrompted) {
       setAiTipText(null);
+      setTipPackOffer(null);
       lastTipPropertyIdRef.current = null;
     }
   }, [buyPrompted]);
+
+  const refetchAiTipAfterPack = useCallback(() => {
+    setTipPackOffer(null);
+    setAiTipText(null);
+    lastTipPropertyIdRef.current = null;
+    setTipFetchNonce((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     if (
@@ -2372,6 +2383,7 @@ function Board3DMobileContent() {
     if (lastTipPropertyIdRef.current === propId) return;
     lastTipPropertyIdRef.current = propId;
     setAiTipLoading(true);
+    setTipPackOffer(null);
     const groupIds =
       Object.values(MONOPOLY_STATS.colorGroups).find((ids) => ids.includes(justLandedProperty.id)) ?? [];
     const ownedInGroup = groupIds.filter((id) =>
@@ -2382,7 +2394,13 @@ function Board3DMobileContent() {
     const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
     const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
     apiClient
-      .post<{ success?: boolean; data?: { reasoning?: string }; fallbackReason?: string; tipLimitReached?: boolean }>("/agent-registry/decision", {
+      .post<{
+        success?: boolean;
+        data?: { reasoning?: string; action?: string };
+        fallbackReason?: string;
+        tipLimitReached?: boolean;
+        tipPack?: TipPackOffer;
+      }>("/agent-registry/decision", {
         gameId: game?.id,
         slot: 1,
         decisionType: "tip",
@@ -2411,6 +2429,12 @@ function Board3DMobileContent() {
           return;
         }
         const data = res?.data?.data;
+        if (res?.data?.tipLimitReached) {
+          setAiTipText(data?.reasoning ?? "No tips left. Get 5 for $0.05");
+          setTipPackOffer(res.data.tipPack ?? null);
+          lastTipActionRef.current = "skip";
+          return;
+        }
         const text = data?.reasoning ?? null;
         setAiTipText(normalizeAiTip(text) ?? AI_TIP_FALLBACK);
         lastTipActionRef.current = data?.action === "buy" ? "buy" : "skip";
@@ -2432,6 +2456,7 @@ function Board3DMobileContent() {
     game?.players,
     gameProperties,
     properties,
+    tipFetchNonce,
   ]);
 
   useEffect(() => {
@@ -2993,7 +3018,16 @@ function Board3DMobileContent() {
                 {aiTipLoading ? (
                   <p className="text-sm text-slate-400">Thinking…</p>
                 ) : aiTipText ? (
-                  <p className="text-sm text-slate-200">{aiTipText}</p>
+                  <>
+                    <p className="text-sm text-slate-200">{aiTipText}</p>
+                    {tipPackOffer?.available && game?.id ? (
+                      <AiTipPackCta
+                        gameId={Number(game.id)}
+                        offer={tipPackOffer}
+                        onPurchased={refetchAiTipAfterPack}
+                      />
+                    ) : null}
+                  </>
                 ) : null}
               </div>
             )}

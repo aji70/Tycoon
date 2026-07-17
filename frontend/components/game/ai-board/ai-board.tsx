@@ -18,6 +18,7 @@ import {
 } from "@/types/game";
 import { apiClient } from "@/lib/api";
 import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
+import { type TipPackOffer } from "@/components/game/ai-tip-pack-cta";
 
 // Child components
 import BoardSquare from "./board-square";
@@ -174,6 +175,8 @@ const AiBoard = ({
   });
   const [aiTipText, setAiTipText] = useState<string | null>(null);
   const [aiTipLoading, setAiTipLoading] = useState(false);
+  const [tipPackOffer, setTipPackOffer] = useState<TipPackOffer | null>(null);
+  const [tipFetchNonce, setTipFetchNonce] = useState(0);
   const lastTipPropertyIdRef = useRef<number | null>(null);
   /** When user's action (buy/skip) matches this, we submit ERC-8004 "tip followed" reputation feedback. */
   const lastTipActionRef = useRef<"buy" | "skip" | null>(null);
@@ -1210,9 +1213,17 @@ const endTurnAfterSpecialMove = useCallback(() => {
   useEffect(() => {
     if (!buyPrompted) {
       setAiTipText(null);
+      setTipPackOffer(null);
       lastTipPropertyIdRef.current = null;
     }
   }, [buyPrompted]);
+
+  const refetchAiTipAfterPack = useCallback(() => {
+    setTipPackOffer(null);
+    setAiTipText(null);
+    lastTipPropertyIdRef.current = null;
+    setTipFetchNonce((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     if (!aiTipsOn || !isMyTurn || !buyPrompted || !justLandedProperty || !currentPlayer || currentPlayer?.user_id !== me?.user_id) return;
@@ -1220,6 +1231,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
     if (lastTipPropertyIdRef.current === propId) return;
     lastTipPropertyIdRef.current = propId;
     setAiTipLoading(true);
+    setTipPackOffer(null);
     const groupIds = Object.values(MONOPOLY_STATS.colorGroups).find((ids) => ids.includes(justLandedProperty.id)) ?? [];
     const ownedInGroup = groupIds.filter((id) =>
       game_properties.some(
@@ -1229,7 +1241,14 @@ const endTurnAfterSpecialMove = useCallback(() => {
     const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
     const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
     apiClient
-      .post<{ success?: boolean; data?: { reasoning?: string }; useBuiltIn?: boolean; fallbackReason?: string; tipLimitReached?: boolean }>("/agent-registry/decision", {
+      .post<{
+        success?: boolean;
+        data?: { reasoning?: string; action?: string };
+        useBuiltIn?: boolean;
+        fallbackReason?: string;
+        tipLimitReached?: boolean;
+        tipPack?: TipPackOffer;
+      }>("/agent-registry/decision", {
         gameId: game.id,
         slot: 1,
         decisionType: "tip",
@@ -1258,6 +1277,12 @@ const endTurnAfterSpecialMove = useCallback(() => {
           return;
         }
         const data = res?.data?.data;
+        if (res?.data?.tipLimitReached) {
+          setAiTipText(data?.reasoning ?? "No tips left. Get 5 for $0.05");
+          setTipPackOffer(res.data.tipPack ?? null);
+          lastTipActionRef.current = "skip";
+          return;
+        }
         const text = data?.reasoning ?? null;
         setAiTipText(normalizeAiTip(text) ?? AI_TIP_FALLBACK);
         lastTipActionRef.current = data?.action === "buy" ? "buy" : "skip";
@@ -1279,6 +1304,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
     game.players,
     game_properties,
     properties,
+    tipFetchNonce,
   ]);
 
   // When a NEW card is drawn (history grows), show card modal. Don't show on initial load or when returning to the page.
@@ -1662,6 +1688,9 @@ const endTurnAfterSpecialMove = useCallback(() => {
               onToggleAiTips={toggleAiTips}
               aiTipText={aiTipText}
               aiTipLoading={aiTipLoading}
+              tipPackOffer={tipPackOffer}
+              gameId={game.id}
+              onTipPackPurchased={refetchAiTipAfterPack}
             />
 
             {properties.map((square) => {

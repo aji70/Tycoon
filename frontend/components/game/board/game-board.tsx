@@ -4,6 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
+import { type TipPackOffer } from "@/components/game/ai-tip-pack-cta";
 import { Game, GameProperty, Property, Player } from "@/types/game";
 import BoardSquare from "./board-square";
 import CenterArea from "./center-area";
@@ -127,6 +128,8 @@ const Board = ({
   });
   const [aiTipText, setAiTipText] = useState<string | null>(null);
   const [aiTipLoading, setAiTipLoading] = useState(false);
+  const [tipPackOffer, setTipPackOffer] = useState<TipPackOffer | null>(null);
+  const [tipFetchNonce, setTipFetchNonce] = useState(0);
   const lastTipPropertyIdRef = useRef<number | null>(null);
 
   const toggleAiTips = useCallback(() => {
@@ -143,9 +146,17 @@ const Board = ({
   useEffect(() => {
     if (!buyPrompted) {
       setAiTipText(null);
+      setTipPackOffer(null);
       lastTipPropertyIdRef.current = null;
     }
   }, [buyPrompted]);
+
+  const refetchAiTipAfterPack = useCallback(() => {
+    setTipPackOffer(null);
+    setAiTipText(null);
+    lastTipPropertyIdRef.current = null;
+    setTipFetchNonce((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     if (!aiTipsOn || !isMyTurn || !buyPrompted || !justLandedProperty || !currentPlayer || currentPlayer?.user_id !== me?.user_id) return;
@@ -153,6 +164,7 @@ const Board = ({
     if (lastTipPropertyIdRef.current === propId) return;
     lastTipPropertyIdRef.current = propId;
     setAiTipLoading(true);
+    setTipPackOffer(null);
     const groupIds = Object.values(MONOPOLY_STATS.colorGroups).find((ids) => ids.includes(justLandedProperty.id)) ?? [];
     const ownedInGroup = groupIds.filter((id) =>
       game_properties.some(
@@ -162,7 +174,14 @@ const Board = ({
     const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
     const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
     apiClient
-      .post<{ success?: boolean; data?: { reasoning?: string }; useBuiltIn?: boolean; fallbackReason?: string; tipLimitReached?: boolean }>("/agent-registry/decision", {
+      .post<{
+        success?: boolean;
+        data?: { reasoning?: string };
+        useBuiltIn?: boolean;
+        fallbackReason?: string;
+        tipLimitReached?: boolean;
+        tipPack?: TipPackOffer;
+      }>("/agent-registry/decision", {
         gameId: game.id,
         slot: 1,
         decisionType: "tip",
@@ -189,7 +208,13 @@ const Board = ({
           setAiTipText(fallbackReason);
           return;
         }
-        const text = res?.data?.data?.reasoning ?? null;
+        const data = res?.data?.data;
+        if (res?.data?.tipLimitReached) {
+          setAiTipText(data?.reasoning ?? "No tips left. Get 5 for $0.05");
+          setTipPackOffer(res.data.tipPack ?? null);
+          return;
+        }
+        const text = data?.reasoning ?? null;
         setAiTipText(normalizeAiTip(text) ?? AI_TIP_FALLBACK);
       })
       .catch((e: unknown) => {
@@ -209,6 +234,7 @@ const Board = ({
     players,
     game_properties,
     properties,
+    tipFetchNonce,
   ]);
 
   const [gameTimeUp, setGameTimeUp] = useState(false);
@@ -362,6 +388,9 @@ const Board = ({
               onToggleAiTips={toggleAiTips}
               aiTipText={aiTipText}
               aiTipLoading={aiTipLoading}
+              tipPackOffer={tipPackOffer}
+              gameId={game.id}
+              onTipPackPurchased={refetchAiTipAfterPack}
             />
 
             {properties.map((square) => {

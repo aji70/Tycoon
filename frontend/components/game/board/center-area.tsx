@@ -8,6 +8,7 @@ import ActionLog from "./action-log";
 
 import { Property, Player, Game } from "@/types/game";
 import { getBoardCenterImageUrl } from "@/lib/boardCenterImage";
+import { AiTipPackCta, type TipPackOffer } from "@/components/game/ai-tip-pack-cta";
 
 type CenterAreaProps = {
   isMyTurn: boolean;
@@ -63,6 +64,9 @@ type CenterAreaProps = {
   onToggleAiTips?: () => void;
   aiTipText?: string | null;
   aiTipLoading?: boolean;
+  tipPackOffer?: TipPackOffer | null;
+  gameId?: number;
+  onTipPackPurchased?: () => void;
   /** Prevent double-tap on buy/skip (backend call in progress) */
   buyPending?: boolean;
   /** Prevent double-tap on jail actions (pay/use card/stay) */
@@ -116,6 +120,9 @@ export default function CenterArea({
   onToggleAiTips,
   aiTipText = null,
   aiTipLoading = false,
+  tipPackOffer = null,
+  gameId,
+  onTipPackPurchased,
   buyPending = false,
   jailSubmitting = false,
   voteEndByNetWorthSubmitting = false,
@@ -477,7 +484,16 @@ export default function CenterArea({
               {aiTipLoading ? (
                 <p className="text-cyan-200/80 text-sm italic">Getting tip…</p>
               ) : aiTipText ? (
-                <p className="text-cyan-100 text-sm">💡 {aiTipText}</p>
+                <>
+                  <p className="text-cyan-100 text-sm">💡 {aiTipText}</p>
+                  {tipPackOffer?.available && gameId && onTipPackPurchased ? (
+                    <AiTipPackCta
+                      gameId={gameId}
+                      offer={tipPackOffer}
+                      onPurchased={onTipPackPurchased}
+                    />
+                  ) : null}
+                </>
               ) : null}
             </div>
           )}

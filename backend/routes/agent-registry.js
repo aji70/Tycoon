@@ -10,6 +10,7 @@ import UserAgent from "../models/UserAgent.js";
 import * as hostedAgentUsage from "../services/hostedAgentUsage.js";
 import * as hostedAgentCredits from "../services/hostedAgentCredits.js";
 import * as gameAiTipQuota from "../services/gameAiTipQuota.js";
+import * as tipPackPurchase from "../services/tipPackPurchase.js";
 import GamePlayer from "../models/GamePlayer.js";
 import { requireAuth } from "../middleware/auth.js";
 import { submitErc8004Feedback } from "../services/erc8004Feedback.js";
@@ -57,7 +58,7 @@ router.post("/unregister", async (req, res) => {
 /**
  * Get AI decision from agent if registered; otherwise returns { useBuiltIn: true }.
  * Body: { gameId, slot, decisionType, context, userId? }
- * Tips: max AI_TIPS_PER_GAME (default 3) LLM tips per player per game.
+ * Tips: max AI_TIPS_PER_GAME (default 3) free LLM tips per player per game; packs +5 for $0.05 USDC.
  */
 router.post("/decision", async (req, res) => {
   try {
@@ -82,17 +83,19 @@ router.post("/decision", async (req, res) => {
       }
       const consumed = await gameAiTipQuota.tryConsumeTip(Number(gameId), userId);
       if (!consumed.ok) {
+        const tipPack = gameAiTipQuota.getTipPackOffer();
         return res.json({
           success: true,
           data: {
             action: "skip",
-            reasoning: `No tips left (${consumed.limit}/game).`,
+            reasoning: `No tips left. Get ${tipPack.tips} for $${tipPack.usdc}.`,
             confidence: 50,
           },
           useBuiltIn: true,
           tipLimitReached: true,
           tipsRemaining: 0,
           tipLimit: consumed.limit,
+          tipPack,
         });
       }
       const decision = await agentRegistry.getAIDecision(
@@ -132,6 +135,25 @@ router.post("/decision", async (req, res) => {
     res.json({ success: true, data: null, useBuiltIn: true });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * Buy +5 AI tips for $0.05 USDC (same recipient as hosted credits).
+ * Body: { gameId, tx_hash }
+ */
+router.post("/tips/purchase", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    const { gameId, tx_hash } = req.body || {};
+    const result = await tipPackPurchase.purchaseTipPack(Number(userId), Number(gameId), tx_hash);
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    const status = err?.status || 500;
+    return res.status(status).json({ success: false, message: err?.message || "Purchase failed" });
   }
 });
 

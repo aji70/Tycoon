@@ -12,6 +12,7 @@ import { calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUti
 import { useAgentSettings, BUY_SCORE_THRESHOLD, BUY_CASH_RESERVE, BUILD_MIN_BALANCE, BUILD_AFTER_RESERVE } from "@/hooks/useAgentSettings";
 import { pickMonopolyDevelopmentTarget } from "@/lib/pickMonopolyDevelopmentTarget";
 import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
+import { AiTipPackCta, type TipPackOffer } from "@/components/game/ai-tip-pack-cta";
 import { socketService } from "@/lib/socket";
 import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
@@ -374,6 +375,8 @@ function Board3DMobilePageContent() {
   });
   const [buyTipText, setBuyTipText] = useState<string | null>(null);
   const [buyTipLoading, setBuyTipLoading] = useState(false);
+  const [tipPackOffer, setTipPackOffer] = useState<TipPackOffer | null>(null);
+  const [tipFetchNonce, setTipFetchNonce] = useState(0);
   const lastTipPropertyIdRef = useRef<number | null>(null);
   const [auctionBidAmount, setAuctionBidAmount] = useState("");
   const [auctionSubmitting, setAuctionSubmitting] = useState(false);
@@ -2045,9 +2048,17 @@ function Board3DMobilePageContent() {
   useEffect(() => {
     if (!buyPrompted) {
       setBuyTipText(null);
+      setTipPackOffer(null);
       lastTipPropertyIdRef.current = null;
     }
   }, [buyPrompted]);
+
+  const refetchAiTipAfterPack = useCallback(() => {
+    setTipPackOffer(null);
+    setBuyTipText(null);
+    lastTipPropertyIdRef.current = null;
+    setTipFetchNonce((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     if (!buyTipsOn || !isMyTurn || !buyPrompted || !justLandedProperty || !me || !game?.id) return;
@@ -2055,6 +2066,7 @@ function Board3DMobilePageContent() {
     if (lastTipPropertyIdRef.current === propId) return;
     lastTipPropertyIdRef.current = propId;
     setBuyTipLoading(true);
+    setTipPackOffer(null);
     const groupIds =
       Object.values(MONOPOLY_STATS.colorGroups).find((ids) => ids.includes(justLandedProperty.id)) ?? [];
     const ownedInGroup = groupIds.filter((id) =>
@@ -2065,7 +2077,13 @@ function Board3DMobilePageContent() {
     const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
     const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
     apiClient
-      .post<{ success?: boolean; data?: { reasoning?: string }; fallbackReason?: string; tipLimitReached?: boolean }>("/agent-registry/decision", {
+      .post<{
+        success?: boolean;
+        data?: { reasoning?: string };
+        fallbackReason?: string;
+        tipLimitReached?: boolean;
+        tipPack?: TipPackOffer;
+      }>("/agent-registry/decision", {
         gameId: game.id,
         slot: 1,
         decisionType: "tip",
@@ -2092,7 +2110,13 @@ function Board3DMobilePageContent() {
           setBuyTipText(fallbackReason);
           return;
         }
-        const text = res?.data?.data?.reasoning ?? null;
+        const data = res?.data?.data;
+        if (res?.data?.tipLimitReached) {
+          setBuyTipText(data?.reasoning ?? "No tips left. Get 5 for $0.05");
+          setTipPackOffer(res.data.tipPack ?? null);
+          return;
+        }
+        const text = data?.reasoning ?? null;
         setBuyTipText(normalizeAiTip(text) ?? AI_TIP_FALLBACK);
       })
       .catch((e: unknown) => {
@@ -2111,6 +2135,7 @@ function Board3DMobilePageContent() {
     game?.players,
     gameProperties,
     properties,
+    tipFetchNonce,
   ]);
 
   useEffect(() => {
@@ -2775,7 +2800,16 @@ function Board3DMobilePageContent() {
                 {buyTipLoading ? (
                   <p className="text-sm text-slate-400">Thinking…</p>
                 ) : buyTipText ? (
-                  <p className="text-sm text-slate-200">{buyTipText}</p>
+                  <>
+                    <p className="text-sm text-slate-200">{buyTipText}</p>
+                    {tipPackOffer?.available && game?.id ? (
+                      <AiTipPackCta
+                        gameId={Number(game.id)}
+                        offer={tipPackOffer}
+                        onPurchased={refetchAiTipAfterPack}
+                      />
+                    ) : null}
+                  </>
                 ) : null}
               </div>
             )}
