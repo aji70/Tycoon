@@ -9,12 +9,36 @@ import { useWriteContract } from "@/hooks/useTaggedWriteContract";
 import { apiClient } from "@/lib/api";
 import { USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 
+/** Celo native USDC (bridged) — fallback when NEXT_PUBLIC_CELO_USDC is unset. */
+const CELO_USDC_FALLBACK = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C" as Address;
+
 export type TipPackOffer = {
   tips: number;
   usdc: string;
   recipient: string | null;
-  available: boolean;
+  available?: boolean;
 };
+
+export const DEFAULT_TIP_PACK_OFFER: TipPackOffer = {
+  tips: 5,
+  usdc: "0.05",
+  recipient:
+    (typeof process !== "undefined" &&
+      (process.env.NEXT_PUBLIC_TIP_PACK_USDC_RECIPIENT ||
+        process.env.NEXT_PUBLIC_HOSTED_AGENT_CREDITS_USDC_RECIPIENT)) ||
+    null,
+  available: true,
+};
+
+/** Merge API tipPack with defaults so the buy button always has label + amounts. */
+export function resolveTipPackOffer(pack?: TipPackOffer | null): TipPackOffer {
+  return {
+    tips: pack?.tips ?? DEFAULT_TIP_PACK_OFFER.tips,
+    usdc: pack?.usdc ?? DEFAULT_TIP_PACK_OFFER.usdc,
+    recipient: pack?.recipient || DEFAULT_TIP_PACK_OFFER.recipient,
+    available: true,
+  };
+}
 
 type Props = {
   gameId: number;
@@ -30,38 +54,51 @@ export function AiTipPackCta({ gameId, offer, onPurchased, className }: Props) {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
-  const publicClient = usePublicClient();
+  const publicClient = usePublicClient({ chainId: celo.id });
   const { writeContractAsync } = useWriteContract();
   const [busy, setBusy] = useState(false);
 
   const label = `Get ${offer.tips} for $${offer.usdc}`;
 
   const handleBuy = useCallback(async () => {
-    if (!offer.available || !offer.recipient) {
-      toast.error("Tip packs not available right now");
-      return;
-    }
     if (!isConnected || !address) {
       toast.error("Connect your wallet to buy tips");
-      return;
-    }
-    const usdc = USDC_TOKEN_ADDRESS[chainId] ?? USDC_TOKEN_ADDRESS[celo.id];
-    if (!usdc) {
-      toast.error("USDC not configured");
       return;
     }
 
     setBusy(true);
     try {
+      let recipient = offer.recipient;
+      if (!recipient) {
+        try {
+          const creditsRes = await apiClient.get<{
+            success?: boolean;
+            data?: { usdc_recipient?: string | null };
+          }>("/agents/hosted-credits");
+          recipient = creditsRes.data?.data?.usdc_recipient || null;
+        } catch {
+          /* ignore — handled below */
+        }
+      }
+      if (!recipient) {
+        toast.error("Tip pack payments are not configured yet");
+        return;
+      }
+
+      const usdc =
+        USDC_TOKEN_ADDRESS[celo.id] ||
+        USDC_TOKEN_ADDRESS[chainId] ||
+        CELO_USDC_FALLBACK;
+
       if (chainId !== celo.id) {
         await switchChainAsync?.({ chainId: celo.id });
       }
       const amount = parseUnits(offer.usdc, 6);
       const hash = await writeContractAsync({
-        address: (USDC_TOKEN_ADDRESS[celo.id] ?? usdc) as Address,
+        address: usdc as Address,
         abi: erc20Abi,
         functionName: "transfer",
-        args: [offer.recipient as Address, amount],
+        args: [recipient as Address, amount],
         chainId: celo.id,
       });
       toast.loading("Confirming payment…", { id: "tip-pack" });
@@ -105,8 +142,6 @@ export function AiTipPackCta({ gameId, offer, onPurchased, className }: Props) {
     switchChainAsync,
     writeContractAsync,
   ]);
-
-  if (!offer.available) return null;
 
   return (
     <button

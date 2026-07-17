@@ -12,7 +12,7 @@ import { calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUti
 import { useAgentSettings, BUY_SCORE_THRESHOLD, BUY_CASH_RESERVE, BUILD_MIN_BALANCE, BUILD_AFTER_RESERVE } from "@/hooks/useAgentSettings";
 import { pickMonopolyDevelopmentTarget } from "@/lib/pickMonopolyDevelopmentTarget";
 import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
-import { AiTipPackCta, type TipPackOffer } from "@/components/game/ai-tip-pack-cta";
+import { AiTipPackCta, resolveTipPackOffer, type TipPackOffer } from "@/components/game/ai-tip-pack-cta";
 import { socketService } from "@/lib/socket";
 import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
@@ -2111,9 +2111,10 @@ function Board3DMobilePageContent() {
           return;
         }
         const data = res?.data?.data;
-        if (res?.data?.tipLimitReached) {
+        const tipLimitReached = Boolean(res?.data?.tipLimitReached) || /no tips left/i.test(data?.reasoning ?? "");
+        if (tipLimitReached) {
           setBuyTipText(data?.reasoning ?? "No tips left. Get 5 for $0.05");
-          setTipPackOffer(res.data.tipPack ?? null);
+          setTipPackOffer(resolveTipPackOffer(res.data?.tipPack));
           return;
         }
         const text = data?.reasoning ?? null;
@@ -2802,7 +2803,7 @@ function Board3DMobilePageContent() {
                 ) : buyTipText ? (
                   <>
                     <p className="text-sm text-slate-200">{buyTipText}</p>
-                    {tipPackOffer?.available && game?.id ? (
+                    {tipPackOffer && game?.id ? (
                       <AiTipPackCta
                         gameId={Number(game.id)}
                         offer={tipPackOffer}

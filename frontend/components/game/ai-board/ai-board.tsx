@@ -18,7 +18,7 @@ import {
 } from "@/types/game";
 import { apiClient } from "@/lib/api";
 import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
-import { type TipPackOffer } from "@/components/game/ai-tip-pack-cta";
+import { resolveTipPackOffer, type TipPackOffer } from "@/components/game/ai-tip-pack-cta";
 
 // Child components
 import BoardSquare from "./board-square";
@@ -1277,9 +1277,10 @@ const endTurnAfterSpecialMove = useCallback(() => {
           return;
         }
         const data = res?.data?.data;
-        if (res?.data?.tipLimitReached) {
+        const tipLimitReached = Boolean(res?.data?.tipLimitReached) || /no tips left/i.test(data?.reasoning ?? "");
+        if (tipLimitReached) {
           setAiTipText(data?.reasoning ?? "No tips left. Get 5 for $0.05");
-          setTipPackOffer(res.data.tipPack ?? null);
+          setTipPackOffer(resolveTipPackOffer(res.data?.tipPack));
           lastTipActionRef.current = "skip";
           return;
         }

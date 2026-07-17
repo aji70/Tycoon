@@ -486,7 +486,7 @@ export default function CenterArea({
               ) : aiTipText ? (
                 <>
                   <p className="text-cyan-100 text-sm">💡 {aiTipText}</p>
-                  {tipPackOffer?.available && gameId && onTipPackPurchased ? (
+                  {tipPackOffer && gameId && onTipPackPurchased ? (
                     <AiTipPackCta
                       gameId={gameId}
                       offer={tipPackOffer}

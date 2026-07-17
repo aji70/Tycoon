@@ -5,7 +5,7 @@
  */
 
 import db from "../config/database.js";
-import { isUsdcCreditsConfigured } from "./verifyUsdcTransfer.js";
+import { getChainConfig } from "../config/chains.js";
 
 export const TIPS_PER_GAME = Math.max(0, Number(process.env.AI_TIPS_PER_GAME) || 3);
 export const TIP_PACK_TIPS = Math.max(1, Number(process.env.AI_TIP_PACK_TIPS) || 5);
@@ -21,12 +21,20 @@ export const TIP_PACK_USDC_UNITS = BigInt(
  * @returns {{ tips: number; usdc: string; recipient: string | null; available: boolean }}
  */
 export function getTipPackOffer() {
-  const available = isUsdcCreditsConfigured() && TIP_PACK_USDC_UNITS > 0n;
+  const recipient =
+    process.env.HOSTED_AGENT_CREDITS_USDC_RECIPIENT ||
+    process.env.TIP_PACK_USDC_RECIPIENT ||
+    null;
+  const usdc = process.env.CELO_USDC_ADDRESS || process.env.NEXT_PUBLIC_CELO_USDC;
+  const celo = getChainConfig("CELO");
+  // Offer is always shown in UI; purchase still requires recipient + USDC + RPC.
+  const purchaseReady = Boolean(recipient && usdc && celo.rpcUrl && TIP_PACK_USDC_UNITS > 0n);
   return {
     tips: TIP_PACK_TIPS,
     usdc: TIP_PACK_USDC,
-    recipient: available ? process.env.HOSTED_AGENT_CREDITS_USDC_RECIPIENT || null : null,
-    available,
+    recipient: recipient || null,
+    available: true,
+    purchaseReady,
   };
 }
 

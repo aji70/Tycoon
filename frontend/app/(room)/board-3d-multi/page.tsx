@@ -8,7 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
 import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
-import { AiTipPackCta, type TipPackOffer } from "@/components/game/ai-tip-pack-cta";
+import { AiTipPackCta, resolveTipPackOffer, type TipPackOffer } from "@/components/game/ai-tip-pack-cta";
 import { reportAiAction } from "@/lib/agentFeedback";
 import { calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUtils";
 import { useAgentSettings, BUY_SCORE_THRESHOLD, BUY_CASH_RESERVE, BUILD_MIN_BALANCE, BUILD_AFTER_RESERVE } from "@/hooks/useAgentSettings";
@@ -1178,9 +1178,10 @@ function Board3DPageContent() {
           return;
         }
         const data = res?.data?.data;
-        if (res?.data?.tipLimitReached) {
+        const tipLimitReached = Boolean(res?.data?.tipLimitReached) || /no tips left/i.test(data?.reasoning ?? "");
+        if (tipLimitReached) {
           setBuyTipText(data?.reasoning ?? "No tips left. Get 5 for $0.05");
-          setTipPackOffer(res.data.tipPack ?? null);
+          setTipPackOffer(resolveTipPackOffer(res.data?.tipPack));
           return;
         }
         const text = data?.reasoning ?? null;
@@ -2636,7 +2637,7 @@ function Board3DPageContent() {
                 ) : buyTipText ? (
                   <>
                     <p className="text-sm text-slate-200">{buyTipText}</p>
-                    {tipPackOffer?.available && game?.id ? (
+                    {tipPackOffer && game?.id ? (
                       <AiTipPackCta
                         gameId={Number(game.id)}
                         offer={tipPackOffer}

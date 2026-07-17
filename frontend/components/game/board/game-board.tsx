@@ -4,7 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
-import { type TipPackOffer } from "@/components/game/ai-tip-pack-cta";
+import { resolveTipPackOffer, type TipPackOffer } from "@/components/game/ai-tip-pack-cta";
 import { Game, GameProperty, Property, Player } from "@/types/game";
 import BoardSquare from "./board-square";
 import CenterArea from "./center-area";
@@ -209,9 +209,10 @@ const Board = ({
           return;
         }
         const data = res?.data?.data;
-        if (res?.data?.tipLimitReached) {
+        const tipLimitReached = Boolean(res?.data?.tipLimitReached) || /no tips left/i.test(data?.reasoning ?? "");
+        if (tipLimitReached) {
           setAiTipText(data?.reasoning ?? "No tips left. Get 5 for $0.05");
-          setTipPackOffer(res.data.tipPack ?? null);
+          setTipPackOffer(resolveTipPackOffer(res.data?.tipPack));
           return;
         }
         const text = data?.reasoning ?? null;
