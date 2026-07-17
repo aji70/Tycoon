@@ -50,6 +50,49 @@ export const TRADE_ACCEPT_FAIR = 10; // Consider accept if 10-30
 export const TRADE_COUNTER_THRESHOLD = -15; // Consider counter if >= -15 (usePlayerSidebar)
 export const TRADE_FAVORABILITY_ACCEPT_RAW = 50; // Raw score (ai-board monopoly-weighted): accept if >= 50
 
+export type AiDifficultyLevel = "easy" | "hard" | "boss";
+
+/** Built-in (non-Claude) trade strictness by difficulty. Boss usually uses Tycoon Agent; this is fallback. */
+export function getTradeHeuristicConfig(difficulty?: string | null) {
+  const d = String(difficulty || "easy").toLowerCase();
+  if (d === "hard" || d === "boss") {
+    return {
+      acceptStrong: 35,
+      acceptFair: 15,
+      fairAcceptProb: 0.45,
+      weakAcceptProb: 0.12,
+      counterThreshold: -8,
+      counterProb: 0.28,
+    };
+  }
+  // easy — generous / predictable for learning trades
+  return {
+    acceptStrong: 15,
+    acceptFair: 0,
+    fairAcceptProb: 0.85,
+    weakAcceptProb: 0.5,
+    counterThreshold: -25,
+    counterProb: 0.55,
+  };
+}
+
+/** Resolve this seat's difficulty from game settings (supports random per-slot). */
+export function resolveAiDifficultyForSlot(
+  settings: { ai_difficulty?: string | null; ai_difficulty_mode?: string | null; ai_difficulty_per_slot?: Record<string, string> | null } | null | undefined,
+  slot: number | null
+): AiDifficultyLevel {
+  const mode = String(settings?.ai_difficulty_mode || "same").toLowerCase();
+  if (mode === "random" && slot != null && settings?.ai_difficulty_per_slot) {
+    const per = settings.ai_difficulty_per_slot[String(slot)];
+    if (per && ["easy", "hard", "boss"].includes(String(per).toLowerCase())) {
+      return String(per).toLowerCase() as AiDifficultyLevel;
+    }
+  }
+  const d = String(settings?.ai_difficulty || "easy").toLowerCase();
+  if (d === "hard" || d === "boss") return d;
+  return "easy";
+}
+
 export const calculateAiFavorability = (trade: any, properties: Property[]) => {
   const props = properties ?? [];
   const offerIds = Array.isArray(trade?.offer_properties) ? trade.offer_properties : [];

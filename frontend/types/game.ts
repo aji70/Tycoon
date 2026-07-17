@@ -77,6 +77,11 @@ export interface GameSettings {
   even_build: number;
   randomize_play_order: number;
   starting_cash: number;
+  /** easy | hard | boss — boss uses Tycoon Agent (Claude); easy/hard use built-in rules. */
+  ai_difficulty?: string | null;
+  ai_difficulty_mode?: string | null;
+  /** When mode is random: slot → difficulty */
+  ai_difficulty_per_slot?: Record<string, string> | null;
 }
 
 export interface Player {

@@ -10,9 +10,9 @@ interface DifficultySelectorProps {
 }
 
 const difficulties = [
-  { id: "easy", label: "EASY", icon: "🟢", desc: "Relaxed match" },
-  { id: "hard", label: "HARD", icon: "🟡", desc: "Intense combat" },
-  { id: "boss", label: "⚠️ BOSS MODE", icon: "💀", desc: "Maximum threat", danger: true },
+  { id: "easy", label: "EASY", icon: "🟢", desc: "Simple rules — fair trades" },
+  { id: "hard", label: "HARD", icon: "🟡", desc: "Stricter rules AI" },
+  { id: "boss", label: "TYCOON AGENT", icon: "🤖", desc: "LLM opponent", danger: true },
 ];
 
 export function DifficultySelector({

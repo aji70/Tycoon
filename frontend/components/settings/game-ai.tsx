@@ -179,11 +179,14 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="easy">Easy</SelectItem>
-                  <SelectItem value="hard">Hard</SelectItem>
-                  <SelectItem value="boss" className="text-pink-400 font-bold">BOSS MODE</SelectItem>
+                <SelectItem value="easy">Easy — simple rules</SelectItem>
+                <SelectItem value="hard">Hard — stricter rules</SelectItem>
+                <SelectItem value="boss" className="text-pink-400 font-bold">Tycoon Agent (AI)</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="mt-2 text-xs text-red-200/70">
+                Easy & Hard use built-in trade math. Tycoon Agent uses the LLM opponent.
+              </p>
               {settings.aiCount > 1 && (
                 <div className="mt-4 flex items-center justify-between">
                   <span className="text-sm text-red-200/90">Difficulty per opponent</span>

@@ -203,11 +203,14 @@ export default function PlayWithAIMobile() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="easy">Easy</SelectItem>
-                <SelectItem value="hard">Hard</SelectItem>
-                <SelectItem value="boss" className="text-pink-400 font-bold">BOSS</SelectItem>
-              </SelectContent>
-            </Select>
+                <SelectItem value="easy">Easy — simple rules</SelectItem>
+                <SelectItem value="hard">Hard — stricter rules</SelectItem>
+                <SelectItem value="boss" className="text-pink-400 font-bold">Tycoon Agent</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-2 text-[11px] text-red-200/70">
+                Easy/Hard = rules. Tycoon Agent = LLM.
+              </p>
             {settings.aiCount > 1 && (
               <div className="mt-3 flex items-center justify-between">
                 <span className="text-xs text-red-200/90">Per opponent</span>

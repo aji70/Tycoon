@@ -347,23 +347,27 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
   }
 
   // No external agent: for AI games, route by ai_difficulty:
-  // - easy: built-in rules only (return null so caller uses fallback)
-  // - hard / boss: internal LLM agent (Claude)
+  // - easy / hard: built-in rules only (return null so caller uses fallback heuristics)
+  // - boss: internal LLM agent (Claude / Tycoon Agent)
   if (USE_INTERNAL_AGENT) {
     try {
       const game = await Game.findById(Number(gameId));
       const useInternal = game && (game.is_ai || decisionType === "tip");
       if (useInternal) {
         const gs = game?.is_ai ? await GameSetting.findByGameId(Number(gameId)) : null;
-        let diff = (gs?.ai_difficulty || "boss").toLowerCase();
+        let diff = (gs?.ai_difficulty || "easy").toLowerCase();
         if (gs?.ai_difficulty_mode === "random" && gs?.ai_difficulty_per_slot && typeof gs.ai_difficulty_per_slot === "object") {
           const slotDiff = gs.ai_difficulty_per_slot[String(slot)];
           if (["easy", "hard", "boss"].includes(String(slotDiff).toLowerCase())) {
             diff = String(slotDiff).toLowerCase();
           }
         }
-        if (decisionType !== "tip" && game.is_ai && diff === "easy") {
-          logger.debug({ gameId, slot, decisionType, ai_difficulty: diff }, "Easy: using built-in rules");
+        // Tips can still use Claude even on easy/hard; gameplay decisions only use LLM on boss.
+        if (decisionType !== "tip" && game.is_ai && diff !== "boss") {
+          logger.debug(
+            { gameId, slot, decisionType, ai_difficulty: diff },
+            diff === "hard" ? "Hard: using stricter built-in rules" : "Easy: using built-in rules"
+          );
           return null;
         }
         for (let attempt = 1; attempt <= 2; attempt++) {
@@ -376,7 +380,7 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
           if (decision) {
             logger.info(
               { gameId, slot, decisionType, action: decision.action, source: "internal", attempt, difficulty: diff },
-              "AI decision (Claude)"
+              "AI decision (Tycoon Agent / Claude)"
             );
             return decision;
           }

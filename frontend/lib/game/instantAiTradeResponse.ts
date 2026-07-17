@@ -13,10 +13,16 @@ import {
   isAIPlayer,
   calculateAiFavorability,
   getAiSlotFromPlayer,
-  TRADE_ACCEPT_STRONG,
-  TRADE_ACCEPT_FAIR,
-  TRADE_COUNTER_THRESHOLD,
+  getTradeHeuristicConfig,
+  resolveAiDifficultyForSlot,
 } from "@/utils/gameUtils";
+import {
+  aiTradeAcceptMessage,
+  aiTradeCounterMessage,
+  aiTradeDeclineMessage,
+  aiTradeHeuristicAcceptMessage,
+  aiTradeHeuristicDeclineMessage,
+} from "@/lib/game/aiTradeReplyMessages";
 
 function normArr(v: unknown): number[] {
   if (Array.isArray(v)) return v.map(Number).filter((n) => !Number.isNaN(n));
@@ -92,7 +98,11 @@ export async function instantAiRespondWhenTargetIsAi(params: {
       try {
         const agentRes = await apiClient.post<{
           success?: boolean;
-          data?: { action?: string; counterOffer?: { cashAdjustment?: number } };
+          data?: {
+            action?: string;
+            reasoning?: string;
+            counterOffer?: { cashAdjustment?: number };
+          };
           useBuiltIn?: boolean;
         }>("/agent-registry/decision", {
           gameId: game.id,
@@ -112,36 +122,24 @@ export async function instantAiRespondWhenTargetIsAi(params: {
         });
         const action = agentRes?.data?.data?.action;
         const counterOffer = agentRes?.data?.data?.counterOffer;
+        const reasoning = agentRes?.data?.data?.reasoning;
+        const isYourAgent = slot === 1;
         if (agentRes?.data?.success && typeof action === "string") {
           const actionLower = action.toLowerCase();
           if (actionLower === "accept") {
             decision = "accepted";
-            remark =
-              agentRes?.data?.useBuiltIn === false
-                ? slot === 1
-                  ? "Your agent accepted. 🤖"
-                  : "Opponent agent accepted. 🤖"
-                : "Accepted. 🤖";
+            remark = aiTradeAcceptMessage({ reasoning, isYourAgent });
           } else if (actionLower === "decline") {
             decision = "declined";
-            remark =
-              agentRes?.data?.useBuiltIn === false
-                ? slot === 1
-                  ? "Your agent declined."
-                  : "Opponent agent declined."
-                : "";
+            remark = aiTradeDeclineMessage({ reasoning, isYourAgent });
           } else if (actionLower === "counter") {
             decision = "countered";
             counterCashAdjustment = counterOffer?.cashAdjustment ?? 0;
-            const adj = counterOffer?.cashAdjustment;
-            const counterReason =
-              adj != null && adj !== 0
-                ? `Counter: ${adj > 0 ? `+$${adj} from you.` : `I'll add $${Math.abs(adj)}.`}`
-                : "Counter offer.";
-            remark =
-              agentRes?.data?.useBuiltIn === false && slot === 1
-                ? `Your agent countered. ${counterReason}`
-                : counterReason;
+            remark = aiTradeCounterMessage({
+              reasoning,
+              cashAdjustment: counterOffer?.cashAdjustment,
+              isYourAgent,
+            });
           }
         }
       } catch {
@@ -150,22 +148,31 @@ export async function instantAiRespondWhenTargetIsAi(params: {
     }
 
     if (remark === "") {
+      const difficulty = resolveAiDifficultyForSlot(game.settings, slot);
+      const cfg = getTradeHeuristicConfig(difficulty);
       const favorability = calculateAiFavorability(sentTrade as any, properties ?? []);
-      if (favorability >= TRADE_ACCEPT_STRONG) {
+      if (favorability >= cfg.acceptStrong) {
         decision = "accepted";
-        remark = "This is a fantastic deal! 🤖";
-      } else if (favorability >= TRADE_ACCEPT_FAIR) {
-        decision = Math.random() < 0.7 ? "accepted" : "declined";
-        remark = decision === "accepted" ? "Fair enough, I'll take it." : "Not quite good enough.";
+        remark = aiTradeHeuristicAcceptMessage(favorability);
+      } else if (favorability >= cfg.acceptFair) {
+        decision = Math.random() < cfg.fairAcceptProb ? "accepted" : "declined";
+        remark =
+          decision === "accepted"
+            ? aiTradeHeuristicAcceptMessage(favorability)
+            : aiTradeHeuristicDeclineMessage(favorability);
       } else if (favorability >= 0) {
-        decision = Math.random() < 0.3 ? "accepted" : "declined";
-        remark = decision === "accepted" ? "Okay, deal." : "Nah, too weak.";
-      } else if (favorability >= TRADE_COUNTER_THRESHOLD && Math.random() < 0.4) {
+        decision = Math.random() < cfg.weakAcceptProb ? "accepted" : "declined";
+        remark =
+          decision === "accepted"
+            ? aiTradeHeuristicAcceptMessage(favorability)
+            : aiTradeHeuristicDeclineMessage(favorability);
+      } else if (favorability >= cfg.counterThreshold && Math.random() < cfg.counterProb) {
         decision = "countered";
         counterCashAdjustment = counterCashAdjustment ?? 0;
-        remark = "How about this instead?";
+        remark = aiTradeCounterMessage({ cashAdjustment: counterCashAdjustment });
       } else {
-        remark = "This deal is terrible for me! 😤";
+        decision = "declined";
+        remark = aiTradeHeuristicDeclineMessage(favorability);
       }
     }
 
@@ -175,7 +182,7 @@ export async function instantAiRespondWhenTargetIsAi(params: {
     if (decision === "accepted") {
       await apiClient.post<ApiResponse>("/game-trade-requests/accept", { id: sentTrade.id });
       refreshTrades();
-      toast.success(remark || "AI accepted your trade! 🎉");
+      toast.success(remark || "AI accepted your trade!");
       return;
     }
 
@@ -219,7 +226,7 @@ export async function instantAiRespondWhenTargetIsAi(params: {
 
     await apiClient.post("/game-trade-requests/decline", { id: sentTrade.id });
     refreshTrades();
-    toast(remark || "AI declined the trade.");
+    toast(remark || aiTradeDeclineMessage());
   } catch (e) {
     try {
       await apiClient.post("/game-trade-requests/decline", { id: t.id });
