@@ -1,11 +1,15 @@
 /**
- * Purchase +5 AI tips for $0.05 USDC (same recipient as hosted credits).
+ * Purchase +5 AI tips for $0.05 USDC (sent to the reward contract).
  */
 
 import db from "../config/database.js";
 import User from "../models/User.js";
 import GamePlayer from "../models/GamePlayer.js";
-import { verifyUsdcTransfer, isUsdcCreditsConfigured } from "./verifyUsdcTransfer.js";
+import {
+  verifyUsdcTransfer,
+  isTipPackUsdcConfigured,
+  getTipPackUsdcRecipient,
+} from "./verifyUsdcTransfer.js";
 import {
   grantTipPack,
   getTipQuota,
@@ -22,8 +26,8 @@ import {
  * @returns {Promise<{ already_credited?: boolean; tips_granted: number; tipsRemaining: number; tipLimit: number }>}
  */
 export async function purchaseTipPack(userId, gameId, txHash) {
-  if (!isUsdcCreditsConfigured()) {
-    const err = new Error("USDC tip packs not configured");
+  if (!isTipPackUsdcConfigured()) {
+    const err = new Error("USDC tip packs not configured (set REWARD_CONTRACT_ADDRESS)");
     err.status = 503;
     throw err;
   }
@@ -57,7 +61,11 @@ export async function purchaseTipPack(userId, gameId, txHash) {
     };
   }
 
-  const result = await verifyUsdcTransfer(hash, { minAmount: TIP_PACK_USDC_UNITS });
+  const recipient = getTipPackUsdcRecipient();
+  const result = await verifyUsdcTransfer(hash, {
+    minAmount: TIP_PACK_USDC_UNITS,
+    recipient,
+  });
   if (!result.ok) {
     const err = new Error(result.error || "Invalid transaction");
     err.status = 400;
@@ -73,7 +81,6 @@ export async function purchaseTipPack(userId, gameId, txHash) {
     throw err;
   }
 
-  // Claim tx_hash first so concurrent requests don't double-grant
   try {
     await db("game_ai_tip_pack_purchases").insert({
       user_id: userId,
@@ -83,7 +90,11 @@ export async function purchaseTipPack(userId, gameId, txHash) {
       amount_usdc: TIP_PACK_USDC,
     });
   } catch (e) {
-    if (e?.code === "ER_DUP_ENTRY" || String(e?.message || "").includes("unique") || String(e?.message || "").includes("duplicate")) {
+    if (
+      e?.code === "ER_DUP_ENTRY" ||
+      String(e?.message || "").includes("unique") ||
+      String(e?.message || "").includes("duplicate")
+    ) {
       const quota = await getTipQuota(gameId, userId);
       return {
         already_credited: true,

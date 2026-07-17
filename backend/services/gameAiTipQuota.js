@@ -6,6 +6,7 @@
 
 import db from "../config/database.js";
 import { getChainConfig } from "../config/chains.js";
+import { getTipPackUsdcRecipient, getUsdcTokenAddress } from "./verifyUsdcTransfer.js";
 
 export const TIPS_PER_GAME = Math.max(0, Number(process.env.AI_TIPS_PER_GAME) || 3);
 export const TIP_PACK_TIPS = Math.max(1, Number(process.env.AI_TIP_PACK_TIPS) || 5);
@@ -18,16 +19,13 @@ export const TIP_PACK_USDC_UNITS = BigInt(
 
 /**
  * Offer shown when the player has no tips left.
- * @returns {{ tips: number; usdc: string; recipient: string | null; available: boolean }}
+ * USDC goes to the reward contract.
+ * @returns {{ tips: number; usdc: string; recipient: string | null; available: boolean; purchaseReady: boolean }}
  */
 export function getTipPackOffer() {
-  const recipient =
-    process.env.HOSTED_AGENT_CREDITS_USDC_RECIPIENT ||
-    process.env.TIP_PACK_USDC_RECIPIENT ||
-    null;
-  const usdc = process.env.CELO_USDC_ADDRESS || process.env.NEXT_PUBLIC_CELO_USDC;
+  const recipient = getTipPackUsdcRecipient();
+  const usdc = getUsdcTokenAddress();
   const celo = getChainConfig("CELO");
-  // Offer is always shown in UI; purchase still requires recipient + USDC + RPC.
   const purchaseReady = Boolean(recipient && usdc && celo.rpcUrl && TIP_PACK_USDC_UNITS > 0n);
   return {
     tips: TIP_PACK_TIPS,

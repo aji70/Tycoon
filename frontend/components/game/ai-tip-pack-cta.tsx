@@ -7,10 +7,12 @@ import { erc20Abi, parseUnits, type Address } from "viem";
 import { toast } from "react-hot-toast";
 import { useWriteContract } from "@/hooks/useTaggedWriteContract";
 import { apiClient } from "@/lib/api";
-import { USDC_TOKEN_ADDRESS } from "@/constants/contracts";
+import { USDC_TOKEN_ADDRESS, REWARD_CONTRACT_ADDRESSES } from "@/constants/contracts";
 
 /** Celo native USDC (bridged) — fallback when NEXT_PUBLIC_CELO_USDC is unset. */
 const CELO_USDC_FALLBACK = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C" as Address;
+/** Production Tycoon reward system — tip packs pay here. */
+const CELO_REWARD_FALLBACK = "0xd9806923A40c9436bA53C5C1Bb35DA8c7d3D2D4c" as Address;
 
 export type TipPackOffer = {
   tips: number;
@@ -19,14 +21,20 @@ export type TipPackOffer = {
   available?: boolean;
 };
 
+function tipPackRecipientFromEnv(): string | null {
+  return (
+    process.env.NEXT_PUBLIC_TIP_PACK_USDC_RECIPIENT ||
+    process.env.NEXT_PUBLIC_CELO_REWARD ||
+    REWARD_CONTRACT_ADDRESSES[celo.id] ||
+    CELO_REWARD_FALLBACK ||
+    null
+  );
+}
+
 export const DEFAULT_TIP_PACK_OFFER: TipPackOffer = {
   tips: 5,
   usdc: "0.05",
-  recipient:
-    (typeof process !== "undefined" &&
-      (process.env.NEXT_PUBLIC_TIP_PACK_USDC_RECIPIENT ||
-        process.env.NEXT_PUBLIC_HOSTED_AGENT_CREDITS_USDC_RECIPIENT)) ||
-    null,
+  recipient: tipPackRecipientFromEnv(),
   available: true,
 };
 
@@ -68,18 +76,7 @@ export function AiTipPackCta({ gameId, offer, onPurchased, className }: Props) {
 
     setBusy(true);
     try {
-      let recipient = offer.recipient;
-      if (!recipient) {
-        try {
-          const creditsRes = await apiClient.get<{
-            success?: boolean;
-            data?: { usdc_recipient?: string | null };
-          }>("/agents/hosted-credits");
-          recipient = creditsRes.data?.data?.usdc_recipient || null;
-        } catch {
-          /* ignore — handled below */
-        }
-      }
+      let recipient = offer.recipient || tipPackRecipientFromEnv();
       if (!recipient) {
         toast.error("Tip pack payments are not configured yet");
         return;

@@ -139,7 +139,7 @@ router.post("/decision", async (req, res) => {
 });
 
 /**
- * Buy +5 AI tips for $0.05 USDC (same recipient as hosted credits).
+ * Buy +5 AI tips for $0.05 USDC (sent to the reward contract).
  * Body: { gameId, tx_hash }
  */
 router.post("/tips/purchase", requireAuth, async (req, res) => {
