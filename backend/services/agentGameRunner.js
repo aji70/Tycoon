@@ -9,7 +9,7 @@ import db from "../config/database.js";
 import logger from "../config/logger.js";
 import GameSetting from "../models/GameSetting.js";
 import agentRegistry from "./agentRegistry.js";
-import { settleStakedArenaForFinishedGame } from "./arenaStakeSettlement.js";
+import { settleStakedArenaForFinishedGame, markStaleUnsettleableArenaGames } from "./arenaStakeSettlement.js";
 
 const ENABLED = process.env.ENABLE_AGENT_GAME_RUNNER === "true";
 const POLL_MS = Math.max(500, Number(process.env.AGENT_GAME_RUNNER_POLL_MS) || 2000);
@@ -549,26 +549,27 @@ async function stepGame(game) {
  */
 async function processCompletedArenaMatches() {
   try {
-    // Games use FINISHED when a match ends (not COMPLETED). Include free arena games (no tournament bracket).
+    // FINISHED arena games still needing post-process. Skip rows already marked unsettleable
+    // (arena_completion_at) or with completed ELO stats.
     const completedGames = await db("games")
       .select("games.id", "games.game_type", "games.status")
       .whereIn("games.game_type", ["AGENT_VS_AGENT", "ONCHAIN_AGENT_VS_AGENT", "ONCHAIN_HUMAN_VS_AGENT"])
       .where("games.status", "FINISHED")
-      .where(function pendingArenaStats() {
-        this.whereNotExists(
-          db("agent_arena_matches")
-            .whereRaw("agent_arena_matches.game_id = games.id")
-            .where("agent_arena_matches.status", "COMPLETED")
-        ).orWhere(function humanVsAgentPending() {
-          this.where("games.game_type", "ONCHAIN_HUMAN_VS_AGENT").whereNull("games.arena_completion_at");
-        });
-      })
+      .whereNull("games.arena_completion_at")
+      .whereNotExists(
+        db("agent_arena_matches")
+          .whereRaw("agent_arena_matches.game_id = games.id")
+          .where("agent_arena_matches.status", "COMPLETED")
+      )
       .orderBy("games.id", "asc")
       .limit(10);
 
     for (const game of completedGames) {
       try {
-        await settleStakedArenaForFinishedGame(game.id);
+        const out = await settleStakedArenaForFinishedGame(game.id);
+        if (out?.skipped) {
+          logger.debug({ gameId: game.id, reason: out.reason }, "Arena match skipped (unsettleable)");
+        }
       } catch (err) {
         logger.error({ err: err?.message, gameId: game.id }, "Failed to process completed arena match");
       }
@@ -600,6 +601,10 @@ export function startAgentGameRunner() {
   }
 
   logger.info({ pollMs: POLL_MS }, "Agent game runner starting");
+
+  void markStaleUnsettleableArenaGames().catch((err) =>
+    logger.warn({ err: err?.message }, "markStaleUnsettleableArenaGames failed")
+  );
 
   // No unref: keep process alive (server).
   setInterval(() => {

@@ -23,6 +23,45 @@ function warnArenaSettleOnce(gameId, kind, payload, message) {
   logger.warn(payload, message);
 }
 
+/** Stop agent-runner / recovery loops from retrying games that cannot settle without manual DB fixes. */
+async function skipUnsettleableArenaGame(gameId, reason, extra = {}) {
+  const updated = await db("games")
+    .where({ id: gameId })
+    .whereNull("arena_completion_at")
+    .update({ arena_completion_at: db.fn.now(), updated_at: db.fn.now() });
+  if (updated > 0) {
+    logger.info({ gameId, reason, ...extra }, "Arena stake settle: marked unsettleable (no further retries)");
+  }
+}
+
+/** One-time / startup sweep: mark FINISHED arena rows that can never settle (no manual fix expected). */
+export async function markStaleUnsettleableArenaGames(limit = 50) {
+  const arenaTypes = ["AGENT_VS_AGENT", "ONCHAIN_AGENT_VS_AGENT", "ONCHAIN_HUMAN_VS_AGENT"];
+  const tooFewPlayers = await db("games as g")
+    .leftJoin("game_players as gp", "gp.game_id", "g.id")
+    .whereIn("g.game_type", arenaTypes)
+    .where("g.status", "FINISHED")
+    .whereNull("g.arena_completion_at")
+    .groupBy("g.id")
+    .havingRaw("COUNT(gp.id) < 2")
+    .orderBy("g.id", "asc")
+    .limit(limit)
+    .pluck("g.id");
+
+  let marked = 0;
+  if (tooFewPlayers.length > 0) {
+    marked += await db("games")
+      .whereIn("id", tooFewPlayers)
+      .whereNull("arena_completion_at")
+      .update({ arena_completion_at: db.fn.now(), updated_at: db.fn.now() });
+    logger.info(
+      { gameIds: tooFewPlayers, count: marked },
+      "Marked stale arena games unsettleable (<2 players)"
+    );
+  }
+  return marked;
+}
+
 async function syncArenaStakePaidOutIfPayoutsExist(gameId) {
   const stake = await db("arena_match_stakes").where("game_id", gameId).where("status", "COLLECTED").first();
   if (!stake?.tournament_id) return;
@@ -233,7 +272,11 @@ export async function settleStakedArenaForFinishedGame(gameId) {
           { gameId: id, playerCount: playersRaw.length },
           "Arena stake settle: expected >=2 players (no bracket)"
         );
-        return { ok: false, reason: "player_count" };
+        await skipUnsettleableArenaGame(id, "player_count", {
+          playerCount: playersRaw.length,
+          stakeStatus: stakeAny?.status ?? null,
+        });
+        return { ok: false, reason: "player_count", skipped: true };
       }
       if (playersRaw.length > 2) {
         const alreadyMulti = await db("agent_arena_matches")
@@ -297,7 +340,12 @@ export async function settleStakedArenaForFinishedGame(gameId) {
         { gameId: id, hasStakedBracket, playerCount: playersRaw.length },
         "Arena stake settle: could not resolve user_agents"
       );
-      return { ok: false, reason: "no_agents" };
+      await skipUnsettleableArenaGame(id, "no_agents", {
+        hasStakedBracket,
+        playerCount: playersRaw.length,
+        stakeStatus: stakeAny?.status ?? null,
+      });
+      return { ok: false, reason: "no_agents", skipped: true };
     }
 
     let winnerAgentIdForElo = null;
@@ -383,6 +431,11 @@ export async function settleStakedArenaForFinishedGame(gameId) {
         "Recorded arena ELO"
       );
     }
+
+    await db("games").where("id", id).whereNull("arena_completion_at").update({
+      arena_completion_at: db.fn.now(),
+      updated_at: db.fn.now(),
+    });
 
     return { ok: true, path: "agent_vs_agent" };
   } catch (err) {
