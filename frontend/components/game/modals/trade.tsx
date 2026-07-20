@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
+import { useCashAmountDraft } from "@/lib/useCashAmountDraft";
 import { Property } from "@/types/game";
 
 interface TradeModalProps {
@@ -87,6 +88,8 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
   } = props;
 
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(() => getPortalTarget());
+  const offerCashField = useCashAmountDraft(offerCash, setOfferCash, props.open);
+  const requestCashField = useCashAmountDraft(requestCash, setRequestCash, props.open);
 
   useEffect(() => {
     setPortalTarget(getPortalTarget());
@@ -145,7 +148,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm z-[2147483647]"
+      className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm z-[2147483647]"
       onClick={onClose}
     >
       <motion.div
@@ -154,7 +157,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl bg-slate-900 border border-slate-600/50 shadow-2xl overflow-hidden"
+        className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-t-2xl sm:rounded-2xl bg-slate-900 border border-slate-600/50 shadow-2xl overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700/80 bg-slate-800/50 flex-shrink-0">
@@ -207,11 +210,16 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
               <label className="block">
                 <span className="text-sm text-slate-400 block mb-1.5">Cash ($)</span>
                 <input
-                  type="number"
-                  min={0}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="off"
+                  enterKeyHint="done"
                   placeholder="0"
-                  value={offerCash ?? ""}
-                  onChange={(e) => setOfferCash(Math.max(0, Number(e.target.value) || 0))}
+                  value={offerCashField.draft}
+                  onChange={(e) => offerCashField.onChange(e.target.value)}
+                  onFocus={offerCashField.onFocus}
+                  onBlur={offerCashField.onBlur}
                   className="w-full rounded-xl bg-slate-800 border border-slate-600 px-3 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
                   aria-label="Cash amount to offer"
                 />
@@ -246,11 +254,16 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
               <label className="block">
                 <span className="text-sm text-slate-400 block mb-1.5">Cash ($)</span>
                 <input
-                  type="number"
-                  min={0}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="off"
+                  enterKeyHint="done"
                   placeholder="0"
-                  value={requestCash ?? ""}
-                  onChange={(e) => setRequestCash(Math.max(0, Number(e.target.value) || 0))}
+                  value={requestCashField.draft}
+                  onChange={(e) => requestCashField.onChange(e.target.value)}
+                  onFocus={requestCashField.onFocus}
+                  onBlur={requestCashField.onBlur}
                   className="w-full rounded-xl bg-slate-800 border border-slate-600 px-3 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50"
                   aria-label="Cash amount to request"
                 />

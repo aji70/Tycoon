@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { motion } from "framer-motion";
+import { useCashAmountDraft } from "@/lib/useCashAmountDraft";
 import { Property } from "@/types/game";
 
 interface TradeModalProps {
@@ -80,6 +81,9 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
     isAITrade = false,
   } = props;
 
+  const offerCashField = useCashAmountDraft(offerCash, setOfferCash, open);
+  const requestCashField = useCashAmountDraft(requestCash, setRequestCash, open);
+
   const safeGameProps = Array.isArray(game_properties) ? game_properties : [];
   const safeProperties = Array.isArray(properties) ? properties : [];
   const safeMyProperties = Array.isArray(my_properties) ? my_properties.filter(Boolean) : [];
@@ -154,11 +158,16 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
               <label className="block">
                 <span className="text-xs text-slate-400 block mb-1">Cash ($)</span>
                 <input
-                  type="number"
-                  min={0}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="off"
+                  enterKeyHint="done"
                   placeholder="0"
-                  value={offerCash || ""}
-                  onChange={(e) => setOfferCash(Math.max(0, Number(e.target.value) || 0))}
+                  value={offerCashField.draft}
+                  onChange={(e) => offerCashField.onChange(e.target.value)}
+                  onFocus={offerCashField.onFocus}
+                  onBlur={offerCashField.onBlur}
                   className="w-full rounded-lg bg-slate-800 border border-slate-600 px-3 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
                 />
               </label>
@@ -187,11 +196,16 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
               <label className="block">
                 <span className="text-xs text-slate-400 block mb-1">Cash ($)</span>
                 <input
-                  type="number"
-                  min={0}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="off"
+                  enterKeyHint="done"
                   placeholder="0"
-                  value={requestCash || ""}
-                  onChange={(e) => setRequestCash(Math.max(0, Number(e.target.value) || 0))}
+                  value={requestCashField.draft}
+                  onChange={(e) => requestCashField.onChange(e.target.value)}
+                  onFocus={requestCashField.onFocus}
+                  onBlur={requestCashField.onBlur}
                   className="w-full rounded-lg bg-slate-800 border border-slate-600 px-3 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50"
                 />
               </label>
@@ -204,11 +218,16 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
                   Extra amount for AI (optional)
                 </h4>
                 <input
-                  type="number"
-                  min={0}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="off"
+                  enterKeyHint="done"
                   placeholder="0"
-                  value={offerCash || ""}
-                  onChange={(e) => setOfferCash(Math.max(0, Number(e.target.value) || 0))}
+                  value={offerCashField.draft}
+                  onChange={(e) => offerCashField.onChange(e.target.value)}
+                  onFocus={offerCashField.onFocus}
+                  onBlur={offerCashField.onBlur}
                   className="w-full rounded-lg bg-slate-800 border border-slate-600 px-3 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50"
                 />
                 <p className="text-xs text-slate-400 mt-2">
