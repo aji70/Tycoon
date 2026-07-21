@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:privy_flutter/privy_flutter.dart';
 import 'package:tycoon/app_config.dart';
 import 'package:tycoon/auth/auth_controller.dart';
 import 'package:tycoon/env_loader.dart';
@@ -19,17 +18,7 @@ Future<void> main() async {
 
   AppConfig.init(await loadLocalEnvFile());
 
-  Privy? privy;
-  if (AppConfig.hasPrivy) {
-    privy = Privy.init(
-      config: PrivyConfig(
-        appId: AppConfig.privyAppId,
-        appClientId: AppConfig.privyClientId,
-      ),
-    );
-  }
-
-  final auth = AuthController(privy: privy);
+  final auth = AuthController();
   await auth.bootstrap();
 
   runApp(TycoonApp(auth: auth));
@@ -84,6 +73,18 @@ class TycoonApp extends StatelessWidget {
             return const HomeScreen();
           },
         ),
+        onUnknownRoute: (settings) {
+          // Web3Auth redirect: /auth#b64Params=... — swallow, do not navigate
+          final name = settings.name ?? '';
+          if (name.startsWith('/auth')) {
+            return MaterialPageRoute<void>(
+              builder: (_) => const SizedBox.shrink(),
+            );
+          }
+          return MaterialPageRoute<void>(
+            builder: (_) => const HomeScreen(),
+          );
+        },
       ),
     );
   }

@@ -131,6 +131,17 @@ function placeholderAddressForPrivyDid(authId) {
 }
 
 const WEB3AUTH_CLIENT_ID = process.env.WEB3AUTH_CLIENT_ID || process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID;
+/** Mobile (Flutter) Embedded Wallets client — separate from web `WEB3AUTH_CLIENT_ID`. */
+const WEB3AUTH_CLIENT_ID1 = process.env.WEB3AUTH_CLIENT_ID1;
+
+function web3AuthClientIds() {
+  const ids = [];
+  for (const raw of [WEB3AUTH_CLIENT_ID, WEB3AUTH_CLIENT_ID1]) {
+    const id = raw && String(raw).trim();
+    if (id && !ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
 const WEB3AUTH_JWKS_SOCIAL = createRemoteJWKSet(new URL("https://api-auth.web3auth.io/jwks"));
 const WEB3AUTH_JWKS_EXTERNAL = createRemoteJWKSet(new URL("https://authjs.web3auth.io/jwks"));
 /** Web3Auth v11 / Sapphire (email & social) — kid often only present here, not api-auth.web3auth.io/jwks */
@@ -180,19 +191,17 @@ function buildWeb3AuthId(payload) {
  * Confirms WEB3AUTH_CLIENT_ID is set (must match frontend NEXT_PUBLIC_WEB3AUTH_CLIENT_ID).
  */
 export function web3authCheck(_req, res) {
-  const configured = !!WEB3AUTH_CLIENT_ID;
-  const masked =
-    WEB3AUTH_CLIENT_ID && WEB3AUTH_CLIENT_ID.length > 12
-      ? `${WEB3AUTH_CLIENT_ID.slice(0, 6)}...${WEB3AUTH_CLIENT_ID.slice(-4)}`
-      : configured
-        ? "***"
-        : null;
+  const ids = web3AuthClientIds();
+  const configured = ids.length > 0;
+  const mask = (id) =>
+    id && id.length > 12 ? `${id.slice(0, 6)}...${id.slice(-4)}` : configured ? "***" : null;
   res.json({
     web3authConfigured: configured,
-    web3authClientIdMasked: masked,
+    web3authClientIdMasked: mask(WEB3AUTH_CLIENT_ID),
+    web3authClientId1Masked: mask(WEB3AUTH_CLIENT_ID1),
     hint: configured
-      ? "Backend WEB3AUTH_CLIENT_ID should match frontend NEXT_PUBLIC_WEB3AUTH_CLIENT_ID (same Embedded Wallets project)."
-      : "Set WEB3AUTH_CLIENT_ID in backend env (same Client ID as the frontend).",
+      ? "Web: WEB3AUTH_CLIENT_ID (matches frontend). Mobile: WEB3AUTH_CLIENT_ID1 (Flutter app)."
+      : "Set WEB3AUTH_CLIENT_ID (web) and/or WEB3AUTH_CLIENT_ID1 (mobile) in backend env.",
   });
 }
 
@@ -201,7 +210,8 @@ export function web3authCheck(_req, res) {
  * @returns {Promise<object>} JWT payload
  */
 async function verifyWeb3AuthIdToken(idToken) {
-  if (!WEB3AUTH_CLIENT_ID) {
+  const clientIds = web3AuthClientIds();
+  if (clientIds.length === 0) {
     const err = new Error("Web3Auth not configured");
     err.status = 503;
     throw err;
@@ -212,24 +222,23 @@ async function verifyWeb3AuthIdToken(idToken) {
     err.status = 401;
     throw err;
   }
-  const verifyOptsBase = {
-    algorithms: ["ES256"],
-    audience: WEB3AUTH_CLIENT_ID,
-    /** Mobile devices occasionally drift from NTP — avoid false "expired" rejects. */
-    clockTolerance: 90,
-  };
-  const profiles = web3AuthVerifyProfiles(WEB3AUTH_CLIENT_ID);
   const failures = [];
-  for (const profile of profiles) {
-    for (const issuer of profile.issuers) {
-      try {
-        const { payload } = await jwtVerify(token, profile.jwks, {
-          ...verifyOptsBase,
-          issuer,
-        });
-        return payload;
-      } catch (e) {
-        failures.push(`${issuer}: ${e?.message || "verify failed"}`);
+  for (const clientId of clientIds) {
+    const profiles = web3AuthVerifyProfiles(clientId);
+    for (const profile of profiles) {
+      for (const issuer of profile.issuers) {
+        try {
+          const { payload } = await jwtVerify(token, profile.jwks, {
+            algorithms: ["ES256"],
+            audience: clientId,
+            /** Mobile devices occasionally drift from NTP — avoid false "expired" rejects. */
+            clockTolerance: 90,
+            issuer,
+          });
+          return payload;
+        } catch (e) {
+          failures.push(`${clientId.slice(0, 6)}…/${issuer}: ${e?.message || "verify failed"}`);
+        }
       }
     }
   }
@@ -708,7 +717,7 @@ export async function privySignin(req, res) {
  */
 export async function web3authSignin(req, res) {
   try {
-    if (!WEB3AUTH_CLIENT_ID) {
+    if (web3AuthClientIds().length === 0) {
       return res.status(503).json({ success: false, message: "Web3Auth not configured" });
     }
     const authHeader = req.headers.authorization;

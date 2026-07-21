@@ -1,39 +1,72 @@
 import 'package:flutter/material.dart';
 import 'package:tycoon/theme/tycoon_colors.dart';
 
+enum GlowButtonVariant { primary, secondary, tertiary }
+
+enum GlowButtonSize { sm, md, lg }
+
 class GlowButton extends StatelessWidget {
   const GlowButton({
     super.key,
     required this.label,
     required this.onPressed,
     this.variant = GlowButtonVariant.primary,
+    this.size = GlowButtonSize.md,
     this.icon,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final GlowButtonVariant variant;
+  final GlowButtonSize size;
   final IconData? icon;
+
+  double get _height => switch (size) {
+        GlowButtonSize.sm => 44,
+        GlowButtonSize.md => 48,
+        GlowButtonSize.lg => 56,
+      };
+
+  double get _fontSize => switch (size) {
+        GlowButtonSize.sm => 14,
+        GlowButtonSize.md => 16,
+        GlowButtonSize.lg => 18,
+      };
 
   @override
   Widget build(BuildContext context) {
-    final isPrimary = variant == GlowButtonVariant.primary;
+    final (bg, fg, border) = switch (variant) {
+      GlowButtonVariant.primary => (
+          TycoonColors.cyan,
+          TycoonColors.background,
+          TycoonColors.darkAccent,
+        ),
+      GlowButtonVariant.secondary => (
+          TycoonColors.tealDark,
+          TycoonColors.cyan,
+          TycoonColors.cyan,
+        ),
+      GlowButtonVariant.tertiary => (
+          TycoonColors.inputBg,
+          TycoonColors.cyanBrightAlt,
+          TycoonColors.tealDark,
+        ),
+    };
+
     return SizedBox(
       width: double.infinity,
-      height: 48,
+      height: _height,
       child: FilledButton(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: isPrimary ? TycoonColors.cyan : TycoonColors.tealDark,
-          foregroundColor: isPrimary ? TycoonColors.background : TycoonColors.cyan,
-          disabledBackgroundColor: TycoonColors.tealDark.withValues(alpha: 0.5),
+          backgroundColor: bg,
+          foregroundColor: fg,
+          disabledBackgroundColor: bg.withValues(alpha: 0.5),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: isPrimary
-                ? BorderSide.none
-                : const BorderSide(color: TycoonColors.tealDark),
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: border, width: variant == GlowButtonVariant.primary ? 2 : 2),
           ),
-          elevation: isPrimary ? 8 : 0,
+          elevation: variant == GlowButtonVariant.primary ? 8 : 0,
           shadowColor: TycoonColors.cyan.withValues(alpha: 0.45),
         ),
         child: Row(
@@ -45,9 +78,10 @@ class GlowButton extends StatelessWidget {
             ],
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.5,
+                fontSize: _fontSize,
               ),
             ),
           ],
@@ -56,5 +90,3 @@ class GlowButton extends StatelessWidget {
     );
   }
 }
-
-enum GlowButtonVariant { primary, secondary }

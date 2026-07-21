@@ -334,6 +334,7 @@ app.get("/api/config/env-check", requireConfigDebugAccess, (_req, res) => {
     "PRIVY_APP_SECRET",
     "PRIVY_JWT_VERIFICATION_KEY",
     "WEB3AUTH_CLIENT_ID",
+    "WEB3AUTH_CLIENT_ID1",
   ];
   const present = {};
   keys.forEach((k) => {

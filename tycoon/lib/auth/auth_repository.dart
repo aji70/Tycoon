@@ -5,8 +5,8 @@ import 'package:tycoon/app_config.dart';
 import 'package:tycoon/auth/session_store.dart';
 import 'package:tycoon/auth/tycoon_user.dart';
 
-class PrivySignInResult {
-  const PrivySignInResult({
+class Web3AuthSignInResult {
+  const Web3AuthSignInResult({
     required this.ok,
     this.token,
     this.needsUsername = false,
@@ -28,10 +28,12 @@ class AuthRepository {
     final token = await _store.readToken();
     if (token == null || token.isEmpty) return null;
 
-    final res = await http.get(
-      Uri.parse('${AppConfig.apiBaseUrl}/auth/me'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
+    final res = await http
+        .get(
+          Uri.parse('${AppConfig.apiBaseUrl}/auth/me'),
+          headers: {'Authorization': 'Bearer $token'},
+        )
+        .timeout(const Duration(seconds: 30));
 
     if (res.statusCode != 200) {
       if (res.statusCode == 401) await _store.clearToken();
@@ -44,8 +46,8 @@ class AuthRepository {
     return TycoonUser.fromJson(data);
   }
 
-  Future<PrivySignInResult> privySignIn({
-    required String privyAccessToken,
+  Future<Web3AuthSignInResult> web3AuthSignIn({
+    required String idToken,
     String? username,
   }) async {
     final payload = <String, String>{};
@@ -53,20 +55,22 @@ class AuthRepository {
       payload['username'] = username.trim();
     }
 
-    final res = await http.post(
-      Uri.parse('${AppConfig.apiBaseUrl}/auth/privy-signin'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $privyAccessToken',
-      },
-      body: jsonEncode(payload),
-    );
+    final res = await http
+        .post(
+          Uri.parse('${AppConfig.apiBaseUrl}/auth/web3auth-signin'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+          body: jsonEncode(payload),
+        )
+        .timeout(const Duration(seconds: 30));
 
     Map<String, dynamic> body = {};
     try {
       body = jsonDecode(res.body) as Map<String, dynamic>;
     } catch (_) {
-      return PrivySignInResult(
+      return Web3AuthSignInResult(
         ok: false,
         message: 'Server returned ${res.statusCode} (invalid JSON)',
       );
@@ -78,11 +82,11 @@ class AuthRepository {
 
     if (res.statusCode == 400 &&
         (message ?? '').toLowerCase().contains('username')) {
-      return const PrivySignInResult(ok: false, needsUsername: true);
+      return const Web3AuthSignInResult(ok: false, needsUsername: true);
     }
 
     if (res.statusCode == 409) {
-      return PrivySignInResult(
+      return Web3AuthSignInResult(
         ok: false,
         needsUsername: true,
         message: message ?? 'Username already taken',
@@ -94,10 +98,10 @@ class AuthRepository {
         token != null &&
         token.isNotEmpty) {
       await _store.saveToken(token);
-      return PrivySignInResult(ok: true, token: token);
+      return Web3AuthSignInResult(ok: true, token: token);
     }
 
-    return PrivySignInResult(
+    return Web3AuthSignInResult(
       ok: false,
       message: message ?? 'Sign-in failed (${res.statusCode})',
     );

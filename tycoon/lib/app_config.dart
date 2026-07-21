@@ -1,9 +1,9 @@
-/// App settings: defaults + optional `tycoon/.env` + `--dart-define` overrides.
+/// App settings: defaults + bundled `assets/env/app.env` + `--dart-define` overrides.
 class AppConfig {
   static late final String webBaseUrl;
   static late final String apiBaseUrl;
-  static late final String privyAppId;
-  static late final String privyClientId;
+  static late final String web3AuthClientId;
+  static late final String web3AuthNetwork;
 
   static void init(Map<String, String> dotEnv) {
     webBaseUrl = _resolve(
@@ -18,17 +18,17 @@ class AppConfig {
       dotEnv: dotEnv,
       fallback: 'https://base-monopoly-production.up.railway.app/api',
     );
-    privyAppId = _resolve(
-      defineKey: 'PRIVY_APP_ID',
-      envKey: 'PRIVY_APP_ID',
+    web3AuthClientId = _resolve(
+      defineKey: 'WEB3AUTH_CLIENT_ID1',
+      envKey: 'WEB3AUTH_CLIENT_ID1',
       dotEnv: dotEnv,
       fallback: '',
     );
-    privyClientId = _resolve(
-      defineKey: 'PRIVY_CLIENT_ID',
-      envKey: 'PRIVY_CLIENT_ID',
+    web3AuthNetwork = _resolve(
+      defineKey: 'WEB3AUTH_NETWORK',
+      envKey: 'WEB3AUTH_NETWORK',
       dotEnv: dotEnv,
-      fallback: '',
+      fallback: 'sapphire_devnet',
     );
   }
 
@@ -45,8 +45,12 @@ class AppConfig {
     return fallback;
   }
 
-  static bool get hasPrivy =>
-      privyAppId.isNotEmpty && privyClientId.isNotEmpty;
+  static bool get hasWeb3Auth => web3AuthClientId.isNotEmpty;
+
+  static List<String> get missingWeb3AuthKeys {
+    if (web3AuthClientId.isEmpty) return ['WEB3AUTH_CLIENT_ID1'];
+    return [];
+  }
 
   static Uri path(String route) {
     final base = webBaseUrl.replaceAll(RegExp(r'/+$'), '');

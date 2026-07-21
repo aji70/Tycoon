@@ -1,11 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:privy_flutter/privy_flutter.dart';
+import 'package:web3auth_flutter/input.dart';
+import 'package:web3auth_flutter/web3auth_flutter.dart';
 import 'package:tycoon/app_config.dart';
 import 'package:tycoon/auth/auth_controller.dart';
+import 'package:tycoon/auth/auth_repository.dart';
+import 'package:tycoon/auth/web3auth_service.dart';
 import 'package:tycoon/main.dart';
+import 'package:tycoon/screens/web3auth_setup_screen.dart';
 import 'package:tycoon/theme/tycoon_colors.dart';
 
-/// Email OTP sign-in — same Privy + `POST /auth/privy-signin` flow as the web app.
+/// Email passwordless sign-in — same Web3Auth + `POST /auth/web3auth-signin` as the website.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -13,110 +19,69 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   final _emailController = TextEditingController();
-  final _codeController = TextEditingController();
   final _usernameController = TextEditingController();
 
-  bool _codeSent = false;
   bool _needsUsername = false;
   bool _busy = false;
+  bool _awaitingRedirect = false;
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _emailController.dispose();
-    _codeController.dispose();
     _usernameController.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _awaitingRedirect) {
+      // Web3Auth returns via w3a:// redirect — finish backend sync after a beat
+      Future<void>.delayed(const Duration(milliseconds: 400), _tryFinishAfterRedirect);
+    }
+  }
+
   AuthController get _auth => TycoonAuthScope.of(context);
 
-  Future<void> _sendCode() async {
-    final privy = _auth.privy;
-    if (privy == null) return;
-    final email = _emailController.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
-      setState(() => _error = 'Enter a valid email');
-      return;
-    }
+  Future<void> _tryFinishAfterRedirect() async {
+    if (!_awaitingRedirect || !mounted) return;
 
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    try {
+      final hasSession = await Web3AuthService.tryRestoreSession();
+      if (!hasSession) {
+        Web3AuthFlutter.setCustomTabsClosed();
+        return;
+      }
 
-    final result = await privy.email.sendCode(email);
-    result.fold(
-      onSuccess: (_) {
-        setState(() {
-          _codeSent = true;
-          _busy = false;
-        });
-      },
-      onFailure: (e) {
-        setState(() {
-          _error = e.message;
-          _busy = false;
-        });
-      },
-    );
-  }
-
-  Future<void> _verifyAndSignIn() async {
-    final privy = _auth.privy;
-    if (privy == null) return;
-    final email = _emailController.text.trim();
-    final code = _codeController.text.trim();
-    if (code.length < 4) {
-      setState(() => _error = 'Enter the code from your email');
-      return;
-    }
-
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-
-    final loginResult = await privy.email.loginWithCode(
-      code: code,
-      email: email,
-    );
-
-    switch (loginResult) {
-      case Success():
-        await _syncBackend(
-          username: _needsUsername ? _usernameController.text.trim() : null,
-        );
-      case Failure(:final error):
-        setState(() {
-          _error = error.message;
-          _busy = false;
-        });
-    }
-  }
-
-  Future<void> _syncBackend({String? username}) async {
-    final token = await _auth.getPrivyAccessToken();
-    if (token == null) {
+      final result = await _auth.completeBackendSignIn(
+        username: _needsUsername ? _usernameController.text.trim() : null,
+      );
+      if (!mounted) return;
+      await _handleSignInResult(result);
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _error = 'Could not get Privy session. Try again.';
+        _awaitingRedirect = false;
         _busy = false;
+        _error = e.toString();
       });
-      return;
     }
+  }
 
-    final result = await _auth.repository.privySignIn(
-      privyAccessToken: token,
-      username: username,
-    );
-
-    if (!mounted) return;
-
+  Future<void> _handleSignInResult(Web3AuthSignInResult result) async {
     if (result.needsUsername) {
       setState(() {
         _needsUsername = true;
+        _awaitingRedirect = false;
         _busy = false;
         _error = result.message;
       });
@@ -125,52 +90,79 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (!result.ok) {
       setState(() {
-        _error = result.message ?? 'Could not link account to Tycoon server';
+        _awaitingRedirect = false;
         _busy = false;
+        _error = result.message ?? 'Sign-in failed';
       });
       return;
     }
 
     await _auth.refreshUser();
     if (!mounted) return;
+    _awaitingRedirect = false;
     Navigator.of(context).pop(true);
+  }
+
+  Future<void> _signIn() async {
+    if (_needsUsername) {
+      final name = _usernameController.text.trim();
+      if (name.length < 2) {
+        setState(() => _error = 'Username must be at least 2 characters');
+        return;
+      }
+      setState(() {
+        _busy = true;
+        _error = null;
+      });
+      final result = await _auth.completeUsername(name);
+      if (!mounted) return;
+      await _handleSignInResult(result);
+      return;
+    }
+
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'Enter a valid email');
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _awaitingRedirect = true;
+      _error = null;
+    });
+
+    try {
+      await Web3AuthService.loginWithEmail(email);
+      if (!mounted) return;
+      final result = await _auth.completeBackendSignIn();
+      if (!mounted) return;
+      await _handleSignInResult(result);
+    } on UserCancelledException {
+      if (!mounted) return;
+      // User may have completed login — resume handler will try session sync
+      if (!_awaitingRedirect) {
+        setState(() {
+          _busy = false;
+          _error = null;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      // Login may still succeed via redirect — resume handler runs next
+      if (!_awaitingRedirect) {
+        setState(() {
+          _busy = false;
+          _error = e.toString();
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!AppConfig.hasPrivy || _auth.privy == null) {
-      return Scaffold(
-        backgroundColor: TycoonColors.background,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          foregroundColor: TycoonColors.cyan,
-        ),
-        body: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Privy not configured',
-                style: TextStyle(
-                  color: TycoonColors.cyan,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'One-time setup in the tycoon folder:\n\n'
-                '  cp .env.example .env\n'
-                '  ./tool/sync_env.sh\n\n'
-                'Then add PRIVY_CLIENT_ID to .env (Privy Dashboard → Clients → '
-                'Android com.example.tycoon). After that, plain flutter run works.',
-                style: TextStyle(color: TycoonColors.textBody, height: 1.5),
-              ),
-            ],
-          ),
-        ),
-      );
+    if (!AppConfig.hasWeb3Auth || !_auth.canUseWeb3Auth) {
+      return const Web3AuthSetupScreen();
     }
 
     return Scaffold(
@@ -187,30 +179,21 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Enter your email for a one-time code. No password — same as the website.',
+                'Enter your email — Web3Auth opens a secure browser tab for the one-time code. '
+                'Same flow as the website.',
                 style: TextStyle(color: TycoonColors.textMuted, height: 1.4),
               ),
               const SizedBox(height: 24),
-              if (!_needsUsername) ...[
+              if (!_needsUsername)
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   autocorrect: false,
-                  enabled: !_codeSent && !_busy,
+                  enabled: !_busy,
                   style: const TextStyle(color: TycoonColors.cyanBright),
                   decoration: _inputDecoration('Email'),
-                ),
-                if (_codeSent) ...[
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _codeController,
-                    keyboardType: TextInputType.number,
-                    enabled: !_busy,
-                    style: const TextStyle(color: TycoonColors.cyanBright),
-                    decoration: _inputDecoration('Code from email'),
-                  ),
-                ],
-              ] else ...[
+                )
+              else ...[
                 const Text(
                   'Choose your in-game username',
                   style: TextStyle(
@@ -235,28 +218,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ],
               const SizedBox(height: 24),
               FilledButton(
-                onPressed: _busy
-                    ? null
-                    : () {
-                        if (_needsUsername) {
-                          final name = _usernameController.text.trim();
-                          if (name.length < 2) {
-                            setState(() => _error = 'Username must be at least 2 characters');
-                            return;
-                          }
-                          setState(() {
-                            _busy = true;
-                            _error = null;
-                          });
-                          _syncBackend(username: name);
-                          return;
-                        }
-                        if (!_codeSent) {
-                          _sendCode();
-                        } else {
-                          _verifyAndSignIn();
-                        }
-                      },
+                onPressed: _busy ? null : _signIn,
                 style: FilledButton.styleFrom(
                   backgroundColor: TycoonColors.cyan,
                   foregroundColor: TycoonColors.background,
@@ -267,22 +229,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? 'Please wait…'
                       : _needsUsername
                           ? 'Continue'
-                          : _codeSent
-                              ? 'Verify & sign in'
-                              : 'Send code',
+                          : "Let's Go!",
                 ),
               ),
-              if (_codeSent && !_needsUsername)
-                TextButton(
-                  onPressed: _busy
-                      ? null
-                      : () => setState(() {
-                            _codeSent = false;
-                            _codeController.clear();
-                            _error = null;
-                          }),
-                  child: const Text('Use a different email'),
-                ),
             ],
           ),
         ),

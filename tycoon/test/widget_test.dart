@@ -7,7 +7,7 @@ import 'package:tycoon/screens/home_screen.dart';
 void main() {
   testWidgets('Tycoon home screen builds', (WidgetTester tester) async {
     AppConfig.init({});
-    final auth = AuthController(privy: null);
+    final auth = AuthController();
     auth.isLoading = false;
     await tester.pumpWidget(TycoonApp(auth: auth));
     expect(find.byType(HomeScreen), findsOneWidget);

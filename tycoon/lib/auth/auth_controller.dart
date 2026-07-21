@@ -1,31 +1,38 @@
 import 'package:flutter/foundation.dart';
-import 'package:privy_flutter/privy_flutter.dart';
 import 'package:tycoon/app_config.dart';
 import 'package:tycoon/auth/auth_repository.dart';
 import 'package:tycoon/auth/tycoon_user.dart';
+import 'package:tycoon/auth/web3auth_service.dart';
 
 class AuthController extends ChangeNotifier {
-  AuthController({Privy? privy, AuthRepository? repository})
-      : privy = privy,
-        _repository = repository ?? AuthRepository();
+  AuthController({AuthRepository? repository})
+      : _repository = repository ?? AuthRepository();
 
-  final Privy? privy;
   final AuthRepository _repository;
 
   TycoonUser? user;
   bool isLoading = true;
   String? bootstrapError;
+  bool web3AuthReady = false;
 
   bool get isLoggedIn => user != null;
-  bool get canUsePrivy => privy != null && AppConfig.hasPrivy;
+  bool get canUseWeb3Auth => AppConfig.hasWeb3Auth && web3AuthReady;
 
   Future<void> bootstrap() async {
     isLoading = true;
     bootstrapError = null;
     notifyListeners();
     try {
-      if (privy != null) {
-        await privy!.getAuthState();
+      if (AppConfig.hasWeb3Auth) {
+        await Web3AuthService.init();
+        web3AuthReady = true;
+        final hasSession = await Web3AuthService.tryRestoreSession();
+        if (hasSession) {
+          final idToken = await Web3AuthService.getIdToken();
+          if (idToken != null) {
+            await _repository.web3AuthSignIn(idToken: idToken);
+          }
+        }
       }
       user = await _repository.fetchMe();
     } catch (e) {
@@ -42,24 +49,38 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<Web3AuthSignInResult> completeBackendSignIn({String? username}) async {
+    final idToken = await Web3AuthService.getIdToken();
+    if (idToken == null) {
+      return const Web3AuthSignInResult(
+        ok: false,
+        message: 'Could not get Web3Auth session. Try again.',
+      );
+    }
+    return _repository.web3AuthSignIn(idToken: idToken, username: username);
+  }
+
+  Future<Web3AuthSignInResult> signInWithEmail({
+    required String email,
+    String? username,
+  }) async {
+    await Web3AuthService.loginWithEmail(email);
+    return completeBackendSignIn(username: username);
+  }
+
+  Future<Web3AuthSignInResult> completeUsername(String username) async {
+    return completeBackendSignIn(username: username);
+  }
+
   Future<void> signOut() async {
     await _repository.clearSession();
-    if (privy != null) {
-      await privy!.logout();
+    if (web3AuthReady) {
+      try {
+        await Web3AuthService.logout();
+      } catch (_) {}
     }
     user = null;
     notifyListeners();
-  }
-
-  Future<String?> getPrivyAccessToken() async {
-    if (privy == null) return null;
-    final privyUser = await privy!.getUser();
-    if (privyUser == null) return null;
-    final tokenResult = await privyUser.getAccessToken();
-    return switch (tokenResult) {
-      Success(:final value) => value,
-      Failure() => null,
-    };
   }
 
   AuthRepository get repository => _repository;
