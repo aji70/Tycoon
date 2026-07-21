@@ -1,9 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:tycoon/app_config.dart';
 import 'package:tycoon/auth/auth_controller.dart';
 import 'package:tycoon/main.dart';
+import 'package:tycoon/navigation/app_navigator.dart';
+import 'package:tycoon/navigation/app_routes.dart';
 import 'package:tycoon/screens/login_screen.dart';
 import 'package:tycoon/theme/tycoon_colors.dart';
 import 'package:tycoon/widgets/glow_button.dart';
@@ -11,7 +12,6 @@ import 'package:tycoon/widgets/neon_title.dart';
 import 'package:tycoon/widgets/scanline_overlay.dart';
 import 'package:tycoon/widgets/slanted_button.dart';
 import 'package:tycoon/widgets/world_stats_bar.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class HeroSection extends StatefulWidget {
   const HeroSection({super.key});
@@ -47,17 +47,6 @@ class _HeroSectionState extends State<HeroSection> {
   }
 
   AuthController get _auth => TycoonAuthScope.of(context);
-
-  Future<void> _openOnWeb(String path) async {
-    final uri = AppConfig.path(path);
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!mounted) return;
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open $uri')),
-      );
-    }
-  }
 
   Future<void> _onLetsGo() async {
     final signedIn = await Navigator.of(context).push<bool>(
@@ -106,17 +95,7 @@ class _HeroSectionState extends State<HeroSection> {
           SafeArea(
             child: Column(
               children: [
-                if (loggedIn)
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: TextButton(
-                      onPressed: () => _auth.signOut(),
-                      child: const Text(
-                        'Sign out',
-                        style: TextStyle(color: TycoonColors.textMuted),
-                      ),
-                    ),
-                  ),
+                const SizedBox(height: 48),
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const ClampingScrollPhysics(),
@@ -198,27 +177,38 @@ class _HeroSectionState extends State<HeroSection> {
                                     SlantedButton(
                                       label: 'Multiplayer',
                                       icon: Icons.sports_esports_outlined,
-                                      onTap: () =>
-                                          _openOnWeb('/game-settings-3d'),
+                                      onTap: () => openAppRoute(
+                                        context,
+                                        AppRoutes.multiplayer,
+                                      ),
                                     ),
                                     const SizedBox(width: 16),
                                     SlantedButton(
                                       label: 'Join Room',
                                       icon: Icons.casino_outlined,
-                                      onTap: () => _openOnWeb('/join-room-3d'),
+                                      onTap: () => openAppRoute(
+                                        context,
+                                        AppRoutes.joinRoom,
+                                      ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 20),
                                 GlowButton(
                                   label: 'Challenge AI',
-                                  onPressed: () => _openOnWeb('/play-ai-3d'),
+                                  onPressed: () => openAppRoute(
+                                    context,
+                                    AppRoutes.playAi,
+                                  ),
                                 ),
                                 const SizedBox(height: 12),
                                 GlowButton(
                                   label: 'Agent Battles',
                                   variant: GlowButtonVariant.secondary,
-                                  onPressed: () => _openOnWeb('/arena'),
+                                  onPressed: () => openAppRoute(
+                                    context,
+                                    AppRoutes.arena,
+                                  ),
                                 ),
                               ],
                             ],

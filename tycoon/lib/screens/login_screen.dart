@@ -37,20 +37,34 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
 
-    final result = await _auth.signInWithEmail(email);
-    if (!mounted) return;
+    try {
+      final result = await _auth.signInWithEmail(email);
+      if (!mounted) return;
 
-    if (!result.ok) {
+      if (!result.ok) {
+        setState(() {
+          _busy = false;
+          _error = result.message ?? 'Sign-in failed';
+        });
+        return;
+      }
+
+      if (!_auth.isLoggedIn) {
+        setState(() {
+          _busy = false;
+          _error = 'Signed in but could not load your profile. Try again.';
+        });
+        return;
+      }
+
+      Navigator.of(context).pop(true);
+    } on Exception catch (e) {
+      if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = result.message ?? 'Sign-in failed';
+        _error = e.toString();
       });
-      return;
     }
-
-    await _auth.refreshUser();
-    if (!mounted) return;
-    Navigator.of(context).pop(true);
   }
 
   @override

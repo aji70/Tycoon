@@ -7,6 +7,7 @@ import gameController, {
   createMultiplayerAsGuest,
   joinAsGuest,
   createAIAsGuest,
+  createAIAsMobile,
   addAIPlayers,
   createAgentVsAgent,
   createAgentVsAI,
@@ -56,6 +57,7 @@ router.post("/leave", leave);
 router.post("/create-as-guest", requireAuthOrAddress, createAsGuest);
 router.post("/create-multiplayer-as-guest", requireAuthOrAddress, createMultiplayerAsGuest);
 router.post("/create-ai-as-guest", requireAuthOrAddress, createAIAsGuest);
+router.post("/create-ai-mobile", requireAuth, createAIAsMobile);
 router.post("/create-onchain-agent-vs-ai", requireAuth, createOnchainAgentVsAI);
 router.post("/create-onchain-agent-vs-agent-lobby", requireAuth, createOnchainAgentVsAgentLobby);
 router.post("/create-agent-vs-agent", requireAuth, createAgentVsAgent);

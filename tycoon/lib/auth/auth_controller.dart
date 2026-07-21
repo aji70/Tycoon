@@ -34,8 +34,28 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<SignInResult> signInWithEmail(String email) =>
-      _repository.loginByEmail(email);
+  Future<SignInResult> signInWithEmail(String email) async {
+    final result = await _repository.loginByEmail(email);
+    if (!result.ok) return result;
+
+    if (result.user != null) {
+      user = result.user;
+      notifyListeners();
+    }
+
+    // /auth/me can be slow (on-chain wallet setup). Refresh in background.
+    _refreshUserInBackground();
+    return result;
+  }
+
+  void _refreshUserInBackground() {
+    _repository.fetchMe().then((profile) {
+      if (profile != null) {
+        user = profile;
+        notifyListeners();
+      }
+    }).catchError((_) {});
+  }
 
   Future<void> signOut() async {
     await _repository.clearSession();

@@ -53,6 +53,7 @@ import { parseUnits } from "ethers";
 import {
   getOnchainAddressForGuestFlow,
   isValidEthAddress as isValidEthAddressForOnchain,
+  placeholderAddressForAuthId,
 } from "../utils/onchainUserAddress.js";
 import { resolveBoardIdForGame } from "../utils/boardVariant.js";
 
@@ -3049,6 +3050,172 @@ export const createAIAsGuest = async (req, res) => {
     }
     logger.error({ err: err?.message }, "createAIAsGuest failed");
     return res.status(500).json({ success: false, message: err?.message || "Failed to create AI game" });
+  }
+};
+
+/** Address for mobile/offline AI games — no wallet or on-chain registration required. */
+function resolveMobilePlayerAddress(user) {
+  const fromWallets = getOnchainAddressForGuestFlow(user);
+  if (fromWallets) return fromWallets;
+  if (user?.email) {
+    return placeholderAddressForAuthId(
+      `mobile-email:${String(user.email).trim().toLowerCase()}`
+    );
+  }
+  return placeholderAddressForAuthId(`mobile-user:${user.id}`);
+}
+
+/**
+ * POST /games/create-ai-mobile
+ * Mobile app: DB-only AI game — skips blockchain (no contract_game_id).
+ * Requires JWT (e.g. mobile email login). Body same shape as create-ai-as-guest.
+ */
+export const createAIAsMobile = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user?.id) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+
+    const {
+      code: rawCode,
+      symbol,
+      number_of_players,
+      settings,
+      duration,
+      chain,
+      is_minipay,
+    } = req.body;
+
+    let code = normalizeJoinCode(rawCode);
+    if (!code) code = generateJoinCode6();
+    if (code.length !== 6) {
+      return res.status(400).json({ success: false, message: "code must be exactly 6 characters" });
+    }
+
+    const existingGame = await Game.findByCode(code);
+    if (existingGame) {
+      return res.status(400).json({ success: false, message: "Game code already exists" });
+    }
+
+    const aiDifficulty = settings?.ai_difficulty || req.body.ai_difficulty || "easy";
+    const aiDiffMode = settings?.ai_difficulty_mode || req.body.ai_difficulty_mode || "random";
+    const startingCash = settings?.starting_cash ?? 1500;
+    const numberOfAI =
+      number_of_players != null ? Math.max(1, Number(number_of_players) - 1) : 1;
+    const chainForGame = User.normalizeChain(chain || "CELO");
+    const playerAddress = resolveMobilePlayerAddress(user);
+    const board_id = await resolveBoardIdForGame(req.body.board_id);
+
+    const game = await Game.create({
+      code,
+      mode: "PRIVATE",
+      creator_id: user.id,
+      next_player_id: user.id,
+      number_of_players: numberOfAI + 1,
+      status: "PENDING",
+      is_minipay: !!is_minipay,
+      is_ai: true,
+      duration: duration || 0,
+      chain: chainForGame,
+      contract_game_id: null,
+      board_id,
+    });
+
+    await Chat.ensureForGame(game.id);
+
+    const aiDiffPayload = buildAiDifficultyPayload(
+      aiDifficulty,
+      aiDiffMode,
+      numberOfAI,
+      true
+    );
+    await GameSetting.create({
+      game_id: game.id,
+      auction: settings?.auction ?? true,
+      rent_in_prison: settings?.rent_in_prison ?? false,
+      mortgage: settings?.mortgage ?? true,
+      even_build: settings?.even_build ?? true,
+      randomize_play_order: settings?.randomize_play_order ?? true,
+      starting_cash: startingCash,
+      ...aiDiffPayload,
+    });
+
+    await GamePlayer.create({
+      game_id: game.id,
+      user_id: user.id,
+      address: playerAddress,
+      balance: startingCash,
+      position: 0,
+      turn_order: 1,
+      symbol: symbol || "hat",
+      chance_jail_card: false,
+      community_chest_jail_card: false,
+    });
+
+    const humanSymbol = (symbol || "hat").toLowerCase();
+    const availableSymbols = AI_SYMBOLS.filter((s) => s !== humanSymbol);
+    for (let i = 0; i < numberOfAI; i++) {
+      const aiUser = await getOrCreateAIUser(i, chainForGame);
+      if (!aiUser) continue;
+      const aiSymbol =
+        availableSymbols[i % availableSymbols.length] ||
+        AI_SYMBOLS[i % AI_SYMBOLS.length];
+      await GamePlayer.create({
+        game_id: game.id,
+        user_id: aiUser.id,
+        address: aiUser.address,
+        balance: startingCash,
+        position: 0,
+        turn_order: i + 2,
+        symbol: aiSymbol,
+        chance_jail_card: false,
+        community_chest_jail_card: false,
+      });
+    }
+
+    const game_settings = await GameSetting.findByGameId(game.id);
+    await recordEvent("game_created", {
+      entityType: "game",
+      entityId: game.id,
+      payload: { is_ai: true, mobile_offline: true },
+    });
+
+    const io = req.app.get("io");
+    await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
+    await recordEvent("game_started", {
+      entityType: "game",
+      entityId: game.id,
+      payload: { mobile_offline: true },
+    });
+    await invalidateGameById(game.id);
+    const updatedGame = await Game.findByCode(game.code);
+    if (updatedGame?.next_player_id) {
+      await GamePlayer.setTurnStart(game.id, updatedGame.next_player_id);
+    }
+    const playersWithTurnStart = await GamePlayer.findByGameId(game.id);
+    if (io) {
+      emitGameUpdate(io, game.code);
+      io.to(game.code).emit("game-created", {
+        game: { ...updatedGame, settings: game_settings, players: playersWithTurnStart },
+      });
+      io.to(game.code).emit("game-ready", {
+        game: updatedGame,
+        players: playersWithTurnStart,
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "successful",
+      data: { ...updatedGame, settings: game_settings, players: playersWithTurnStart },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "createAIAsMobile failed");
+    return res.status(500).json({
+      success: false,
+      message: err?.message || "Failed to create AI game",
+    });
   }
 };
 
