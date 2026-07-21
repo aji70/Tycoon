@@ -14,6 +14,7 @@ router.get("/vault-balances", guestAuthController.vaultBalances);
 router.get("/verify-email", guestAuthController.verifyEmail);
 router.post("/verify-email", guestAuthController.verifyEmail);
 router.post("/login-by-wallet", guestAuthController.loginByWallet);
+router.post("/mobile-email-login", guestAuthController.mobileEmailLogin);
 router.post("/login-email", guestAuthController.loginEmail);
 
 // Backward-compatible aliases for multi-segment smart-wallet routes used by some frontend pages.

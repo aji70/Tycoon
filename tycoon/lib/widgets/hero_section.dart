@@ -5,7 +5,6 @@ import 'package:tycoon/app_config.dart';
 import 'package:tycoon/auth/auth_controller.dart';
 import 'package:tycoon/main.dart';
 import 'package:tycoon/screens/login_screen.dart';
-import 'package:tycoon/screens/web3auth_setup_screen.dart';
 import 'package:tycoon/theme/tycoon_colors.dart';
 import 'package:tycoon/widgets/glow_button.dart';
 import 'package:tycoon/widgets/neon_title.dart';
@@ -61,13 +60,6 @@ class _HeroSectionState extends State<HeroSection> {
   }
 
   Future<void> _onLetsGo() async {
-    if (!AppConfig.hasWeb3Auth) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const Web3AuthSetupScreen()),
-      );
-      return;
-    }
-
     final signedIn = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
@@ -192,7 +184,7 @@ class _HeroSectionState extends State<HeroSection> {
                                 ),
                                 const SizedBox(height: 12),
                                 const Text(
-                                  'Sign in or connect your wallet (menu) to play.',
+                                  'Use the same email as your Tycoon web account.',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     color: TycoonColors.textGray,

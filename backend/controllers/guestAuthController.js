@@ -2308,6 +2308,58 @@ export async function verifyEmail(req, res) {
 }
 
 /**
+ * POST /api/auth/mobile-email-login
+ * Body: { email }. Mobile app: look up existing user by email and issue JWT (no Web3Auth).
+ */
+export async function mobileEmailLogin(req, res) {
+  try {
+    const email = req.body?.email;
+    if (!email || typeof email !== "string" || !String(email).trim().includes("@")) {
+      return res.status(400).json({ success: false, message: "Valid email required" });
+    }
+
+    let user = await User.findByEmail(email);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "No account found for this email. Create one on the website first.",
+      });
+    }
+
+    if (!user.password_hash) {
+      const secret = crypto.randomBytes(32).toString("hex");
+      const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
+      await db("users").where({ id: user.id }).update({ password_hash: passwordHash });
+      await invalidateUserCache(user.id);
+      user = await User.findById(user.id);
+    }
+
+    const token = jwt.sign(
+      { userId: user.id, address: user.address, username: user.username, isGuest: !!user.is_guest },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+    const { password_hash, password_hash_email, email_verification_token, ...safe } = user;
+    return res.status(200).json({
+      success: true,
+      data: {
+        token,
+        user: {
+          id: safe.id,
+          username: safe.username,
+          address: safe.address,
+          is_guest: !!safe.is_guest,
+          email: safe.email ?? null,
+        },
+      },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "mobileEmailLogin failed");
+    return res.status(500).json({ success: false, message: err?.message || "Login failed" });
+  }
+}
+
+/**
  * POST /api/auth/login-email
  * Body: { email, password }. Requires email_verified. Returns JWT (same format as guest).
  */

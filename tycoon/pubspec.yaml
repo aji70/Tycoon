@@ -1,5 +1,5 @@
 name: tycoon
-description: "Tycoon mobile — native home and Privy sign-in."
+description: "Tycoon mobile — native home and email sign-in."
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -14,7 +14,6 @@ dependencies:
   http: ^1.4.0
   shared_preferences: ^2.5.3
   url_launcher: ^6.3.1
-  web3auth_flutter: ^6.3.0
 
 dev_dependencies:
   flutter_test:

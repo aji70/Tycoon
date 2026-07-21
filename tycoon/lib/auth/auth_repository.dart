@@ -5,18 +5,18 @@ import 'package:tycoon/app_config.dart';
 import 'package:tycoon/auth/session_store.dart';
 import 'package:tycoon/auth/tycoon_user.dart';
 
-class Web3AuthSignInResult {
-  const Web3AuthSignInResult({
+class SignInResult {
+  const SignInResult({
     required this.ok,
     this.token,
-    this.needsUsername = false,
     this.message,
+    this.user,
   });
 
   final bool ok;
   final String? token;
-  final bool needsUsername;
   final String? message;
+  final TycoonUser? user;
 }
 
 class AuthRepository {
@@ -46,23 +46,12 @@ class AuthRepository {
     return TycoonUser.fromJson(data);
   }
 
-  Future<Web3AuthSignInResult> web3AuthSignIn({
-    required String idToken,
-    String? username,
-  }) async {
-    final payload = <String, String>{};
-    if (username != null && username.trim().length >= 2) {
-      payload['username'] = username.trim();
-    }
-
+  Future<SignInResult> loginByEmail(String email) async {
     final res = await http
         .post(
-          Uri.parse('${AppConfig.apiBaseUrl}/auth/web3auth-signin'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $idToken',
-          },
-          body: jsonEncode(payload),
+          Uri.parse('${AppConfig.apiBaseUrl}/auth/mobile-email-login'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'email': email.trim().toLowerCase()}),
         )
         .timeout(const Duration(seconds: 30));
 
@@ -70,7 +59,7 @@ class AuthRepository {
     try {
       body = jsonDecode(res.body) as Map<String, dynamic>;
     } catch (_) {
-      return Web3AuthSignInResult(
+      return SignInResult(
         ok: false,
         message: 'Server returned ${res.statusCode} (invalid JSON)',
       );
@@ -79,29 +68,21 @@ class AuthRepository {
     final message = body['message'] as String?;
     final data = body['data'];
     final token = data is Map<String, dynamic> ? data['token'] as String? : null;
-
-    if (res.statusCode == 400 &&
-        (message ?? '').toLowerCase().contains('username')) {
-      return const Web3AuthSignInResult(ok: false, needsUsername: true);
-    }
-
-    if (res.statusCode == 409) {
-      return Web3AuthSignInResult(
-        ok: false,
-        needsUsername: true,
-        message: message ?? 'Username already taken',
-      );
-    }
+    final userJson = data is Map<String, dynamic> ? data['user'] : null;
 
     if (res.statusCode >= 200 &&
         res.statusCode < 300 &&
         token != null &&
         token.isNotEmpty) {
       await _store.saveToken(token);
-      return Web3AuthSignInResult(ok: true, token: token);
+      TycoonUser? user;
+      if (userJson is Map<String, dynamic>) {
+        user = TycoonUser.fromJson(userJson);
+      }
+      return SignInResult(ok: true, token: token, user: user);
     }
 
-    return Web3AuthSignInResult(
+    return SignInResult(
       ok: false,
       message: message ?? 'Sign-in failed (${res.statusCode})',
     );

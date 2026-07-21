@@ -73,18 +73,9 @@ class TycoonApp extends StatelessWidget {
             return const HomeScreen();
           },
         ),
-        onUnknownRoute: (settings) {
-          // Web3Auth redirect: /auth#b64Params=... — swallow, do not navigate
-          final name = settings.name ?? '';
-          if (name.startsWith('/auth')) {
-            return MaterialPageRoute<void>(
-              builder: (_) => const SizedBox.shrink(),
-            );
-          }
-          return MaterialPageRoute<void>(
-            builder: (_) => const HomeScreen(),
-          );
-        },
+        onUnknownRoute: (settings) => MaterialPageRoute<void>(
+          builder: (_) => const HomeScreen(),
+        ),
       ),
     );
   }

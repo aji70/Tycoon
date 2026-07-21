@@ -2,8 +2,6 @@
 class AppConfig {
   static late final String webBaseUrl;
   static late final String apiBaseUrl;
-  static late final String web3AuthClientId;
-  static late final String web3AuthNetwork;
 
   static void init(Map<String, String> dotEnv) {
     webBaseUrl = _resolve(
@@ -18,18 +16,6 @@ class AppConfig {
       dotEnv: dotEnv,
       fallback: 'https://base-monopoly-production.up.railway.app/api',
     );
-    web3AuthClientId = _resolve(
-      defineKey: 'WEB3AUTH_CLIENT_ID1',
-      envKey: 'WEB3AUTH_CLIENT_ID1',
-      dotEnv: dotEnv,
-      fallback: '',
-    );
-    web3AuthNetwork = _resolve(
-      defineKey: 'WEB3AUTH_NETWORK',
-      envKey: 'WEB3AUTH_NETWORK',
-      dotEnv: dotEnv,
-      fallback: 'sapphire_devnet',
-    );
   }
 
   static String _resolve({
@@ -43,13 +29,6 @@ class AppConfig {
     final fromFile = dotEnv[envKey]?.trim();
     if (fromFile != null && fromFile.isNotEmpty) return fromFile;
     return fallback;
-  }
-
-  static bool get hasWeb3Auth => web3AuthClientId.isNotEmpty;
-
-  static List<String> get missingWeb3AuthKeys {
-    if (web3AuthClientId.isEmpty) return ['WEB3AUTH_CLIENT_ID1'];
-    return [];
   }
 
   static Uri path(String route) {
