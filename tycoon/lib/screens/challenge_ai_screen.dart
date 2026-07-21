@@ -3,6 +3,7 @@ import 'package:tycoon/auth/auth_controller.dart';
 import 'package:tycoon/main.dart';
 import 'package:tycoon/models/ai_game_settings.dart';
 import 'package:tycoon/screens/login_screen.dart';
+import 'package:tycoon/screens/board_screen.dart';
 import 'package:tycoon/services/api_client.dart';
 import 'package:tycoon/services/game_api.dart';
 import 'package:tycoon/theme/tycoon_colors.dart';
@@ -75,10 +76,7 @@ class _ChallengeAiScreenState extends State<ChallengeAiScreen> {
 
       await Navigator.of(context).pushReplacement<void, void>(
         MaterialPageRoute<void>(
-          builder: (_) => _GameCreatedScreen(
-            gameCode: result.gameCode,
-            aiCount: _settings.aiCount,
-          ),
+          builder: (_) => BoardScreen(gameCode: result.gameCode),
         ),
       );
     } on ApiException catch (e) {
@@ -371,72 +369,6 @@ class _ChallengeAiScreenState extends State<ChallengeAiScreen> {
                     ],
                   ],
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _GameCreatedScreen extends StatelessWidget {
-  const _GameCreatedScreen({
-    required this.gameCode,
-    required this.aiCount,
-  });
-
-  final String gameCode;
-  final int aiCount;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: TycoonColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        foregroundColor: TycoonColors.cyan,
-        title: const Text('Game ready'),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.check_circle_outline, color: TycoonColors.cyan, size: 56),
-              const SizedBox(height: 20),
-              Text(
-                'Game $gameCode',
-                style: const TextStyle(
-                  color: TycoonColors.textWhite,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'You vs $aiCount AI opponent${aiCount == 1 ? '' : 's'}',
-                style: const TextStyle(color: TycoonColors.textMuted),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'The 3D board is coming next in the app. Your game is saved on the server.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: TycoonColors.textBodyAlt,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 28),
-              FilledButton(
-                onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
-                style: FilledButton.styleFrom(
-                  backgroundColor: TycoonColors.cyan,
-                  foregroundColor: TycoonColors.background,
-                  minimumSize: const Size.fromHeight(48),
-                ),
-                child: const Text('Back to Home'),
               ),
             ],
           ),
