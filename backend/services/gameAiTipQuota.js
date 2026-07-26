@@ -7,6 +7,12 @@
 import db from "../config/database.js";
 import { getChainConfig } from "../config/chains.js";
 import { getTipPackUsdcRecipient, getUsdcTokenAddress } from "./verifyUsdcTransfer.js";
+import {
+  getSoftPerkCatalogAddress,
+  isSoftPerkCatalogConfigured,
+  SOFT_PERK_LABELS,
+} from "../lib/softPerkIds.js";
+import { AI_TIP_PACK_PERK_ID } from "./verifySoftPerkPurchase.js";
 
 export const TIPS_PER_GAME = Math.max(0, Number(process.env.AI_TIPS_PER_GAME) || 3);
 export const TIP_PACK_TIPS = Math.max(1, Number(process.env.AI_TIP_PACK_TIPS) || 5);
@@ -26,11 +32,20 @@ export function getTipPackOffer() {
   const recipient = getTipPackUsdcRecipient();
   const usdc = getUsdcTokenAddress();
   const celo = getChainConfig("CELO");
-  const purchaseReady = Boolean(recipient && usdc && celo.rpcUrl && TIP_PACK_USDC_UNITS > 0n);
+  const catalog = getSoftPerkCatalogAddress();
+  const useCatalog = isSoftPerkCatalogConfigured();
+  const purchaseReady = Boolean(
+    (useCatalog ? catalog : recipient) && usdc && celo.rpcUrl && TIP_PACK_USDC_UNITS > 0n
+  );
   return {
     tips: TIP_PACK_TIPS,
     usdc: TIP_PACK_USDC,
     recipient: recipient || null,
+    /** Prefer buyPerk on SoftPerkCatalog; USDC still settles on reward (treasury). */
+    catalog: catalog || null,
+    perkLabel: SOFT_PERK_LABELS.AI_TIP_PACK_V1,
+    perkId: AI_TIP_PACK_PERK_ID,
+    useCatalog,
     available: true,
     purchaseReady,
   };

@@ -1,0 +1,80 @@
+[
+  {
+    "type": "function",
+    "name": "buyPerk",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "perkId", "type": "bytes32" },
+      { "name": "paymentToken", "type": "uint8" }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "buyPerkFrom",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "payer", "type": "address" },
+      { "name": "perkId", "type": "bytes32" },
+      { "name": "paymentToken", "type": "uint8" }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "setSoftPerk",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "perkId", "type": "bytes32" },
+      { "name": "tycPrice", "type": "uint256" },
+      { "name": "usdcPrice", "type": "uint256" },
+      { "name": "cusdcPrice", "type": "uint256" },
+      { "name": "usdtPrice", "type": "uint256" },
+      { "name": "active", "type": "bool" }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "softPerks",
+    "stateMutability": "view",
+    "inputs": [{ "name": "perkId", "type": "bytes32" }],
+    "outputs": [
+      { "name": "tycPrice", "type": "uint256" },
+      { "name": "usdcPrice", "type": "uint256" },
+      { "name": "cusdcPrice", "type": "uint256" },
+      { "name": "usdtPrice", "type": "uint256" },
+      { "name": "active", "type": "bool" }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "treasury",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "address" }]
+  },
+  {
+    "type": "event",
+    "name": "SoftPerkPurchased",
+    "inputs": [
+      { "name": "perkId", "type": "bytes32", "indexed": true },
+      { "name": "buyer", "type": "address", "indexed": true },
+      { "name": "price", "type": "uint256", "indexed": false },
+      { "name": "paymentToken", "type": "uint8", "indexed": false },
+      { "name": "treasury", "type": "address", "indexed": true }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "SoftPerkConfigured",
+    "inputs": [
+      { "name": "perkId", "type": "bytes32", "indexed": true },
+      { "name": "tycPrice", "type": "uint256", "indexed": false },
+      { "name": "usdcPrice", "type": "uint256", "indexed": false },
+      { "name": "cusdcPrice", "type": "uint256", "indexed": false },
+      { "name": "usdtPrice", "type": "uint256", "indexed": false },
+      { "name": "active", "type": "bool", "indexed": false }
+    ]
+  }
+]

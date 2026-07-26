@@ -17,6 +17,8 @@ class BoardSquare {
   final int price;
   final String color;
 
+  bool get isBuyable => type == 'property' && price > 0;
+
   factory BoardSquare.fromJson(Map<String, dynamic> json) {
     return BoardSquare(
       id: _asInt(json['id']),
@@ -143,6 +145,7 @@ class MoveResult {
     this.message,
     this.requiresBuy = false,
     this.propertyForBuy,
+    this.newPosition,
     this.card,
     this.stillInJail = false,
   });
@@ -151,8 +154,19 @@ class MoveResult {
   final String? message;
   final bool requiresBuy;
   final int? propertyForBuy;
+  final int? newPosition;
   final Map<String, dynamic>? card;
   final bool stillInJail;
+
+  static bool _asBool(dynamic v) => v == true || v == 1;
+
+  static int? _parsePropertyForBuy(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    if (v is Map<String, dynamic>) return BoardSquare._asInt(v['id']);
+    return int.tryParse(v.toString());
+  }
 
   factory MoveResult.fromResponse(Map<String, dynamic> body) {
     final data = body['data'];
@@ -160,14 +174,15 @@ class MoveResult {
     return MoveResult(
       success: body['success'] == true,
       message: body['message']?.toString(),
-      requiresBuy: map['requires_buy'] == true,
-      propertyForBuy: map['property_for_buy'] == null
+      requiresBuy: _asBool(map['requires_buy']),
+      propertyForBuy: _parsePropertyForBuy(map['property_for_buy']),
+      newPosition: map['new_position'] == null
           ? null
-          : BoardSquare._asInt(map['property_for_buy']),
+          : BoardSquare._asInt(map['new_position']),
       card: map['card'] is Map<String, dynamic>
           ? map['card'] as Map<String, dynamic>
           : null,
-      stillInJail: map['still_in_jail'] == true,
+      stillInJail: _asBool(map['still_in_jail']),
     );
   }
 }

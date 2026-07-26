@@ -10,6 +10,7 @@ import UserAgent from "../models/UserAgent.js";
 import * as hostedAgentUsage from "../services/hostedAgentUsage.js";
 import * as hostedAgentCredits from "../services/hostedAgentCredits.js";
 import * as tipPackPurchase from "../services/tipPackPurchase.js";
+import * as softPerkPurchase from "../services/softPerkPurchase.js";
 import { getBuiltinBuySkipTip } from "../services/builtinTip.js";
 import GamePlayer from "../models/GamePlayer.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -99,6 +100,7 @@ router.post("/decision", async (req, res) => {
 
 /**
  * Buy +5 AI tips for $0.05 USDC (sent to the reward contract).
+ * Prefer SoftPerkCatalog buyPerk when SOFT_PERK_CATALOG_ADDRESS is set.
  * Body: { gameId, tx_hash }
  */
 router.post("/tips/purchase", requireAuth, async (req, res) => {
@@ -109,6 +111,42 @@ router.post("/tips/purchase", requireAuth, async (req, res) => {
     }
     const { gameId, tx_hash } = req.body || {};
     const result = await tipPackPurchase.purchaseTipPack(Number(userId), Number(gameId), tx_hash);
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    const status = err?.status || 500;
+    return res.status(status).json({ success: false, message: err?.message || "Purchase failed" });
+  }
+});
+
+/**
+ * List known soft perks (catalog address + perkIds).
+ * GET /api/agent-registry/soft-perks
+ */
+router.get("/soft-perks", (_req, res) => {
+  try {
+    return res.json({ success: true, ...softPerkPurchase.listKnownSoftPerks() });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * Confirm a SoftPerkCatalog buyPerk tx and grant entitlement by perkId.
+ * Body: { perkId, tx_hash, gameId? } — gameId required for ai_tip_pack_v1.
+ */
+router.post("/soft-perks/purchase", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    const { perkId, tx_hash, gameId } = req.body || {};
+    const result = await softPerkPurchase.purchaseSoftPerk({
+      userId: Number(userId),
+      perkId,
+      txHash: tx_hash,
+      gameId: gameId != null ? Number(gameId) : undefined,
+    });
     return res.json({ success: true, ...result });
   } catch (err) {
     const status = err?.status || 500;

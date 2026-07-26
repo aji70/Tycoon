@@ -5,7 +5,10 @@ import 'package:tycoon/auth/auth_controller.dart';
 import 'package:tycoon/main.dart';
 import 'package:tycoon/navigation/app_navigator.dart';
 import 'package:tycoon/navigation/app_routes.dart';
+import 'package:tycoon/screens/board_screen.dart';
 import 'package:tycoon/screens/login_screen.dart';
+import 'package:tycoon/services/api_client.dart';
+import 'package:tycoon/services/game_api.dart';
 import 'package:tycoon/theme/tycoon_colors.dart';
 import 'package:tycoon/widgets/glow_button.dart';
 import 'package:tycoon/widgets/neon_title.dart';
@@ -28,8 +31,13 @@ class _HeroSectionState extends State<HeroSection> {
     'Play Solo vs AI',
   ];
 
+  final _gameApi = GameApi();
+
   int _taglineIndex = 0;
   Timer? _taglineTimer;
+  ActiveGameSummary? _activeGame;
+  bool _loadingActive = false;
+  int? _fetchedForUserId;
 
   @override
   void initState() {
@@ -46,7 +54,39 @@ class _HeroSectionState extends State<HeroSection> {
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final userId = _auth.user?.id;
+    if (userId != _fetchedForUserId) {
+      _fetchedForUserId = userId;
+      if (userId != null) {
+        unawaited(_loadActiveGame());
+      } else if (_activeGame != null) {
+        setState(() => _activeGame = null);
+      }
+    }
+  }
+
   AuthController get _auth => TycoonAuthScope.of(context);
+
+  Future<void> _loadActiveGame() async {
+    if (_loadingActive) return;
+    setState(() => _loadingActive = true);
+    try {
+      final active = await _gameApi.fetchActiveGame();
+      if (!mounted) return;
+      setState(() => _activeGame = active);
+    } on ApiException {
+      if (!mounted) return;
+      setState(() => _activeGame = null);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _activeGame = null);
+    } finally {
+      if (mounted) setState(() => _loadingActive = false);
+    }
+  }
 
   Future<void> _onLetsGo() async {
     final signedIn = await Navigator.of(context).push<bool>(
@@ -58,7 +98,23 @@ class _HeroSectionState extends State<HeroSection> {
           content: Text('Welcome, ${_auth.user?.username ?? 'tycoon'}!'),
         ),
       );
+      await _loadActiveGame();
     }
+  }
+
+  void _onContinue() {
+    final game = _activeGame;
+    if (game == null) return;
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => BoardScreen(
+          gameCode: game.code,
+          multiplayer: !game.isAi,
+        ),
+      ),
+    ).then((_) {
+      if (mounted) unawaited(_loadActiveGame());
+    });
   }
 
   @override
@@ -171,6 +227,36 @@ class _HeroSectionState extends State<HeroSection> {
                                   ),
                                 ),
                               ] else ...[
+                                if (_activeGame != null) ...[
+                                  GlowButton(
+                                    label: 'Continue Game',
+                                    icon: Icons.sports_esports,
+                                    size: GlowButtonSize.lg,
+                                    onPressed: _onContinue,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Resume ${_activeGame!.code}',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: TycoonColors.textMuted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                ] else if (_loadingActive) ...[
+                                  const Padding(
+                                    padding: EdgeInsets.only(bottom: 16),
+                                    child: SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: TycoonColors.cyan,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [

@@ -1,5 +1,7 @@
 /**
  * Purchase +5 AI tips for $0.05 USDC (sent to the reward contract).
+ * Prefer SoftPerkPurchased via TycoonSoftPerkCatalog when SOFT_PERK_CATALOG_ADDRESS is set;
+ * otherwise fall back to raw USDC Transfer verification.
  */
 
 import db from "../config/database.js";
@@ -18,6 +20,9 @@ import {
   TIP_PACK_USDC,
   TIP_PACK_USDC_UNITS,
 } from "./gameAiTipQuota.js";
+import { isSoftPerkCatalogConfigured } from "../lib/softPerkIds.js";
+import { purchaseSoftPerk } from "./softPerkPurchase.js";
+import { AI_TIP_PACK_PERK_ID } from "./verifySoftPerkPurchase.js";
 
 /**
  * @param {number} userId
@@ -26,11 +31,6 @@ import {
  * @returns {Promise<{ already_credited?: boolean; tips_granted: number; tipsRemaining: number; tipLimit: number }>}
  */
 export async function purchaseTipPack(userId, gameId, txHash) {
-  if (!isTipPackUsdcConfigured()) {
-    const err = new Error("USDC tip packs not configured (set REWARD_CONTRACT_ADDRESS)");
-    err.status = 503;
-    throw err;
-  }
   if (!userId || !gameId) {
     const err = new Error("userId and gameId required");
     err.status = 400;
@@ -40,6 +40,22 @@ export async function purchaseTipPack(userId, gameId, txHash) {
   if (!hash.startsWith("0x")) {
     const err = new Error("tx_hash required");
     err.status = 400;
+    throw err;
+  }
+
+  // Preferred path: buyPerk(ai_tip_pack_v1) on SoftPerkCatalog → funds to RewardSystem
+  if (isSoftPerkCatalogConfigured()) {
+    return purchaseSoftPerk({
+      userId,
+      gameId,
+      txHash: hash,
+      perkId: AI_TIP_PACK_PERK_ID,
+    });
+  }
+
+  if (!isTipPackUsdcConfigured()) {
+    const err = new Error("USDC tip packs not configured (set REWARD_CONTRACT_ADDRESS)");
+    err.status = 503;
     throw err;
   }
 
