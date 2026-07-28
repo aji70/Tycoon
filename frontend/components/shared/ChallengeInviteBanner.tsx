@@ -8,12 +8,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Swords, X } from "lucide-react";
 import {
-  useAccount,
   useChainId,
   usePublicClient,
   useReadContract,
 } from 'wagmi';
-import { useAppKitAccount } from "@reown/appkit/react";
+import { useMergedWalletAccount } from "@/hooks/useMergedWalletAccount";
 import { isAddress, type Address } from "viem";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import {
@@ -22,7 +21,7 @@ import {
 } from "@/context/MessageNotificationsContext";
 import { apiClient } from "@/lib/api";
 import { canAccessChallenges } from "@/lib/featureAccess";
-import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import { getGuestUserPlayAddress, shouldUseBackendGuestGameFlow } from "@/lib/minipayGuestFlow";
 import { resolvePresenceFromPath } from "@/lib/presenceStatus";
 import { joinSignedChallengeGame } from "@/lib/joinSignedChallengeGame";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
@@ -43,16 +42,21 @@ export default function ChallengeInviteBanner({ username }: { username?: string 
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
-  const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount();
-  const address = wagmiAddress ?? appKitAddress;
-  const isConnected = wagmiConnected || appKitConnected;
+  const { address, safeAddress, isConnected } = useMergedWalletAccount();
   const chainId = useChainId();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
-  const safeAddress = address && isAddress(address) ? address : undefined;
-  const { data: onChainUsername } = useGetUsername(safeAddress);
-  const { data: isUserRegistered } = useIsRegistered(safeAddress);
+  const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
+  const isGuestAcceptFlow = shouldUseBackendGuestGameFlow(guestUser, address, chainId);
+  const playAddress =
+    address || getGuestUserPlayAddress(guestUser) || guestUser?.address || undefined;
+  const registrationLookupAddress =
+    (isGuestAcceptFlow && playAddress && isAddress(playAddress)
+      ? (playAddress as `0x${string}`)
+      : safeAddress) ?? undefined;
+  const { data: onChainUsername } = useGetUsername(registrationLookupAddress);
+  const { data: isUserRegistered } = useIsRegistered(registrationLookupAddress);
   const { usdcAddress, usdtAddress } = useRewardTokenAddresses();
   const stakeTokenAddress =
     (usdcAddress as Address | undefined) ??
@@ -70,10 +74,6 @@ export default function ChallengeInviteBanner({ username }: { username?: string 
     query: { enabled: !!safeAddress && !!stakeTokenAddress && !!contractAddress },
   });
 
-  const guestAuth = useGuestAuthOptional();
-  const guestUser = guestAuth?.guestUser ?? null;
-  const playAddress =
-    address || getGuestUserPlayAddress(guestUser) || guestUser?.address || undefined;
   const canChallenge =
     canAccessChallenges(username) || canAccessChallenges(guestUser?.username);
   const { challengeItems, dismissChallenge, refreshChallenges } = useMessageNotifications();
@@ -148,7 +148,7 @@ export default function ChallengeInviteBanner({ username }: { username?: string 
     );
 
     try {
-      if (!safeAddress) {
+      if (!isGuestAcceptFlow && !safeAddress) {
         throw new Error("Connect your wallet to accept a challenge");
       }
       if (!isUserRegistered) {
@@ -162,6 +162,47 @@ export default function ChallengeInviteBanner({ username }: { username?: string 
       if (!joinUsername) {
         throw new Error("Set a username before joining");
       }
+
+      if (isGuestAcceptFlow) {
+        if (stake > 0) {
+          throw new Error("Staked challenges require a connected wallet to sign joinGame");
+        }
+        toast.update(toastId, { render: "Joining challenge lobby…", isLoading: true });
+        const res = await apiClient.post(
+          `/challenges/${challenge.id}/accept`,
+          {
+            ...(playAddress ? { address: playAddress, chain: "CELO" } : {}),
+            useBackendFlow: true,
+            symbol: "car",
+          },
+          { timeout: 120000 }
+        );
+        const body = res?.data as
+          | { data?: { gameCode?: string; status?: string }; success?: boolean; message?: string }
+          | undefined;
+        if (body && body.success === false) {
+          throw new Error(body.message || "Could not accept challenge");
+        }
+        const code = body?.data?.gameCode || challenge.gameCode || "";
+        dismissChallenge(challenge.id);
+        toast.update(toastId, {
+          render: "Challenge accepted",
+          type: "success",
+          isLoading: false,
+          autoClose: 2500,
+        });
+        if (code) {
+          const status = String(body?.data?.status || "").toUpperCase();
+          if (status === "RUNNING") {
+            router.replace(`/board-3d-multi?gameCode=${encodeURIComponent(code)}`);
+          } else {
+            router.push(`/game-waiting-3d?gameCode=${encodeURIComponent(code)}`);
+          }
+        }
+        void refreshChallenges();
+        return;
+      }
+
       if (!publicClient) {
         throw new Error("Network unavailable");
       }
@@ -171,7 +212,7 @@ export default function ChallengeInviteBanner({ username }: { username?: string 
         isLoading: true,
       });
       const joined = await joinSignedChallengeGame({
-        address: safeAddress,
+        address: safeAddress!,
         username: joinUsername,
         chainId,
         publicClient,

@@ -8,7 +8,8 @@ import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet, BookOpen, Bot, MoreVertical, FileText, Shield, LifeBuoy } from 'lucide-react';
-import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
+import { useAppKit, useAppKitNetwork } from '@reown/appkit/react';
+import { useMergedWalletAccount } from '@/hooks/useMergedWalletAccount';
 import Image from 'next/image';
 import avatar from '@/public/avatar.jpg';
 import ThemeSoundPlayer from './ThemeSoundPlayer';
@@ -24,7 +25,6 @@ import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 import WhoIsOnlineControl from '@/components/shared/WhoIsOnlineControl';
 import MessageNotificationBell from '@/components/shared/MessageNotificationBell';
 import { useGetUsername } from '@/context/ContractProvider';
-import { isAddress } from 'viem';
 
 /** Skip /profile here — prefetching it on the home shell pulls a large unused chunk (Lighthouse). Hover still prefetches profile. */
 const PREFETCH_ROUTES = ['/game-shop', '/arena', '/leaderboard'] as const;
@@ -46,11 +46,10 @@ const NavBar = () => {
   });
 
   const { open } = useAppKit();
-  const { address, isConnected } = useAppKitAccount();
+  const { address, safeAddress, isConnected } = useMergedWalletAccount();
   const { caipNetwork, chainId } = useAppKitNetwork();
-  const safeAddress =
-    address && isAddress(address) ? (address as `0x${string}`) : undefined;
-  const { data: onChainUsername } = useGetUsername(safeAddress);
+  const safeAddressResolved = safeAddress;
+  const { data: onChainUsername } = useGetUsername(safeAddressResolved);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 

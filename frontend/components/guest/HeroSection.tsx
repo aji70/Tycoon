@@ -6,7 +6,8 @@ import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { useAccount, useChainId, useSignMessage, usePublicClient } from "wagmi";
+import { useChainId, useSignMessage, usePublicClient } from "wagmi";
+import { useMergedWalletAccount } from "@/hooks/useMergedWalletAccount";
 import {
   useIsRegistered,
   useGetUsername,
@@ -51,7 +52,7 @@ function isValidNonZeroAddress(a: string | null | undefined): a is `0x${string}`
 
 const HeroSection: React.FC = () => {
   const router = useRouter();
-  const { address, isConnecting } = useAccount();
+  const { address, isConnecting } = useMergedWalletAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
   const { open: openWallet } = useAppKit();
@@ -61,7 +62,7 @@ const HeroSection: React.FC = () => {
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   // MiniPay injects its own wallet — treat as authed even without Privy session
-  const isPrivyAuthed = (ready && authenticated) || isMiniPay;
+  const isPrivyAuthed = (ready && authenticated) || isMiniPay || !!guestUser;
   const signOutGuestAndPrivy = () => {
     guestAuth?.logoutGuest();
     if (isPrivyAuthed) void logout();
@@ -428,11 +429,11 @@ const HeroSection: React.FC = () => {
   const handleLinkWallet = async () => {
     if (!address) {
       try {
-        if (connectWallet) {
-          connectWallet();
-          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
-        } else if (typeof openWallet === "function") {
+        if (typeof openWallet === "function") {
           openWallet();
+          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
+        } else if (connectWallet) {
+          connectWallet();
           toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
         } else {
           toast.info("Use the connect button in the menu (top right) to connect your wallet, then click here again");

@@ -2,7 +2,7 @@
 
 import React, { ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
+import { useMergedWalletAccount } from "@/hooks/useMergedWalletAccount";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { Wallet, User } from "lucide-react";
 
@@ -45,7 +45,7 @@ interface AuthGuardProps {
 export default function AuthGuard({ children }: AuthGuardProps): React.ReactElement {
   const pathname = usePathname();
   const router = useRouter();
-  const { address } = useAccount();
+  const { address } = useMergedWalletAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const authLoading = guestAuth?.isLoading ?? true;

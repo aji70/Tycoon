@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
+import { useMergedWalletAccount } from "@/hooks/useMergedWalletAccount";
 import { motion } from "framer-motion";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
@@ -32,7 +32,7 @@ export default function JoinRoom({
   redirectCreateNew = "/game-settings-3d",
 }: JoinRoomProps = {}): JSX.Element {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useMergedWalletAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const authLoading = guestAuth?.isLoading ?? true;

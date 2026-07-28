@@ -10,6 +10,7 @@ import logger from "../config/logger.js";
 import { canAccessChallenges } from "../lib/dmAccess.js";
 import {
   createGameByBackend,
+  joinGameByBackend,
   callContractRead,
   syncBackendPasswordIfMissingOnChain,
 } from "../services/tycoonContract.js";
@@ -238,7 +239,12 @@ async function createPrivateLobbyForChallenger(user, req) {
   return game;
 }
 
-async function joinOpponentToLobby(user, game, symbol, { stake = 0, playerSignedJoin = false, joinAddress = null } = {}) {
+async function joinOpponentToLobby(
+  user,
+  game,
+  symbol,
+  { stake = 0, playerSignedJoin = false, joinAddress = null, allowBackendJoin = false } = {}
+) {
   const chainForJoin = User.normalizeChain(game.chain || "CELO");
   if (!game.contract_game_id) {
     const err = new Error("Game is not ready to join");
@@ -261,11 +267,57 @@ async function joinOpponentToLobby(user, game, symbol, { stake = 0, playerSigned
   const playAddress =
     bodyAddr && /^0x[a-fA-F0-9]{40}$/i.test(bodyAddr) ? bodyAddr : rPlay.address;
 
-  // Challenge accepts always require the opponent to sign joinGame on-chain.
   if (!playerSignedJoin) {
-    const err = new Error("Sign joinGame in your wallet to accept this challenge");
-    err.code = "JOIN_SIGNATURE_REQUIRED";
-    throw err;
+    if (!allowBackendJoin) {
+      const err = new Error("Sign joinGame in your wallet to accept this challenge");
+      err.code = "JOIN_SIGNATURE_REQUIRED";
+      throw err;
+    }
+    if (stakeNum > 0) {
+      const err = new Error("Staked challenges require a connected wallet to sign joinGame");
+      err.code = "JOIN_SIGNATURE_REQUIRED";
+      throw err;
+    }
+
+    const contractUser = {
+      address: rPlay.address,
+      username: rPlay.username,
+      password_hash: rPlay.password_hash,
+    };
+
+    let contractGame;
+    try {
+      contractGame = await callContractRead("getGameByCode", [gameCode], chainForJoin);
+    } catch (lookupErr) {
+      const err = new Error("Game not found on this network");
+      err.code = "GAME_NOT_READY";
+      throw err;
+    }
+    const onChainGameId = contractGame?.id ?? contractGame?.[0];
+    if (onChainGameId == null || onChainGameId === "") {
+      const err = new Error("Could not get game id from contract");
+      err.code = "GAME_NOT_READY";
+      throw err;
+    }
+
+    await syncBackendPasswordIfMissingOnChain(
+      contractUser.address,
+      contractUser.password_hash,
+      contractUser.username,
+      DEFAULT_STARTING_CASH,
+      chainForJoin,
+      { mode: "game", numberOfPlayers: 2 }
+    );
+
+    await joinGameByBackend(
+      contractUser.address,
+      contractUser.password_hash,
+      onChainGameId,
+      contractUser.username,
+      symbol || "car",
+      gameCode,
+      chainForJoin
+    );
   }
 
   const settings = await GameSetting.findByGameId(game.id);
@@ -336,15 +388,10 @@ const challengeController = {
         return res.status(400).json({ success: false, message: "Cannot challenge yourself" });
       }
 
+      const useBackendFlow = !!req.body?.useBackendFlow;
       const gameCode = String(req.body?.gameCode || req.body?.code || "")
         .trim()
         .toUpperCase();
-      if (!gameCode) {
-        return res.status(400).json({
-          success: false,
-          message: "gameCode required — create and sign the game in your wallet first",
-        });
-      }
 
       const opponent = await User.findById(opponentId);
       if (!opponent?.id) {
@@ -365,6 +412,61 @@ const challengeController = {
       const io = req.app.get("io");
       // New challenge replaces any pending challenge between these two players.
       await cancelPendingPair(io, me, opponentId);
+
+      if (useBackendFlow) {
+        if (stakeNum > 0) {
+          return res.status(400).json({
+            success: false,
+            message: "Staked challenges require a connected wallet to sign createGame",
+          });
+        }
+        const game = await createPrivateLobbyForChallenger(user, req);
+        const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS);
+        const challenge = await PlayerChallenge.create({
+          challenger_id: me,
+          opponent_id: opponentId,
+          game_id: game.id,
+          game_code: game.code,
+          status: "pending",
+          stake: stakeNum,
+          expires_at: expiresAt,
+        });
+
+        const payload = serializeChallenge(challenge, {
+          challengerUsername: user.username,
+          challengerAddress: user.address,
+          opponentUsername: opponent.username,
+          opponentAddress: opponent.address,
+          stake: stakeNum,
+        });
+
+        if (io) {
+          io.to(game.code).emit("game-created", {
+            game: { ...game, players: await GamePlayer.findByGameId(game.id) },
+          });
+          emitChallenge(io, opponentId, "player-challenge", {
+            type: "incoming",
+            challenge: payload,
+          });
+          emitChallenge(io, me, "player-challenge", {
+            type: "outgoing",
+            challenge: payload,
+          });
+        }
+
+        return res.status(201).json({
+          success: true,
+          message: "Challenge sent",
+          data: { challenge: payload, game },
+        });
+      }
+
+      if (!gameCode) {
+        return res.status(400).json({
+          success: false,
+          message: "gameCode required — create and sign the game in your wallet first",
+        });
+      }
 
       const game = await Game.findByCode(gameCode);
       if (!game) {
@@ -500,10 +602,13 @@ const challengeController = {
         req.body?.onChainJoined ||
         req.body?.signedJoin
       );
+      const useBackendJoin =
+        !!req.body?.useBackendFlow || (!playerSignedJoin && canUseGuestFlow(user, req));
       await joinOpponentToLobby(user, game, symbol, {
         stake: stakeNum,
         playerSignedJoin,
         joinAddress: req.body?.address,
+        allowBackendJoin: useBackendJoin && !playerSignedJoin,
       });
 
       const updated = await PlayerChallenge.update(id, { status: "accepted" });

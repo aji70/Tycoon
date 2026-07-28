@@ -6,11 +6,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, Globe, Loader2, MessageCircle, Swords, X } from "lucide-react";
-import { useAccount, useChainId, usePublicClient, useReadContract } from 'wagmi';
-import { useAppKitAccount } from "@reown/appkit/react";
+import { useChainId, usePublicClient, useReadContract } from 'wagmi';
+import { useMergedWalletAccount } from "@/hooks/useMergedWalletAccount";
 import { useOnlineUsers, type OnlineUser } from "@/hooks/useOnlineUsers";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import { getGuestUserPlayAddress, shouldUseBackendGuestGameFlow } from "@/lib/minipayGuestFlow";
 import { canAccessDirectMessages, canAccessChallenges } from "@/lib/featureAccess";
 import { apiClient } from "@/lib/api";
 import OnlineDmPanel from "@/components/shared/OnlineDmPanel";
@@ -108,18 +108,20 @@ export default function WhoIsOnlineControl({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
-  const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount();
-  const address = wagmiAddress ?? appKitAddress;
-  const isConnected = wagmiConnected || appKitConnected;
+  const { address, safeAddress, isConnected } = useMergedWalletAccount();
   const chainId = useChainId();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
-  const safeAddress = address && isAddress(address) ? address : undefined;
-  const { data: onChainUsername } = useGetUsername(safeAddress);
-  const { data: isUserRegistered } = useIsRegistered(safeAddress);
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
+  const isGuestChallengeFlow = shouldUseBackendGuestGameFlow(guestUser, address, chainId);
+  const playAddress = getGuestUserPlayAddress(guestUser);
+  const registrationLookupAddress =
+    (isGuestChallengeFlow && playAddress && isAddress(playAddress)
+      ? (playAddress as `0x${string}`)
+      : safeAddress) ?? undefined;
+  const { data: onChainUsername } = useGetUsername(registrationLookupAddress);
+  const { data: isUserRegistered } = useIsRegistered(registrationLookupAddress);
   const presenceWhere = useMemo(
     () => resolvePresenceFromPath(pathname, searchParams?.get("gameCode")),
     [pathname, searchParams]
@@ -281,7 +283,7 @@ export default function WhoIsOnlineControl({
       toast.error("That player is on the board and can't receive challenges");
       return;
     }
-    if (!safeAddress) {
+    if (!isGuestChallengeFlow && !safeAddress) {
       toast.error("Connect your wallet to challenge — you'll sign create game");
       return;
     }
@@ -299,7 +301,7 @@ export default function WhoIsOnlineControl({
       toast.error("You can't challenge yourself");
       return;
     }
-    if (!safeAddress) {
+    if (!isGuestChallengeFlow && !safeAddress) {
       toast.error("Connect your wallet to challenge — you'll sign create game");
       return;
     }
@@ -316,7 +318,7 @@ export default function WhoIsOnlineControl({
       toast.error("Set a username before challenging");
       return;
     }
-    if (!publicClient) {
+    if (!isGuestChallengeFlow && !publicClient) {
       toast.error("Network unavailable");
       return;
     }
@@ -324,14 +326,57 @@ export default function WhoIsOnlineControl({
     setChallengeBusy(true);
     setStakePrompt(null);
     const toastId = toast.loading(
-      stake > 0 ? `Sign staked challenge (${stake} USDT)…` : "Sign create game in your wallet…"
+      isGuestChallengeFlow
+        ? "Creating challenge lobby…"
+        : stake > 0
+          ? `Sign staked challenge (${stake} USDT)…`
+          : "Sign create game in your wallet…"
     );
     try {
+      if (isGuestChallengeFlow) {
+        if (stake > 0) {
+          throw new Error("Staked challenges require a connected wallet to sign");
+        }
+        toast.update(toastId, { render: "Sending challenge…", type: "default", isLoading: true });
+        const res = await apiClient.post(
+          "/challenges",
+          {
+            opponentId: opponentUserId,
+            useBackendFlow: true,
+            stake,
+            chain: "CELO",
+          },
+          { timeout: 120000 }
+        );
+        const body = res?.data as {
+          data?: { game?: { code?: string }; challenge?: { gameCode?: string } };
+          message?: string;
+          success?: boolean;
+        };
+        if (body && body.success === false) {
+          throw new Error(body.message || "Challenge failed");
+        }
+        const gameCode =
+          body?.data?.game?.code || body?.data?.challenge?.gameCode || "";
+        toast.update(toastId, {
+          render: "Challenge sent — waiting in lobby",
+          type: "success",
+          isLoading: false,
+          autoClose: 2500,
+        });
+        setOpen(false);
+        setSelected(null);
+        if (gameCode) {
+          router.push(`/game-waiting-3d?gameCode=${encodeURIComponent(gameCode)}`);
+        }
+        return;
+      }
+
       const { code, contractGameId } = await createSignedChallengeLobby({
-        address: safeAddress,
+        address: safeAddress!,
         username: creatorUsername,
         chainId,
-        publicClient,
+        publicClient: publicClient!,
         writeContractAsync: writeContractAsync as never,
         stake,
         stakeTokenAddress: stakeTokenAddress ?? null,
