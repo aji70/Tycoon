@@ -27,6 +27,8 @@ export type BountyMonthConfig = {
   /** Keep API ranks 1..N fixed; inject curated names into the prize tail. */
   pinnedTopCount?: number;
   curatedUsernames?: readonly string[];
+  /** USD prize per winner; omit for months with no cash prize on the board. */
+  prizeUsd?: number;
 };
 
 /** May/June bounty — injected into ranks after pinnedTopCount, shuffled per month seed. */
@@ -63,6 +65,7 @@ export const BOUNTY_MONTHS: Record<string, BountyMonthConfig> = {
     curatedUsernames: MAY_JUNE_BOUNTY_CURATED_USERNAMES,
     shuffleRanks: true,
     shuffleSeed: '2026-05',
+    prizeUsd: 5,
   },
   '2026-06': {
     key: '2026-06',
@@ -76,6 +79,7 @@ export const BOUNTY_MONTHS: Record<string, BountyMonthConfig> = {
     curatedUsernames: MAY_JUNE_BOUNTY_CURATED_USERNAMES,
     shuffleRanks: true,
     shuffleSeed: '2026-06',
+    prizeUsd: 5,
   },
   '2026-07': {
     key: '2026-07',

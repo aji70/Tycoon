@@ -126,6 +126,7 @@ export default function Leaderboard() {
   const bountyWinnerCount = activeBountyConfig?.prizeCount ?? 10;
   const bountyCompleted = activeBountyConfig?.completed ?? false;
   const bountyMonthLabel = activeBountyConfig?.label ?? BOUNTY_MONTH_LABEL;
+  const bountyPrizeUsd = activeBountyConfig?.prizeUsd ?? null;
 
   const { data: username } = useReadContract({
     address: tycoonAddress,
@@ -224,6 +225,7 @@ export default function Leaderboard() {
       bountyMonthLabel={bountyMonthLabel}
       bountyCompleted={bountyCompleted}
       bountyWinnerCount={bountyWinnerCount}
+      bountyPrizeUsd={bountyPrizeUsd}
       isFeaturedBountyView={isFeaturedBountyView}
       lastUpdatedAt={lastUpdatedAt}
     />

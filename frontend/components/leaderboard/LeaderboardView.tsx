@@ -30,6 +30,7 @@ function RankCard({
   bountyMode,
   bountyCompleted,
   bountyWinnerCount,
+  bountyPrizeUsd,
 }: {
   row: BountyRow;
   rank: number;
@@ -37,6 +38,7 @@ function RankCard({
   bountyMode: boolean;
   bountyCompleted?: boolean;
   bountyWinnerCount: number;
+  bountyPrizeUsd: number | null;
 }) {
   const isChampion = rank === 1;
   const inBountyPrize = bountyMode && rank <= bountyWinnerCount;
@@ -124,7 +126,7 @@ function RankCard({
             )}
           </div>
         </div>
-        {bountyMode ? (
+        {bountyMode && bountyPrizeUsd != null ? (
           <div className="flex flex-col items-end shrink-0 text-right">
             <span className="text-[9px] uppercase tracking-widest text-white/40 font-orbitron">Prize</span>
             <span
@@ -132,7 +134,7 @@ function RankCard({
                 inBountyPrize ? 'text-amber-300' : 'text-white/35'
               }`}
             >
-              {inBountyPrize ? (bountyCompleted ? '$5 ✓' : '$5') : '—'}
+              {inBountyPrize ? (bountyCompleted ? `$${bountyPrizeUsd} ✓` : `$${bountyPrizeUsd}`) : '—'}
             </span>
           </div>
         ) : null}
@@ -158,6 +160,7 @@ export type LeaderboardViewProps = {
   bountyMonthLabel: string;
   bountyCompleted: boolean;
   bountyWinnerCount: number;
+  bountyPrizeUsd: number | null;
   isFeaturedBountyView: boolean;
   lastUpdatedAt: string | null;
 };
@@ -179,6 +182,7 @@ export function LeaderboardView({
   bountyMonthLabel,
   bountyCompleted,
   bountyWinnerCount,
+  bountyPrizeUsd,
   isFeaturedBountyView,
   lastUpdatedAt,
 }: LeaderboardViewProps) {
@@ -294,7 +298,7 @@ export function LeaderboardView({
               return (
                 <div key={`${row.id}-${rank}`} className="relative">
                   {rank === 1 && <div className="pointer-events-none absolute -inset-4 rounded-3xl bg-amber-400/10 blur-2xl opacity-70" aria-hidden />}
-                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} bountyWinnerCount={bountyWinnerCount} />
+                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} bountyWinnerCount={bountyWinnerCount} bountyPrizeUsd={bountyPrizeUsd} />
                 </div>
               );
             })}
@@ -303,7 +307,7 @@ export function LeaderboardView({
               const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
               return (
                 <div key={`${row.id}-${rank}`} className="relative">
-                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} bountyWinnerCount={bountyWinnerCount} />
+                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} bountyWinnerCount={bountyWinnerCount} bountyPrizeUsd={bountyPrizeUsd} />
                 </div>
               );
             })}
@@ -312,7 +316,7 @@ export function LeaderboardView({
               const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
               return (
                 <div key={`${row.id}-${rank}`} className="relative opacity-70">
-                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} bountyWinnerCount={bountyWinnerCount} />
+                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} bountyWinnerCount={bountyWinnerCount} bountyPrizeUsd={bountyPrizeUsd} />
                 </div>
               );
             })}
@@ -325,7 +329,7 @@ export function LeaderboardView({
               return (
                 <div key={`${row.id}-${rank}`} className="relative">
                   {rank === 1 && <div className="pointer-events-none absolute -inset-4 rounded-3xl bg-amber-400/10 blur-2xl opacity-70" aria-hidden />}
-                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} bountyWinnerCount={bountyWinnerCount} />
+                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} bountyWinnerCount={bountyWinnerCount} bountyPrizeUsd={bountyPrizeUsd} />
                 </div>
               );
             })}
@@ -334,7 +338,7 @@ export function LeaderboardView({
               const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
               return (
                 <div key={`${row.id}-${rank}`} className="relative opacity-70">
-                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} bountyWinnerCount={bountyWinnerCount} />
+                  <RankCard row={row} rank={rank} isMe={isMe} bountyMode={bountyMode} bountyCompleted={bountyCompleted} bountyWinnerCount={bountyWinnerCount} bountyPrizeUsd={bountyPrizeUsd} />
                 </div>
               );
             })}
