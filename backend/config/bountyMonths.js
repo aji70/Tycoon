@@ -20,6 +20,7 @@
  * @property {string} [shuffleSeed] seed for shuffleRanks
  * @property {number} [pinnedTopCount] keep API ranks 1..N fixed
  * @property {string[]} [curatedUsernames] inject into prize tail (May/June)
+ * @property {number} [prizeUsd] USD per winner; omit when no cash prize
  */
 
 /** May/June bounty display names — keep in sync with frontend leaderboard-types.ts */
@@ -74,16 +75,25 @@ export const BOUNTY_MONTHS = {
   "2026-07": {
     key: "2026-07",
     label: "July 2026",
+    completed: true,
+    prizeCount: 10,
+    prizeUsd: 5,
+    period: "month",
+    month: "2026-07",
+  },
+  "2026-08": {
+    key: "2026-08",
+    label: "August 2026",
     completed: false,
     prizeCount: 10,
     period: "month",
-    month: "2026-07",
+    month: "2026-08",
     featuredTab: true,
   },
 };
 
 export const FEATURED_BOUNTY_MONTH_KEY =
-  Object.values(BOUNTY_MONTHS).find((m) => m.featuredTab)?.key || "2026-07";
+  Object.values(BOUNTY_MONTHS).find((m) => m.featuredTab)?.key || "2026-08";
 
 export function getBountyMonthConfig(key) {
   if (!key) return null;
