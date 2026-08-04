@@ -1,6 +1,6 @@
 /**
- * Append the Agentic Payments & DeFAI hackathon attribution tag (ERC-8021) to Celo txs.
- * Tag is locked to aji70/Tycoon: celo_e62d1c6c9f82
+ * Append ERC-8021 attribution suffix to Celo txs (MiniPay-issued + prior hackathon codes).
+ * Override with CELO_ATTRIBUTION_TAG (comma-separated for multiple).
  */
 import { toDataSuffix } from "@celo/attribution-tags";
 import { Wallet } from "ethers";
@@ -10,11 +10,25 @@ const CELO_MAINNET_CHAIN_ID = 42220n;
 /** Celo Sepolia */
 const CELO_SEPOLIA_CHAIN_ID = 11142220n;
 
-export const CELO_ATTRIBUTION_TAG =
-  String(process.env.CELO_ATTRIBUTION_TAG || "celo_e62d1c6c9f82").trim() ||
-  "celo_e62d1c6c9f82";
+const DEFAULT_ATTRIBUTION_CODES = ["celo_cyfvindj", "celo_e62d1c6c9f82"];
 
-const ATTRIBUTION_SUFFIX = toDataSuffix(CELO_ATTRIBUTION_TAG);
+function parseAttributionCodes(raw) {
+  if (!raw || !String(raw).trim()) return [...DEFAULT_ATTRIBUTION_CODES];
+  const codes = String(raw)
+    .split(",")
+    .map((c) => c.trim())
+    .filter((c) => /^[a-z0-9_]{1,32}$/i.test(c));
+  return codes.length > 0 ? codes : [...DEFAULT_ATTRIBUTION_CODES];
+}
+
+export const CELO_ATTRIBUTION_CODES = parseAttributionCodes(process.env.CELO_ATTRIBUTION_TAG);
+
+/** First / primary code (MiniPay-issued by default). */
+export const CELO_ATTRIBUTION_TAG = CELO_ATTRIBUTION_CODES[0];
+
+const ATTRIBUTION_SUFFIX = toDataSuffix(
+  CELO_ATTRIBUTION_CODES.length === 1 ? CELO_ATTRIBUTION_CODES[0] : CELO_ATTRIBUTION_CODES
+);
 
 export function isCeloChainId(chainId) {
   const id = typeof chainId === "bigint" ? chainId : BigInt(chainId);
