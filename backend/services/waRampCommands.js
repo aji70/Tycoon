@@ -184,16 +184,30 @@ export async function notifyWaRampAdmin(text) {
 
 export async function handleWaRampIncoming({ from, text }) {
   const config = getWaRampConfig();
-  await expireStaleOrders(config.orderTtlMinutes);
   const phone = String(from).replace(/\D/g, "");
   const raw = text.trim();
   const lower = raw.toLowerCase();
 
+  // help/rate must work even if DB migration has not run yet
   if (!raw || lower === "hi" || lower === "hello" || lower === "help" || lower === "start") {
     return helpText(config);
   }
   if (lower === "rate" || lower === "rates") return rateText(config);
-  if (lower === "status") return statusText(phone, config);
+
+  try {
+    await expireStaleOrders(config.orderTtlMinutes);
+  } catch (e) {
+    logger.warn({ err: e.message }, "[wa-ramp] expireStaleOrders failed (migrate?)");
+  }
+
+  if (lower === "status") {
+    try {
+      return await statusText(phone, config);
+    } catch (e) {
+      logger.error({ err: e.message }, "[wa-ramp] status failed");
+      return "Ramp database not ready yet. Ask the operator to run: npm run migrate";
+    }
+  }
 
   if (lower === "cancel") {
     const open = await findOpenOrderForPhone(phone);
