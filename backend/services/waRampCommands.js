@@ -42,23 +42,45 @@ function rateText(config) {
   ].join("\n");
 }
 
-function tradeAmountButtons(side) {
-  const config = getWaRampConfig();
-  const amt = config.maxOrderUsdc;
+function chainPickButtons(side) {
   return {
     type: "buttons",
-    body:
-      side === "buy"
-        ? `Buy USDC with NGN.\nTap an amount (max ${amt} USDC):`
-        : `Sell USDC for NGN.\nTap an amount (max ${amt} USDC):`,
+    body: side === "buy" ? "Receive USDC on which network?" : "Send USDC from which network?",
     buttons: [
-      { id: side === "buy" ? "buy_1" : "sell_1", title: `${amt} USDC` },
+      { id: side === "buy" ? "buy_chain_celo" : "sell_chain_celo", title: "Celo" },
+      { id: side === "buy" ? "buy_chain_stellar" : "sell_chain_stellar", title: "Stellar" },
       { id: "menu_home", title: "Main menu" },
     ],
   };
 }
 
-async function handleSell(phone, amount, config) {
+function tradeAmountButtons(side, chain) {
+  const config = getWaRampConfig();
+  const amt = config.maxOrderUsdc;
+  const c = chain === "stellar" ? "stellar" : "celo";
+  return {
+    type: "buttons",
+    body:
+      side === "buy"
+        ? `Buy USDC on ${c === "stellar" ? "Stellar" : "Celo"}.\nTap an amount (max ${amt} USDC):`
+        : `Sell USDC on ${c === "stellar" ? "Stellar" : "Celo"}.\nTap an amount (max ${amt} USDC):`,
+    buttons: [
+      { id: `${side}_${c}_1`, title: `${amt} USDC` },
+      { id: "menu_home", title: "Main menu" },
+    ],
+  };
+}
+
+function depositForChain(config, chain) {
+  if (chain === "stellar") return config.stellar.depositAddress || "";
+  return config.celo.depositAddress || "";
+}
+
+function chainLabel(chain) {
+  return chain === "stellar" ? "Stellar" : "Celo";
+}
+
+async function handleSell(phone, amount, config, chain = "celo") {
   if (amount > config.maxOrderUsdc) {
     return `Max order is ${config.maxOrderUsdc} USDC while float is small. Try: sell ${config.maxOrderUsdc}`;
   }
@@ -74,8 +96,9 @@ async function handleSell(phone, amount, config) {
     ].join("\n");
   }
 
-  if (!config.celo.depositAddress) {
-    return "Deposit address not configured yet. Operator needs WA_RAMP_CELO_DEPOSIT_ADDRESS.";
+  const deposit = depositForChain(config, chain);
+  if (!deposit) {
+    return `${chainLabel(chain)} deposit address not configured yet.`;
   }
 
   const ngn = Math.round(amount * config.rates.sellNgn);
@@ -86,11 +109,12 @@ async function handleSell(phone, amount, config) {
     ref,
     type: "sell",
     phone,
+    chain,
     amountUsdc: amount,
     amountNgn: ngn,
     rate: config.rates.sellNgn,
     status: "awaiting_crypto",
-    depositAddress: config.celo.depositAddress,
+    depositAddress: deposit,
     payoutBank: {
       bankName: user.bankName,
       accountNumber: user.bankAccount,
@@ -100,13 +124,18 @@ async function handleSell(phone, amount, config) {
     expiresAt,
   });
 
+  const networkNote =
+    chain === "stellar"
+      ? "Send USDC on Stellar to:"
+      : "Send USDC on Celo to:";
+
   return [
-    `Sell ${amount} USDC → ₦${ngn.toLocaleString("en-NG")}`,
+    `Sell ${amount} USDC (${chainLabel(chain)}) → ₦${ngn.toLocaleString("en-NG")}`,
     `Rate: ₦${config.rates.sellNgn} / USDC`,
     `Ref: ${ref}`,
     "",
-    "Send exactly that amount of USDC on Celo to:",
-    config.celo.depositAddress,
+    networkNote,
+    deposit,
     "",
     `Then wait — I'll confirm and send ₦${ngn.toLocaleString("en-NG")} to:`,
     `${user.bankName} ${user.bankAccount} (${user.accountName})`,
@@ -115,7 +144,7 @@ async function handleSell(phone, amount, config) {
   ].join("\n");
 }
 
-async function handleBuy(phone, amount, config) {
+async function handleBuy(phone, amount, config, chain = "celo") {
   if (amount > config.maxOrderUsdc) {
     return `Max order is ${config.maxOrderUsdc} USDC while float is small. Try: buy ${config.maxOrderUsdc}`;
   }
@@ -123,8 +152,11 @@ async function handleBuy(phone, amount, config) {
   if (open) return `You already have open order ${open.ref} (${open.status}). Reply cancel first.`;
 
   const user = await getUser(phone);
-  if (!user?.wallet) {
-    return ["Save your Celo wallet first:", "wallet 0xYourAddress"].join("\n");
+  const payoutWallet = chain === "stellar" ? user?.stellarWallet : user?.wallet;
+  if (!payoutWallet) {
+    return chain === "stellar"
+      ? ["Save your Stellar wallet first:", "wallet stellar G..."].join("\n")
+      : ["Save your Celo wallet first:", "wallet celo 0x..."].join("\n");
   }
 
   if (!config.ngn.accountNumber) {
@@ -139,17 +171,18 @@ async function handleBuy(phone, amount, config) {
     ref,
     type: "buy",
     phone,
+    chain,
     amountUsdc: amount,
     amountNgn: ngn,
     rate: config.rates.buyNgn,
     status: "awaiting_ngn",
-    wallet: user.wallet,
+    wallet: payoutWallet,
     txHash: null,
     expiresAt,
   });
 
   return [
-    `Buy ${amount} USDC → pay ₦${ngn.toLocaleString("en-NG")}`,
+    `Buy ${amount} USDC on ${chainLabel(chain)} → pay ₦${ngn.toLocaleString("en-NG")}`,
     `Rate: ₦${config.rates.buyNgn} / USDC`,
     `Ref: ${ref}`,
     "",
@@ -159,8 +192,8 @@ async function handleBuy(phone, amount, config) {
     `${config.ngn.accountName}`,
     `Narration / ref: ${ref}`,
     "",
-    `After you pay, wait for confirmation. USDC goes to:`,
-    user.wallet,
+    `After you pay, wait for confirmation. USDC goes to (${chainLabel(chain)}):`,
+    payoutWallet,
     "",
     `Expires in ${config.orderTtlMinutes} min. Reply cancel to stop.`,
   ].join("\n");
@@ -231,21 +264,31 @@ export async function handleWaRampIncoming({ from, text, phoneNumberId, buttonId
     const user = await getUser(phone).catch(() => null);
     return [asText(rateText(config)), mainMenuButtons(user)];
   }
-  if (btn === "menu_buy") return tradeAmountButtons("buy");
-  if (btn === "menu_sell") return tradeAmountButtons("sell");
-  if (btn === "buy_1") return asText(await handleBuy(phone, config.maxOrderUsdc, config));
-  if (btn === "sell_1") return asText(await handleSell(phone, config.maxOrderUsdc, config));
+  if (btn === "menu_buy") return chainPickButtons("buy");
+  if (btn === "menu_sell") return chainPickButtons("sell");
+  if (btn === "buy_chain_celo") return tradeAmountButtons("buy", "celo");
+  if (btn === "buy_chain_stellar") return tradeAmountButtons("buy", "stellar");
+  if (btn === "sell_chain_celo") return tradeAmountButtons("sell", "celo");
+  if (btn === "sell_chain_stellar") return tradeAmountButtons("sell", "stellar");
+  if (btn === "buy_celo_1") return asText(await handleBuy(phone, config.maxOrderUsdc, config, "celo"));
+  if (btn === "buy_stellar_1") return asText(await handleBuy(phone, config.maxOrderUsdc, config, "stellar"));
+  if (btn === "sell_celo_1") return asText(await handleSell(phone, config.maxOrderUsdc, config, "celo"));
+  if (btn === "sell_stellar_1") return asText(await handleSell(phone, config.maxOrderUsdc, config, "stellar"));
+  // legacy ids
+  if (btn === "buy_1") return asText(await handleBuy(phone, config.maxOrderUsdc, config, "celo"));
+  if (btn === "sell_1") return asText(await handleSell(phone, config.maxOrderUsdc, config, "celo"));
 
   if (lower === "help") {
     const user = await getUser(phone).catch(() => null);
     return [
       asText(
         [
-          `${brandName()} — USDC (Celo) ↔ NGN`,
+          `${brandName()} — USDC (${config.chainsLabel}) ↔ NGN`,
           "",
           "Use the buttons, or type:",
           "• buy 1 / sell 1",
-          "• wallet 0x...",
+          "• wallet celo 0x...",
+          "• wallet stellar G...",
           "• bank <bank> <account> <name>",
           "• status / cancel / menu",
         ].join("\n")
@@ -272,11 +315,18 @@ export async function handleWaRampIncoming({ from, text, phoneNumberId, buttonId
     return asText(`Cancelled ${open.ref}.`);
   }
 
-  const walletMatch = raw.match(/^wallet\s+(0x[a-fA-F0-9]{40})$/i);
-  if (walletMatch) {
-    await upsertUser(phone, { wallet: walletMatch[1] });
+  const walletCelo = raw.match(/^wallet(?:\s+celo)?\s+(0x[a-fA-F0-9]{40})$/i);
+  if (walletCelo) {
+    await upsertUser(phone, { wallet: walletCelo[1] });
     const user = await getUser(phone);
-    return [asText(`Saved wallet:\n${walletMatch[1]}`), mainMenuButtons(user)];
+    return [asText(`Saved Celo wallet:\n${walletCelo[1]}`), mainMenuButtons(user)];
+  }
+
+  const walletStellar = raw.match(/^wallet\s+stellar\s+([G][A-Z0-9]{55})$/i);
+  if (walletStellar) {
+    await upsertUser(phone, { stellarWallet: walletStellar[1] });
+    const user = await getUser(phone);
+    return [asText(`Saved Stellar wallet:\n${walletStellar[1]}`), mainMenuButtons(user)];
   }
 
   const bankMatch = raw.match(/^bank\s+(\S+)\s+(\d{8,12})\s+(.+)$/i);
@@ -293,18 +343,18 @@ export async function handleWaRampIncoming({ from, text, phoneNumberId, buttonId
     ];
   }
 
-  const sellMatch = lower.match(/^sell\s+(\d+(?:\.\d+)?)\s*(usdc|usdt)?$/);
+  const sellMatch = lower.match(/^sell\s+(\d+(?:\.\d+)?)\s*(usdc|usdt)?(?:\s+(celo|stellar))?$/);
   if (sellMatch) {
     const amount = parseAmount(sellMatch[1]);
-    if (!amount) return asText("Invalid amount. Example: sell 1");
-    return asText(await handleSell(phone, amount, config));
+    if (!amount) return asText("Invalid amount. Example: sell 1 celo");
+    return asText(await handleSell(phone, amount, config, sellMatch[3] || "celo"));
   }
 
-  const buyMatch = lower.match(/^buy\s+(\d+(?:\.\d+)?)\s*(usdc|usdt)?$/);
+  const buyMatch = lower.match(/^buy\s+(\d+(?:\.\d+)?)\s*(usdc|usdt)?(?:\s+(celo|stellar))?$/);
   if (buyMatch) {
     const amount = parseAmount(buyMatch[1]);
-    if (!amount) return asText("Invalid amount. Example: buy 1");
-    return asText(await handleBuy(phone, amount, config));
+    if (!amount) return asText("Invalid amount. Example: buy 1 stellar");
+    return asText(await handleBuy(phone, amount, config, buyMatch[3] || "celo"));
   }
 
   const confirmMatch = lower.match(/^confirm\s+(buy_[a-f0-9]+|sell_[a-f0-9]+)$/);

@@ -37,6 +37,7 @@ export function resolveWhatsAppPhoneNumberId(override) {
 export function getWaRampConfig() {
   return {
     brandName: process.env.WA_RAMP_BRAND_NAME || "Aji Ramp",
+    chainsLabel: process.env.WA_RAMP_CHAINS_LABEL || "Celo & Stellar",
     whatsapp: {
       token: process.env.WHATSAPP_TOKEN || "",
       phoneNumberId: resolveWhatsAppPhoneNumberId(),
@@ -52,6 +53,11 @@ export function getWaRampConfig() {
         process.env.CELO_USDC_ADDRESS ||
         process.env.USDC_ADDRESS ||
         "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
+    },
+    stellar: {
+      depositAddress:
+        process.env.WA_RAMP_STELLAR_DEPOSIT_ADDRESS || process.env.STELLAR_DEPOSIT_ADDRESS || "",
+      usdcIssuer: process.env.WA_RAMP_STELLAR_USDC_ISSUER || "",
     },
     ngn: {
       bankName: process.env.WA_RAMP_NGN_BANK_NAME || process.env.NGN_BANK_NAME || "Opay",

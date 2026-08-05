@@ -28,6 +28,7 @@ export function mainMenuButtons(user) {
 
 export function welcomeButtons(contactName) {
   const greet = contactName ? `Hey ${contactName}` : "Hey there";
+  const chains = getWaRampConfig().chainsLabel;
   return {
     type: "buttons",
     header: brandName(),
@@ -36,11 +37,12 @@ export function welcomeButtons(contactName) {
       "",
       `${brandName()} lets you cash USDC for Naira — and buy USDC with Naira — without leaving WhatsApp.`,
       "",
-      "Send crypto, get paid to your bank. Or pay Naira and receive USDC on Celo.",
+      `We support USDC on ${chains}.`,
+      "Send crypto, get paid to your bank. Or pay Naira and receive USDC in your wallet.",
       "",
       "Create a free account to start (takes about a minute).",
     ].join("\n"),
-    footer: "Celo USDC ↔ NGN",
+    footer: `${chains} ↔ NGN`,
     buttons: [
       { id: "onboard_start", title: "Create account" },
       { id: "menu_rates", title: "See rates" },
@@ -50,14 +52,15 @@ export function welcomeButtons(contactName) {
 }
 
 function howItWorksText() {
+  const chains = getWaRampConfig().chainsLabel;
   return [
     `How ${brandName()} works`,
     "",
-    "Sell: you send USDC on Celo → we pay NGN to your bank.",
-    "Buy: you pay NGN to our account → we send USDC to your wallet.",
+    `Sell: you send USDC on ${chains} → we pay NGN to your bank.`,
+    `Buy: you pay NGN to our account → we send USDC to your Celo or Stellar wallet.`,
     "",
     "You’ll set a username, email, and PIN so only you can manage payouts.",
-    "Then save your Celo address and bank details once, and trade from the menu.",
+    "Then save your wallet addresses and bank details once, and trade from the menu.",
   ].join("\n");
 }
 
@@ -205,7 +208,7 @@ export async function handleOnboarding({ phone, text, buttonId, contactName }) {
           `You're in, ${done.username} ✅`,
           "",
           `${brandName()} is ready.`,
-          "Next: save a Celo wallet (for buys) and bank details (for sells) from the menu.",
+          "Next: save your Celo/Stellar wallet (for buys) and bank details (for sells) from the menu.",
         ].join("\n"),
       },
       mainMenuButtons(done),

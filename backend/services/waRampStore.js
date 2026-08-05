@@ -16,6 +16,7 @@ function mapOrder(row) {
     status: row.status,
     depositAddress: row.deposit_address,
     wallet: row.wallet,
+    chain: row.chain || "celo",
     payoutBank: row.payout_bank_account
       ? {
           bankName: row.payout_bank_name,
@@ -35,6 +36,7 @@ function mapUser(row) {
   return {
     phone: row.phone,
     wallet: row.wallet,
+    stellarWallet: row.stellar_wallet || null,
     bankName: row.bank_name,
     bankAccount: row.bank_account,
     accountName: row.account_name,
@@ -63,6 +65,8 @@ export async function upsertUser(phone, patch) {
   const data = {
     phone,
     wallet: patch.wallet !== undefined ? patch.wallet : existing?.wallet ?? null,
+    stellar_wallet:
+      patch.stellarWallet !== undefined ? patch.stellarWallet : existing?.stellar_wallet ?? null,
     bank_name: patch.bankName !== undefined ? patch.bankName : existing?.bank_name ?? null,
     bank_account: patch.bankAccount !== undefined ? patch.bankAccount : existing?.bank_account ?? null,
     account_name: patch.accountName !== undefined ? patch.accountName : existing?.account_name ?? null,
@@ -115,6 +119,7 @@ export async function createOrder(order) {
     status: order.status,
     deposit_address: order.depositAddress || null,
     wallet: order.wallet || null,
+    chain: order.chain || "celo",
     payout_bank_name: order.payoutBank?.bankName || null,
     payout_bank_account: order.payoutBank?.accountNumber || null,
     payout_account_name: order.payoutBank?.accountName || null,
