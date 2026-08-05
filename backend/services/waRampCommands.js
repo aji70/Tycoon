@@ -172,18 +172,19 @@ async function statusText(phone, config) {
   ].join("\n");
 }
 
-export async function notifyWaRampAdmin(text) {
+export async function notifyWaRampAdmin(text, opts = {}) {
   const config = getWaRampConfig();
   if (!config.adminWhatsappNumber) return;
   try {
-    await sendWhatsAppText(config.adminWhatsappNumber, text);
+    await sendWhatsAppText(config.adminWhatsappNumber, text, opts);
   } catch (e) {
     logger.error({ err: e.message }, "[wa-ramp] admin notify failed");
   }
 }
 
-export async function handleWaRampIncoming({ from, text }) {
+export async function handleWaRampIncoming({ from, text, phoneNumberId }) {
   const config = getWaRampConfig();
+  const sendOpts = phoneNumberId ? { phoneNumberId } : {};
   const phone = String(from).replace(/\D/g, "");
   const raw = text.trim();
   const lower = raw.toLowerCase();
@@ -269,7 +270,8 @@ export async function handleWaRampIncoming({ from, text }) {
           order.wallet,
           "",
           "If it doesn't arrive in a few minutes, reply status.",
-        ].join("\n")
+        ].join("\n"),
+        sendOpts
       );
       return [
         `Marked ${order.ref} as ngn_received.`,
@@ -285,7 +287,8 @@ export async function handleWaRampIncoming({ from, text }) {
         [
           `✅ Completed ${order.ref}`,
           `₦${order.amountNgn.toLocaleString("en-NG")} sent to your bank.`,
-        ].join("\n")
+        ].join("\n"),
+        sendOpts
       );
       return `Completed ${order.ref}.`;
     }
@@ -305,7 +308,8 @@ export async function handleWaRampIncoming({ from, text }) {
         `✅ ${order.amountUsdc} USDC sent`,
         `Tx: ${sentMatch[2]}`,
         `Ref: ${order.ref}`,
-      ].join("\n")
+      ].join("\n"),
+      sendOpts
     );
     return `Marked ${order.ref} completed.`;
   }

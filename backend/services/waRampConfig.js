@@ -1,6 +1,11 @@
 /**
  * WhatsApp USDC ↔ NGN ramp config (env-driven).
  * Enable with WA_RAMP_ENABLED=true (or set WHATSAPP_TOKEN).
+ *
+ * Phone numbers:
+ * - WHATSAPP_PHONE_NUMBER_ID       = test / default
+ * - WHATSAPP_PHONE_NUMBER_ID_LIVE  = production (preferred when set)
+ * Inbound webhooks reply using the phone_number_id Meta sends in the payload.
  */
 
 function num(name, fallback) {
@@ -13,14 +18,29 @@ function num(name, fallback) {
 export function isWaRampEnabled() {
   if (process.env.WA_RAMP_ENABLED === "false") return false;
   if (process.env.WA_RAMP_ENABLED === "true") return true;
-  return Boolean(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+  return Boolean(
+    process.env.WHATSAPP_TOKEN &&
+      (process.env.WHATSAPP_PHONE_NUMBER_ID_LIVE || process.env.WHATSAPP_PHONE_NUMBER_ID)
+  );
+}
+
+/** Prefer live ID when configured; else test/default. */
+export function resolveWhatsAppPhoneNumberId(override) {
+  if (override) return String(override);
+  return (
+    process.env.WHATSAPP_PHONE_NUMBER_ID_LIVE ||
+    process.env.WHATSAPP_PHONE_NUMBER_ID ||
+    ""
+  );
 }
 
 export function getWaRampConfig() {
   return {
     whatsapp: {
       token: process.env.WHATSAPP_TOKEN || "",
-      phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
+      phoneNumberId: resolveWhatsAppPhoneNumberId(),
+      phoneNumberIdTest: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
+      phoneNumberIdLive: process.env.WHATSAPP_PHONE_NUMBER_ID_LIVE || "",
       verifyToken: process.env.WHATSAPP_VERIFY_TOKEN || "wa-ramp-verify",
     },
     celo: {

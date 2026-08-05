@@ -29,16 +29,25 @@ router.post("/webhook", async (req, res) => {
   try {
     const messages = extractInboundMessages(req.body);
     for (const msg of messages) {
-      logger.info({ from: msg.from, text: msg.text }, "[wa-ramp] inbound");
+      logger.info(
+        { from: msg.from, text: msg.text, phoneNumberId: msg.phoneNumberId },
+        "[wa-ramp] inbound"
+      );
+      const sendOpts = msg.phoneNumberId ? { phoneNumberId: msg.phoneNumberId } : {};
       try {
-        const reply = await handleWaRampIncoming({ from: msg.from, text: msg.text });
-        if (reply) await sendWhatsAppText(msg.from, reply);
+        const reply = await handleWaRampIncoming({
+          from: msg.from,
+          text: msg.text,
+          phoneNumberId: msg.phoneNumberId,
+        });
+        if (reply) await sendWhatsAppText(msg.from, reply, sendOpts);
       } catch (inner) {
         logger.error({ err: inner.message, from: msg.from, text: msg.text }, "[wa-ramp] message handle failed");
         try {
           await sendWhatsAppText(
             msg.from,
-            "Sorry — ramp hit an error. If this keeps happening, the operator needs to run DB migrate."
+            "Sorry — ramp hit an error. If this keeps happening, the operator needs to run DB migrate.",
+            sendOpts
           );
         } catch (_) {
           /* ignore */
