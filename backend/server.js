@@ -51,9 +51,11 @@ import adminDashboardRoutes from "./routes/admin-dashboard.js";
 import referralRoutes from "./routes/referral.js";
 import questsRoutes from "./routes/quests.js";
 import publicStatsRoutes from "./routes/public-stats.js";
+import whatsappRoutes from "./routes/whatsapp.js";
 import { requireAdminIpAllowlist, adminApiRateLimiter } from "./middleware/adminDashboardGate.js";
 
 import gamePerkRoutes from "./routes/game-perks.js";
+import { startWaRampCeloWatcher } from "./services/waRampCeloWatcher.js";
 import * as shopController from "./controllers/shopController.js";
 import * as dailyClaimController from "./controllers/dailyClaimController.js";
 import { requireAuth, requireAuthOrWallet, optionalAuth } from "./middleware/auth.js";
@@ -433,6 +435,7 @@ app.get("/api/users/online", (_req, res) => {
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/public", publicStatsRoutes);
+app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/referral", referralRoutes);
 app.use("/api/quests", questsRoutes);
 app.use("/api/users", usersRoutes);
@@ -541,6 +544,12 @@ async function start() {
     startTimedGameFinishPoller(io);
   } catch (err) {
     logger.warn({ err: err?.message }, "Timed game finish poller failed to start");
+  }
+
+  try {
+    startWaRampCeloWatcher();
+  } catch (err) {
+    logger.warn({ err: err?.message }, "WhatsApp ramp celo watcher failed to start");
   }
 
   try {

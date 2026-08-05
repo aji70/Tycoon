@@ -2,7 +2,7 @@ import { isMaintenanceModeEnabled } from "../services/platformSettings.js";
 
 /**
  * Blocks most /api traffic when maintenance mode is on (DB flag).
- * Always allows: /health, /api/admin/*, /api/auth/*, Flutterwave webhook path.
+ * Always allows: /health, /api/admin/*, /api/auth/*, Flutterwave + WhatsApp webhooks.
  */
 export async function blockApiWhenMaintenance(req, res, next) {
   const path = (req.originalUrl || req.url || "").split("?")[0];
@@ -17,6 +17,9 @@ export async function blockApiWhenMaintenance(req, res, next) {
     return next();
   }
   if (path === "/api/shop/flutterwave/webhook") {
+    return next();
+  }
+  if (path === "/api/whatsapp/webhook" || path.startsWith("/api/whatsapp/")) {
     return next();
   }
 
