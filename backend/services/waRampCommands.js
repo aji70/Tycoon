@@ -12,6 +12,11 @@ import {
   listOpenOrders,
 } from "./waRampStore.js";
 import { sendWhatsAppText } from "./waRampWhatsapp.js";
+import {
+  handleOnboarding,
+  mainMenuButtons,
+  brandName,
+} from "./waRampOnboarding.js";
 
 function isAdmin(phone, config) {
   return config.adminWhatsappNumber && phone === config.adminWhatsappNumber;
@@ -23,23 +28,8 @@ function parseAmount(raw) {
   return Math.round(n * 1e6) / 1e6;
 }
 
-function helpText(config) {
-  return [
-    "Tycoon Ramp — USDC (Celo) ↔ NGN",
-    "",
-    "Commands:",
-    "• rate — see prices",
-    "• sell <amount> — sell USDC, get NGN",
-    "  e.g. sell 1",
-    "• buy <amount> — pay NGN, get USDC",
-    "  e.g. buy 1",
-    "• wallet 0x... — save your Celo wallet (needed for buy)",
-    "• bank <bank> <account> <name> — save NGN payout details (needed for sell)",
-    "• status — your open order",
-    "• cancel — cancel open order",
-    "",
-    `Max order: ${config.maxOrderUsdc} USDC`,
-  ].join("\n");
+function asText(text) {
+  return { type: "text", text };
 }
 
 function rateText(config) {
@@ -50,6 +40,22 @@ function rateText(config) {
     "",
     `Max order: ${config.maxOrderUsdc} USDC`,
   ].join("\n");
+}
+
+function tradeAmountButtons(side) {
+  const config = getWaRampConfig();
+  const amt = config.maxOrderUsdc;
+  return {
+    type: "buttons",
+    body:
+      side === "buy"
+        ? `Buy USDC with NGN.\nTap an amount (max ${amt} USDC):`
+        : `Sell USDC for NGN.\nTap an amount (max ${amt} USDC):`,
+    buttons: [
+      { id: side === "buy" ? "buy_1" : "sell_1", title: `${amt} USDC` },
+      { id: "menu_home", title: "Main menu" },
+    ],
+  };
 }
 
 async function handleSell(phone, amount, config) {
@@ -160,10 +166,9 @@ async function handleBuy(phone, amount, config) {
   ].join("\n");
 }
 
-async function statusText(phone, config) {
-  await expireStaleOrders(config.orderTtlMinutes);
+async function statusText(phone) {
   const open = await findOpenOrderForPhone(phone);
-  if (!open) return "No open order. Try: buy 1  or  sell 1";
+  if (!open) return "No open order. Use the menu to Buy or Sell.";
   return [
     `Order ${open.ref}`,
     `Type: ${open.type}`,
@@ -182,18 +187,28 @@ export async function notifyWaRampAdmin(text, opts = {}) {
   }
 }
 
-export async function handleWaRampIncoming({ from, text, phoneNumberId }) {
+/**
+ * @returns {Promise<string|object|Array>} replies for WhatsApp dispatcher
+ */
+export async function handleWaRampIncoming({ from, text, phoneNumberId, buttonId, contactName }) {
   const config = getWaRampConfig();
   const sendOpts = phoneNumberId ? { phoneNumberId } : {};
   const phone = String(from).replace(/\D/g, "");
-  const raw = text.trim();
+  const raw = (text || "").trim();
   const lower = raw.toLowerCase();
+  const btn = buttonId || null;
 
-  // help/rate must work even if DB migration has not run yet
-  if (!raw || lower === "hi" || lower === "hello" || lower === "help" || lower === "start") {
-    return helpText(config);
+  try {
+    const onboarded = await handleOnboarding({
+      phone,
+      text: raw,
+      buttonId: btn,
+      contactName,
+    });
+    if (onboarded) return onboarded;
+  } catch (e) {
+    logger.error({ err: e.message }, "[wa-ramp] onboarding error");
   }
-  if (lower === "rate" || lower === "rates") return rateText(config);
 
   try {
     await expireStaleOrders(config.orderTtlMinutes);
@@ -201,29 +216,67 @@ export async function handleWaRampIncoming({ from, text, phoneNumberId }) {
     logger.warn({ err: e.message }, "[wa-ramp] expireStaleOrders failed (migrate?)");
   }
 
+  if (
+    btn === "menu_home" ||
+    btn === "menu_more" ||
+    lower === "menu" ||
+    lower === "hi" ||
+    lower === "hello" ||
+    lower === "start"
+  ) {
+    const user = await getUser(phone).catch(() => null);
+    return mainMenuButtons(user);
+  }
+  if (btn === "menu_rates" || lower === "rate" || lower === "rates") {
+    const user = await getUser(phone).catch(() => null);
+    return [asText(rateText(config)), mainMenuButtons(user)];
+  }
+  if (btn === "menu_buy") return tradeAmountButtons("buy");
+  if (btn === "menu_sell") return tradeAmountButtons("sell");
+  if (btn === "buy_1") return asText(await handleBuy(phone, config.maxOrderUsdc, config));
+  if (btn === "sell_1") return asText(await handleSell(phone, config.maxOrderUsdc, config));
+
+  if (lower === "help") {
+    const user = await getUser(phone).catch(() => null);
+    return [
+      asText(
+        [
+          `${brandName()} — USDC (Celo) ↔ NGN`,
+          "",
+          "Use the buttons, or type:",
+          "• buy 1 / sell 1",
+          "• wallet 0x...",
+          "• bank <bank> <account> <name>",
+          "• status / cancel / menu",
+        ].join("\n")
+      ),
+      mainMenuButtons(user),
+    ];
+  }
+
   if (lower === "status") {
     try {
-      return await statusText(phone, config);
+      return asText(await statusText(phone));
     } catch (e) {
-      logger.error({ err: e.message }, "[wa-ramp] status failed");
-      return "Ramp database not ready yet. Ask the operator to run: npm run migrate";
+      return asText("Ramp database not ready yet. Ask the operator to run: npm run migrate");
     }
   }
 
-  if (lower === "cancel") {
+  if (lower === "cancel" || btn === "cancel") {
     const open = await findOpenOrderForPhone(phone);
-    if (!open) return "Nothing to cancel.";
+    if (!open) return asText("Nothing to cancel.");
     if (!["awaiting_crypto", "awaiting_ngn"].includes(open.status)) {
-      return `Order ${open.ref} is ${open.status} and can't be cancelled from chat.`;
+      return asText(`Order ${open.ref} is ${open.status} and can't be cancelled from chat.`);
     }
     await updateOrder(open.ref, { status: "cancelled" });
-    return `Cancelled ${open.ref}.`;
+    return asText(`Cancelled ${open.ref}.`);
   }
 
   const walletMatch = raw.match(/^wallet\s+(0x[a-fA-F0-9]{40})$/i);
   if (walletMatch) {
     await upsertUser(phone, { wallet: walletMatch[1] });
-    return `Saved wallet:\n${walletMatch[1]}`;
+    const user = await getUser(phone);
+    return [asText(`Saved wallet:\n${walletMatch[1]}`), mainMenuButtons(user)];
   }
 
   const bankMatch = raw.match(/^bank\s+(\S+)\s+(\d{8,12})\s+(.+)$/i);
@@ -233,32 +286,32 @@ export async function handleWaRampIncoming({ from, text, phoneNumberId }) {
       bankAccount: bankMatch[2],
       accountName: bankMatch[3].trim(),
     });
+    const user = await getUser(phone);
     return [
-      "Saved NGN payout:",
-      `${bankMatch[1]} ${bankMatch[2]}`,
-      bankMatch[3].trim(),
-    ].join("\n");
+      asText(`Saved NGN payout:\n${bankMatch[1]} ${bankMatch[2]}\n${bankMatch[3].trim()}`),
+      mainMenuButtons(user),
+    ];
   }
 
   const sellMatch = lower.match(/^sell\s+(\d+(?:\.\d+)?)\s*(usdc|usdt)?$/);
   if (sellMatch) {
     const amount = parseAmount(sellMatch[1]);
-    if (!amount) return "Invalid amount. Example: sell 1";
-    return handleSell(phone, amount, config);
+    if (!amount) return asText("Invalid amount. Example: sell 1");
+    return asText(await handleSell(phone, amount, config));
   }
 
   const buyMatch = lower.match(/^buy\s+(\d+(?:\.\d+)?)\s*(usdc|usdt)?$/);
   if (buyMatch) {
     const amount = parseAmount(buyMatch[1]);
-    if (!amount) return "Invalid amount. Example: buy 1";
-    return handleBuy(phone, amount, config);
+    if (!amount) return asText("Invalid amount. Example: buy 1");
+    return asText(await handleBuy(phone, amount, config));
   }
 
   const confirmMatch = lower.match(/^confirm\s+(buy_[a-f0-9]+|sell_[a-f0-9]+)$/);
   if (confirmMatch) {
-    if (!isAdmin(phone, config)) return "Admin only.";
+    if (!isAdmin(phone, config)) return asText("Admin only.");
     const order = await findOrder(confirmMatch[1]);
-    if (!order) return "Order not found.";
+    if (!order) return asText("Order not found.");
 
     if (order.type === "buy" && order.status === "awaiting_ngn") {
       await updateOrder(order.ref, { status: "ngn_received" });
@@ -273,11 +326,13 @@ export async function handleWaRampIncoming({ from, text, phoneNumberId }) {
         ].join("\n"),
         sendOpts
       );
-      return [
-        `Marked ${order.ref} as ngn_received.`,
-        `Send ${order.amountUsdc} USDC on Celo to ${order.wallet}`,
-        `Then reply: sent ${order.ref} <txHash>`,
-      ].join("\n");
+      return asText(
+        [
+          `Marked ${order.ref} as ngn_received.`,
+          `Send ${order.amountUsdc} USDC on Celo to ${order.wallet}`,
+          `Then reply: sent ${order.ref} <txHash>`,
+        ].join("\n")
+      );
     }
 
     if (order.type === "sell" && order.status === "crypto_received") {
@@ -290,17 +345,17 @@ export async function handleWaRampIncoming({ from, text, phoneNumberId }) {
         ].join("\n"),
         sendOpts
       );
-      return `Completed ${order.ref}.`;
+      return asText(`Completed ${order.ref}.`);
     }
 
-    return `Cannot confirm ${order.ref} in status ${order.status}.`;
+    return asText(`Cannot confirm ${order.ref} in status ${order.status}.`);
   }
 
   const sentMatch = raw.match(/^sent\s+(buy_[a-f0-9]+)\s+(0x[a-fA-F0-9]{64})$/i);
   if (sentMatch) {
-    if (!isAdmin(phone, config)) return "Admin only.";
+    if (!isAdmin(phone, config)) return asText("Admin only.");
     const order = await findOrder(sentMatch[1]);
-    if (!order) return "Order not found.";
+    if (!order) return asText("Order not found.");
     await updateOrder(order.ref, { status: "completed", txHash: sentMatch[2] });
     await sendWhatsAppText(
       order.phone,
@@ -311,17 +366,18 @@ export async function handleWaRampIncoming({ from, text, phoneNumberId }) {
       ].join("\n"),
       sendOpts
     );
-    return `Marked ${order.ref} completed.`;
+    return asText(`Marked ${order.ref} completed.`);
   }
 
   if (lower === "orders") {
-    if (!isAdmin(phone, config)) return "Admin only.";
+    if (!isAdmin(phone, config)) return asText("Admin only.");
     const open = await listOpenOrders();
-    if (!open.length) return "No open orders.";
-    return open
-      .map((o) => `${o.ref} ${o.type} ${o.amountUsdc}u ₦${o.amountNgn} ${o.status} ${o.phone}`)
-      .join("\n");
+    if (!open.length) return asText("No open orders.");
+    return asText(
+      open.map((o) => `${o.ref} ${o.type} ${o.amountUsdc}u ₦${o.amountNgn} ${o.status} ${o.phone}`).join("\n")
+    );
   }
 
-  return "Not sure what you mean. Reply help";
+  const user = await getUser(phone).catch(() => null);
+  return [asText("Tap a button below, or reply menu"), mainMenuButtons(user)];
 }

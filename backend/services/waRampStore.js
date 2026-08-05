@@ -38,6 +38,14 @@ function mapUser(row) {
     bankName: row.bank_name,
     bankAccount: row.bank_account,
     accountName: row.account_name,
+    username: row.username || null,
+    email: row.email || null,
+    pinHash: row.pin_hash || null,
+    pinSetupHash: row.pin_setup_hash || null,
+    onboardingStep: row.onboarding_step || null,
+    onboardedAt: row.onboarded_at || null,
+    whatsappName: row.whatsapp_name || null,
+    isOnboarded: Boolean(row.onboarded_at && row.username && row.pin_hash),
   };
 }
 
@@ -54,10 +62,19 @@ export async function upsertUser(phone, patch) {
   const existing = await db("wa_ramp_users").where({ phone }).first();
   const data = {
     phone,
-    wallet: patch.wallet ?? existing?.wallet ?? null,
-    bank_name: patch.bankName ?? existing?.bank_name ?? null,
-    bank_account: patch.bankAccount ?? existing?.bank_account ?? null,
-    account_name: patch.accountName ?? existing?.account_name ?? null,
+    wallet: patch.wallet !== undefined ? patch.wallet : existing?.wallet ?? null,
+    bank_name: patch.bankName !== undefined ? patch.bankName : existing?.bank_name ?? null,
+    bank_account: patch.bankAccount !== undefined ? patch.bankAccount : existing?.bank_account ?? null,
+    account_name: patch.accountName !== undefined ? patch.accountName : existing?.account_name ?? null,
+    username: patch.username !== undefined ? patch.username : existing?.username ?? null,
+    email: patch.email !== undefined ? patch.email : existing?.email ?? null,
+    pin_hash: patch.pinHash !== undefined ? patch.pinHash : existing?.pin_hash ?? null,
+    pin_setup_hash: patch.pinSetupHash !== undefined ? patch.pinSetupHash : existing?.pin_setup_hash ?? null,
+    onboarding_step:
+      patch.onboardingStep !== undefined ? patch.onboardingStep : existing?.onboarding_step ?? null,
+    onboarded_at: patch.onboardedAt !== undefined ? patch.onboardedAt : existing?.onboarded_at ?? null,
+    whatsapp_name:
+      patch.whatsappName !== undefined ? patch.whatsappName : existing?.whatsapp_name ?? null,
     updated_at: db.fn.now(),
   };
   if (existing) {

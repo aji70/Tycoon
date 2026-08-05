@@ -36,6 +36,7 @@ export function resolveWhatsAppPhoneNumberId(override) {
 
 export function getWaRampConfig() {
   return {
+    brandName: process.env.WA_RAMP_BRAND_NAME || "Aji Ramp",
     whatsapp: {
       token: process.env.WHATSAPP_TOKEN || "",
       phoneNumberId: resolveWhatsAppPhoneNumberId(),

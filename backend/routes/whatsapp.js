@@ -1,7 +1,7 @@
 import { Router } from "express";
 import logger from "../config/logger.js";
 import { getWaRampConfig, isWaRampEnabled } from "../services/waRampConfig.js";
-import { extractInboundMessages, sendWhatsAppText } from "../services/waRampWhatsapp.js";
+import { extractInboundMessages, dispatchWaRampReplies, sendWhatsAppText } from "../services/waRampWhatsapp.js";
 import { handleWaRampIncoming } from "../services/waRampCommands.js";
 
 const router = Router();
@@ -30,19 +30,29 @@ router.post("/webhook", async (req, res) => {
     const messages = extractInboundMessages(req.body);
     for (const msg of messages) {
       logger.info(
-        { from: msg.from, text: msg.text, phoneNumberId: msg.phoneNumberId },
+        {
+          from: msg.from,
+          text: msg.text,
+          buttonId: msg.buttonId,
+          phoneNumberId: msg.phoneNumberId,
+        },
         "[wa-ramp] inbound"
       );
       const sendOpts = msg.phoneNumberId ? { phoneNumberId: msg.phoneNumberId } : {};
       try {
-        const reply = await handleWaRampIncoming({
+        const replies = await handleWaRampIncoming({
           from: msg.from,
           text: msg.text,
+          buttonId: msg.buttonId,
+          contactName: msg.contactName,
           phoneNumberId: msg.phoneNumberId,
         });
-        if (reply) await sendWhatsAppText(msg.from, reply, sendOpts);
+        await dispatchWaRampReplies(msg.from, replies, sendOpts);
       } catch (inner) {
-        logger.error({ err: inner.message, from: msg.from, text: msg.text }, "[wa-ramp] message handle failed");
+        logger.error(
+          { err: inner.message, from: msg.from, text: msg.text },
+          "[wa-ramp] message handle failed"
+        );
         try {
           await sendWhatsAppText(
             msg.from,
