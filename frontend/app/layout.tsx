@@ -76,6 +76,7 @@ export async function generateMetadata(): Promise<Metadata> {
       shortcut: [{ url: "/metadata/favicon.ico", sizes: "48x48", type: "image/x-icon" }],
     },
     other: {
+      "facebook-domain-verification": "h6az7xoilrizsd10oylb0uci427qng",
       "talentapp:project_verification":
         "5d078ddf22e877e4b4a4508b55b82c826e0b7d2bef4d1505b4b14945a216f62eaf013de3c9fe99c4fd58ae7fc896455a9ada31130565d32c8a5eb785b394113a",
       "base:app_id": "695d328c3ee38216e9af4359", 
@@ -109,6 +110,10 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta
+          name="facebook-domain-verification"
+          content="h6az7xoilrizsd10oylb0uci427qng"
+        />
         <link rel="dns-prefetch" href="https://auth.web3auth.io" />
         <link rel="dns-prefetch" href="https://api-auth.web3auth.io" />
         <link rel="dns-prefetch" href="https://api.web3modal.org" />
