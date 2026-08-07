@@ -63,6 +63,7 @@ export default function LegalDocLayout({
           {/* Cross-nav pills */}
           <div className="flex flex-wrap gap-2 mt-4">
             {[
+              { href: '/about', label: 'About' },
               { href: '/terms', label: 'Terms' },
               { href: '/privacy', label: 'Privacy' },
               { href: '/cookies', label: 'Cookies' },
@@ -88,6 +89,7 @@ export default function LegalDocLayout({
         {/* Footer contact */}
         <div className="mt-12 pt-6 border-t border-[#003B3E]/40 text-center">
           <p className="text-xs text-[#8AABAE] font-dmSans">
+            Tycoon is operated by Sabo Studios.{' '}
             Questions?{' '}
             <a href="mailto:support@tycoonworld.xyz" className="text-[#00F0FF] hover:underline">
               support@tycoonworld.xyz

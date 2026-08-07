@@ -43,7 +43,7 @@ export default function PrivacyPage() {
 
       <div className="rounded-2xl border border-[#00F0FF]/20 bg-[#00F0FF]/5 px-5 py-4">
         <p className="text-[#C8F0F2] text-sm leading-relaxed">
-          This Privacy Policy explains how Tycoon (<strong className="text-white">&quot;we&quot;</strong>, <strong className="text-white">&quot;us&quot;</strong>, or <strong className="text-white">&quot;our&quot;</strong>) collects, uses, and protects your information when you use our website, game, or services (the <strong className="text-white">&quot;Services&quot;</strong>). We follow international best practices including Nigeria&apos;s NDPA 2023, GDPR, and CCPA/CPRA. By using our Services you agree to the practices described here.
+          This Privacy Policy explains how <strong className="text-white">Sabo Studios</strong> (<strong className="text-white">&quot;we&quot;</strong>, <strong className="text-white">&quot;us&quot;</strong>, or <strong className="text-white">&quot;our&quot;</strong>), the operator of Tycoon, collects, uses, and protects your information when you use our website, game, or services (the <strong className="text-white">&quot;Services&quot;</strong>). We follow international best practices including Nigeria&apos;s NDPA 2023, GDPR, and CCPA/CPRA. By using our Services you agree to the practices described here.
         </p>
       </div>
 

@@ -58,7 +58,7 @@ export default function TermsPage() {
       {/* Intro */}
       <div className="rounded-2xl border border-[#00F0FF]/20 bg-[#00F0FF]/5 px-5 py-4">
         <p className="text-[#C8F0F2] text-sm leading-relaxed">
-          These Terms of Service govern your access to and use of Tycoon, including our website, game, multiplayer rooms, AI modes, tournaments, and all related features (the <strong className="text-white">&quot;Services&quot;</strong>). By using Tycoon you agree to these Terms. If you do not agree, do not use the Services.
+          These Terms of Service govern your access to and use of Tycoon, including our website, game, multiplayer rooms, AI modes, tournaments, and all related features (the <strong className="text-white">&quot;Services&quot;</strong>). Tycoon is operated by <strong className="text-white">Sabo Studios</strong>. By using Tycoon you agree to these Terms. If you do not agree, do not use the Services.
         </p>
       </div>
 

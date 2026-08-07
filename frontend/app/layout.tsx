@@ -65,7 +65,7 @@ export async function generateMetadata(): Promise<Metadata> {
       template: "%s | Tycoon",
     },
     description:
-      "Tycoon is a decentralized on-chain game inspired by the classic Monopoly game, built on Celo. It allows players to buy, sell, and trade digital properties in a trustless gaming environment.",
+      "Tycoon is a decentralized on-chain game inspired by the classic Monopoly game, built on Celo. Operated by Sabo Studios. Players buy, sell, and trade digital properties in a trustless gaming environment.",
     icons: {
       icon: [
         { url: "/favicon.png", sizes: "192x192", type: "image/png" },

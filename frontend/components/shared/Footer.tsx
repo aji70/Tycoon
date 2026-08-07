@@ -22,6 +22,13 @@ const Footer = () => {
 
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
           <Link
+            href="/about"
+            className="text-[#F0F7F7] hover:text-[#00F0FF] text-[12px] font-dmSans font-[400] transition-colors"
+          >
+            About
+          </Link>
+          <span className="text-[#455A64] hidden sm:inline">·</span>
+          <Link
             href="/how-to-play"
             className="text-[#F0F7F7] hover:text-[#00F0FF] text-[12px] font-dmSans font-[400] transition-colors"
           >
@@ -57,7 +64,8 @@ const Footer = () => {
           </a>
           <span className="text-[#455A64] hidden md:inline">·</span>
           <p className="text-[#F0F7F7] text-[12px] font-dmSans font-[400] w-full md:w-auto text-center md:text-left basis-full md:basis-auto">
-            ©{new Date().getFullYear()} Tycoon &bull; All rights reserved.
+            ©{new Date().getFullYear()} Sabo Studios. Tycoon is operated by Sabo
+            Studios. All rights reserved.
           </p>
         </div>
 
