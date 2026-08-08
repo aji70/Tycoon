@@ -86,6 +86,7 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
     event GameEnded(uint256 indexed gameId, address indexed winner, uint64 timestamp);
     event RewardClaimed(uint256 indexed gameId, address indexed player, uint256 amountUSDC);
     event HouseWithdrawn(uint256 amount, address indexed to);
+    event TokensRescued(address indexed token, address indexed to, uint256 amount);
     event AIGameEnded(uint256 indexed gameId, address indexed player, uint64 timestamp);
     event BackendGameControllerUpdated(address indexed newController);
     event PlayerRemovedByController(uint256 indexed gameId, address indexed player, address indexed removedBy);
@@ -591,6 +592,18 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
             require(usdcToken.transfer(owner(), amount), "Transfer failed");
             emit HouseWithdrawn(amount, owner());
         }
+    }
+
+    /// @notice Rescue any ERC-20 stuck on the game proxy (e.g. USDT sent by mistake).
+    /// @dev Does not adjust `houseUSDC` accounting — use withdrawHouse/drainContract for house USDC.
+    function rescueERC20(address token, address to, uint256 amount) external onlyOwner {
+        require(token != address(0), "Invalid token");
+        require(to != address(0), "Invalid to");
+        require(amount > 0, "Zero amount");
+        IERC20 erc20 = IERC20(token);
+        require(erc20.balanceOf(address(this)) >= amount, "Insufficient balance");
+        require(erc20.transfer(to, amount), "Transfer failed");
+        emit TokensRescued(token, to, amount);
     }
 
     // View helpers

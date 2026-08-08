@@ -6,8 +6,9 @@ import {TycoonUpgradeable} from "../src/TycoonUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 /// @title Upgrade the Tycoon game proxy to a new implementation
-/// @notice Use this after changing TycoonUpgradeable.sol (e.g. revert-reason bubbling). Same proxy address, new code.
+/// @notice Use this after changing TycoonUpgradeable.sol (e.g. rescueERC20 for stranded tokens).
 /// @dev Run with TYCOON_OWNER key. Requires .env: TYCOON_PROXY_ADDRESS.
+///      Example: forge script script/UpgradeTycoonImpl.s.sol:UpgradeTycoonImplScript --rpc-url $CELO_RPC --broadcast
 contract UpgradeTycoonImplScript is Script {
     function run() external {
         address proxyAddr = vm.envAddress("TYCOON_PROXY_ADDRESS");
