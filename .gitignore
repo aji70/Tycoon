@@ -17,6 +17,8 @@ working version/
 *.env.local
 backend/.env
 backend/.env.local
+backend/.env.rotation
+KEY_ROTATION.md
 frontend/.env
 frontend/.env.local
 frontend/.env.*.local

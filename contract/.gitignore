@@ -12,3 +12,11 @@ docs/
 
 # Dotenv file
 .env
+
+# Key rotation (local only — do not commit broadcast or one-off rotate scripts)
+/broadcast/RotateOwnerAndController.s.sol/
+/broadcast/RotateRemainingContracts.s.sol/
+/script/RotateOwnerAndController.s.sol
+/script/RotateRemainingContracts.s.sol
+/run-rotate-keys.sh
+/run-rotate-remaining.sh

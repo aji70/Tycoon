@@ -308,19 +308,19 @@ app.get("/health", async (req, res) => {
 
 /**
  * Config/debug endpoints guard.
- * These expose environment layout and (worst of all) contract writes signed with the
- * backend controller key. Open in development; in production they require
- * CONFIG_DEBUG_KEY to be set and passed as the x-config-debug-key header,
- * otherwise they respond 404 as if they don't exist.
+ * Always requires CONFIG_DEBUG_KEY via x-config-debug-key (dev and prod).
+ * If CONFIG_DEBUG_KEY is unset, these routes 404 — never open to the world.
+ * Never return private key material from any of these handlers.
  */
 function requireConfigDebugAccess(req, res, next) {
-  if (process.env.NODE_ENV !== "production") return next();
   const expected = process.env.CONFIG_DEBUG_KEY;
-  if (expected && req.headers["x-config-debug-key"] === expected) return next();
+  if (expected && String(expected).trim() && req.headers["x-config-debug-key"] === expected) {
+    return next();
+  }
   return res.status(404).json({ success: false, error: "Endpoint not found" });
 }
 
-// Debug: which env keys are present (values not exposed). Use to verify Railway injects CELO_* etc.
+// Debug: which env keys are present (boolean only — never values).
 app.get("/api/config/env-check", requireConfigDebugAccess, (_req, res) => {
   const keys = [
     "CELO_RPC_URL",
@@ -342,38 +342,20 @@ app.get("/api/config/env-check", requireConfigDebugAccess, (_req, res) => {
   keys.forEach((k) => {
     present[k] = typeof process.env[k] === "string" && process.env[k].trim().length > 0;
   });
-  const payload = { envKeysPresent: present };
-  // In development, show masked IDs so you can confirm frontend/backend match
-  if (process.env.NODE_ENV !== "production" && present.PRIVY_APP_ID) {
-    const id = process.env.PRIVY_APP_ID;
-    payload.privyAppIdMasked = id.length > 8 ? `${id.slice(0, 4)}...${id.slice(-4)}` : "***";
-  }
-  if (process.env.NODE_ENV !== "production" && present.WEB3AUTH_CLIENT_ID) {
-    const id = process.env.WEB3AUTH_CLIENT_ID;
-    payload.web3authClientIdMasked = id.length > 12 ? `${id.slice(0, 6)}...${id.slice(-4)}` : "***";
-  }
-  res.json(payload);
+  res.json({ envKeysPresent: present });
 });
 
-// Test endpoint: expose chain env vars for frontend config-test. ?chain=Polygon|Celo|Base (default Polygon).
+// Test endpoint: public chain config only. Never returns private keys (full or masked).
+// ?chain=Polygon|Celo|Base (default Polygon). Optional ?test_connection=1
 app.get("/api/config/test", requireConfigDebugAccess, async (req, res) => {
   const chain = (req.query.chain || "POLYGON").toString().toUpperCase();
   const norm = chain === "CELO" ? "CELO" : chain === "POLYGON" ? "POLYGON" : "BASE";
   const { rpcUrl, contractAddress, privateKey, isConfigured } = getChainConfig(norm);
-  const fullPk = req.query.full === "1" && process.env.NODE_ENV === "development";
-  let pkDisplay = null;
-  if (privateKey) {
-    if (fullPk) {
-      pkDisplay = privateKey;
-    } else {
-      const len = privateKey.length;
-      pkDisplay = len > 12 ? `${privateKey.slice(0, 6)}...${privateKey.slice(-4)}` : "***";
-    }
-  }
   const result = {
     chain: norm,
     isConfigured: !!isConfigured,
-    BACKEND_GAME_CONTROLLER_PRIVATE_KEY: pkDisplay,
+    /** Boolean only — never echo key material (including ?full=1). */
+    controllerKeyConfigured: !!(privateKey && String(privateKey).trim()),
   };
   if (norm === "CELO") {
     result.CELO_RPC_URL = rpcUrl || null;
@@ -406,7 +388,8 @@ app.get("/api/config/starknet", requireConfigDebugAccess, async (_req, res) => {
   res.json(result);
 });
 
-// Call contract read/write (for config-test). Optional body.chain (CELO, POLYGON, BASE).
+// Call contract read (and optional write). Writes require ALLOW_CONFIG_DEBUG_WRITES=true.
+// Optional body.chain (CELO, POLYGON, BASE).
 app.post("/api/config/call-contract", requireConfigDebugAccess, async (req, res) => {
   try {
     const { fn, params = [], write = false, chain = "CELO" } = req.body || {};
@@ -415,6 +398,12 @@ app.post("/api/config/call-contract", requireConfigDebugAccess, async (req, res)
     }
     const paramArr = Array.isArray(params) ? params : [params];
     if (write) {
+      if (String(process.env.ALLOW_CONFIG_DEBUG_WRITES || "").toLowerCase() !== "true") {
+        return res.status(403).json({
+          success: false,
+          error: "Contract writes via config debug are disabled (set ALLOW_CONFIG_DEBUG_WRITES=true to enable)",
+        });
+      }
       const result = await callContractWrite(fn, paramArr, chain);
       res.json({ success: true, result });
     } else {
