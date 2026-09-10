@@ -402,15 +402,13 @@ export default function MinipayStatsPublicPage() {
                       />
                     ))
                   )}
-                  <StatCard
-                    label="Celo shop sales (count)"
-                    value={data.revenue.celoShop?.summary?.totalSales ?? "—"}
-                    hint={
-                      data.revenue.celoShop?.error
-                        ? data.revenue.celoShop.error
-                        : `${data.revenue.celoShop?.summary?.uniqueBuyers ?? 0} unique buyers · all Celo`
-                    }
-                  />
+                  {data.revenue.celoShop?.summary?.totalSales != null ? (
+                    <StatCard
+                      label="Celo shop sales (count)"
+                      value={data.revenue.celoShop.summary.totalSales}
+                      hint={`${data.revenue.celoShop?.summary?.uniqueBuyers ?? 0} unique buyers · all Celo`}
+                    />
+                  ) : null}
                 </div>
 
                 {shopCurrencies.length > 0 ? (

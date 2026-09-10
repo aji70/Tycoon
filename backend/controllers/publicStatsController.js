@@ -6,7 +6,6 @@ import { getChainConfig } from "../config/chains.js";
 import { loadOverviewMetrics } from "./adminDashboardController.js";
 import { getContractTxStats } from "../services/contractTxStats.js";
 import { resolveRewardSystemAddress } from "../services/rewardSystemContract.js";
-import { getRewardSalesStats } from "../services/rewardSalesStats.js";
 
 const CACHE_TTL_SECONDS = Number(process.env.PUBLIC_STATS_CACHE_TTL_SECONDS) || 120;
 
@@ -83,12 +82,13 @@ async function loadPerkShopTreasuryBalanceUsdt() {
 }
 
 /**
- * Lifetime perk / shop revenue = sale + tip inflows (survives withdrawFunds).
- * Prefer stablecoin totals (USDT + USDC + cUSD). Tip packs from DB; NFT/shop from chain events.
+ * Lifetime perk revenue from DB purchase rows (fast).
+ * Does NOT scan chain logs here — getRewardSalesStats is too slow for /public/stats.
+ * Treasury balance is returned separately as leftover cash after withdrawals.
  */
 async function loadPerkShopLifetimeRevenue() {
   const out = {
-    method: "lifetime_inflows_not_treasury_balance",
+    method: "db_inflows_plus_treasury_balance",
     perkShopRevenueUsdt: null,
     totalStableUsd: null,
     byCurrency: null,
@@ -108,11 +108,7 @@ async function loadPerkShopLifetimeRevenue() {
   };
 
   try {
-    const [shop, tipRows, softRows, treasuryBalanceUsdt] = await Promise.all([
-      getRewardSalesStats({ chain: "CELO", period: "all" }).catch((err) => {
-        logger.warn({ err: err?.message || err }, "public stats: reward sales stats failed");
-        return null;
-      }),
+    const [tipRows, softRows, treasuryBalanceUsdt] = await Promise.all([
       db.schema.hasTable("game_ai_tip_pack_purchases").then(async (has) =>
         has ? db("game_ai_tip_pack_purchases").select("amount_usdc") : []
       ),
@@ -133,7 +129,7 @@ async function loadPerkShopLifetimeRevenue() {
     }
     out.tipPacksUsdc = tipSum;
 
-    // Soft perk rows already include tip packs (entitlement ai_tip_pack) — skip those to avoid double count with tip table.
+    // Soft perk rows already include tip packs (entitlement ai_tip_pack) — skip those.
     let softUsdt = 0;
     let softUsdc = 0;
     let softCusd = 0;
@@ -153,29 +149,25 @@ async function loadPerkShopLifetimeRevenue() {
       }
     }
     out.softPerksStableUsd = softUsdt + softUsdc + softCusd;
-    out.shopSales = shop?.summary || null;
 
-    const by = shop?.revenueByCurrency || {};
-    const shopUsdt = Number.parseFloat(by.USDT?.formatted || "0") || 0;
-    const shopUsdc = Number.parseFloat(by.USDC?.formatted || "0") || 0;
-    const shopCusd = Number.parseFloat(by.cUSD?.formatted || "0") || 0;
-    const totalStable =
-      shopUsdt + shopUsdc + shopCusd + out.tipPacksUsdc + out.softPerksStableUsd;
-
+    const totalStable = out.tipPacksUsdc + out.softPerksStableUsd;
     out.byCurrency = {
-      USDT: shopUsdt + softUsdt,
-      USDC: shopUsdc + softUsdc + out.tipPacksUsdc,
-      cUSD: shopCusd + softCusd,
+      USDT: softUsdt,
+      USDC: softUsdc + out.tipPacksUsdc,
+      cUSD: softCusd,
       tipPacksUsdc: out.tipPacksUsdc,
       softPerksStableUsd: out.softPerksStableUsd,
-      TYC: Number.parseFloat(by.TYC?.formatted || "0") || 0,
+      TYC: 0,
     };
     out.totalStableUsd = Math.round(totalStable * 1e6) / 1e6;
-    out.perkShopRevenueUsdt = out.totalStableUsd;
+    // Prefer recorded inflows; if none yet, fall back to treasury leftover so the card isn't blank.
+    out.perkShopRevenueUsdt =
+      out.totalStableUsd > 0 ? out.totalStableUsd : treasuryBalanceUsdt;
     return out;
   } catch (err) {
     logger.warn({ err }, "public stats: lifetime perk revenue unavailable");
     out.treasuryBalanceUsdt = await loadPerkShopTreasuryBalanceUsdt();
+    out.perkShopRevenueUsdt = out.treasuryBalanceUsdt;
     return out;
   }
 }

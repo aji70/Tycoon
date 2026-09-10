@@ -80,8 +80,8 @@ function buildStatCards(data: PublicStatsData): StatCard[] {
       value: formatUsd(e.perkShopRevenueTotalStableUsd ?? e.perkShopRevenueUsdt),
       sub:
         e.perkShopTreasuryBalanceUsdt != null
-          ? `Lifetime inflows · treasury left ${formatUsd(e.perkShopTreasuryBalanceUsdt)}`
-          : "Lifetime inflows (not treasury balance)",
+          ? `Recorded purchases · treasury left ${formatUsd(e.perkShopTreasuryBalanceUsdt)}`
+          : "Recorded tip/soft-perk purchases (not chain log scan)",
     });
     cards.push({
       key: "gamesPerPlayer",

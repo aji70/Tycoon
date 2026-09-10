@@ -980,21 +980,15 @@ export async function getMinipayStats(options = {}) {
     transactions.humanPlayerJoins +
     transactions.softPerkPurchases;
 
-  try {
-    const { getRewardSalesStats } = await import("./rewardSalesStats.js");
-    const shop = await getRewardSalesStats({ chain: "CELO", period: "all" });
-    revenue.celoShop = {
-      scope: "all_celo_reward_system",
-      note:
-        "Lifetime NFT/collectible + bundle sales (sale events). Not MiniPay-wallet-filtered. Survives withdrawFunds.",
-      summary: shop?.summary || null,
-      revenueByCurrency: shop?.revenueByCurrency || null,
-      rewardAddress: shop?.rewardAddress || null,
-    };
-  } catch (e) {
-    logger.warn({ err: e }, "getMinipayStats celo shop revenue failed");
-    revenue.celoShop = { error: e?.message || "Failed to load Celo shop sales" };
-  }
+  // NFT shop log indexing is too slow for this hot path — use admin sales for that.
+  revenue.celoShop = {
+    scope: "skipped_on_hot_path",
+    note:
+      "NFT/collectible shop sale indexing is not run on this endpoint (too slow). Tip packs + soft perks above are DB lifetime inflows.",
+    summary: null,
+    revenueByCurrency: null,
+    rewardAddress: null,
+  };
 
   // Keep legacy tip/soft fields populated from "all" when linked subset is empty
   if (
