@@ -733,17 +733,28 @@ export async function getMinipayStats(options = {}) {
     }
   }
 
+  /** Cutoff: treat human accounts registered on/after this date as MiniPay cohort. */
+  const MINIPAY_USER_SINCE = "2026-06-27T00:00:00.000Z";
+
   /** @type {{
+   *   registeredSinceCutoff: number,
+   *   registeredSinceCutoffIncludingAi: number,
+   *   cutoff: string,
    *   distinctHumanPlayers: number,
    *   distinctHumanCreators: number,
    *   taggedPlayersIncludingAi: number,
-   *   distinctCreators: number
+   *   distinctCreators: number,
+   *   distinctPlayers: number
    * }} */
   const users = {
+    registeredSinceCutoff: 0,
+    registeredSinceCutoffIncludingAi: 0,
+    cutoff: "2026-06-27",
     distinctHumanPlayers: 0,
     distinctHumanCreators: 0,
     taggedPlayersIncludingAi: 0,
     distinctCreators: games.distinctCreators || 0,
+    distinctPlayers: 0,
   };
 
   /** @type {{
@@ -837,8 +848,32 @@ export async function getMinipayStats(options = {}) {
   const dataQuality = {
     isMinipayTagNoisy: true,
     warning:
-      "games.is_minipay historically included many main-app Celo creates (not only the MiniPay app). Prefer human-player counts below. Revenue uses all Celo in-app purchase rows + shop sale events so withdrawals do not zero it out.",
+      "MiniPay users = human accounts registered on/after 27 Jun 2026 (almost all new growth is MiniPay). Game counts still use games.is_minipay (historically noisy for Celo main-app creates).",
   };
+
+  // Primary MiniPay user metric: all human registrations since MiniPay cutover.
+  try {
+    const hasUsersTable = await db.schema.hasTable("users");
+    if (hasUsersTable) {
+      const [sinceAll, sinceHumans] = await Promise.all([
+        db("users").where("created_at", ">=", MINIPAY_USER_SINCE).count("* as count").first(),
+        db("users")
+          .where("created_at", ">=", MINIPAY_USER_SINCE)
+          .where(function () {
+            this.whereNull("username").orWhere("username", "not like", "AI_%");
+          })
+          .count("* as count")
+          .first(),
+      ]);
+      users.registeredSinceCutoffIncludingAi = Number(sinceAll?.count ?? 0);
+      users.registeredSinceCutoff = Number(sinceHumans?.count ?? 0);
+      // Headline / backward-compat fields for the public page.
+      users.distinctPlayers = users.registeredSinceCutoff;
+      users.distinctHumanPlayers = users.registeredSinceCutoff;
+    }
+  } catch (regErr) {
+    logger.warn({ err: regErr }, "getMinipayStats registered-since cutoff query failed");
+  }
 
   if (hasMinipayCol && hasPlayers) {
     try {
@@ -850,7 +885,6 @@ export async function getMinipayStats(options = {}) {
         .countDistinct("gp.user_id as count")
         .first();
       users.taggedPlayersIncludingAi = Number(taggedPlayers?.count ?? 0);
-      users.distinctPlayers = users.taggedPlayersIncludingAi; // backward compat for older UI
 
       const joinRow = await db("game_players as gp")
         .join("games as g", "g.id", "gp.game_id")
@@ -860,17 +894,6 @@ export async function getMinipayStats(options = {}) {
       transactions.playerJoins = Number(joinRow?.count ?? 0);
 
       if (hasUsersTable) {
-        const humanPlayers = await db("game_players as gp")
-          .join("games as g", "g.id", "gp.game_id")
-          .join("users as u", "u.id", "gp.user_id")
-          .where("g.is_minipay", true)
-          .where(function () {
-            this.whereNull("u.username").orWhere("u.username", "not like", "AI_%");
-          })
-          .countDistinct("gp.user_id as count")
-          .first();
-        users.distinctHumanPlayers = Number(humanPlayers?.count ?? 0);
-
         const humanCreators = await db("games as g")
           .join("users as u", "u.id", "g.creator_id")
           .where("g.is_minipay", true)
@@ -892,7 +915,6 @@ export async function getMinipayStats(options = {}) {
           .first();
         transactions.humanPlayerJoins = Number(humanJoins?.count ?? 0);
       } else {
-        users.distinctHumanPlayers = users.taggedPlayersIncludingAi;
         users.distinctHumanCreators = users.distinctCreators;
         transactions.humanPlayerJoins = transactions.playerJoins;
       }

@@ -21,6 +21,9 @@ type MinipayStatsData = {
     distinctHumanPlayers?: number;
     distinctHumanCreators?: number;
     taggedPlayersIncludingAi?: number;
+    registeredSinceCutoff?: number;
+    registeredSinceCutoffIncludingAi?: number;
+    cutoff?: string;
   };
   transactions?: {
     gamesCreated: number;
@@ -313,17 +316,18 @@ export default function MinipayStatsPublicPage() {
             {data.users || data.transactions ? (
               <section>
                 <h2 className="mb-3 font-orbitron text-sm font-semibold uppercase tracking-wide text-[#F4C542]/90">
-                  Users & transactions (human-first)
+                  Users & transactions
                 </h2>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <StatCard
-                    label="Human MiniPay users"
+                    label="MiniPay users"
                     value={
+                      data.users?.registeredSinceCutoff ??
                       data.users?.distinctHumanPlayers ??
                       data.users?.distinctPlayers ??
                       0
                     }
-                    hint="Excludes AI_* bot seats"
+                    hint={`Humans registered on/after ${data.users?.cutoff || "2026-06-27"}`}
                   />
                   <StatCard
                     label="Human creators"
@@ -332,14 +336,12 @@ export default function MinipayStatsPublicPage() {
                       data.users?.distinctCreators ??
                       data.minipayGames.distinctCreators
                     }
-                    hint="Hosts excluding AI_* accounts"
+                    hint="Hosts of is_minipay-tagged games"
                   />
                   <StatCard
-                    label="Human games (tagged)"
-                    value={
-                      data.transactions?.humanGames ?? data.minipayGames.humanGames
-                    }
-                    hint="is_minipay + not AI match"
+                    label="Tagged players (played)"
+                    value={data.users?.taggedPlayersIncludingAi ?? 0}
+                    hint="Joined an is_minipay-tagged game (incl. AI seats)"
                   />
                   <StatCard
                     label="Human joins"
