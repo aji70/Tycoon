@@ -7,6 +7,49 @@
 import db from "../config/database.js";
 import logger from "../config/logger.js";
 
+/** Snapshot the user confirmed on 11 Sep 2026. New shop/tip inflows after this instant add on top. */
+const ONCHAIN_REVENUE_BASELINE_USD = Number(process.env.MINIPAY_ONCHAIN_REVENUE_BASELINE_USD || 106);
+const ONCHAIN_REVENUE_BASELINE_AT =
+  process.env.MINIPAY_ONCHAIN_REVENUE_BASELINE_AT || "2026-09-11T21:40:00.000Z";
+
+async function sumStableInflowsAfter(sinceIso) {
+  let incrementalUsd = 0;
+  const { formatUnits } = await import("ethers");
+
+  if (await db.schema.hasTable("soft_perk_purchases")) {
+    const q = db("soft_perk_purchases").select("amount", "payment_token", "entitlement");
+    if (await db.schema.hasColumn("soft_perk_purchases", "created_at")) {
+      q.where("created_at", ">", sinceIso);
+    }
+    const rows = await q;
+    for (const row of rows || []) {
+      if (row.entitlement === "ai_tip_pack") continue;
+      const token = Number(row.payment_token);
+      if (token === 0 || Number.isNaN(token)) continue;
+      try {
+        const n = Number(formatUnits(BigInt(String(row.amount || "0")), 6));
+        if (Number.isFinite(n)) incrementalUsd += n;
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  if (await db.schema.hasTable("game_ai_tip_pack_purchases")) {
+    const q = db("game_ai_tip_pack_purchases").select("amount_usdc");
+    if (await db.schema.hasColumn("game_ai_tip_pack_purchases", "created_at")) {
+      q.where("created_at", ">", sinceIso);
+    }
+    const rows = await q;
+    for (const row of rows || []) {
+      const n = Number(row.amount_usdc);
+      if (Number.isFinite(n)) incrementalUsd += n;
+    }
+  }
+
+  return Math.round(incrementalUsd * 100) / 100;
+}
+
 /**
  * Record a single event (best-effort; does not throw).
  * @param {string} eventType - e.g. game_created, game_started, game_finished, error
@@ -1036,7 +1079,31 @@ export async function getMinipayStats(options = {}) {
 
   note = `${dataQuality.warning} ${note}`;
 
+  let incrementalUsd = 0;
+  try {
+    incrementalUsd = await sumStableInflowsAfter(ONCHAIN_REVENUE_BASELINE_AT);
+  } catch (revErr) {
+    logger.warn({ err: revErr }, "getMinipayStats incremental on-chain revenue failed");
+  }
+  const baselineUsd = Number.isFinite(ONCHAIN_REVENUE_BASELINE_USD) ? ONCHAIN_REVENUE_BASELINE_USD : 106;
+  const totalUsd = Math.round((baselineUsd + incrementalUsd) * 100) / 100;
+  const headline = {
+    users: users.registeredSinceCutoff || users.distinctHumanPlayers || users.distinctPlayers || 0,
+    transactions: transactions.total || 0,
+    gamesCreated: games.total || 0,
+    agents: agents.total || 0,
+    onchainRevenueUsd: totalUsd,
+    onchainRevenue: {
+      baselineUsd,
+      incrementalUsd,
+      totalUsd,
+      baselineAt: ONCHAIN_REVENUE_BASELINE_AT,
+      method: "baseline_plus_db_inflows_after",
+    },
+  };
+
   return {
+    headline,
     users,
     transactions,
     revenue,
