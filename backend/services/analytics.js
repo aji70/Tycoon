@@ -6,6 +6,7 @@
 
 import db from "../config/database.js";
 import logger from "../config/logger.js";
+import { getContractTxStats } from "./contractTxStats.js";
 
 /** Snapshot the user confirmed on 11 Sep 2026. New shop/tip inflows after this instant add on top. */
 const ONCHAIN_REVENUE_BASELINE_USD = Number(process.env.MINIPAY_ONCHAIN_REVENUE_BASELINE_USD || 106);
@@ -1087,9 +1088,18 @@ export async function getMinipayStats(options = {}) {
   }
   const baselineUsd = Number.isFinite(ONCHAIN_REVENUE_BASELINE_USD) ? ONCHAIN_REVENUE_BASELINE_USD : 106;
   const totalUsd = Math.round((baselineUsd + incrementalUsd) * 100) / 100;
+  let explorerTxns = null;
+  try {
+    const contractStats = await getContractTxStats({ period: "all" });
+    explorerTxns = Number(contractStats?.summary?.totalTxns ?? 0);
+    if (!Number.isFinite(explorerTxns)) explorerTxns = null;
+  } catch (txErr) {
+    logger.warn({ err: txErr }, "getMinipayStats contract tx stats failed");
+  }
+
   const headline = {
     users: users.registeredSinceCutoff || users.distinctHumanPlayers || users.distinctPlayers || 0,
-    transactions: transactions.total || 0,
+    transactions: explorerTxns ?? transactions.total ?? 0,
     gamesCreated: games.total || 0,
     agents: agents.total || 0,
     onchainRevenueUsd: totalUsd,
