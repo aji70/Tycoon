@@ -1127,26 +1127,17 @@ export async function getMinipayStats(options = {}) {
     logger.warn({ err: weekRevErr }, "getMinipayStats weekly on-chain revenue failed");
   }
 
-  if (hasMinipayCol && hasPlayers) {
-    try {
-      const hasUsersTable = await db.schema.hasTable("users");
-      const q = db("game_players as gp")
-        .join("games as g", "g.id", "gp.game_id")
-        .where("g.is_minipay", true)
-        .where("g.updated_at", ">=", startOfToday)
-        .whereNotNull("gp.user_id");
-      if (hasUsersTable) {
-        q.join("users as u", "u.id", "gp.user_id").where(function () {
-          this.whereNull("u.username").orWhere("u.username", "not like", "AI_%");
-        });
-      }
-      const activeRow = await q.countDistinct("gp.user_id as count").first();
+  try {
+    if (await db.schema.hasTable("users")) {
+      const activeRow = await db("users")
+        .where("updated_at", ">=", startOfToday)
+        .count("* as count")
+        .first();
       activeToday = Number(activeRow?.count ?? 0);
-    } catch (activeErr) {
-      logger.warn({ err: activeErr }, "getMinipayStats activeToday query failed");
     }
+  } catch (activeErr) {
+    logger.warn({ err: activeErr }, "getMinipayStats activePlayersToday query failed");
   }
-  if (!activeToday) activeToday = usersToday || games.createdToday || 0;
 
   const headline = {
     users: users.registeredSinceCutoff || users.distinctHumanPlayers || users.distinctPlayers || 0,

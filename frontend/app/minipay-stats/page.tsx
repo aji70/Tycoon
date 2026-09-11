@@ -249,11 +249,7 @@ export default function MinipayStatsPublicPage() {
       gamesCreated: data?.headline?.gamesCreated ?? data?.minipayGames?.total ?? 0,
       agents: data?.headline?.agents ?? data?.agents?.total ?? 0,
       onchainRevenueUsd: data?.headline?.onchainRevenueUsd ?? 106,
-      activeToday:
-        data?.headline?.activeToday ??
-        trends?.activeToday ??
-        data?.minipayGames?.createdToday ??
-        0,
+      activeToday: data?.headline?.activeToday ?? data?.headline?.trends?.activeToday ?? 0,
       trends,
     };
   }, [data]);
@@ -358,12 +354,7 @@ export default function MinipayStatsPublicPage() {
                 label="Active today"
                 rawValue={headline.activeToday ?? 0}
                 icon={Zap}
-                delta={
-                  <Delta
-                    value={trends?.gamesToday ?? data?.minipayGames?.createdToday ?? 0}
-                    suffix=" games today"
-                  />
-                }
+                delta={<span className="text-[11px] text-[#5d8589]">Accounts active today</span>}
               />
             </div>
           </div>
