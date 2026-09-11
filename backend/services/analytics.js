@@ -895,25 +895,48 @@ export async function getMinipayStats(options = {}) {
       "MiniPay users = human accounts registered on/after 27 Jun 2026 (almost all new growth is MiniPay). Game counts still use games.is_minipay (historically noisy for Celo main-app creates).",
   };
 
+  /** Daily human registrations + week/today deltas for the public MiniPay page. */
+  const usersOverTime = [];
+  let usersThisWeek = 0;
+  let usersToday = 0;
+  let activeToday = 0;
+
   // Primary MiniPay user metric: all human registrations since MiniPay cutover.
   try {
     const hasUsersTable = await db.schema.hasTable("users");
     if (hasUsersTable) {
-      const [sinceAll, sinceHumans] = await Promise.all([
+      const humanUsers = () =>
+        db("users").where(function () {
+          this.whereNull("username").orWhere("username", "not like", "AI_%");
+        });
+      const [sinceAll, sinceHumans, weekHumans, todayHumans, usersByDay] = await Promise.all([
         db("users").where("created_at", ">=", MINIPAY_USER_SINCE).count("* as count").first(),
-        db("users")
-          .where("created_at", ">=", MINIPAY_USER_SINCE)
-          .where(function () {
-            this.whereNull("username").orWhere("username", "not like", "AI_%");
-          })
-          .count("* as count")
-          .first(),
+        humanUsers().where("created_at", ">=", MINIPAY_USER_SINCE).count("* as count").first(),
+        humanUsers().where("created_at", ">=", startOfWeek).count("* as count").first(),
+        humanUsers().where("created_at", ">=", startOfToday).count("* as count").first(),
+        humanUsers()
+          .select(db.raw("DATE(created_at) as day"))
+          .where("created_at", ">=", startOfWeek)
+          .where("created_at", "<=", now)
+          .groupByRaw("DATE(created_at)")
+          .count("* as count"),
       ]);
       users.registeredSinceCutoffIncludingAi = Number(sinceAll?.count ?? 0);
       users.registeredSinceCutoff = Number(sinceHumans?.count ?? 0);
+      usersThisWeek = Number(weekHumans?.count ?? 0);
+      usersToday = Number(todayHumans?.count ?? 0);
       // Headline / backward-compat fields for the public page.
       users.distinctPlayers = users.registeredSinceCutoff;
       users.distinctHumanPlayers = users.registeredSinceCutoff;
+
+      const usersDayMap = Object.fromEntries(
+        (usersByDay || []).map((r) => [toIsoDateString(r.day), Number(r.count)])
+      );
+      for (let d = new Date(startOfWeek); d <= now; d = addUtcDays(d, 1)) {
+        const dateStr = toIsoDateString(d);
+        if (!dateStr) continue;
+        usersOverTime.push({ date: dateStr, count: usersDayMap[dateStr] ?? 0 });
+      }
     }
   } catch (regErr) {
     logger.warn({ err: regErr }, "getMinipayStats registered-since cutoff query failed");
@@ -1097,18 +1120,61 @@ export async function getMinipayStats(options = {}) {
     logger.warn({ err: txErr }, "getMinipayStats contract tx stats failed");
   }
 
+  let revenueThisWeekUsd = 0;
+  try {
+    revenueThisWeekUsd = await sumStableInflowsAfter(startOfWeek.toISOString());
+  } catch (weekRevErr) {
+    logger.warn({ err: weekRevErr }, "getMinipayStats weekly on-chain revenue failed");
+  }
+
+  if (hasMinipayCol && hasPlayers) {
+    try {
+      const hasUsersTable = await db.schema.hasTable("users");
+      const q = db("game_players as gp")
+        .join("games as g", "g.id", "gp.game_id")
+        .where("g.is_minipay", true)
+        .where("g.updated_at", ">=", startOfToday)
+        .whereNotNull("gp.user_id");
+      if (hasUsersTable) {
+        q.join("users as u", "u.id", "gp.user_id").where(function () {
+          this.whereNull("u.username").orWhere("u.username", "not like", "AI_%");
+        });
+      }
+      const activeRow = await q.countDistinct("gp.user_id as count").first();
+      activeToday = Number(activeRow?.count ?? 0);
+    } catch (activeErr) {
+      logger.warn({ err: activeErr }, "getMinipayStats activeToday query failed");
+    }
+  }
+  if (!activeToday) activeToday = usersToday || games.createdToday || 0;
+
   const headline = {
     users: users.registeredSinceCutoff || users.distinctHumanPlayers || users.distinctPlayers || 0,
     transactions: explorerTxns ?? transactions.total ?? 0,
     gamesCreated: games.total || 0,
     agents: agents.total || 0,
     onchainRevenueUsd: totalUsd,
+    activeToday,
     onchainRevenue: {
       baselineUsd,
       incrementalUsd,
       totalUsd,
       baselineAt: ONCHAIN_REVENUE_BASELINE_AT,
       method: "baseline_plus_db_inflows_after",
+    },
+    trends: {
+      usersThisWeek,
+      usersToday,
+      gamesThisWeek: games.createdThisWeek || 0,
+      gamesToday: games.createdToday || 0,
+      agentsThisWeek: agents.createdThisWeek || 0,
+      revenueThisWeekUsd,
+      transactionsThisWeek: games.createdThisWeek || 0,
+      activeToday,
+      series: {
+        users: usersOverTime,
+        games: (gamesOverTime || []).map((d) => ({ date: d.date, count: d.started ?? 0 })),
+      },
     },
   };
 
@@ -1120,6 +1186,7 @@ export async function getMinipayStats(options = {}) {
     dataQuality,
     minipayGames: games,
     gamesOverTime,
+    usersOverTime,
     agents,
     range: {
       start: toIsoDateString(rangeStart),
