@@ -14,6 +14,7 @@ const PUBLIC_PATHS = [
   "/rooms",
   "/leaderboard",
   "/stats",
+  "/minipay-stats",
   "/terms",
   "/privacy",
   "/cookies",
