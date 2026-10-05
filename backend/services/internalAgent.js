@@ -14,10 +14,16 @@ const REQUEST_TIMEOUT_MS = Number(process.env.INTERNAL_AGENT_TIMEOUT_MS) || 1500
 const MAX_RETRIES = 2;
 const CASH_RESERVE_MIN = 500;
 
+// SDK retries are disabled so MAX_RETRIES below is the only retry layer; the SDK timeout
+// aborts the HTTP request instead of leaving a billed call running in the background.
+function createClient(apiKey) {
+  return new Anthropic({ apiKey, maxRetries: 0, timeout: REQUEST_TIMEOUT_MS });
+}
+
 let client = null;
 function getClient() {
   if (!process.env.ANTHROPIC_API_KEY) return null;
-  if (!client) client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  if (!client) client = createClient(process.env.ANTHROPIC_API_KEY);
   return client;
 }
 
@@ -154,6 +160,18 @@ function buildTipPrompt(context) {
   return `Monopoly turn. Balance: $${myBalance}. Recommend buy or skip. One short tip, one sentence. Put the actual tip in reasoning. JSON only: {"action":"buy"|"skip","reasoning":"tip"}`;
 }
 
+/** Reason the AI must skip this property regardless of what the model says, or null. */
+function forcedPropertySkipReason(context) {
+  const price = Number((context.landedProperty || {}).price) || 0;
+  const balance = Number(context.myBalance) || 0;
+  const balanceAfter = balance - price;
+  if (price > balance || price <= 0) return "Can't afford it.";
+  if (balanceAfter < CASH_RESERVE_MIN && !context.landedProperty?.completesMonopoly) {
+    return `Keeping $${CASH_RESERVE_MIN} in reserve.`;
+  }
+  return null;
+}
+
 /**
  * Run Claude with the given client and return a decision. Shared by getDecision and getDecisionWithKey.
  * @param {object} [opts] - Optional { systemPrompt } (user's skill / behavior instructions).
@@ -162,6 +180,14 @@ async function runDecisionWithClient(anthropic, decisionType, context, opts = {}
   const { systemPrompt } = opts;
   let prompt;
   let fallback;
+
+  if (decisionType === "property") {
+    const skipReason = forcedPropertySkipReason(context);
+    if (skipReason) {
+      logger.debug({ decisionType, skipReason }, "Internal agent: forced skip without LLM call");
+      return { action: "skip", reasoning: skipReason, confidence: 100 };
+    }
+  }
 
   switch (decisionType) {
     case "property":
@@ -200,15 +226,11 @@ async function runDecisionWithClient(anthropic, decisionType, context, opts = {}
   let message;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const createPromise = anthropic.messages.create(createParams);
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Request timeout")), REQUEST_TIMEOUT_MS)
-      );
-      message = await Promise.race([createPromise, timeoutPromise]);
+      message = await anthropic.messages.create(createParams);
       break;
     } catch (err) {
       const msg = (err && err.message) || "";
-      const isRetryable = /timeout|rate|5\d\d|overloaded/i.test(msg);
+      const isRetryable = /timeout|timed out|rate|5\d\d|overloaded/i.test(msg);
       if (attempt < MAX_RETRIES && isRetryable) {
         logger.warn({ attempt, decisionType, err: msg }, "Internal agent retry");
         await new Promise((r) => setTimeout(r, 500 * attempt));
@@ -262,23 +284,6 @@ async function runDecisionWithClient(anthropic, decisionType, context, opts = {}
     out.counterOffer = { cashAdjustment: Number(parsed.counterOffer.cashAdjustment) || 0 };
   }
 
-  // Validate action is legal and enforce cash reserve
-  if (decisionType === "property" && out.action === "buy") {
-    const price = Number((context.landedProperty || {}).price) || 0;
-    const balance = Number(context.myBalance) || 0;
-    const balanceAfter = balance - price;
-    const completesMonopoly = !!context.landedProperty?.completesMonopoly;
-    if (price > balance || price <= 0) {
-      out.action = "skip";
-      out.reasoning = (out.reasoning || "") + " [Corrected: insufficient balance]";
-      logger.debug({ decisionType, price, balance }, "Internal agent: forced skip (can't afford)");
-    } else if (balanceAfter < CASH_RESERVE_MIN && !completesMonopoly) {
-      out.action = "skip";
-      out.reasoning = (out.reasoning || "") + ` [Corrected: reserve $${CASH_RESERVE_MIN} required; would have $${balanceAfter}]`;
-      logger.debug({ decisionType, balanceAfter, CASH_RESERVE_MIN }, "Internal agent: forced skip (reserve)");
-    }
-  }
-
   return out;
 }
 
@@ -315,8 +320,7 @@ async function getDecision(gameId, slot, decisionType, context, opts = {}) {
 async function getDecisionWithKey(apiKey, gameId, slot, decisionType, context, opts = {}) {
   if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) return null;
   try {
-    const client = new Anthropic({ apiKey: apiKey.trim() });
-    return await runDecisionWithClient(client, decisionType, context, opts);
+    return await runDecisionWithClient(createClient(apiKey.trim()), decisionType, context, opts);
   } catch (err) {
     logger.warn({ gameId, slot, decisionType, err: err?.message }, "Internal agent (user key) failed");
     return null;

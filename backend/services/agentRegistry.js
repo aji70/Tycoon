@@ -195,6 +195,30 @@ async function withSlotLock(gameId, slot, fn) {
   }
 }
 
+/** ai_difficulty for this seat ("easy" | "hard" | "boss"), honoring per-slot random mode. */
+async function resolveAiDifficulty(game, slot) {
+  const gs = await GameSetting.findByGameId(Number(game.id));
+  let diff = (gs?.ai_difficulty || "easy").toLowerCase();
+  if (gs?.ai_difficulty_mode === "random" && gs?.ai_difficulty_per_slot && typeof gs.ai_difficulty_per_slot === "object") {
+    const slotDiff = gs.ai_difficulty_per_slot[String(slot)];
+    if (["easy", "hard", "boss"].includes(String(slotDiff).toLowerCase())) {
+      diff = String(slotDiff).toLowerCase();
+    }
+  }
+  return diff;
+}
+
+/**
+ * For human-vs-AI games returns { difficulty }; null for agent battles and non-AI games,
+ * which are not subject to difficulty routing.
+ */
+async function resolveHumanVsAiDifficulty(gameId, slot) {
+  const game = await Game.findById(Number(gameId));
+  if (!game?.is_ai) return null;
+  if (String(game.game_type || "").toUpperCase().includes("AGENT")) return null;
+  return { difficulty: await resolveAiDifficulty(game, slot) };
+}
+
 /**
  * Ask the agent for a decision. Returns decision object or null (use built-in logic).
  * Serialized per (gameId, slot) to avoid races.
@@ -283,6 +307,12 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
   // Backend internal agent (useInternalAgent) — uses ANTHROPIC_API_KEY, no external process
   if (agent?.callbackUrl === INTERNAL_AGENT_URL) {
     try {
+      // Global slots (TYCOON_INTERNAL_AGENT_SLOTS) apply to every game, so they must respect the
+      // same difficulty routing as the default path below; per-game bindings are explicit opt-ins.
+      if (agent.gameId == null) {
+        const gate = await resolveHumanVsAiDifficulty(gameId, slot);
+        if (gate && gate.difficulty !== "boss") return null;
+      }
       const decision = await internalAgent.getDecision(
         Number(gameId),
         Number(slot),
@@ -357,39 +387,28 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
       const game = await Game.findById(Number(gameId));
       const useInternal = game && game.is_ai && decisionType !== "tip";
       if (useInternal) {
-        const gs = game?.is_ai ? await GameSetting.findByGameId(Number(gameId)) : null;
-        let diff = (gs?.ai_difficulty || "easy").toLowerCase();
-        if (gs?.ai_difficulty_mode === "random" && gs?.ai_difficulty_per_slot && typeof gs.ai_difficulty_per_slot === "object") {
-          const slotDiff = gs.ai_difficulty_per_slot[String(slot)];
-          if (["easy", "hard", "boss"].includes(String(slotDiff).toLowerCase())) {
-            diff = String(slotDiff).toLowerCase();
-          }
-        }
+        const diff = await resolveAiDifficulty(game, slot);
         // Gameplay LLM only on boss; tips never use Claude (route returns built-in fallback).
-        if (game.is_ai && diff !== "boss") {
+        if (diff !== "boss") {
           logger.debug(
             { gameId, slot, decisionType, ai_difficulty: diff },
             diff === "hard" ? "Hard: using stricter built-in rules" : "Easy: using built-in rules"
           );
           return null;
         }
-        for (let attempt = 1; attempt <= 2; attempt++) {
-          const decision = await internalAgent.getDecision(
-            Number(gameId),
-            Number(slot),
-            decisionType,
-            context || {}
+        // internalAgent.getDecision already retries transient errors; don't stack another loop on top.
+        const decision = await internalAgent.getDecision(
+          Number(gameId),
+          Number(slot),
+          decisionType,
+          context || {}
+        );
+        if (decision) {
+          logger.info(
+            { gameId, slot, decisionType, action: decision.action, source: "internal", difficulty: diff },
+            "AI decision (Tycoon Agent / Claude)"
           );
-          if (decision) {
-            logger.info(
-              { gameId, slot, decisionType, action: decision.action, source: "internal", attempt, difficulty: diff },
-              "AI decision (Tycoon Agent / Claude)"
-            );
-            return decision;
-          }
-          if (attempt === 1) {
-            logger.debug({ gameId, slot, decisionType, attempt }, "Internal agent returned null, retrying");
-          }
+          return decision;
         }
       }
     } catch (err) {
