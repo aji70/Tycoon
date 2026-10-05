@@ -295,7 +295,9 @@ app.get("/health", async (req, res) => {
     health.status = "DEGRADED";
   }
 
-  if (redis.isReady) {
+  if (process.env.SKIP_REDIS === "true") {
+    health.redis = "disabled";
+  } else if (redis.isReady) {
     health.redis = "up";
   } else {
     health.redis = "down";
