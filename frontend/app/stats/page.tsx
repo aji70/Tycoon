@@ -27,23 +27,11 @@ type PublicStatsData = {
     uniquePlayers: number;
     gamesPerPlayer: number;
     mostActivePlayer: MostActivePlayer | null;
-    perkShopRevenueUsdt: number | null;
-    perkShopRevenueTotalStableUsd?: number | null;
-    perkShopTreasuryBalanceUsdt?: number | null;
-    perkShopRevenueMethod?: string | null;
   };
 };
 
 function periodLabel(period: Period) {
   return period === "all" ? "All time" : `Last ${period}`;
-}
-
-function formatUsd(value: number | null | undefined) {
-  if (value == null || !Number.isFinite(value)) return "—";
-  return `$${value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
 }
 
 type StatCard = {
@@ -74,15 +62,6 @@ function buildStatCards(data: PublicStatsData): StatCard[] {
   });
 
   if (e) {
-    cards.push({
-      key: "perkRevenue",
-      label: "Perk shop revenue",
-      value: formatUsd(e.perkShopRevenueTotalStableUsd ?? e.perkShopRevenueUsdt),
-      sub:
-        e.perkShopTreasuryBalanceUsdt != null
-          ? `Recorded purchases · treasury left ${formatUsd(e.perkShopTreasuryBalanceUsdt)}`
-          : "Recorded tip/soft-perk purchases (not chain log scan)",
-    });
     cards.push({
       key: "gamesPerPlayer",
       label: "Games per player",
