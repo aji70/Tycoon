@@ -25,7 +25,7 @@ import gameController, {
   getAgentBindings,
 } from "../controllers/gameController.js";
 import { placeBid } from "../controllers/auctionController.js";
-import { requireAuth, optionalAuth, requireAuthOrAddress } from "../middleware/auth.js";
+import { requireAuth, optionalAuth, requireAuthOrAddress, requireAuthOrWallet } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -75,8 +75,8 @@ router.post("/:id/accept-agent-seat", requireAuth, acceptAgentSeat);
 router.post("/:id/start-onchain-agent-vs-agent", requireAuth, startOnchainAgentVsAgent);
 router.post("/:id/register-opponent-agent", requireAuth, registerOpponentAgent);
 router.get("/:id/agent-bindings", getAgentBindings);
-router.post("/:id/use-my-agent", requireAuth, useMyAgent);
-router.post("/:id/stop-using-my-agent", requireAuth, stopUsingMyAgent);
+router.post("/:id/use-my-agent", requireAuthOrWallet, useMyAgent);
+router.post("/:id/stop-using-my-agent", requireAuthOrWallet, stopUsingMyAgent);
 
 router.post("/auction/bid", placeBid);
 

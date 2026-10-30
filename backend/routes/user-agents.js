@@ -1,10 +1,10 @@
 /**
  * Routes for user-created agents (My agents — create, list, update, delete).
- * All routes require authentication. See docs/USER_AGENT_CREATION_SPEC.md.
+ * Auth: JWT or wallet address (MiniPay). See docs/USER_AGENT_CREATION_SPEC.md.
  */
 
 import express from "express";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuthOrWallet } from "../middleware/auth.js";
 import UserAgent from "../models/UserAgent.js";
 import User from "../models/User.js";
 import * as eloService from "../services/eloService.js";
@@ -107,7 +107,8 @@ router.get("/:id/erc8004-registration", async (req, res) => {
   }
 });
 
-router.use(requireAuth);
+// MiniPay often has an injected wallet without a JWT — same pattern as daily-claim / gooddollar.
+router.use(requireAuthOrWallet);
 
 /** Get current user's hosted agent credits (balance + daily free tier). */
 router.get("/hosted-credits", hostedAgentCreditsController.getCredits);
