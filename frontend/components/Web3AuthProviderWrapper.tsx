@@ -57,14 +57,14 @@ const web3AuthOptions: Web3AuthOptions = {
   enableLogging: false,
   chains: [celoChain],
   defaultChainId: CELO_CHAIN_ID,
-  // Popup OTP often shows "success" then never returns the session to the opener.
-  // Redirect completes login on the same tab so backend sync can run.
-  uxMode: UX_MODE.REDIRECT,
   uiConfig: {
     appName: 'Tycoon',
     mode: 'dark',
     loginGridCol: 2,
     primaryButton: 'emailLogin',
+    // Popup OTP often shows "success" then never returns the session to the opener.
+    // authConnector reads uxMode from uiConfig only (not the root), so it must live here.
+    uxMode: UX_MODE.REDIRECT,
   },
 };
 
