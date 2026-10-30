@@ -1109,16 +1109,12 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
 }
 
 /**
- * Human plays seat 1 on-chain; opponent agent auto-plays seat 2. Optional equal USDC stake from both smart wallets.
- *
- * @param {number} userId - Logged-in user (human challenger)
- * @param {number} opponentAgentId - Another user's agent
- * @param {number} [stakeAmountUsdc]
- * @param {{ chain?: string }} [options] - chain overrides user.chain (MiniPay sends CELO)
+ * You vs Agent: human already signed createGame (2 seats). Backend only joins the opponent agent.
+ * @param {{ code: string, contract_game_id: string|number, chain?: string }} options
  */
-export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId, stakeAmountUsdc, options = {}) {
-  const { createGameByBackend, joinGameByBackend } = await import("./tycoonContract.js");
-  const { ensureUserHasContractAuthResult } = await import("../utils/ensureContractAuth.js");
+export async function finalizeUserCreatedHumanVsAgentArenaGame(userId, opponentAgentId, options = {}) {
+  const { joinGameByBackend } = await import("./tycoonContract.js");
+  const { readExistingContractAuthResult } = await import("../utils/ensureContractAuth.js");
   const { getChainConfig } = await import("../config/chains.js");
   const agentRegistry = (await import("./agentRegistry.js")).default;
   const User = (await import("../models/User.js")).default;
@@ -1129,9 +1125,17 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
 
   const uid = Number(userId);
   const oid = Number(opponentAgentId);
+  const code = String(options?.code || "").trim();
+  const contractGameId = String(options?.contract_game_id || "").trim();
   if (!uid || !oid) throw new Error("Invalid user or opponent agent");
+  if (!code || !contractGameId) {
+    throw new Error("code and contract_game_id required (create the game from your wallet first)");
+  }
 
   try {
+    const existingGame = await Game.findByCode(code);
+    if (existingGame) throw new Error("That game code is already in the database");
+
     const opponentAgent = await db("user_agents").where("id", oid).first();
     if (!opponentAgent) throw new Error("Opponent agent not found");
     if (Number(opponentAgent.user_id) === uid) {
@@ -1155,202 +1159,22 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
       if (uc !== chain) throw new Error(`Opponent must be on the same chain as you (${chain}).`);
     }
 
-    const stakeNum = stakeAmountUsdc != null ? Number(stakeAmountUsdc) : 0;
-    const stakeUnits = stakeNum > 0 ? BigInt(Math.floor(stakeNum * 1e6)) : 0n;
-
-    if (stakeUnits > 0n) {
-      const perm = await db("agent_tournament_permissions").where({ user_agent_id: opponentAgent.id }).first();
-      if (!perm?.enabled) {
-        throw new Error(
-          `Opponent agent "${opponentAgent.name}" has not enabled tournament spending. They must approve in My agents → Tournaments.`
-        );
-      }
-      if (perm.chain && User.normalizeChain(perm.chain) !== chain) {
-        throw new Error(`That agent is restricted to chain ${perm.chain}; your match uses ${chain}.`);
-      }
-      const maxUnits = BigInt(perm.max_entry_fee_usdc ?? "0");
-      if (stakeUnits > maxUnits) {
-        throw new Error(
-          `Stake $${stakeNum} exceeds opponent max per match ($${(Number(maxUnits) / 1e6).toFixed(2)}).`
-        );
-      }
-      if (perm.daily_cap_usdc) {
-        const cap = BigInt(perm.daily_cap_usdc);
-        const start = new Date();
-        start.setHours(0, 0, 0, 0);
-        const rows = await db("agent_tournament_spend_log")
-          .where({ user_id: opponentOwner.id, user_agent_id: opponentAgent.id })
-          .andWhere("created_at", ">=", start)
-          .andWhere({ chain })
-          .select("amount_usdc");
-        let spent = 0n;
-        for (const r of rows || []) {
-          try {
-            spent += BigInt(r.amount_usdc ?? "0");
-          } catch {}
-        }
-        if (spent + stakeUnits > cap) {
-          throw new Error("Opponent would exceed their daily spend cap with this stake.");
-        }
-      }
-    }
+    const n = 2;
+    const DEFAULT_STARTING_CASH = 1500;
+    const symbols = ARENA_ONCHAIN_SLOT_SYMBOLS.slice(0, n);
 
     const auths = [];
     const authFailures = [];
-    for (const u of [humanUser, opponentOwner]) {
-      const r = await ensureUserHasContractAuthResult(db, u.id, chain, getOnchainAddressForGuestFlow(u));
+    for (const [i, u] of [humanUser, opponentOwner].entries()) {
+      const r = await readExistingContractAuthResult(db, u.id, chain, getOnchainAddressForGuestFlow(u));
       if (!r.ok) {
-        const label = u.id === humanUser.id ? "You" : `Opponent owner (${opponentAgent.name || "agent"})`;
+        const label = i === 0 ? "You" : `Opponent owner (${opponentAgent.name || "agent"})`;
         authFailures.push(`${label}: ${r.reason}`);
       } else {
         auths.push({ address: r.address, username: r.username, password_hash: r.password_hash });
       }
     }
-    if (authFailures.length) {
-      throw new Error(authFailures.join("; "));
-    }
-
-    let arenaStakeTournamentId = null;
-    let arenaStakeMatchId = null;
-
-    if (stakeUnits > 0n) {
-      const Tournament = (await import("../models/Tournament.js")).default;
-      const TournamentEntry = (await import("../models/TournamentEntry.js")).default;
-      const TournamentMatch = (await import("../models/TournamentMatch.js")).default;
-      const { createTournamentOnChain } = await import("./tournamentEscrow.js");
-      const { payTournamentEscrowEntryFromSmartWallet } = await import("./tycoonContract.js");
-
-      const cfg = getChainConfig(chain);
-      const escrow = cfg.tournamentEscrowAddress;
-      const usdc = cfg.usdcAddress ?? process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
-      if (!escrow || !usdc) {
-        const d = getStakedMatchEscrowDiagnostics(chain);
-        throw new Error(
-          `Staked arena on ${d.chain}: configure ${d.missing.join(" · ")}. ` +
-            `Deploy TycoonTournamentEscrow for this chain and call setBackend(your game-controller address). ` +
-            `See backend/.env.example (TycoonTournamentEscrow + USDC).`
-        );
-      }
-
-      const oppName = opponentAgent.name || "opponent agent";
-      await assertSmartWalletsFundedForEqualStake(
-        [humanUser, opponentOwner],
-        stakeUnits,
-        chain,
-        ["Your smart wallet", `Opponent wallet (${oppName})`]
-      );
-
-      const tournament = await Tournament.create({
-        creator_id: humanUser.id,
-        name: "Arena stake (human vs agent)",
-        status: "IN_PROGRESS",
-        prize_source: "ENTRY_FEE_POOL",
-        max_players: 2,
-        min_players: 2,
-        entry_fee_wei: String(stakeUnits),
-        chain,
-        prize_distribution: { 1: 95 },
-      });
-      arenaStakeTournamentId = tournament.id;
-
-      await createTournamentOnChain(tournament.id, stakeUnits, auths[0].address, chain);
-
-      const entries = [];
-
-      for (let i = 0; i < 2; i++) {
-        const u = i === 0 ? humanUser : opponentOwner;
-        const smartWallet = u.smart_wallet_address && String(u.smart_wallet_address).trim();
-        if (!smartWallet) {
-          throw new Error(
-            i === 0
-              ? "You need a smart wallet (Profile) to stake from your account."
-              : "Opponent has no smart wallet; they cannot stake this match."
-          );
-        }
-        const receipt = await payTournamentEscrowEntryFromSmartWallet(
-          smartWallet,
-          escrow,
-          tournament.id,
-          stakeUnits,
-          chain
-        );
-        const paymentTxHash = receipt?.hash ?? null;
-
-        await db("agent_tournament_spend_log").insert({
-          user_id: u.id,
-          user_agent_id: i === 0 ? null : opponentAgent.id,
-          tournament_id: tournament.id,
-          chain,
-          amount_usdc: stakeUnits.toString(),
-          tx_hash: paymentTxHash,
-          status: paymentTxHash ? "SUBMITTED" : "FAILED",
-          error: paymentTxHash ? null : "No tx hash returned",
-          created_at: db.fn.now(),
-          updated_at: db.fn.now(),
-        });
-
-        const entry = await TournamentEntry.create({
-          tournament_id: tournament.id,
-          user_id: u.id,
-          address: u.address || auths[i].address,
-          chain: u.chain || chain,
-          seed_order: i + 1,
-          payment_tx_hash: paymentTxHash,
-          status: "CONFIRMED",
-        });
-        entries.push(entry);
-
-        if (i === 1) {
-          await db("tournament_entry_agents").insert({
-            tournament_entry_id: entry.id,
-            user_agent_id: opponentAgent.id,
-            agent_name: opponentAgent.name || null,
-            created_at: db.fn.now(),
-            updated_at: db.fn.now(),
-          });
-        }
-      }
-
-      const tMatch = await TournamentMatch.create({
-        tournament_id: tournament.id,
-        round_index: 0,
-        match_index: 0,
-        slot_a_type: "ENTRY",
-        slot_a_entry_id: entries[0].id,
-        slot_b_type: "ENTRY",
-        slot_b_entry_id: entries[1].id,
-        game_id: null,
-        status: "PENDING",
-      });
-      arenaStakeMatchId = tMatch.id;
-    }
-
-    let code = generateArenaJoinCode6();
-    for (let attempt = 0; attempt < 24; attempt++) {
-      const exists = await Game.findByCode(code);
-      if (!exists) break;
-      code = generateArenaJoinCode6();
-    }
-
-    const n = 2;
-    const DEFAULT_STARTING_CASH = 1500;
-    const symbols = ARENA_ONCHAIN_SLOT_SYMBOLS.slice(0, n);
-
-    const createResult = await createGameByBackend(
-      auths[0].address,
-      auths[0].password_hash,
-      auths[0].username,
-      "PRIVATE",
-      symbols[0],
-      n,
-      code,
-      DEFAULT_STARTING_CASH,
-      0n,
-      chain
-    );
-
-    const contractGameId = createResult?.gameId;
-    if (!contractGameId) throw new Error("Contract did not return game ID");
+    if (authFailures.length) throw new Error(authFailures.join("; "));
 
     await joinGameByBackend(
       auths[1].address,
@@ -1369,7 +1193,7 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
       next_player_id: humanUser.id,
       number_of_players: n,
       status: "RUNNING",
-      is_minipay: false,
+      is_minipay: true,
       is_ai: false,
       duration: "30",
       chain,
@@ -1377,26 +1201,6 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
       game_type: "ONCHAIN_HUMAN_VS_AGENT",
       started_at: db.fn.now(),
     });
-
-    if (arenaStakeTournamentId != null && arenaStakeMatchId != null) {
-      await db("tournament_matches").where("id", arenaStakeMatchId).update({
-        game_id: game.id,
-        contract_game_id: String(contractGameId),
-        status: "IN_PROGRESS",
-        updated_at: db.fn.now(),
-      });
-      await db("arena_match_stakes").insert({
-        game_id: game.id,
-        tournament_id: arenaStakeTournamentId,
-        stake_amount_usdc: String(stakeNum),
-        chain,
-        status: "COLLECTED",
-        collected_at: db.fn.now(),
-        created_at: db.fn.now(),
-        updated_at: db.fn.now(),
-      });
-      await lockEscrowWhenArenaGameStarts(arenaStakeTournamentId, chain);
-    }
 
     const rosterUsers = [humanUser, opponentOwner];
     for (let i = 0; i < n; i++) {
@@ -1447,7 +1251,33 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
       boardType: "3d_desktop",
     };
   } catch (err) {
-    logger.error({ err: err?.message, userId, opponentAgentId }, "createHumanVsAgentOnchainArenaGame failed");
+    logger.error(
+      { err: err?.message, userId, opponentAgentId, contractGameId },
+      "finalizeUserCreatedHumanVsAgentArenaGame failed"
+    );
     throw err;
   }
+}
+
+/**
+ * Human plays seat 1 on-chain; opponent agent auto-plays seat 2. Optional equal USDC stake from both smart wallets.
+ *
+ * @param {number} userId - Logged-in user (human challenger)
+ * @param {number} opponentAgentId - Another user's agent
+ * @param {number} [stakeAmountUsdc]
+ * @param {{ chain?: string, code?: string, contract_game_id?: string }} [options]
+ */
+export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId, stakeAmountUsdc, options = {}) {
+  if (options?.contract_game_id && options?.code) {
+    const stakeNum = stakeAmountUsdc != null ? Number(stakeAmountUsdc) : 0;
+    if (stakeNum > 0) {
+      throw new Error("You vs Agent stakes are paused. Start a Free match (you sign createGame).");
+    }
+    return finalizeUserCreatedHumanVsAgentArenaGame(userId, opponentAgentId, options);
+  }
+
+  throw new Error(
+    "You vs Agent: create the lobby from your wallet (sign createGame), then the server joins the opponent agent."
+  );
+
 }

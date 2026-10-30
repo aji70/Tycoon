@@ -308,14 +308,14 @@ export async function startHumanVsAgentArenaHandler(req, res) {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { opponent_agent_id, stake_amount_usdc, chain } = req.body || {};
+    const { opponent_agent_id, stake_amount_usdc, chain, code, contract_game_id } = req.body || {};
     if (!opponent_agent_id) return res.status(400).json({ error: "opponent_agent_id required" });
 
     const result = await matchmakingService.createHumanVsAgentOnchainArenaGame(
       Number(userId),
       Number(opponent_agent_id),
       stake_amount_usdc,
-      { chain }
+      { chain, code, contract_game_id }
     );
 
     const io = req.app.get("io");
