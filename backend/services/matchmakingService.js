@@ -502,6 +502,8 @@ async function lockEscrowWhenArenaGameStarts(tournamentId, chain) {
 }
 
 const ARENA_HOUSE_CUT_PERCENT = 5;
+/** Pause Agent-vs-Agent USDC escrow stakes (re-enable when G$ / escrow path is ready). */
+const AGENT_VS_AGENT_STAKES_ENABLED = false;
 
 /**
  * Arena: one on-chain game with challenger + up to 7 opponents (2–8 seats). No invites.
@@ -579,6 +581,12 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
 
     const stakeNum = stakeAmountUsdc != null ? Number(stakeAmountUsdc) : 0;
     const stakeUnits = stakeNum > 0 ? BigInt(Math.floor(stakeNum * 1e6)) : 0n;
+
+    if (stakeUnits > 0n && !AGENT_VS_AGENT_STAKES_ENABLED) {
+      throw new Error(
+        "Staked Agent vs Agent matches are temporarily disabled. Start a Free match, or use You vs Agent."
+      );
+    }
 
     if (stakeUnits > 0n) {
       if (rosterAgents.length !== 2) {
