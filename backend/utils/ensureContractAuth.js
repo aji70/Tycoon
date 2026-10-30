@@ -164,6 +164,95 @@ function privyPlaceholderAddress(privyDid) {
 }
 
 /**
+ * Read-only contract auth: no register / setBackendPassword / sync txs (saves controller CELO).
+ * Use when the player must already be on-chain with a backend password (e.g. arena opponent joins).
+ *
+ * @returns {Promise<
+ *   | { ok: true, address: string, username: string, password_hash: string }
+ *   | { ok: false, reason: string, userId: number, chain?: string }
+ * >}
+ */
+export async function readExistingContractAuthResult(db, userId, chain = "CELO", addressOverride = null) {
+  const uid = Number(userId);
+  if (!uid) {
+    return { ok: false, reason: "Invalid user id for contract auth.", userId: uid };
+  }
+
+  const user = await db("users")
+    .where({ id: uid })
+    .select("address", "linked_wallet_address", "username", "password_hash", "privy_did", "web3auth_id", "smart_wallet_address")
+    .first();
+
+  if (!user) {
+    return { ok: false, reason: "User record not found.", userId: uid };
+  }
+
+  let effectiveAddress = null;
+  const ov = addressOverride != null ? String(addressOverride).trim() : "";
+  if (isValidEthAddress(ov)) effectiveAddress = ov;
+  else if (isValidEthAddress(user?.linked_wallet_address)) effectiveAddress = String(user.linked_wallet_address).trim();
+  else if (isValidEthAddress(user?.smart_wallet_address)) effectiveAddress = String(user.smart_wallet_address).trim();
+  else if (isValidEthAddress(user?.address)) effectiveAddress = String(user.address).trim();
+  else if (user?.web3auth_id) effectiveAddress = privyPlaceholderAddress(user.web3auth_id);
+  else if (user?.privy_did) effectiveAddress = privyPlaceholderAddress(user.privy_did);
+
+  if (!effectiveAddress) {
+    return {
+      ok: false,
+      reason: "No wallet address on this account.",
+      userId: uid,
+    };
+  }
+
+  const normalizedChain = User.normalizeChain(chain);
+  if (!isContractConfigured(normalizedChain)) {
+    return {
+      ok: false,
+      reason: `No game contract configured for ${normalizedChain}.`,
+      userId: uid,
+      chain: normalizedChain,
+    };
+  }
+
+  if (!user?.password_hash) {
+    return {
+      ok: false,
+      reason: `Player needs a backend password on-chain first (no controller gas to set it). They should play a free Challenge AI once or register via Home.`,
+      userId: uid,
+      chain: normalizedChain,
+    };
+  }
+
+  try {
+    const isRegistered = await callContractRead("registered", [effectiveAddress], normalizedChain);
+    if (!isRegistered) {
+      return {
+        ok: false,
+        reason: `Wallet ${String(effectiveAddress).slice(0, 10)}… is not registered on ${normalizedChain}.`,
+        userId: uid,
+        chain: normalizedChain,
+      };
+    }
+    const onChain = await readOnChainUsername(effectiveAddress, normalizedChain);
+    const usernameForGames = onChain || user?.username || effectiveAddress.slice(0, 10);
+    return {
+      ok: true,
+      address: effectiveAddress,
+      username: usernameForGames,
+      password_hash: user.password_hash,
+    };
+  } catch (err) {
+    const detail = err?.reason || err?.message || String(err);
+    return {
+      ok: false,
+      reason: `Could not read on-chain auth (${String(detail).slice(0, 120)})`,
+      userId: uid,
+      chain: normalizedChain,
+    };
+  }
+}
+
+/**
  * Same as ensureUserHasContractPassword but returns why it failed (for API / matchmaking errors).
  *
  * @returns {Promise<

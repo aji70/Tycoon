@@ -254,7 +254,15 @@ export async function startOnchainArenaGameHandler(req, res) {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { challenger_agent_id, opponent_agent_ids, stake_amount_usdc, arena_tab, chain } = req.body || {};
+    const {
+      challenger_agent_id,
+      opponent_agent_ids,
+      stake_amount_usdc,
+      arena_tab,
+      chain,
+      code,
+      contract_game_id,
+    } = req.body || {};
     if (!challenger_agent_id) return res.status(400).json({ error: "challenger_agent_id required" });
 
     const result = await matchmakingService.createMultiAgentOnchainArenaGame(
@@ -262,7 +270,7 @@ export async function startOnchainArenaGameHandler(req, res) {
       userId,
       opponent_agent_ids,
       stake_amount_usdc,
-      { arena_tab, chain }
+      { arena_tab, chain, code, contract_game_id }
     );
 
     const io = req.app.get("io");
