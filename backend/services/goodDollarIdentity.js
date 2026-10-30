@@ -142,3 +142,28 @@ export async function isUserGoodDollarVerified(user) {
   const detail = await getUserGoodDollarVerificationDetail(user);
   return detail.verified;
 }
+
+/** MiniPay clients may send boolean or string; accept common truthy forms. */
+export function isMiniPayRequestFlag(value) {
+  return value === true || value === "true" || value === 1 || value === "1";
+}
+
+/**
+ * Server-enforced G$ Identity gate for MiniPay play actions (create game, Arena, etc.).
+ * Returns a Response if blocked; null if the request may continue.
+ * @param {import("express").Response} res
+ * @param {object} user
+ * @param {unknown} is_minipay
+ */
+export async function rejectUnverifiedMiniPayGoodDollar(res, user, is_minipay) {
+  if (process.env.GD_REQUIRE_FOR_MINIPAY_ACTIONS !== "true") return null;
+  if (!isMiniPayRequestFlag(is_minipay)) return null;
+  const verified = await isUserGoodDollarVerified(user);
+  if (verified) return null;
+  return res.status(403).json({
+    success: false,
+    code: "GOODID_REQUIRED",
+    message: "Verify your humanity with GoodDollar to play on MiniPay.",
+    verifyUrl: "https://goodid.gooddollar.org/",
+  });
+}

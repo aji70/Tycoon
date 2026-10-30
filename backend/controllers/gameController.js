@@ -35,29 +35,7 @@ import {
 } from "../services/starknetContract.js";
 import { ensureUserHasContractPassword, ensureGuestContractPlayReady } from "../utils/ensureContractAuth.js";
 import { onGameFinished as tournamentOnGameFinished } from "../services/tournamentService.js";
-import { isUserGoodDollarVerified } from "../services/goodDollarIdentity.js";
-
-/** MiniPay clients may send boolean or string; accept common truthy forms. */
-function isMiniPayRequestFlag(value) {
-  return value === true || value === "true" || value === 1 || value === "1";
-}
-
-/**
- * Server-enforced G$ Identity gate for MiniPay core create flows.
- * Returns a Response if blocked; null if the request may continue.
- */
-async function rejectUnverifiedMiniPayGoodDollar(res, user, is_minipay) {
-  if (process.env.GD_REQUIRE_FOR_MINIPAY_ACTIONS !== "true") return null;
-  if (!isMiniPayRequestFlag(is_minipay)) return null;
-  const verified = await isUserGoodDollarVerified(user);
-  if (verified) return null;
-  return res.status(403).json({
-    success: false,
-    code: "GOODID_REQUIRED",
-    message: "Verify your humanity with GoodDollar to play on MiniPay.",
-    verifyUrl: "https://goodid.gooddollar.org/",
-  });
-}
+import { rejectUnverifiedMiniPayGoodDollar } from "../services/goodDollarIdentity.js";
 import {
   augmentNetWorthsWithEliminatedTournamentSeats,
   computeNetWorthResultForGameId,

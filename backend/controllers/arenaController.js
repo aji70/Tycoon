@@ -12,6 +12,25 @@ import * as arenaAgentService from "../services/arenaAgentService.js";
 import { createTwoPlayerAgentArenaGame } from "../services/agentArenaGameFactory.js";
 import { emitGameUpdate } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";
+import { rejectUnverifiedMiniPayGoodDollar } from "../services/goodDollarIdentity.js";
+
+/** Resolve user row for G$ gate (requireAuth already set req.user when JWT present). */
+async function arenaUserForGate(req) {
+  if (req.user) return req.user;
+  if (!req.userId) return null;
+  return db("users").where("id", req.userId).first();
+}
+
+/**
+ * Gate Arena match-start endpoints the same way Challenge AI / POST /games are gated.
+ * @returns {Promise<import("express").Response|null>}
+ */
+async function rejectArenaIfUnverifiedGoodDollar(req, res) {
+  const user = await arenaUserForGate(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  const is_minipay = req.body?.is_minipay;
+  return rejectUnverifiedMiniPayGoodDollar(res, user, is_minipay);
+}
 
 function enrichArenaAgent(agent) {
   return eloService.enrichAgentForArenaUi(agent);
@@ -254,6 +273,11 @@ export async function startOnchainArenaGameHandler(req, res) {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
+    {
+      const blocked = await rejectArenaIfUnverifiedGoodDollar(req, res);
+      if (blocked) return blocked;
+    }
+
     const {
       challenger_agent_id,
       opponent_agent_ids,
@@ -308,6 +332,11 @@ export async function startHumanVsAgentArenaHandler(req, res) {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
+    {
+      const blocked = await rejectArenaIfUnverifiedGoodDollar(req, res);
+      if (blocked) return blocked;
+    }
+
     const { opponent_agent_id, stake_amount_usdc, chain, code, contract_game_id } = req.body || {};
     if (!opponent_agent_id) return res.status(400).json({ error: "opponent_agent_id required" });
 
@@ -351,6 +380,11 @@ export async function createPendingChallengeBatchHandler(req, res) {
   try {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    {
+      const blocked = await rejectArenaIfUnverifiedGoodDollar(req, res);
+      if (blocked) return blocked;
+    }
 
     const { challenger_agent_id, opponent_agent_ids } = req.body || {};
     if (!challenger_agent_id) return res.status(400).json({ error: "challenger_agent_id required" });
@@ -414,6 +448,12 @@ export async function acceptPendingChallengeHandler(req, res) {
   try {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    {
+      const blocked = await rejectArenaIfUnverifiedGoodDollar(req, res);
+      if (blocked) return blocked;
+    }
+
     const challengeId = Number(req.params.id);
     if (!challengeId) return res.status(400).json({ error: "Invalid challenge id" });
 
@@ -641,6 +681,11 @@ export async function startChallenge(req, res) {
   try {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    {
+      const blocked = await rejectArenaIfUnverifiedGoodDollar(req, res);
+      if (blocked) return blocked;
+    }
 
     const { user_agent_id } = req.body;
     const { opponentAgentId } = req.params;
