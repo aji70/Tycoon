@@ -36,6 +36,28 @@ import {
 import { ensureUserHasContractPassword, ensureGuestContractPlayReady } from "../utils/ensureContractAuth.js";
 import { onGameFinished as tournamentOnGameFinished } from "../services/tournamentService.js";
 import { isUserGoodDollarVerified } from "../services/goodDollarIdentity.js";
+
+/** MiniPay clients may send boolean or string; accept common truthy forms. */
+function isMiniPayRequestFlag(value) {
+  return value === true || value === "true" || value === 1 || value === "1";
+}
+
+/**
+ * Server-enforced G$ Identity gate for MiniPay core create flows.
+ * Returns a Response if blocked; null if the request may continue.
+ */
+async function rejectUnverifiedMiniPayGoodDollar(res, user, is_minipay) {
+  if (process.env.GD_REQUIRE_FOR_MINIPAY_ACTIONS !== "true") return null;
+  if (!isMiniPayRequestFlag(is_minipay)) return null;
+  const verified = await isUserGoodDollarVerified(user);
+  if (verified) return null;
+  return res.status(403).json({
+    success: false,
+    code: "GOODID_REQUIRED",
+    message: "Verify your humanity with GoodDollar to play on MiniPay.",
+    verifyUrl: "https://goodid.gooddollar.org/",
+  });
+}
 import {
   augmentNetWorthsWithEliminatedTournamentSeats,
   computeNetWorthResultForGameId,
@@ -2141,6 +2163,13 @@ export const create = async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
+    // Registered MiniPay wallets create via on-chain + POST /games (not *-as-guest).
+    // Gate here or Challenge AI bypasses G$ Identity.
+    {
+      const blocked = await rejectUnverifiedMiniPayGoodDollar(res, user, is_minipay);
+      if (blocked) return blocked;
+    }
+
     // Check if game code already exists
     const existingGame = await Game.findByCode(code);
     if (existingGame) {
@@ -2448,18 +2477,9 @@ export const createAsGuest = async (req, res) => {
       use_usdc,
     } = req.body;
 
-    // GoodBuilders S4 ask: server-enforced G$ humanity gate on a core flow.
-    // Scoped to MiniPay to avoid regressing web users while the flag ramps.
-    if (process.env.GD_REQUIRE_FOR_MINIPAY_ACTIONS === "true" && is_minipay === true) {
-      const verified = await isUserGoodDollarVerified(user);
-      if (!verified) {
-        return res.status(403).json({
-          success: false,
-          code: "GOODID_REQUIRED",
-          message: "Verify your humanity with GoodDollar to play on MiniPay.",
-          verifyUrl: "https://goodid.gooddollar.org/",
-        });
-      }
+    {
+      const blocked = await rejectUnverifiedMiniPayGoodDollar(res, user, is_minipay);
+      if (blocked) return blocked;
     }
 
     const stakeNum = Number(stake) || 0;
@@ -2913,18 +2933,9 @@ export const createAIAsGuest = async (req, res) => {
       is_minipay,
     } = req.body;
 
-    // GoodBuilders S4 ask: server-enforced G$ humanity gate on a core flow.
-    // Scoped to MiniPay to avoid regressing web users while the flag ramps.
-    if (process.env.GD_REQUIRE_FOR_MINIPAY_ACTIONS === "true" && is_minipay === true) {
-      const verified = await isUserGoodDollarVerified(user);
-      if (!verified) {
-        return res.status(403).json({
-          success: false,
-          code: "GOODID_REQUIRED",
-          message: "Verify your humanity with GoodDollar to play on MiniPay.",
-          verifyUrl: "https://goodid.gooddollar.org/",
-        });
-      }
+    {
+      const blocked = await rejectUnverifiedMiniPayGoodDollar(res, user, is_minipay);
+      if (blocked) return blocked;
     }
 
     const aiDifficulty = settings?.ai_difficulty || req.body.ai_difficulty || "easy";
@@ -3116,6 +3127,11 @@ export const createAIAsMobile = async (req, res) => {
       chain,
       is_minipay,
     } = req.body;
+
+    {
+      const blocked = await rejectUnverifiedMiniPayGoodDollar(res, user, is_minipay);
+      if (blocked) return blocked;
+    }
 
     let code = normalizeJoinCode(rawCode);
     if (!code) code = generateJoinCode6();
