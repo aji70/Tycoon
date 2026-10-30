@@ -1,6 +1,6 @@
 'use client';
 
-import { CHAIN_NAMESPACES, WEB3AUTH_NETWORK, type Web3AuthOptions } from '@web3auth/modal';
+import { CHAIN_NAMESPACES, UX_MODE, WEB3AUTH_NETWORK, type Web3AuthOptions } from '@web3auth/modal';
 import { type Web3AuthContextConfig, Web3AuthProvider } from '@web3auth/modal/react';
 import { useEffect, type ReactNode } from 'react';
 
@@ -57,6 +57,9 @@ const web3AuthOptions: Web3AuthOptions = {
   enableLogging: false,
   chains: [celoChain],
   defaultChainId: CELO_CHAIN_ID,
+  // Popup OTP often shows "success" then never returns the session to the opener.
+  // Redirect completes login on the same tab so backend sync can run.
+  uxMode: UX_MODE.REDIRECT,
   uiConfig: {
     appName: 'Tycoon',
     mode: 'dark',

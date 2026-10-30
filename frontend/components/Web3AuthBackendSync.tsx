@@ -26,8 +26,9 @@ export default function Web3AuthBackendSync() {
   const guestLoading = guestAuth?.isLoading ?? false;
   const retryCountRef = useRef(0);
   const requestIdRef = useRef(0);
-  const RETRY_DELAY_MS = 1500;
-  const MAX_TOKEN_RETRIES = 5;
+  const RETRY_DELAY_MS = 2000;
+  /** OTP can succeed before the SIWW idToken is ready — keep polling a bit longer. */
+  const MAX_TOKEN_RETRIES = 12;
 
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const [username, setUsername] = useState("");
@@ -63,9 +64,11 @@ export default function Web3AuthBackendSync() {
           }
           retryCountRef.current = 0;
           if (isLatest()) {
-            setError("Could not get session. Please try again.");
+            const msg =
+              "Email verified, but the wallet session did not finish. Close other Tycoon tabs, hard-refresh, and try Sign in again.";
+            setError(msg);
             setSyncState("sync_failed");
-            toast.error("Could not get session. Please try again.");
+            toast.error(msg);
           }
           return;
         }
@@ -154,7 +157,9 @@ export default function Web3AuthBackendSync() {
   }, [authenticated]);
 
   useEffect(() => {
-    if (!ready || !authenticated || !isAuthorized || !refetchGuest) return;
+    // Start sync once Web3Auth reports a session. Don't wait only for isAuthorized —
+    // after email OTP the wallet can be connected a few seconds before AUTHORIZED.
+    if (!ready || !authenticated || !refetchGuest) return;
     if (guestLoading) return;
 
     if (guestUser) {

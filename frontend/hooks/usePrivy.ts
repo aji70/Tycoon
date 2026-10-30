@@ -17,7 +17,7 @@ export function usePrivy() {
   const { isInitialized, isConnected: providerConnected, isAuthorized } = useWeb3Auth();
   const { connect, isConnected, loading: connectLoading } = useWeb3AuthConnect();
   const { disconnect } = useWeb3AuthDisconnect();
-  const { userInfo } = useWeb3AuthUser();
+  const { userInfo, getUserInfo } = useWeb3AuthUser();
   const { getAuthTokenInfo, token: cachedToken } = useAuthTokenInfo();
 
   const ready = Boolean(isInitialized);
@@ -40,11 +40,21 @@ export function usePrivy() {
     }
     try {
       const token = await getAuthTokenInfo();
-      return typeof token === "string" && token.length > 0 ? token : null;
+      if (typeof token === "string" && token.length > 0) return token;
     } catch {
-      return null;
+      /* fall through to userInfo idToken */
     }
-  }, [cachedToken, getAuthTokenInfo]);
+    try {
+      const info = (await getUserInfo()) as { idToken?: string } | null;
+      if (info?.idToken && typeof info.idToken === "string") return info.idToken;
+      if (userInfo && typeof (userInfo as { idToken?: string }).idToken === "string") {
+        return (userInfo as { idToken: string }).idToken;
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
+  }, [cachedToken, getAuthTokenInfo, getUserInfo, userInfo]);
 
   /** Opens Web3Auth connect modal (external wallets live there / AppKit separately). */
   const connectWallet = useCallback(async () => {
