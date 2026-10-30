@@ -87,26 +87,58 @@ export async function isGoodDollarVerifiedAddress(address) {
 }
 
 /**
- * Check linked wallet, smart wallet, and primary address (any verified → bonus).
+ * Normalized, deduped list of addresses that will be checked for a user.
+ * Order matches the verification check order (linked → smart → primary → wallet),
+ * so callers that only want to display one "primary" can take `[0]`.
  * @param {object} user
- * @returns {Promise<boolean>}
+ * @returns {string[]}
  */
-export async function isUserGoodDollarVerified(user) {
-  if (!user || !isGoodDollarIdentityEnabled()) return false;
-
-  const candidates = [
+export function getUserGoodDollarCandidateAddresses(user) {
+  if (!user) return [];
+  const raw = [
     user.linked_wallet_address,
     user.smart_wallet_address,
     user.address,
     user.wallet_address,
   ];
-
   const seen = new Set();
-  for (const raw of candidates) {
-    const addr = normalizeAddr(raw);
-    if (!addr || seen.has(addr.toLowerCase())) continue;
-    seen.add(addr.toLowerCase());
-    if (await isGoodDollarVerifiedAddress(addr)) return true;
+  const out = [];
+  for (const r of raw) {
+    const addr = normalizeAddr(r);
+    if (!addr) continue;
+    const key = addr.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(addr);
   }
-  return false;
+  return out;
+}
+
+/**
+ * Full verification detail for a user: which addresses were checked and the
+ * overall verified bit. Short-circuits on the first verified address.
+ * @param {object} user
+ * @returns {Promise<{ verified: boolean, checkedAddresses: string[] }>}
+ */
+export async function getUserGoodDollarVerificationDetail(user) {
+  const checkedAddresses = getUserGoodDollarCandidateAddresses(user);
+  if (!user || !isGoodDollarIdentityEnabled() || checkedAddresses.length === 0) {
+    return { verified: false, checkedAddresses };
+  }
+  for (const addr of checkedAddresses) {
+    if (await isGoodDollarVerifiedAddress(addr)) {
+      return { verified: true, checkedAddresses };
+    }
+  }
+  return { verified: false, checkedAddresses };
+}
+
+/**
+ * Check linked wallet, smart wallet, and primary address (any verified → bonus).
+ * @param {object} user
+ * @returns {Promise<boolean>}
+ */
+export async function isUserGoodDollarVerified(user) {
+  const detail = await getUserGoodDollarVerificationDetail(user);
+  return detail.verified;
 }
