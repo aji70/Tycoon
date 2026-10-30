@@ -1,6 +1,6 @@
 'use client';
 
-import { WEB3AUTH_NETWORK, type Web3AuthOptions } from '@web3auth/modal';
+import { CHAIN_NAMESPACES, WEB3AUTH_NETWORK, type Web3AuthOptions } from '@web3auth/modal';
 import { type Web3AuthContextConfig, Web3AuthProvider } from '@web3auth/modal/react';
 import { useEffect, type ReactNode } from 'react';
 
@@ -26,7 +26,10 @@ function suppressEmbeddedWalletRpcLogs(): void {
 /**
  * Email passwordless by default (same UX as previous Privy email magic link).
  * Configure Google/socials in the Embedded Wallets dashboard if you enable them here.
- * Use SAPPHIRE_DEVNET for localhost; SAPPHIRE_MAINNET for production.
+ *
+ * IMPORTANT: this project's Web3Auth Client ID is sapphire_devnet-only (mainnet returns
+ * "Network mismatch"). Default must stay SAPPHIRE_DEVNET until a sapphire_mainnet
+ * Client ID is created and wired into Vercel + Railway.
  */
 const networkEnv = (process.env.NEXT_PUBLIC_WEB3AUTH_NETWORK || '').trim().toLowerCase();
 const web3AuthNetwork =
@@ -34,10 +37,26 @@ const web3AuthNetwork =
     ? WEB3AUTH_NETWORK.SAPPHIRE_MAINNET
     : WEB3AUTH_NETWORK.SAPPHIRE_DEVNET;
 
+/** Dashboard currently only lists Sepolia; Tycoon runs on Celo — pass Celo explicitly. */
+const CELO_CHAIN_ID = '0xa4ec';
+const celoChain = {
+  chainNamespace: CHAIN_NAMESPACES.EIP155,
+  chainId: CELO_CHAIN_ID,
+  rpcTarget: (process.env.NEXT_PUBLIC_CELO_RPC_URL || 'https://forno.celo.org').trim(),
+  displayName: 'Celo',
+  blockExplorerUrl: 'https://celoscan.io',
+  ticker: 'CELO',
+  tickerName: 'Celo',
+  decimals: 18,
+  logo: 'https://images.web3auth.io/chains/42220.png',
+};
+
 const web3AuthOptions: Web3AuthOptions = {
   clientId: clientId || 'WEB3AUTH_CLIENT_ID_MISSING',
   web3AuthNetwork,
   enableLogging: false,
+  chains: [celoChain],
+  defaultChainId: CELO_CHAIN_ID,
   uiConfig: {
     appName: 'Tycoon',
     mode: 'dark',
