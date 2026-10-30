@@ -294,9 +294,17 @@ export async function ensureUserHasContractAuthResult(db, userId, chain = "CELO"
   } catch (err) {
     const detail = err?.reason || err?.message || String(err);
     logger.warn({ err: detail, userId: uid, chain: normalizedChain }, "ensureUserHasContractAuthResult failed");
+    const lower = String(detail).toLowerCase();
+    const outOfGas =
+      lower.includes("insufficient funds") ||
+      lower.includes("intrinsic transaction cost") ||
+      lower.includes("gas * price + value");
+    const reason = outOfGas
+      ? `Can't finish on-chain setup on ${normalizedChain}: the game server wallet needs a little native token for gas. Try again in a moment, or add a small amount of CELO to your MiniPay wallet if you were asked to sign.`
+      : `On-chain registration or password sync failed on ${normalizedChain}. ${String(detail).slice(0, 180)}`;
     return {
       ok: false,
-      reason: `On-chain registration or password sync failed (${detail}). Check RPC, game controller wallet funding, and that this address can register on ${normalizedChain}.`,
+      reason,
       userId: uid,
       chain: normalizedChain,
     };

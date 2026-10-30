@@ -324,7 +324,8 @@ export async function createDirectChallenge(userAgentId, userId, opponentAgentId
     const { assertAgentsFreeForNewArena } = await import("./arenaAgentAvailability.js");
     await assertAgentsFreeForNewArena([Number(userAgentId), Number(opponentAgentId)]);
 
-    const chain = User.normalizeChain(userA.chain || "base");
+    // Empty/null chain → getDefaultAppChain() (CELO), never hardcode Base (breaks MiniPay).
+    const chain = User.normalizeChain(userA.chain);
 
     const rA = await ensureUserHasContractAuthResult(db, userA.id, chain, getOnchainAddressForGuestFlow(userA));
     const rB = await ensureUserHasContractAuthResult(db, userB.id, chain, getOnchainAddressForGuestFlow(userB));
@@ -509,7 +510,7 @@ const ARENA_HOUSE_CUT_PERCENT = 5;
  * @param {number} userId - Must own challengerAgentId
  * @param {number[]} opponentAgentIds - 1–7 distinct agent ids (not the challenger)
  * @param {number} [stakeAmountUsdc] - Optional stake in USDC (e.g. 0.1). All participants must be able to afford (max per match + daily cap).
- * @param {{ arena_tab?: string }} [options] - If arena_tab is "challenges", only one opponent allowed (UI Challenges tab). Discover sends "discover" or omits.
+ * @param {{ arena_tab?: string, chain?: string }} [options] - arena_tab "challenges" = 1 opponent. chain overrides user.chain (MiniPay sends CELO).
  * @returns {Promise<{ gameId: number, gameCode: string, boardType: string }>}
  */
 export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId, opponentAgentIds, stakeAmountUsdc, options = {}) {
@@ -560,7 +561,8 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
     const challengerUser = await User.findById(uid);
     if (!challengerUser) throw new Error("User not found");
 
-    const chain = User.normalizeChain(challengerUser.chain || "base");
+    const chainOverride = options?.chain != null && String(options.chain).trim() !== "";
+    const chain = User.normalizeChain(chainOverride ? options.chain : challengerUser.chain);
     const chainCfg = getChainConfig(chain);
     const chainId = chainCfg.chainId || 42220;
 
@@ -568,8 +570,10 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
     for (const id of userIds) {
       const u = await User.findById(id);
       if (!u) throw new Error("Player user not found");
-      const uc = User.normalizeChain(u.chain || "base");
-      if (uc !== chain) throw new Error("All players must use the same chain as the challenger");
+      if (!chainOverride) {
+        const uc = User.normalizeChain(u.chain);
+        if (uc !== chain) throw new Error("All players must use the same chain as the challenger");
+      }
       rosterUsers.push(u);
     }
 
@@ -883,8 +887,9 @@ export async function createMultiAgentOnchainArenaGame(challengerAgentId, userId
  * @param {number} userId - Logged-in user (human challenger)
  * @param {number} opponentAgentId - Another user's agent
  * @param {number} [stakeAmountUsdc]
+ * @param {{ chain?: string }} [options] - chain overrides user.chain (MiniPay sends CELO)
  */
-export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId, stakeAmountUsdc) {
+export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId, stakeAmountUsdc, options = {}) {
   const { createGameByBackend, joinGameByBackend } = await import("./tycoonContract.js");
   const { ensureUserHasContractAuthResult } = await import("../utils/ensureContractAuth.js");
   const { getChainConfig } = await import("../config/chains.js");
@@ -913,12 +918,15 @@ export async function createHumanVsAgentOnchainArenaGame(userId, opponentAgentId
     const opponentOwner = await User.findById(opponentAgent.user_id);
     if (!humanUser || !opponentOwner) throw new Error("User not found");
 
-    const chain = User.normalizeChain(humanUser.chain || "base");
+    const chainOverride = options?.chain != null && String(options.chain).trim() !== "";
+    const chain = User.normalizeChain(chainOverride ? options.chain : humanUser.chain);
     const chainCfg = getChainConfig(chain);
     const chainId = chainCfg.chainId || 42220;
 
-    const uc = User.normalizeChain(opponentOwner.chain || "base");
-    if (uc !== chain) throw new Error(`Opponent must be on the same chain as you (${chain}).`);
+    if (!chainOverride) {
+      const uc = User.normalizeChain(opponentOwner.chain);
+      if (uc !== chain) throw new Error(`Opponent must be on the same chain as you (${chain}).`);
+    }
 
     const stakeNum = stakeAmountUsdc != null ? Number(stakeAmountUsdc) : 0;
     const stakeUnits = stakeNum > 0 ? BigInt(Math.floor(stakeNum * 1e6)) : 0n;

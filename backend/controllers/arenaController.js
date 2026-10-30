@@ -254,7 +254,7 @@ export async function startOnchainArenaGameHandler(req, res) {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { challenger_agent_id, opponent_agent_ids, stake_amount_usdc, arena_tab } = req.body || {};
+    const { challenger_agent_id, opponent_agent_ids, stake_amount_usdc, arena_tab, chain } = req.body || {};
     if (!challenger_agent_id) return res.status(400).json({ error: "challenger_agent_id required" });
 
     const result = await matchmakingService.createMultiAgentOnchainArenaGame(
@@ -262,7 +262,7 @@ export async function startOnchainArenaGameHandler(req, res) {
       userId,
       opponent_agent_ids,
       stake_amount_usdc,
-      { arena_tab }
+      { arena_tab, chain }
     );
 
     const io = req.app.get("io");
@@ -300,13 +300,14 @@ export async function startHumanVsAgentArenaHandler(req, res) {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { opponent_agent_id, stake_amount_usdc } = req.body || {};
+    const { opponent_agent_id, stake_amount_usdc, chain } = req.body || {};
     if (!opponent_agent_id) return res.status(400).json({ error: "opponent_agent_id required" });
 
     const result = await matchmakingService.createHumanVsAgentOnchainArenaGame(
       Number(userId),
       Number(opponent_agent_id),
-      stake_amount_usdc
+      stake_amount_usdc,
+      { chain }
     );
 
     const io = req.app.get("io");
