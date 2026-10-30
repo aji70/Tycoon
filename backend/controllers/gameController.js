@@ -35,6 +35,7 @@ import {
 } from "../services/starknetContract.js";
 import { ensureUserHasContractPassword, ensureGuestContractPlayReady } from "../utils/ensureContractAuth.js";
 import { onGameFinished as tournamentOnGameFinished } from "../services/tournamentService.js";
+import { isUserGoodDollarVerified } from "../services/goodDollarIdentity.js";
 import {
   augmentNetWorthsWithEliminatedTournamentSeats,
   computeNetWorthResultForGameId,
@@ -2447,6 +2448,20 @@ export const createAsGuest = async (req, res) => {
       use_usdc,
     } = req.body;
 
+    // GoodBuilders S4 ask: server-enforced G$ humanity gate on a core flow.
+    // Scoped to MiniPay to avoid regressing web users while the flag ramps.
+    if (process.env.GD_REQUIRE_FOR_MINIPAY_ACTIONS === "true" && is_minipay === true) {
+      const verified = await isUserGoodDollarVerified(user);
+      if (!verified) {
+        return res.status(403).json({
+          success: false,
+          code: "GOODID_REQUIRED",
+          message: "Verify your humanity with GoodDollar to play on MiniPay.",
+          verifyUrl: "https://goodid.gooddollar.org/",
+        });
+      }
+    }
+
     const stakeNum = Number(stake) || 0;
     const isAI = !!is_ai;
 
@@ -2897,6 +2912,21 @@ export const createAIAsGuest = async (req, res) => {
       chain,
       is_minipay,
     } = req.body;
+
+    // GoodBuilders S4 ask: server-enforced G$ humanity gate on a core flow.
+    // Scoped to MiniPay to avoid regressing web users while the flag ramps.
+    if (process.env.GD_REQUIRE_FOR_MINIPAY_ACTIONS === "true" && is_minipay === true) {
+      const verified = await isUserGoodDollarVerified(user);
+      if (!verified) {
+        return res.status(403).json({
+          success: false,
+          code: "GOODID_REQUIRED",
+          message: "Verify your humanity with GoodDollar to play on MiniPay.",
+          verifyUrl: "https://goodid.gooddollar.org/",
+        });
+      }
+    }
+
     const aiDifficulty = settings?.ai_difficulty || req.body.ai_difficulty || "easy";
     const aiDiffMode = settings?.ai_difficulty_mode || req.body.ai_difficulty_mode || "random";
 
