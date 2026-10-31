@@ -59,7 +59,7 @@ async function loadPlayerEngagement() {
 export async function getPublicStats(req, res) {
   try {
     const periodParam = String(req.query.period || "all").toLowerCase();
-    const cacheKey = `public:stats:v3:${periodParam}`;
+    const cacheKey = `public:stats:v4:${periodParam}`;
 
     const cached = await redis.getJSON(cacheKey);
     if (cached) {
@@ -83,6 +83,9 @@ export async function getPublicStats(req, res) {
         totalTrades: metrics.totalTrades,
         totalPlayHistoryEvents: metrics.totalPlayHistoryEvents,
         totalPropertiesOwned: metrics.totalPropertiesOwned,
+        agentsCreated: metrics.agentsCreated ?? 0,
+        agentCreators: metrics.agentCreators ?? 0,
+        agentGames: metrics.agentGames ?? 0,
       },
       engagement: {
         totalPlayers: metrics.totalPlayers,

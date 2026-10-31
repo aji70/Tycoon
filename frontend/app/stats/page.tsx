@@ -21,6 +21,9 @@ type PublicStatsData = {
     totalTrades: number;
     totalPlayHistoryEvents: number;
     totalPropertiesOwned: number;
+    agentsCreated?: number;
+    agentCreators?: number;
+    agentGames?: number;
   };
   engagement?: {
     totalPlayers: number;
@@ -59,6 +62,23 @@ function buildStatCards(data: PublicStatsData): StatCard[] {
     key: "totalGames",
     label: "Games created",
     value: t.totalGames.toLocaleString(),
+  });
+
+  cards.push({
+    key: "agentsCreated",
+    label: "Agents created",
+    value: (t.agentsCreated ?? 0).toLocaleString(),
+  });
+  cards.push({
+    key: "agentCreators",
+    label: "People with agents",
+    value: (t.agentCreators ?? 0).toLocaleString(),
+  });
+  cards.push({
+    key: "agentGames",
+    label: "Agent games",
+    value: (t.agentGames ?? 0).toLocaleString(),
+    sub: "Arena AvaA / You vs Agent / tournament",
   });
 
   if (e) {
