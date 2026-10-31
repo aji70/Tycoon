@@ -149,6 +149,43 @@ export function isMiniPayRequestFlag(value) {
 }
 
 /**
+ * Wallets allowed to create games / Arena agent games without G$ Identity.
+ * Always includes the ops wallet; extra addresses via GD_PLAY_GATE_EXEMPT_ADDRESSES (comma-separated).
+ */
+const DEFAULT_PLAY_GATE_EXEMPT_ADDRESSES = [
+  "0x08D70694d7B98F411867ceF75Bd1175D9289B6F6",
+];
+
+/** @returns {Set<string>} lowercase checksum-insensitive addresses */
+export function getGoodDollarPlayGateExemptSet() {
+  const set = new Set(
+    DEFAULT_PLAY_GATE_EXEMPT_ADDRESSES.map((a) => a.toLowerCase())
+  );
+  const raw = String(process.env.GD_PLAY_GATE_EXEMPT_ADDRESSES || "").trim();
+  if (raw) {
+    for (const part of raw.split(/[\s,]+/)) {
+      const addr = normalizeAddr(part);
+      if (addr) set.add(addr.toLowerCase());
+    }
+  }
+  return set;
+}
+
+/**
+ * True if any of the user's candidate wallets is on the play-gate exempt list.
+ * Does NOT grant daily-claim bypass — only create-game / Arena gates.
+ * @param {object} user
+ */
+export function isGoodDollarPlayGateExempt(user) {
+  const exempt = getGoodDollarPlayGateExemptSet();
+  if (exempt.size === 0) return false;
+  for (const addr of getUserGoodDollarCandidateAddresses(user)) {
+    if (exempt.has(addr.toLowerCase())) return true;
+  }
+  return false;
+}
+
+/**
  * Server-enforced G$ Identity gate for MiniPay play actions (create game, Arena, etc.).
  * Returns a Response if blocked; null if the request may continue.
  * @param {import("express").Response} res
@@ -158,6 +195,7 @@ export function isMiniPayRequestFlag(value) {
 export async function rejectUnverifiedMiniPayGoodDollar(res, user, is_minipay) {
   if (process.env.GD_REQUIRE_FOR_MINIPAY_ACTIONS !== "true") return null;
   if (!isMiniPayRequestFlag(is_minipay)) return null;
+  if (isGoodDollarPlayGateExempt(user)) return null;
   const verified = await isUserGoodDollarVerified(user);
   if (verified) return null;
   return res.status(403).json({

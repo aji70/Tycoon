@@ -3,6 +3,7 @@ import logger from "../config/logger.js";
 import {
   getUserGoodDollarVerificationDetail,
   isGoodDollarIdentityEnabled,
+  isGoodDollarPlayGateExempt,
 } from "../services/goodDollarIdentity.js";
 
 /**
@@ -25,11 +26,14 @@ export async function goodDollarStatus(req, res) {
 
     const enabled = isGoodDollarIdentityEnabled();
     const { verified, checkedAddresses } = await getUserGoodDollarVerificationDetail(user);
+    const playGateExempt = isGoodDollarPlayGateExempt(user);
 
     return res.json({
       success: true,
       enabled,
       verified,
+      /** Ops / allowlisted wallets may create games + Arena without G$ (not daily claim). */
+      play_gate_exempt: playGateExempt,
       checkedAddresses,
       verifyUrl: "https://goodid.gooddollar.org/",
     });
