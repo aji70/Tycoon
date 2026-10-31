@@ -29,10 +29,20 @@ export async function loadOverviewMetrics(rawPeriod) {
   const period = normalizeOverviewPeriod(rawPeriod);
   const periodStart = getOverviewPeriodWindow(period);
 
+  const AGENT_GAME_TYPES = [
+    "ONCHAIN_AGENT_VS_AGENT",
+    "ONCHAIN_HUMAN_VS_AGENT",
+    "TOURNAMENT_AGENT_VS_AGENT",
+  ];
+
   const gamesQuery = db("games");
   const tradesQuery = db("game_trades").where("status", "accepted");
   const historyQuery = db("game_play_history");
   const propertiesOwnedQuery = db("game_properties");
+  const agentsQuery = db.schema.hasTable("user_agents").then((has) => (has ? db("user_agents") : null));
+  const agentGamesBase = db.schema.hasColumn("games", "game_type").then((has) =>
+    has ? db("games").whereIn("game_type", AGENT_GAME_TYPES) : null
+  );
 
   if (periodStart) {
     gamesQuery.where("created_at", ">=", periodStart);
@@ -50,6 +60,8 @@ export async function loadOverviewMetrics(rawPeriod) {
     tradesRow,
     historyRow,
     propertiesOwnedRow,
+    agentsTable,
+    agentGamesQ,
   ] = await Promise.all([
     db("users").count("* as c").first(),
     db("users").where("updated_at", ">=", startToday).count("* as c").first(),
@@ -59,7 +71,32 @@ export async function loadOverviewMetrics(rawPeriod) {
     tradesQuery.count("* as c").first(),
     historyQuery.count("* as c").first(),
     propertiesOwnedQuery.count("* as c").first(),
+    agentsQuery,
+    agentGamesBase,
   ]);
+
+  let agentsCreated = 0;
+  let agentCreators = 0;
+  if (agentsTable) {
+    const agentsScoped = periodStart
+      ? agentsTable.clone().where("created_at", ">=", periodStart)
+      : agentsTable;
+    const [agentsRow, creatorsRow] = await Promise.all([
+      agentsScoped.clone().count("* as c").first(),
+      agentsScoped.clone().whereNotNull("user_id").countDistinct("user_id as c").first(),
+    ]);
+    agentsCreated = Number(agentsRow?.c ?? 0);
+    agentCreators = Number(creatorsRow?.c ?? 0);
+  }
+
+  let agentGames = 0;
+  if (agentGamesQ) {
+    const scoped = periodStart
+      ? agentGamesQ.clone().where("created_at", ">=", periodStart)
+      : agentGamesQ;
+    const agentGamesRow = await scoped.count("* as c").first();
+    agentGames = Number(agentGamesRow?.c ?? 0);
+  }
 
   let flaggedReports = 0;
   try {
@@ -79,6 +116,9 @@ export async function loadOverviewMetrics(rawPeriod) {
     totalPlayHistoryEvents: Number(historyRow?.c ?? 0),
     totalPropertiesOwned: Number(propertiesOwnedRow?.c ?? 0),
     flaggedReports,
+    agentsCreated,
+    agentCreators,
+    agentGames,
   };
 
   return { metrics, period };

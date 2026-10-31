@@ -5,8 +5,27 @@ import db from "../config/database.js";
 import { mintVoucherTo, isContractConfigured } from "../services/tycoonContract.js";
 import logger from "../config/logger.js";
 import { getEffectiveDailyClaimConfig } from "../services/platformSettings.js";
-import { isGoodDollarIdentityEnabled, isUserGoodDollarVerified } from "../services/goodDollarIdentity.js";
+import {
+  isGoodDollarIdentityEnabled,
+  isUserGoodDollarVerified,
+} from "../services/goodDollarIdentity.js";
 import { recordEvent } from "../services/analytics.js";
+
+/**
+ * Daily claim always requires GoodDollar when identity reads are configured —
+ * stricter than Challenge AI / Arena (those also need GD_REQUIRE_FOR_MINIPAY_ACTIONS).
+ */
+async function rejectUnverifiedDailyClaim(res, user) {
+  if (!isGoodDollarIdentityEnabled()) return null;
+  const verified = await isUserGoodDollarVerified(user);
+  if (verified) return null;
+  return res.status(403).json({
+    success: false,
+    code: "GOODID_REQUIRED",
+    message: "Verify your humanity with GoodDollar to claim the daily reward.",
+    verifyUrl: "https://goodid.gooddollar.org/",
+  });
+}
 
 function toDateOnly(d) {
   if (!d) return null;
@@ -48,6 +67,14 @@ export async function dailyClaim(req, res) {
     if (!user) {
       await trx.rollback();
       return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    {
+      const blocked = await rejectUnverifiedDailyClaim(res, user);
+      if (blocked) {
+        await trx.rollback();
+        return blocked;
+      }
     }
 
     const today = toDateOnly(new Date());
@@ -198,7 +225,9 @@ export async function dailyClaimStatus(req, res) {
     }
 
     const eff = await getEffectiveDailyClaimConfig();
+    const gdIdentityEnabled = isGoodDollarIdentityEnabled();
     const verifiedCitizen = await isUserGoodDollarVerified(user);
+    const claimRequiresGd = gdIdentityEnabled && !verifiedCitizen;
     const rewardPreview = computeDailyRewardWei(eff, nextStreak, verifiedCitizen);
 
     return res.json({
@@ -207,7 +236,9 @@ export async function dailyClaimStatus(req, res) {
       streak,
       last_claim_at: user.last_daily_claim_at || null,
       verified_citizen: verifiedCitizen,
-      gd_identity_enabled: isGoodDollarIdentityEnabled(),
+      gd_identity_enabled: gdIdentityEnabled,
+      /** True when POST /daily-claim will 403 GOODID_REQUIRED until the user verifies. */
+      claim_requires_gd: claimRequiresGd,
       gd_verified_bonus_tyc: eff.gdVerifiedBonusTyc,
       estimated_reward_tyc: canClaim ? Number(rewardPreview.totalWei) / 1e18 : null,
     });

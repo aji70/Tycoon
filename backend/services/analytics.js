@@ -94,6 +94,15 @@ export async function getDashboard(options = {}) {
   const dayCount = Math.ceil((rangeEnd - rangeStart) / (24 * 60 * 60 * 1000)) + 1;
   if (dayCount > 31) rangeStart = new Date(rangeEnd.getTime() - 30 * 24 * 60 * 60 * 1000);
 
+  const AGENT_GAME_TYPES = [
+    "ONCHAIN_AGENT_VS_AGENT",
+    "ONCHAIN_HUMAN_VS_AGENT",
+    "TOURNAMENT_AGENT_VS_AGENT",
+  ];
+
+  const hasAgentsTable = await db.schema.hasTable("user_agents");
+  const hasGameType = await db.schema.hasColumn("games", "game_type");
+
   const [
     totalGames,
     gamesByStatus,
@@ -103,6 +112,15 @@ export async function getDashboard(options = {}) {
     recentEvents,
     startedByDay,
     finishedByDay,
+    totalAgents,
+    agentsCreatedToday,
+    agentsCreatedThisWeek,
+    agentCreators,
+    agentCreatorsThisWeek,
+    agentGamesTotal,
+    agentGamesToday,
+    agentGamesThisWeek,
+    agentGamesByType,
   ] = await Promise.all([
     db("games").count("* as count").first(),
     db("games").select("status").count("* as count").groupBy("status"),
@@ -136,6 +154,49 @@ export async function getDashboard(options = {}) {
       .where("updated_at", "<=", rangeEnd)
       .groupByRaw("DATE(updated_at)")
       .count("* as count"),
+    hasAgentsTable
+      ? db("user_agents").count("* as count").first()
+      : Promise.resolve({ count: 0 }),
+    hasAgentsTable
+      ? db("user_agents").where("created_at", ">=", startOfToday).count("* as count").first()
+      : Promise.resolve({ count: 0 }),
+    hasAgentsTable
+      ? db("user_agents").where("created_at", ">=", startOfWeek).count("* as count").first()
+      : Promise.resolve({ count: 0 }),
+    hasAgentsTable
+      ? db("user_agents").whereNotNull("user_id").countDistinct("user_id as count").first()
+      : Promise.resolve({ count: 0 }),
+    hasAgentsTable
+      ? db("user_agents")
+          .whereNotNull("user_id")
+          .where("created_at", ">=", startOfWeek)
+          .countDistinct("user_id as count")
+          .first()
+      : Promise.resolve({ count: 0 }),
+    hasGameType
+      ? db("games").whereIn("game_type", AGENT_GAME_TYPES).count("* as count").first()
+      : Promise.resolve({ count: 0 }),
+    hasGameType
+      ? db("games")
+          .whereIn("game_type", AGENT_GAME_TYPES)
+          .where("created_at", ">=", startOfToday)
+          .count("* as count")
+          .first()
+      : Promise.resolve({ count: 0 }),
+    hasGameType
+      ? db("games")
+          .whereIn("game_type", AGENT_GAME_TYPES)
+          .where("created_at", ">=", startOfWeek)
+          .count("* as count")
+          .first()
+      : Promise.resolve({ count: 0 }),
+    hasGameType
+      ? db("games")
+          .whereIn("game_type", AGENT_GAME_TYPES)
+          .select("game_type")
+          .count("* as count")
+          .groupBy("game_type")
+      : Promise.resolve([]),
   ]);
 
   const statusCounts = Object.fromEntries(
@@ -163,6 +224,10 @@ export async function getDashboard(options = {}) {
     });
   }
 
+  const agentGamesByTypeMap = Object.fromEntries(
+    (agentGamesByType || []).map((r) => [r.game_type || "unknown", Number(r.count)])
+  );
+
   return {
     games: {
       total: Number(totalGames?.count ?? 0),
@@ -172,6 +237,22 @@ export async function getDashboard(options = {}) {
       createdThisWeek: Number(gamesCreatedThisWeek?.count ?? 0),
     },
     gamesOverTime: days,
+    agents: {
+      total: Number(totalAgents?.count ?? 0),
+      createdToday: Number(agentsCreatedToday?.count ?? 0),
+      createdThisWeek: Number(agentsCreatedThisWeek?.count ?? 0),
+      distinctCreators: Number(agentCreators?.count ?? 0),
+      creatorsThisWeek: Number(agentCreatorsThisWeek?.count ?? 0),
+    },
+    agentGames: {
+      total: Number(agentGamesTotal?.count ?? 0),
+      createdToday: Number(agentGamesToday?.count ?? 0),
+      createdThisWeek: Number(agentGamesThisWeek?.count ?? 0),
+      byType: agentGamesByTypeMap,
+      agentVsAgent: Number(agentGamesByTypeMap.ONCHAIN_AGENT_VS_AGENT ?? 0),
+      humanVsAgent: Number(agentGamesByTypeMap.ONCHAIN_HUMAN_VS_AGENT ?? 0),
+      tournament: Number(agentGamesByTypeMap.TOURNAMENT_AGENT_VS_AGENT ?? 0),
+    },
     events: eventCounts,
     generatedAt: now.toISOString(),
   };
@@ -729,7 +810,32 @@ export async function getMinipayStats(options = {}) {
     createdThisMonth: 0,
     withErc8004: 0,
     publicCount: 0,
+    /** Distinct users who own at least one agent. */
+    distinctCreators: 0,
+    creatorsToday: 0,
+    creatorsThisWeek: 0,
   };
+  /** Daily agent creations for sparklines (aligned to gamesOverTime range). */
+  let agentsOverTime = [];
+
+  /** Arena / agent-orchestrated games (not plain PvP or Challenge AI). */
+  const AGENT_GAME_TYPES = [
+    "ONCHAIN_AGENT_VS_AGENT",
+    "ONCHAIN_HUMAN_VS_AGENT",
+    "TOURNAMENT_AGENT_VS_AGENT",
+  ];
+  let agentGames = {
+    total: 0,
+    byType: {},
+    createdToday: 0,
+    createdThisWeek: 0,
+    createdThisMonth: 0,
+    finishedToday: 0,
+    agentVsAgent: 0,
+    humanVsAgent: 0,
+    tournament: 0,
+  };
+  let agentGamesOverTime = [];
 
   if (hasAgents) {
     try {
@@ -744,6 +850,10 @@ export async function getMinipayStats(options = {}) {
         createdThisMonth,
         withErc8004,
         publicCount,
+        distinctCreators,
+        creatorsToday,
+        creatorsThisWeek,
+        agentsByDay,
       ] = await Promise.all([
         db("user_agents").count("* as count").first(),
         hasStatus
@@ -758,6 +868,23 @@ export async function getMinipayStats(options = {}) {
         hasPublic
           ? db("user_agents").where("is_public", true).count("* as count").first()
           : Promise.resolve({ count: 0 }),
+        db("user_agents").whereNotNull("user_id").countDistinct("user_id as count").first(),
+        db("user_agents")
+          .whereNotNull("user_id")
+          .where("created_at", ">=", startOfToday)
+          .countDistinct("user_id as count")
+          .first(),
+        db("user_agents")
+          .whereNotNull("user_id")
+          .where("created_at", ">=", startOfWeek)
+          .countDistinct("user_id as count")
+          .first(),
+        db("user_agents")
+          .select(db.raw("DATE(created_at) as day"))
+          .where("created_at", ">=", rangeStart)
+          .where("created_at", "<=", rangeEnd)
+          .groupByRaw("DATE(created_at)")
+          .count("* as count"),
       ]);
 
       agents = {
@@ -770,10 +897,83 @@ export async function getMinipayStats(options = {}) {
         createdThisMonth: Number(createdThisMonth?.count ?? 0),
         withErc8004: Number(withErc8004?.count ?? 0),
         publicCount: Number(publicCount?.count ?? 0),
+        distinctCreators: Number(distinctCreators?.count ?? 0),
+        creatorsToday: Number(creatorsToday?.count ?? 0),
+        creatorsThisWeek: Number(creatorsThisWeek?.count ?? 0),
       };
+
+      const agentsDayMap = Object.fromEntries(
+        (agentsByDay || []).map((r) => [toIsoDateString(r.day), Number(r.count)])
+      );
+      for (let d = new Date(rangeStart); d <= rangeEnd; d = addUtcDays(d, 1)) {
+        const dateStr = toIsoDateString(d);
+        if (!dateStr) continue;
+        agentsOverTime.push({ date: dateStr, count: agentsDayMap[dateStr] ?? 0 });
+      }
     } catch (agentErr) {
       logger.warn({ err: agentErr, message: agentErr?.message }, "getMinipayStats agents query failed");
       note = `${note} Agent counts unavailable (${agentErr?.message || "query error"}).`;
+    }
+  }
+
+  const hasGameType =
+    hasGamesTable && (await db.schema.hasColumn("games", "game_type"));
+  if (hasGameType) {
+    try {
+      const ag = () => db("games").whereIn("game_type", AGENT_GAME_TYPES);
+      const [
+        totalAg,
+        byType,
+        createdTodayAg,
+        createdWeekAg,
+        createdMonthAg,
+        finishedTodayAg,
+        startedByDayAg,
+      ] = await Promise.all([
+        ag().count("* as count").first(),
+        ag().select("game_type").count("* as count").groupBy("game_type"),
+        ag().where("created_at", ">=", startOfToday).count("* as count").first(),
+        ag().where("created_at", ">=", startOfWeek).count("* as count").first(),
+        ag().where("created_at", ">=", startOfMonth).count("* as count").first(),
+        ag()
+          .where("status", "FINISHED")
+          .where("updated_at", ">=", startOfToday)
+          .count("* as count")
+          .first(),
+        ag()
+          .select(db.raw("DATE(created_at) as day"))
+          .where("created_at", ">=", rangeStart)
+          .where("created_at", "<=", rangeEnd)
+          .groupByRaw("DATE(created_at)")
+          .count("* as count"),
+      ]);
+
+      const byTypeMap = Object.fromEntries(
+        (byType || []).map((r) => [r.game_type || "unknown", Number(r.count)])
+      );
+      agentGames = {
+        total: Number(totalAg?.count ?? 0),
+        byType: byTypeMap,
+        createdToday: Number(createdTodayAg?.count ?? 0),
+        createdThisWeek: Number(createdWeekAg?.count ?? 0),
+        createdThisMonth: Number(createdMonthAg?.count ?? 0),
+        finishedToday: Number(finishedTodayAg?.count ?? 0),
+        agentVsAgent: Number(byTypeMap.ONCHAIN_AGENT_VS_AGENT ?? 0),
+        humanVsAgent: Number(byTypeMap.ONCHAIN_HUMAN_VS_AGENT ?? 0),
+        tournament: Number(byTypeMap.TOURNAMENT_AGENT_VS_AGENT ?? 0),
+      };
+
+      const agDayMap = Object.fromEntries(
+        (startedByDayAg || []).map((r) => [toIsoDateString(r.day), Number(r.count)])
+      );
+      for (let d = new Date(rangeStart); d <= rangeEnd; d = addUtcDays(d, 1)) {
+        const dateStr = toIsoDateString(d);
+        if (!dateStr) continue;
+        agentGamesOverTime.push({ date: dateStr, started: agDayMap[dateStr] ?? 0 });
+      }
+    } catch (agErr) {
+      logger.warn({ err: agErr, message: agErr?.message }, "getMinipayStats agentGames query failed");
+      note = `${note} Agent game counts unavailable (${agErr?.message || "query error"}).`;
     }
   }
 
@@ -1144,6 +1344,8 @@ export async function getMinipayStats(options = {}) {
     transactions: explorerTxns ?? transactions.total ?? 0,
     gamesCreated: games.total || 0,
     agents: agents.total || 0,
+    agentCreators: agents.distinctCreators || 0,
+    agentGames: agentGames.total || 0,
     onchainRevenueUsd: totalUsd,
     activeToday,
     onchainRevenue: {
@@ -1159,12 +1361,20 @@ export async function getMinipayStats(options = {}) {
       gamesThisWeek: games.createdThisWeek || 0,
       gamesToday: games.createdToday || 0,
       agentsThisWeek: agents.createdThisWeek || 0,
+      agentCreatorsThisWeek: agents.creatorsThisWeek || 0,
+      agentGamesThisWeek: agentGames.createdThisWeek || 0,
+      agentGamesToday: agentGames.createdToday || 0,
       revenueThisWeekUsd,
       transactionsThisWeek: games.createdThisWeek || 0,
       activeToday,
       series: {
         users: usersOverTime,
         games: (gamesOverTime || []).map((d) => ({ date: d.date, count: d.started ?? 0 })),
+        agents: agentsOverTime,
+        agentGames: (agentGamesOverTime || []).map((d) => ({
+          date: d.date,
+          count: d.started ?? 0,
+        })),
       },
     },
   };
@@ -1179,6 +1389,9 @@ export async function getMinipayStats(options = {}) {
     gamesOverTime,
     usersOverTime,
     agents,
+    agentsOverTime,
+    agentGames,
+    agentGamesOverTime,
     range: {
       start: toIsoDateString(rangeStart),
       end: toIsoDateString(rangeEnd),
