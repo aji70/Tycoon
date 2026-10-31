@@ -59,7 +59,7 @@ async function loadPlayerEngagement() {
 export async function getPublicStats(req, res) {
   try {
     const periodParam = String(req.query.period || "all").toLowerCase();
-    const cacheKey = `public:stats:v4:${periodParam}`;
+    const cacheKey = `public:stats:v5:${periodParam}`;
 
     const cached = await redis.getJSON(cacheKey);
     if (cached) {
@@ -67,15 +67,34 @@ export async function getPublicStats(req, res) {
     }
 
     const { metrics, period } = await loadOverviewMetrics(req.query.period);
-    const contractStats = await getContractTxStats({ period });
-    const engagement = await loadPlayerEngagement();
+
+    let contractStats = {
+      summary: { totalTxns: 0 },
+      contracts: [],
+    };
+    try {
+      contractStats = await getContractTxStats({ period });
+    } catch (err) {
+      logger.warn({ err }, "public stats: contract tx stats skipped");
+    }
+
+    let engagement = {
+      uniquePlayers: 0,
+      gamesPerPlayer: 0,
+      mostActivePlayer: null,
+    };
+    try {
+      engagement = await loadPlayerEngagement();
+    } catch (err) {
+      logger.warn({ err }, "public stats: engagement skipped");
+    }
 
     const data = {
       period,
       generatedAt: new Date().toISOString(),
       totals: {
-        totalTransactions: contractStats.summary.totalTxns,
-        totalTokenTransfers: contractStats.contracts.reduce(
+        totalTransactions: contractStats.summary?.totalTxns ?? 0,
+        totalTokenTransfers: (contractStats.contracts || []).reduce(
           (sum, row) => sum + (row.tokenTransfers ?? 0),
           0,
         ),
@@ -99,7 +118,11 @@ export async function getPublicStats(req, res) {
 
     res.json({ success: true, data });
   } catch (err) {
-    logger.error({ err }, "public stats error");
-    res.status(500).json({ success: false, error: "Failed to load public stats" });
+    logger.error({ err, message: err?.message, stack: err?.stack }, "public stats error");
+    res.status(500).json({
+      success: false,
+      error: "Failed to load public stats",
+      detail: err?.message || "unknown",
+    });
   }
 }
