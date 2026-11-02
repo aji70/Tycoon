@@ -1,4 +1,4 @@
-import { formatUnits, parseUnits, type Address } from 'viem';
+import { formatUnits, type Address } from 'viem';
 import {
   GOODDOLLAR_TOKEN_ADDRESS,
   GOODDOLLAR_SHOP_TREASURY_ADDRESSES,
@@ -22,11 +22,17 @@ export function getGoodDollarTreasury(chainId: number): Address | undefined {
   return GOODDOLLAR_SHOP_TREASURY_ADDRESSES[chainId];
 }
 
+/**
+ * Integer-safe USD → G$ wei (matches backend):
+ *   gdWei = round(usd * 1e6) * rate * 1e12
+ */
 export function usdToGoodDollarWei(usdAmount: number): bigint {
   if (!Number.isFinite(usdAmount) || usdAmount <= 0) return 0n;
-  const rate = getGoodDollarUsdRate();
-  const gd = usdAmount * rate;
-  return parseUnits(gd.toFixed(GOODDOLLAR_DECIMALS), GOODDOLLAR_DECIMALS);
+  const microUsd = BigInt(Math.round(usdAmount * 1e6));
+  if (microUsd <= 0n) return 0n;
+  const rate = BigInt(Math.round(getGoodDollarUsdRate()));
+  if (rate <= 0n) return 0n;
+  return microUsd * rate * 10n ** 12n;
 }
 
 export function formatGoodDollarWhole(wei: bigint): string {

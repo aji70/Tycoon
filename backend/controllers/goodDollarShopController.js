@@ -7,6 +7,7 @@ import {
   getGoodDollarTreasury,
   getGoodDollarUsdRate,
   usdToGoodDollarWei,
+  usdcWeiToGoodDollarWei,
   formatGoodDollarDisplay,
   verifyGoodDollarTransfer,
   GOODDOLLAR_DECIMALS,
@@ -48,7 +49,7 @@ async function resolveExpectedAmountWei({ tokenId, bundleId }) {
       throw new Error("Collectible is not for sale (USDC price not set).");
     }
     const usdPrice = Number(formatUnits(usdcPriceWei, 6));
-    const gdWei = usdToGoodDollarWei(usdPrice);
+    const gdWei = usdcWeiToGoodDollarWei(usdcPriceWei);
     if (gdWei <= 0n) throw new Error("Could not derive G$ price for this perk.");
     return { amountGdWei: gdWei, usdPrice };
   }
@@ -56,13 +57,17 @@ async function resolveExpectedAmountWei({ tokenId, bundleId }) {
     const bundle = await readBundleInfo(bundleId, "CELO");
     if (!bundle.active) throw new Error("Bundle is inactive.");
     let usdPrice = BUNDLE_USDC_PRICES[Number(bundleId)];
-    if (!usdPrice && bundle.usdcPriceWei > 0n) {
-      usdPrice = Number(formatUnits(bundle.usdcPriceWei, 6));
+    let usdcWei = 0n;
+    if (bundle.usdcPriceWei > 0n) {
+      usdcWei = bundle.usdcPriceWei;
+      if (!usdPrice) usdPrice = Number(formatUnits(bundle.usdcPriceWei, 6));
+    } else if (usdPrice && usdPrice > 0) {
+      usdcWei = BigInt(Math.round(usdPrice * 1e6));
     }
-    if (!usdPrice || usdPrice <= 0) {
+    if (!usdPrice || usdPrice <= 0 || usdcWei <= 0n) {
       throw new Error("Bundle USD price not configured.");
     }
-    const gdWei = usdToGoodDollarWei(usdPrice);
+    const gdWei = usdcWeiToGoodDollarWei(usdcWei);
     if (gdWei <= 0n) throw new Error("Could not derive G$ price for this bundle.");
     return { amountGdWei: gdWei, usdPrice };
   }

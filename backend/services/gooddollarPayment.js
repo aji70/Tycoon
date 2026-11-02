@@ -68,18 +68,30 @@ export function getGoodDollarUsdRate() {
 
 /**
  * Convert a USD number (e.g. perk's USDC price) to G$ wei (18 decimals).
- * Uses GD_USD_RATE for the conversion.
+ * Integer path via micro-USD (1e6) so FE/BE never disagree by dust wei:
+ *   gdWei = round(usd * 1e6) * rate * 1e12
  */
 export function usdToGoodDollarWei(usdAmount) {
   const usd = Number(usdAmount);
   if (!Number.isFinite(usd) || usd <= 0) return 0n;
-  const rate = getGoodDollarUsdRate();
-  const gdAmount = usd * rate;
-  const integer = Math.floor(gdAmount);
-  const fractional = gdAmount - integer;
-  const fractionalScaled = BigInt(Math.round(fractional * Number(GOODDOLLAR_SCALE)));
-  return BigInt(integer) * GOODDOLLAR_SCALE + fractionalScaled;
+  const microUsd = BigInt(Math.round(usd * 1e6));
+  if (microUsd <= 0n) return 0n;
+  const rate = BigInt(Math.round(getGoodDollarUsdRate()));
+  if (rate <= 0n) return 0n;
+  return microUsd * rate * 10n ** 12n;
 }
+
+/** Exact G$ wei from on-chain USDC price (6 decimals) — preferred when available. */
+export function usdcWeiToGoodDollarWei(usdcPriceWei) {
+  const usdc = typeof usdcPriceWei === "bigint" ? usdcPriceWei : BigInt(String(usdcPriceWei || "0"));
+  if (usdc <= 0n) return 0n;
+  const rate = BigInt(Math.round(getGoodDollarUsdRate()));
+  if (rate <= 0n) return 0n;
+  return usdc * rate * 10n ** 12n;
+}
+
+/** Allow tiny float/legacy dust underpayment (1e6 wei = 0.000001 G$). */
+export const GOODDOLLAR_PAYMENT_DUST_WEI = 1_000_000n;
 
 export function formatGoodDollarDisplay(weiValue) {
   const wei = typeof weiValue === "bigint" ? weiValue : BigInt(String(weiValue || "0"));
@@ -160,7 +172,9 @@ export async function verifyGoodDollarTransfer({ txHash, expectedFrom, expectedT
   if (!match) {
     throw new Error("Transaction does not transfer G$ from buyer to shop treasury");
   }
-  if (match.value < minAmount) {
+  const floorAccepted =
+    minAmount > GOODDOLLAR_PAYMENT_DUST_WEI ? minAmount - GOODDOLLAR_PAYMENT_DUST_WEI : 0n;
+  if (match.value < floorAccepted) {
     throw new Error(
       `Underpaid: expected at least ${minAmount.toString()} G$ wei, got ${match.value.toString()}`
     );
