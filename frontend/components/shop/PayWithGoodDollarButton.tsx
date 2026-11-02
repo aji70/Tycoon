@@ -37,7 +37,8 @@ export default function PayWithGoodDollarButton({
   onConnectWallet,
   onSuccess,
 }: Props) {
-  const chainId = useChainId();
+  const walletChainId = useChainId();
+  const chainId = walletChainId && getGoodDollarTokenAddress(walletChainId) ? walletChainId : 42220;
   const tokenAddress = getGoodDollarTokenAddress(chainId);
   const treasury = getGoodDollarTreasury(chainId);
   const publicClient = usePublicClient();
