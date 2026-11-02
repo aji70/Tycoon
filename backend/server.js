@@ -59,6 +59,7 @@ import { startWaRampCeloWatcher } from "./services/waRampCeloWatcher.js";
 import * as shopController from "./controllers/shopController.js";
 import * as dailyClaimController from "./controllers/dailyClaimController.js";
 import * as goodDollarController from "./controllers/goodDollarController.js";
+import * as goodDollarShopController from "./controllers/goodDollarShopController.js";
 import { requireAuth, requireAuthOrWallet, optionalAuth } from "./middleware/auth.js";
 import { blockApiWhenMaintenance } from "./middleware/maintenanceMode.js";
 import { connectSocketRedis } from "./config/socketRedis.js";
@@ -470,6 +471,9 @@ app.use("/api/perks", gamePerkRoutes);
   app.get("/api/rewards/daily-claim/status", requireAuthOrWallet, dailyClaimController.dailyClaimStatus);
   app.post("/api/rewards/daily-claim", requireAuthOrWallet, dailyClaimController.dailyClaim);
   app.get("/api/gooddollar/status", requireAuthOrWallet, goodDollarController.goodDollarStatus);
+  app.get("/api/shop/gooddollar/config", goodDollarShopController.gooddollarConfig);
+  app.get("/api/shop/gooddollar/price", goodDollarShopController.gooddollarPrice);
+  app.post("/api/shop/gooddollar/claim", requireAuthOrWallet, goodDollarShopController.gooddollarClaim);
 
   // Agent discoverability: .well-known/skill → agent-api skill (markdown)
   app.get("/.well-known/skill", (_req, res) => res.redirect(302, "/api/agent-api/skill"));

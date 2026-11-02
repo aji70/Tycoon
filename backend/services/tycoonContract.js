@@ -1787,6 +1787,57 @@ export async function getCollectiblePerkStrength(tokenId, chain = "CELO") {
 }
 
 /**
+ * Read-only: USDC price (wei, 6 decimals) + shop stock for a collectible token.
+ * Used by payment paths that need the catalog price without initiating a buy.
+ */
+export async function readCollectibleUsdcPrice(tokenId, chain = "CELO") {
+  const cfg = getChainConfig(chain);
+  if (!cfg?.rpcUrl || !cfg?.contractAddress) {
+    throw new Error(`Tycoon contract not configured for ${chain}`);
+  }
+  const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+  const network = new Network(networkName, cfg.chainId);
+  const provider = getCachedProvider(cfg.rpcUrl, network);
+  const tycoon = new Contract(cfg.contractAddress, TYCOON_ABI, provider);
+  const rewardAddress = await tycoon.rewardSystem();
+  const reward = new Contract(rewardAddress, REWARD_ABI_MINT, provider);
+  const [usdcPriceRaw, stockRaw] = await Promise.all([
+    reward.collectibleUsdcPrice(BigInt(tokenId)),
+    reward.shopStock(BigInt(tokenId)),
+  ]);
+  return {
+    usdcPriceWei: BigInt(usdcPriceRaw),
+    stock: BigInt(stockRaw),
+    rewardAddress,
+  };
+}
+
+/**
+ * Read-only: bundle info (tokenIds, amounts, usdcPrice wei, active).
+ */
+export async function readBundleInfo(bundleId, chain = "CELO") {
+  const cfg = getChainConfig(chain);
+  if (!cfg?.rpcUrl || !cfg?.contractAddress) {
+    throw new Error(`Tycoon contract not configured for ${chain}`);
+  }
+  const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+  const network = new Network(networkName, cfg.chainId);
+  const provider = getCachedProvider(cfg.rpcUrl, network);
+  const tycoon = new Contract(cfg.contractAddress, TYCOON_ABI, provider);
+  const rewardAddress = await tycoon.rewardSystem();
+  const reward = new Contract(rewardAddress, REWARD_ABI_MINT, provider);
+  const bundle = await reward.bundles(BigInt(bundleId));
+  return {
+    tokenIds: (bundle[0] || []).map((v) => BigInt(v)),
+    amounts: (bundle[1] || []).map((v) => BigInt(v)),
+    tycPriceWei: BigInt(bundle[2]),
+    usdcPriceWei: BigInt(bundle[3]),
+    active: Boolean(bundle[4]),
+    rewardAddress,
+  };
+}
+
+/**
  * Mint a fresh collectible token to a user (not from shop stock). Used when deliverCollectible is out of stock.
  */
 export async function mintCollectibleToUser(toAddress, perk, strength, chain = "CELO") {
