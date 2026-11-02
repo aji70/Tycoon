@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useBalance, usePublicClient, useChainId } from 'wagmi';
 import { Coins, Loader2 } from 'lucide-react';
 import type { Abi, Address } from 'viem';
@@ -8,6 +8,7 @@ import { toast } from 'react-toastify';
 import Erc20Abi from '@/context/abi/ERC20abi.json';
 import { useWriteContract } from '@/hooks/useTaggedWriteContract';
 import { apiClient, ApiError } from '@/lib/api';
+import { isMiniPayEmbeddedWallet } from '@/lib/minipayGuestFlow';
 import {
   GOODDOLLAR_SYMBOL,
   formatGoodDollarWhole,
@@ -44,6 +45,10 @@ export default function PayWithGoodDollarButton({
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
   const [busy, setBusy] = useState(false);
+  const [isMiniPay, setIsMiniPay] = useState(false);
+  useEffect(() => {
+    setIsMiniPay(isMiniPayEmbeddedWallet());
+  }, []);
 
   const { data: gdBalanceData, refetch: refetchGd } = useBalance({
     address: payerAddress,
@@ -55,6 +60,7 @@ export default function PayWithGoodDollarButton({
   const requiredWei = usdToGoodDollarWei(usdPrice);
   const configReady = Boolean(tokenAddress && treasury);
   if (!configReady) return null;
+  if (isMiniPay) return null;
 
   const connected = Boolean(payerAddress);
   const insufficient = connected && balanceWei < requiredWei;
