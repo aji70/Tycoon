@@ -38,6 +38,8 @@ const ONCHAIN_AGENT_GAME_TYPES = new Set([
 ]);
 
 export function isAgentSignedPropertySaleEnabled() {
+  // Master kill-switch: on-chain property recording paused to save CELO until re-funded.
+  if (process.env.ENABLE_ONCHAIN_PROPERTY_TRANSFER_RECORD !== "true") return false;
   return process.env.ENABLE_AGENT_SIGNED_PROPERTY_SALE === "true";
 }
 

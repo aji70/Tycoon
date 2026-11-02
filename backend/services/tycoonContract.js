@@ -1024,18 +1024,34 @@ export async function removePlayerFromGame(gameId, playerAddress, turnCount, cha
 }
 
 /**
+ * On-chain property sale/transfer recording via TycoonGameFaucet.recordPropertySale.
+ * Paused by default to save controller CELO (~0.012/tx). Set
+ * ENABLE_ONCHAIN_PROPERTY_TRANSFER_RECORD=true to re-enable (e.g. after G$ program funding).
+ */
+export function isOnchainPropertyTransferRecordEnabled() {
+  return process.env.ENABLE_ONCHAIN_PROPERTY_TRANSFER_RECORD === "true";
+}
+
+/**
  * Update on-chain property stats when a sale happens (TycoonUpgradeable: setPropertyStats).
  * TycoonUpgradeable.setPropertyStats is restricted to onlyGameFaucet, so the backend should call the
  * TycoonGameFaucet (recordPropertySale) using the backend game controller key.
  * @param {string} sellerUsername - On-chain registered username of seller
  * @param {string} buyerUsername - On-chain registered username of buyer
- * @returns {Promise<{ hash: string }>}
+ * @returns {Promise<{ hash: string|null, skipped?: boolean }>}
  */
 export async function setPropertyStats(
   sellerUsername,
   buyerUsername,
   chain = "CELO"
 ) {
+  if (!isOnchainPropertyTransferRecordEnabled()) {
+    logger.debug(
+      { sellerUsername, buyerUsername, chain },
+      "recordPropertySale skipped (ENABLE_ONCHAIN_PROPERTY_TRANSFER_RECORD!=true)"
+    );
+    return { hash: null, skipped: true };
+  }
   return withTxQueue(async () => {
     const faucet = getGameFaucetContract(chain);
     const tx = await faucet.recordPropertySale(sellerUsername, buyerUsername);
