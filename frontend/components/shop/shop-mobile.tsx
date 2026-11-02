@@ -36,6 +36,7 @@ import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from '@/lib/constants/ngnPayments';
 import { shopPerkRow } from '@/lib/shopPerkRow';
 import { isShopPerkHidden } from '@/lib/perkShopAssets';
+import PayWithGoodDollarButton from '@/components/shop/PayWithGoodDollarButton';
 
 import {
   useRewardBuyCollectible,
@@ -1312,6 +1313,14 @@ export default function GameShopMobile() {
                           <> Pay with digital dollars — ${Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} </>
                         )}
                       </button>
+                      <PayWithGoodDollarButton
+                        tokenId={item.tokenId}
+                        usdPrice={Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice)}
+                        payerAddress={payerAddress}
+                        disabled={item.stock === 0}
+                        compact
+                        onConnectWallet={() => openWallet()}
+                      />
                       <button
                         onClick={() => handlePayPerkWithNaira(item)}
                         disabled={item.stock === 0 || ngnLoadingTokenId === item.tokenId.toString() || !ngnAvailable}

@@ -34,6 +34,23 @@ export const NAIRA_VAULT_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: process.env.NEXT_PUBLIC_CELO_NAIRA_VAULT as Address | undefined,
 };
 
+/**
+ * GoodDollar G$ ERC-20 on Celo mainnet (18 decimals — chain-verified; the
+ * GoodDollar docs' "2 decimals" refers to the Fuse-native representation).
+ * Used by the web shop G$ pay path: transfer G$ to the shop treasury and
+ * backend verifies + delivers via deliverCollectible / deliverBundle.
+ */
+export const GOODDOLLAR_TOKEN_ADDRESS: Record<number, Address | undefined> = {
+  42220: ((process.env.NEXT_PUBLIC_CELO_GD as Address) ||
+    ('0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A' as Address)),
+};
+
+/** Treasury wallet that receives G$ shop payments. Falls back to the reward contract. */
+export const GOODDOLLAR_SHOP_TREASURY_ADDRESSES: Record<number, Address | undefined> = {
+  42220: ((process.env.NEXT_PUBLIC_GD_SHOP_TREASURY as Address) ||
+    (process.env.NEXT_PUBLIC_CELO_REWARD as Address)),
+};
+
 /** Backend operator address for smart wallets. When set on a wallet, user can withdraw CELO/USDC when not connected. */
 export const SMART_WALLET_OPERATOR_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: process.env.NEXT_PUBLIC_SMART_WALLET_OPERATOR_ADDRESS as Address | undefined,
