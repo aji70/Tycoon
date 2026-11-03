@@ -603,12 +603,18 @@ export async function finalizeUserCreatedMultiAgentArenaGame(
     const DEFAULT_STARTING_CASH = 1500;
     const symbols = ARENA_ONCHAIN_SLOT_SYMBOLS.slice(0, n);
 
-    // Challenger: read-only (they already paid createGame). Opponents: read-only too — no register txs.
+    // Challenger may have registered via wallet (web) without a backend password_hash —
+    // allow one ensure/write for seat 0. Opponents stay read-only (no controller gas).
+    const { ensureUserHasContractAuthResult } = await import("../utils/ensureContractAuth.js");
     const auths = [];
     const authFailures = [];
     for (let i = 0; i < rosterUsers.length; i++) {
       const u = rosterUsers[i];
-      const r = await readExistingContractAuthResult(db, u.id, chain, getOnchainAddressForGuestFlow(u));
+      const override = getOnchainAddressForGuestFlow(u);
+      const r =
+        i === 0
+          ? await ensureUserHasContractAuthResult(db, u.id, chain, override)
+          : await readExistingContractAuthResult(db, u.id, chain, override);
       if (!r.ok) {
         const label = i === 0 ? "You" : `Opponent (${rosterAgents[i]?.name || u.username || u.id})`;
         authFailures.push(`${label}: ${r.reason}`);
@@ -1163,10 +1169,16 @@ export async function finalizeUserCreatedHumanVsAgentArenaGame(userId, opponentA
     const DEFAULT_STARTING_CASH = 1500;
     const symbols = ARENA_ONCHAIN_SLOT_SYMBOLS.slice(0, n);
 
+    // Human (seat 0) may be web-registered without password_hash — ensure once. Opponent owner read-only.
+    const { ensureUserHasContractAuthResult } = await import("../utils/ensureContractAuth.js");
     const auths = [];
     const authFailures = [];
     for (const [i, u] of [humanUser, opponentOwner].entries()) {
-      const r = await readExistingContractAuthResult(db, u.id, chain, getOnchainAddressForGuestFlow(u));
+      const override = getOnchainAddressForGuestFlow(u);
+      const r =
+        i === 0
+          ? await ensureUserHasContractAuthResult(db, u.id, chain, override)
+          : await readExistingContractAuthResult(db, u.id, chain, override);
       if (!r.ok) {
         const label = i === 0 ? "You" : `Opponent owner (${opponentAgent.name || "agent"})`;
         authFailures.push(`${label}: ${r.reason}`);
