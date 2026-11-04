@@ -79,6 +79,7 @@ router.get("/sales/reward", adminSalesController.getRewardSales);
 router.get("/wallets", adminWalletsController.listWallets);
 router.get("/settings/summary", adminSettingsController.getSettingsSummary);
 router.patch("/settings/maintenance", adminSettingsController.patchMaintenance);
+router.patch("/settings/gooddollar-play-gate", adminSettingsController.patchGoodDollarPlayGate);
 
 router.get("/maintenance/game-history", adminMaintenanceController.getGameHistoryStats);
 router.post("/maintenance/prune-game-history", adminMaintenanceController.postPruneGameHistory);

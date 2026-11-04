@@ -5,11 +5,13 @@ const CACHE_TTL_MS = 4000;
 let cache = {
   maintenance: { v: false, at: 0 },
   economy: { v: null, at: 0 },
+  gdPlayOpen: { v: false, at: 0 },
 };
 
 export function clearPlatformSettingsCache() {
   cache.maintenance = { v: false, at: 0 };
   cache.economy = { v: null, at: 0 };
+  cache.gdPlayOpen = { v: false, at: 0 };
 }
 
 // Memoize the schema check: once the table exists it never disappears in production,
@@ -110,6 +112,24 @@ export async function getEffectiveDailyClaimConfig() {
     gdVerifiedBonusTyc: Number.isFinite(gdBonus) && gdBonus >= 0 ? gdBonus : 0.5,
     source: hasDbOverride ? "db_override" : "env",
   };
+}
+
+/**
+ * Admin toggle: when true, MiniPay create-game / Arena skip GoodDollar Identity.
+ * Stored as platform_settings key "gooddollar_play_gate" → { open_to_all: boolean }.
+ * Default false = only G$-verified (or allowlisted) players when GD_REQUIRE_FOR_MINIPAY_ACTIONS=true.
+ * @returns {Promise<boolean>}
+ */
+export async function isGoodDollarPlayOpenToAll() {
+  const now = Date.now();
+  if (now - cache.gdPlayOpen.at < CACHE_TTL_MS) {
+    return cache.gdPlayOpen.v;
+  }
+  const row = await readRow("gooddollar_play_gate");
+  const parsed = parseJson(row?.value_json);
+  const open = parsed && typeof parsed === "object" && parsed.open_to_all === true;
+  cache.gdPlayOpen = { v: !!open, at: now };
+  return cache.gdPlayOpen.v;
 }
 
 /**

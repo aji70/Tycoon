@@ -5,6 +5,7 @@ import {
   isGoodDollarIdentityEnabled,
   isGoodDollarPlayGateExempt,
 } from "../services/goodDollarIdentity.js";
+import { isGoodDollarPlayOpenToAll } from "../services/platformSettings.js";
 
 /**
  * GET /api/gooddollar/status
@@ -27,6 +28,7 @@ export async function goodDollarStatus(req, res) {
     const enabled = isGoodDollarIdentityEnabled();
     const { verified, checkedAddresses } = await getUserGoodDollarVerificationDetail(user);
     const playGateExempt = isGoodDollarPlayGateExempt(user);
+    const playOpenToAll = await isGoodDollarPlayOpenToAll();
 
     return res.json({
       success: true,
@@ -34,6 +36,8 @@ export async function goodDollarStatus(req, res) {
       verified,
       /** Ops / allowlisted wallets may create games + Arena without G$ (not daily claim). */
       play_gate_exempt: playGateExempt,
+      /** Admin toggle: everyone may create games / Arena without G$ (not daily claim). */
+      play_open_to_all: playOpenToAll,
       checkedAddresses,
       verifyUrl: "https://goodid.gooddollar.org/",
     });

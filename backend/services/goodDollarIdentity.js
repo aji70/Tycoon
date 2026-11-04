@@ -4,6 +4,7 @@
  */
 import { Contract, JsonRpcProvider, getAddress, ZeroAddress } from "ethers";
 import logger from "../config/logger.js";
+import { isGoodDollarPlayOpenToAll } from "./platformSettings.js";
 
 const CELO_CHAIN_ID = 42220;
 
@@ -195,6 +196,8 @@ export function isGoodDollarPlayGateExempt(user) {
 export async function rejectUnverifiedMiniPayGoodDollar(res, user, is_minipay) {
   if (process.env.GD_REQUIRE_FOR_MINIPAY_ACTIONS !== "true") return null;
   if (!isMiniPayRequestFlag(is_minipay)) return null;
+  // Admin System Settings toggle — open play for testing without Face Verification.
+  if (await isGoodDollarPlayOpenToAll()) return null;
   if (isGoodDollarPlayGateExempt(user)) return null;
   const verified = await isUserGoodDollarVerified(user);
   if (verified) return null;

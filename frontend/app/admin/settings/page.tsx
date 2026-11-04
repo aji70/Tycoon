@@ -21,6 +21,10 @@ type ChainSnap = {
 type SummaryData = {
   runtime: { nodeEnv: string; port: number; skipRedis: boolean };
   maintenance?: { enabled: boolean };
+  gooddollarPlayGate?: {
+    open_to_all: boolean;
+    env_require_for_minipay: boolean;
+  };
   app: { defaultAppChain: string; anyEvmChainConfigured: boolean; starknetConfigured: boolean };
   adminApiSecurity?: {
     ipAllowlistEnabled: boolean;
@@ -60,6 +64,8 @@ export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [mainBusy, setMainBusy] = useState(false);
   const [mainMsg, setMainMsg] = useState<string | null>(null);
+  const [gdBusy, setGdBusy] = useState(false);
+  const [gdMsg, setGdMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -157,6 +163,73 @@ export default function AdminSettingsPage() {
                 className={`text-xs mt-2 ${mainMsg.includes("failed") || mainMsg.includes("403") || mainMsg.includes("401") ? "text-red-400" : "text-emerald-400/90"}`}
               >
                 {mainMsg}
+              </p>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-4 max-w-xl">
+            <h2 className="text-sm font-semibold text-slate-200 mb-2">GoodDollar play gate</h2>
+            <p className="text-xs text-slate-500 mb-3">
+              Controls whether MiniPay create-game / Arena require Face Verification. Open for everyone when
+              testing new accounts; switch back to verified-only for production. Does not bypass daily claim.
+            </p>
+            {!data.gooddollarPlayGate?.env_require_for_minipay && (
+              <p className="text-xs text-amber-300/90 mb-3">
+                Env <code className="text-amber-200/80">GD_REQUIRE_FOR_MINIPAY_ACTIONS</code> is off — the
+                server is already open. This toggle still stores your preference for when the env gate is on.
+              </p>
+            )}
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                type="button"
+                disabled={gdBusy}
+                onClick={async () => {
+                  setGdBusy(true);
+                  setGdMsg(null);
+                  const next = !data.gooddollarPlayGate?.open_to_all;
+                  try {
+                    await adminApi.patch("admin/settings/gooddollar-play-gate", { open_to_all: next });
+                    const { data: body } = await adminApi.get<{ success: boolean; data?: SummaryData }>(
+                      "admin/settings/summary"
+                    );
+                    if (body?.success && body.data) setData(body.data);
+                    setGdMsg(
+                      next
+                        ? "Play is OPEN to everyone (no G$ verify required)."
+                        : "Play is VERIFIED-ONLY (G$ Face Verify required)."
+                    );
+                  } catch (e) {
+                    setGdMsg(e instanceof ApiError ? e.message : "Update failed (run DB migrations?)");
+                  } finally {
+                    setGdBusy(false);
+                  }
+                }}
+                className={`rounded-lg px-4 py-2 text-sm font-medium border transition-colors disabled:opacity-40 ${
+                  data.gooddollarPlayGate?.open_to_all
+                    ? "bg-emerald-950/50 border-emerald-800 text-emerald-200 hover:bg-emerald-900/40"
+                    : "bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700"
+                }`}
+              >
+                {data.gooddollarPlayGate?.open_to_all
+                  ? "Require verified players"
+                  : "Open play for everyone"}
+              </button>
+              <span className="text-xs text-slate-500">
+                Current:{" "}
+                <strong
+                  className={
+                    data.gooddollarPlayGate?.open_to_all ? "text-emerald-400/90" : "text-cyan-300/90"
+                  }
+                >
+                  {data.gooddollarPlayGate?.open_to_all ? "OPEN TO ALL" : "VERIFIED ONLY"}
+                </strong>
+              </span>
+            </div>
+            {gdMsg && (
+              <p
+                className={`text-xs mt-2 ${gdMsg.includes("failed") || gdMsg.includes("403") || gdMsg.includes("401") ? "text-red-400" : "text-emerald-400/90"}`}
+              >
+                {gdMsg}
               </p>
             )}
           </section>
