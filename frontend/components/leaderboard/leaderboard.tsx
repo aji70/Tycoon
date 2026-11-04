@@ -94,12 +94,12 @@ function buildInfoLabel(chainParam: string, timeScope: TimeScope, monthKey: stri
   const rangeNote = config.key === '2026-06' ? ' · Jun 1–28' : '';
 
   if (config.completed) {
-    return `${chainParam} · ${config.label}${rangeNote} · Final standings · Prizes awarded`;
+    return `${chainParam} · ${config.label}${rangeNote} · Final standings`;
   }
   if (timeScope === 'bounty' || config.key === BOUNTY_MONTH_KEY) {
     return `${chainParam} · ${config.label} · Daily snapshot · Fair play (UTC)`;
   }
-  return `${chainParam} · ${config.label}${rangeNote} · Bounty · Top ${config.prizeCount}`;
+  return `${chainParam} · ${config.label}${rangeNote} · Monthly ranking`;
 }
 
 export default function Leaderboard() {
@@ -126,7 +126,8 @@ export default function Leaderboard() {
   const bountyWinnerCount = activeBountyConfig?.prizeCount ?? 10;
   const bountyCompleted = activeBountyConfig?.completed ?? false;
   const bountyMonthLabel = activeBountyConfig?.label ?? BOUNTY_MONTH_LABEL;
-  const bountyPrizeUsd = activeBountyConfig?.prizeUsd ?? null;
+  // Hide cash rewards on the public leaderboard.
+  const bountyPrizeUsd = null;
 
   const { data: username } = useReadContract({
     address: tycoonAddress,

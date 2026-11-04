@@ -41,8 +41,8 @@ function RankCard({
   bountyPrizeUsd: number | null;
 }) {
   const isChampion = rank === 1;
-  const inBountyPrize = bountyMode && rank <= bountyWinnerCount;
   const outOfBountyPrize = bountyMode && rank > bountyWinnerCount && !bountyCompleted;
+  void bountyPrizeUsd;
 
   let borderClass = 'border-white/10 bg-[#081517]/90';
   let badge: React.ReactNode = null;
@@ -126,18 +126,6 @@ function RankCard({
             )}
           </div>
         </div>
-        {bountyMode && bountyPrizeUsd != null ? (
-          <div className="flex flex-col items-end shrink-0 text-right">
-            <span className="text-[9px] uppercase tracking-widest text-white/40 font-orbitron">Prize</span>
-            <span
-              className={`text-base sm:text-lg font-black font-orbitron tabular-nums ${
-                inBountyPrize ? 'text-amber-300' : 'text-white/35'
-              }`}
-            >
-              {inBountyPrize ? (bountyCompleted ? `$${bountyPrizeUsd} ✓` : `$${bountyPrizeUsd}`) : '—'}
-            </span>
-          </div>
-        ) : null}
       </div>
     </motion.div>
   );
