@@ -92,16 +92,33 @@ export const BOUNTY_MONTHS = {
   "2026-09": {
     key: "2026-09",
     label: "September 2026",
-    completed: false,
+    completed: true,
     prizeCount: 10,
     period: "month",
     month: "2026-09",
+  },
+  "2026-10": {
+    key: "2026-10",
+    label: "October 2026",
+    completed: true,
+    prizeCount: 10,
+    period: "month",
+    month: "2026-10",
+  },
+  "2026-11": {
+    key: "2026-11",
+    label: "November 2026",
+    completed: false,
+    prizeCount: 40,
+    prizeUsd: 5,
+    period: "month",
+    month: "2026-11",
     featuredTab: true,
   },
 };
 
 export const FEATURED_BOUNTY_MONTH_KEY =
-  Object.values(BOUNTY_MONTHS).find((m) => m.featuredTab)?.key || "2026-09";
+  Object.values(BOUNTY_MONTHS).find((m) => m.featuredTab)?.key || "2026-11";
 
 export function getBountyMonthConfig(key) {
   if (!key) return null;

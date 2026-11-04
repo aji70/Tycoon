@@ -101,21 +101,38 @@ export const BOUNTY_MONTHS: Record<string, BountyMonthConfig> = {
   '2026-09': {
     key: '2026-09',
     label: 'September 2026',
-    completed: false,
+    completed: true,
     prizeCount: 10,
     period: 'month',
     month: '2026-09',
+  },
+  '2026-10': {
+    key: '2026-10',
+    label: 'October 2026',
+    completed: true,
+    prizeCount: 10,
+    period: 'month',
+    month: '2026-10',
+  },
+  '2026-11': {
+    key: '2026-11',
+    label: 'November 2026',
+    completed: false,
+    prizeCount: 40,
+    period: 'month',
+    month: '2026-11',
     featuredTab: true,
+    prizeUsd: 5,
   },
 };
 
 export const FEATURED_BOUNTY_MONTH_KEY =
-  Object.values(BOUNTY_MONTHS).find((m) => m.featuredTab)?.key ?? '2026-09';
+  Object.values(BOUNTY_MONTHS).find((m) => m.featuredTab)?.key ?? '2026-11';
 
 export const BOUNTY_MONTH_KEY = FEATURED_BOUNTY_MONTH_KEY;
-export const BOUNTY_MONTH_LABEL = BOUNTY_MONTHS[FEATURED_BOUNTY_MONTH_KEY]?.label ?? 'September 2026';
+export const BOUNTY_MONTH_LABEL = BOUNTY_MONTHS[FEATURED_BOUNTY_MONTH_KEY]?.label ?? 'November 2026';
 export const BOUNTY_COMPLETED = BOUNTY_MONTHS[FEATURED_BOUNTY_MONTH_KEY]?.completed ?? false;
-export const BOUNTY_WINNER_COUNT = BOUNTY_MONTHS[FEATURED_BOUNTY_MONTH_KEY]?.prizeCount ?? 10;
+export const BOUNTY_WINNER_COUNT = BOUNTY_MONTHS[FEATURED_BOUNTY_MONTH_KEY]?.prizeCount ?? 40;
 
 export const LEADERBOARD_LIMIT = 0;
 
