@@ -204,7 +204,7 @@ export async function rejectUnverifiedMiniPayGoodDollar(res, user, is_minipay) {
   return res.status(403).json({
     success: false,
     code: "GOODID_REQUIRED",
-    message: "Verify your humanity with GoodDollar to play on MiniPay.",
+    message: "Verify your humanity with GoodDollar to play.",
     verifyUrl: "https://goodid.gooddollar.org/",
   });
 }
