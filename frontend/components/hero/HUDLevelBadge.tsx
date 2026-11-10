@@ -17,13 +17,13 @@ export function HUDLevelBadge({
   currentXp,
 }: HUDLevelBadgeProps) {
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="mx-auto flex w-full max-w-xs flex-col items-center gap-4">
       {/* Animated level badge */}
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.6, ease: "easeOut" }}
-        className="relative"
+        className="relative mx-auto"
       >
         <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/30 via-cyan-500/20 to-cyan-500/30 rounded-lg blur-xl animate-pulse" />
         <div className="relative backdrop-blur-sm bg-[#010F10]/80 border-2 border-[#00F0FF] rounded-lg px-6 py-3 shadow-lg shadow-cyan-500/20">
@@ -62,10 +62,10 @@ export function HUDLevelBadge({
       {/* XP Bar with label */}
       {level < 99 && (
         <motion.div
-          initial={{ width: 0, opacity: 0 }}
-          animate={{ width: "auto", opacity: 1 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="w-full max-w-xs"
+          className="w-full"
         >
           <div className="flex justify-between items-center mb-2">
             <span className="text-xs font-orbitron text-[#00F0FF]/70 uppercase">

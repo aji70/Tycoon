@@ -31,8 +31,6 @@ import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
 import { HUDLevelBadge } from "@/components/hero/HUDLevelBadge";
 import { NeonTitle } from "@/components/hero/NeonTitle";
 import { GlowButton } from "@/components/hero/GlowButton";
-import { WorldStatsBar } from "@/components/hero/WorldStatsBar";
-
 function chainIdToBackendChain(chainId: number): string {
   if (chainId === 137 || chainId === 80001) return "POLYGON";
   if (chainId === 42220 || chainId === 44787) return "CELO";
@@ -544,23 +542,25 @@ const HeroSection: React.FC = () => {
       <main className="w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col lg:justify-start md:justify-center justify-start items-center gap-1 px-4 pt-8 md:pt-0 lg:pt-16">
         {/* Welcome Message + Enhanced HUD Level */}
         {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "privy") && !loading && (
-          <div className="mt-20 md:mt-28 lg:mt-0 flex flex-col items-center gap-4">
+          <div className="mt-20 md:mt-28 lg:mt-0 w-full flex flex-col items-center gap-4">
             <motion.p
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center"
+              className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center w-full"
             >
               Welcome back, {displayUsername}!
             </motion.p>
             {levelInfo && (
-              <HUDLevelBadge
-                level={levelInfo.level}
-                label={levelInfo.label}
-                progress={levelInfo.progress}
-                maxXp={levelInfo.xpForNextLevel || 100}
-                currentXp={levelInfo.currentXp || 0}
-              />
+              <div className="w-full flex justify-center">
+                <HUDLevelBadge
+                  level={levelInfo.level}
+                  label={levelInfo.label}
+                  progress={levelInfo.progress}
+                  maxXp={levelInfo.xpForNextLevel || 100}
+                  currentXp={levelInfo.currentXp || 0}
+                />
+              </div>
             )}
           </div>
         )}
@@ -798,12 +798,7 @@ const HeroSection: React.FC = () => {
         </div>
       </main>
 
-      {/* World Stats Bar */}
-      <WorldStatsBar
-        playersOnline={1234}
-        propertiesOwned={5678}
-        tokensInPlay="12.5M"
-      />
+      {/* Decorative fake stats removed — live presence is Who’s online in the nav */}
     </section>
   );
 };
