@@ -471,6 +471,7 @@ app.use("/api/perks", gamePerkRoutes);
   app.get("/api/rewards/daily-claim/status", requireAuthOrWallet, dailyClaimController.dailyClaimStatus);
   app.post("/api/rewards/daily-claim", requireAuthOrWallet, dailyClaimController.dailyClaim);
   app.get("/api/gooddollar/status", requireAuthOrWallet, goodDollarController.goodDollarStatus);
+  app.post("/api/gooddollar/track", requireAuthOrWallet, goodDollarController.goodDollarTrack);
   app.get("/api/shop/gooddollar/config", goodDollarShopController.gooddollarConfig);
   app.get("/api/shop/gooddollar/price", goodDollarShopController.gooddollarPrice);
   app.post("/api/shop/gooddollar/claim", requireAuthOrWallet, goodDollarShopController.gooddollarClaim);
